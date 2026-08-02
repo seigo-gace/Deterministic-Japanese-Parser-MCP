@@ -46,6 +46,10 @@ def semantic(response) -> dict:
     return value
 
 
+def serialized_intents(intents) -> list[dict]:
+    return [intent.model_dump(mode="json") for intent in intents]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
@@ -64,16 +68,50 @@ def main() -> int:
     unmatched = "あ" * 20000
 
     normalized_unmatched, mapping_unmatched = normalize_with_map(unmatched)
-    parity: dict[str, bool] = {}
-    for name, text in {
-        "short": short,
-        "complex": complex_text,
-        "unmatched": "あ" * 500,
-    }.items():
-        request = AnalyzeRequest(original_text=text, deadline_ms=60000)
+
+    parity_requests = {
+        "short": AnalyzeRequest(
+            original_text=short,
+            deadline_ms=60000,
+        ),
+        "complex": AnalyzeRequest(
+            original_text=complex_text,
+            deadline_ms=60000,
+        ),
+        "reference": AnalyzeRequest(
+            original_text="直前の案を変更しろ。",
+            conversation_context=["最初の案"],
+            deadline_ms=60000,
+        ),
+        "unicode": AnalyzeRequest(
+            original_text="ｶﾞを変更しろ。",
+            deadline_ms=60000,
+        ),
+    }
+    semantic_parity: dict[str, bool] = {}
+    for name, request in parity_requests.items():
         indexed = engine.analyze(request)
         exhaustive = engine.analyze(request, exhaustive_rules=True)
-        parity[name] = semantic(indexed) == semantic(exhaustive)
+        semantic_parity[name] = semantic(indexed) == semantic(exhaustive)
+
+    indexed_unmatched_intents, indexed_unmatched_timeouts = engine.rules.extract(
+        normalized_unmatched,
+        mapping_unmatched,
+        unmatched,
+        deadline_at=time.perf_counter() + 60,
+    )
+    exhaustive_unmatched_intents, exhaustive_unmatched_timeouts = (
+        engine.rules.extract_exhaustive(
+            normalized_unmatched,
+            mapping_unmatched,
+            unmatched,
+            deadline_at=time.perf_counter() + 60,
+        )
+    )
+    unmatched_intent_parity = (
+        serialized_intents(indexed_unmatched_intents)
+        == serialized_intents(exhaustive_unmatched_intents)
+    )
 
     report = {
         "normalization_protected_20k": stats(measure(
@@ -113,7 +151,12 @@ def main() -> int:
             args.rounds,
         )),
         "rule_metrics": engine.rules.last_metrics,
-        "semantic_parity": parity,
+        "semantic_parity": semantic_parity,
+        "unmatched_20k_intent_parity": unmatched_intent_parity,
+        "unmatched_20k_indexed_intent_count": len(indexed_unmatched_intents),
+        "unmatched_20k_exhaustive_intent_count": len(exhaustive_unmatched_intents),
+        "unmatched_20k_indexed_timeout_count": len(indexed_unmatched_timeouts),
+        "unmatched_20k_exhaustive_timeout_count": len(exhaustive_unmatched_timeouts),
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
@@ -121,8 +164,14 @@ def main() -> int:
         return 0
 
     failures: list[str] = []
-    if not all(parity.values()):
-        failures.append(f"semantic parity failed: {parity}")
+    if not all(semantic_parity.values()):
+        failures.append(f"semantic parity failed: {semantic_parity}")
+    if not unmatched_intent_parity:
+        failures.append(
+            "20k unmatched intent parity failed: "
+            f"indexed={serialized_intents(indexed_unmatched_intents)} "
+            f"exhaustive={serialized_intents(exhaustive_unmatched_intents)}"
+        )
     if report["normalization_protected_20k"]["p95_ms"] >= 250:
         failures.append(
             "protected 20k normalization p95 must remain below 250 ms"
