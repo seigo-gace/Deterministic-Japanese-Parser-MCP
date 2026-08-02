@@ -1,0 +1,36 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  completion_criteria:
+  - id: COMPLETION_CRITERIA-001
+    pattern: (?P<criterion>[^。！？]+?)で完了とする
+    priority: 99
+    enabled: true
+  - id: COMPLETION_CRITERIA-002
+    pattern: 完了条件は(?P<criterion>[^。！？]+)
+    priority: 98
+    enabled: true
+  - id: COMPLETION_CRITERIA-003
+    pattern: (?P<criterion>[^。！？]+?)まで終われば完了
+    priority: 97
+    enabled: true
+  - id: COMPLETION_CRITERIA-004
+    pattern: (?P<criterion>[^。！？]+?)を満たしたら完成
+    priority: 96
+    enabled: true
+  - id: COMPLETION_CRITERIA-005
+    pattern: (?P<criterion>[^。！？]+?)が確認できること
+    priority: 95
+    enabled: true
+  - id: COMPLETION_CRITERIA-006
+    pattern: (?P<criterion>[^。！？]+?)をもって終了
+    priority: 94
+    enabled: true
+  - id: COMPLETION_CRITERIA-007
+    pattern: (?P<criterion>[^。！？]+?)(?:れば|たら)(?:完了|完成)(?:とする)?
+    priority: 43
+    enabled: true
+  - id: COMPLETION_CRITERIA-008
+    pattern: (?P<criterion>[^。！？]+?)(?:できたら|できれば)(?:完了|完成)
+    priority: 42
+    enabled: true

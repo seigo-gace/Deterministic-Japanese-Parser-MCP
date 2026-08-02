@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "domain": "具体化",
+  "entries": [
+    {
+      "expression": "詰める",
+      "interpretation": "未確定事項を具体化し決定可能な状態にする",
+      "context": [
+        "設計",
+        "交渉",
+        "計画"
+      ],
+      "domain": "具体化",
+      "aliases": [
+        "内容を詰める"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

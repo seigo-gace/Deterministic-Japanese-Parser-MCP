@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "domain": "問題管理",
+  "entries": [
+    {
+      "expression": "蓋をする",
+      "interpretation": "問題を解決せず見えない状態にする",
+      "context": [
+        "障害",
+        "品質",
+        "組織"
+      ],
+      "domain": "問題管理",
+      "aliases": [
+        "臭いものに蓋をする"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

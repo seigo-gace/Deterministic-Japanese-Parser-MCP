@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "domain": "境界管理",
+  "entries": [
+    {
+      "expression": "線を引く",
+      "interpretation": "責務・範囲・権限の境界を明確にする",
+      "context": [
+        "設計",
+        "契約",
+        "組織"
+      ],
+      "domain": "境界管理",
+      "aliases": [
+        "境界を引く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "壁を作る",
+      "interpretation": "領域間の不要なアクセスや影響を遮断する",
+      "context": [
+        "セキュリティ",
+        "アーキテクチャ",
+        "組織"
+      ],
+      "domain": "境界管理",
+      "aliases": [
+        "隔離する"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "version": "1.0.0",
+  "domain": "検証",
+  "entries": [{"expression":"答え合わせする","interpretation":"結果を正本・期待値・事実と照合する","context":["検証","レビュー","監査"],"domain":"検証","aliases":["照合する"],"version":"1.0.0"}]
+}

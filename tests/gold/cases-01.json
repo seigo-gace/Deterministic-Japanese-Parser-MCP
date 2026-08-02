@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {"id":"G-0001","text":"実装するな。","expected":{"intents":["prohibition"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0002","text":"旧仕様を使ってはいけない。","expected":{"intents":["prohibition"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0003","text":"GitHubへ入れる前に検証なしで進めるな。","expected":{"intents":["prohibition"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0004","text":"UI以外触るな。","expected":{"intents":["prohibition"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0005","text":"勝手に項目を削るな。","expected":{"intents":["prohibition"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0006","text":"現在のUIを残せ。","expected":{"intents":["preserve"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0007","text":"API契約は維持しろ。","expected":{"intents":["preserve"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0008","text":"既存の互換性を壊すな。","expected":{"intents":["preserve"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0009","text":"原文をそのまま保持する。","expected":{"intents":["preserve"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0010","text":"この構造を不変条件とする。","expected":{"intents":["preserve"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0011","text":"辞書を更新しろ。","expected":{"intents":["modify"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0012","text":"ルールを実装可能な形にする。","expected":{"intents":["modify"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0013","text":"READMEを最新仕様に合わせる。","expected":{"intents":["modify"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0014","text":"APIだけ変更しろ。","expected":{"intents":["modify"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0015","text":"旧構成を新構成へ置き換えろ。","expected":{"intents":["modify"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0016","text":"ダミー処理を削除しろ。","expected":{"intents":["remove"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0017","text":"旧Codeを正本から除去する。","expected":{"intents":["remove"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0018","text":"不要な依存を外せ。","expected":{"intents":["remove"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0019","text":"仮表記は廃止しろ。","expected":{"intents":["remove"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0020","text":"古いRuleを対象から外す。","expected":{"intents":["remove"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0021","text":"辞書を徹底的に調べろ。","expected":{"intents":["request"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0022","text":"全テストを実行してくれ。","expected":{"intents":["request"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0023","text":"不足を全部確認しろ。","expected":{"intents":["request"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0024","text":"公開用READMEを作れ。","expected":{"intents":["request"],"metaphors":[],"overall_status":null}},
+    {"id":"G-0025","text":"実装を完成させろ。","expected":{"intents":["request"],"metaphors":[],"overall_status":null}}
+  ]
+}

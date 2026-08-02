@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "domain": "意思決定",
+  "entries": [
+    {"expression":"着地点を決める","interpretation":"議論や作業の最終的な合意点を定める","context":["会議","設計","交渉"],"domain":"意思決定","aliases":["落とし所を決める"],"version":"1.0.0"},
+    {"expression":"目線を上げる","interpretation":"細部だけでなく上位目的や全体最適で考える","context":["戦略","設計","経営"],"domain":"意思決定","aliases":["視座を上げる"],"version":"1.0.0"},
+    {"expression":"舵を切る","interpretation":"方針や進行方向を変更する","context":["戦略","設計","プロジェクト"],"domain":"意思決定","aliases":["方向転換する"],"version":"1.0.0"},
+    {"expression":"一本に絞る","interpretation":"複数候補から一つへ選択する","context":["比較","決定","計画"],"domain":"意思決定","aliases":["一本化する"],"version":"1.0.0"},
+    {"expression":"解を出す","interpretation":"検討結果として具体的な結論を示す","context":["分析","設計","意思決定"],"domain":"意思決定","aliases":["答えを出す"],"version":"1.0.0"},
+    {"expression":"カードを切る","interpretation":"保有する選択肢や手段を実行する","context":["交渉","戦略","運用"],"domain":"意思決定","aliases":["手札を使う"],"version":"1.0.0"},
+    {"expression":"カードを残す","interpretation":"選択肢を将来のために温存する","context":["交渉","戦略","計画"],"domain":"意思決定","aliases":["手札を残す"],"version":"1.0.0"}
+  ]
+}

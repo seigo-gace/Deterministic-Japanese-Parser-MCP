@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "domain": "IT運用",
+  "entries": [
+    {
+      "expression": "火消し",
+      "interpretation": "障害や問題の拡大を止めるための応急対応を行う",
+      "context": [
+        "障害",
+        "インシデント",
+        "緊急対応"
+      ],
+      "domain": "IT運用",
+      "aliases": [
+        "火を消す",
+        "消火対応"
+      ],
+      "version": "1.0.0",
+      "patterns": [
+        "火消し(?:を|に|する|して)?"
+      ]
+    },
+    {
+      "expression": "切り戻す",
+      "interpretation": "変更前の安定した状態へ戻す",
+      "context": [
+        "デプロイ",
+        "リリース",
+        "障害"
+      ],
+      "domain": "IT運用",
+      "aliases": [
+        "ロールバックする",
+        "元に戻す"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

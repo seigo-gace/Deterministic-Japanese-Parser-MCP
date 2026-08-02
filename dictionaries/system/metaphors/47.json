@@ -1,0 +1,3 @@
+{
+  "version":"1.0.0","domain":"構造化","entries":[{"expression":"型にはめる","interpretation":"自由形式の入力や作業を定型構造へ変換する","context":["文書","解析","業務"],"domain":"構造化","aliases":["定型化する"],"version":"1.0.0"}]
+}

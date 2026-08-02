@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "domain": "セキュリティ",
+  "entries": [
+    {
+      "expression": "門番を置く",
+      "interpretation": "不正または不適切な処理を入口で止める",
+      "context": [
+        "認証",
+        "検証",
+        "セキュリティ"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "ゲートを置く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "鍵をかける",
+      "interpretation": "アクセスを制限し保護する",
+      "context": [
+        "データ",
+        "認証",
+        "セキュリティ"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "ロックする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "守りを固める",
+      "interpretation": "障害・攻撃・誤操作への防御を強化する",
+      "context": [
+        "セキュリティ",
+        "運用",
+        "品質"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "防御を固める"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

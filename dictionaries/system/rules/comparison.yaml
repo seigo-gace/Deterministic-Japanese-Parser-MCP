@@ -1,0 +1,32 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  comparison:
+  - id: COMPARISON-001
+    pattern: (?P<target>[^、。！？]+?)と(?P<base>[^、。！？]+?)を(?:比較|比べ|対比|照合)する
+    priority: 99
+    enabled: true
+  - id: COMPARISON-002
+    pattern: (?P<target>[^、。！？]+?)対(?P<base>[^、。！？]+?)
+    priority: 98
+    enabled: true
+  - id: COMPARISON-003
+    pattern: (?P<target>[^、。！？]+?)のほうが(?P<base>[^、。！？]+?)より(?:良い|速い|強い|適切)
+    priority: 97
+    enabled: true
+  - id: COMPARISON-004
+    pattern: (?P<target>[^、。！？]+?)と(?P<base>[^、。！？]+?)ではどちら
+    priority: 96
+    enabled: true
+  - id: COMPARISON-005
+    pattern: (?P<target>[^、。！？]+?)との差分を出す
+    priority: 95
+    enabled: true
+  - id: COMPARISON-006
+    pattern: (?P<target>[^、。！？]+?)を基準に(?P<base>[^、。！？]+?)を評価する
+    priority: 94
+    enabled: true
+  - id: COMPARISON-007
+    pattern: (?P<target>[^、。！？]+?)と(?P<base>[^、。！？]+?)を?(?:比較する|比べる|対比する)
+    priority: 43
+    enabled: true

@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "domain": "品質管理",
+  "entries": [
+    {
+      "expression": "網をかける",
+      "interpretation": "対象を漏れなく検査・監視・制約する",
+      "context": [
+        "監視",
+        "テスト",
+        "セキュリティ"
+      ],
+      "domain": "品質管理",
+      "aliases": [
+        "網羅する"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

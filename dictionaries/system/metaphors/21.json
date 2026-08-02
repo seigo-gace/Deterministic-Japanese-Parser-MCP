@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "domain": "可観測性",
+  "entries": [
+    {
+      "expression": "ブラックボックスを開ける",
+      "interpretation": "内部処理や判断根拠を可視化する",
+      "context": [
+        "解析",
+        "監査",
+        "デバッグ"
+      ],
+      "domain": "可観測性",
+      "aliases": [
+        "ブラックボックス化を解く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "見える化する",
+      "interpretation": "状態・進捗・根拠を可視化する",
+      "context": [
+        "運用",
+        "進捗",
+        "品質"
+      ],
+      "domain": "可観測性",
+      "aliases": [
+        "可視化する"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

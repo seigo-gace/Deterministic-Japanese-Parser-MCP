@@ -1,0 +1,16 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  reference:
+  - id: REFERENCE-001
+    pattern: (?P<reference>これ|それ|あれ|前の案|先ほどの内容|上記|下記|同じもの|この内容|その件)
+    priority: 99
+    enabled: true
+  - id: REFERENCE-002
+    pattern: (?P<reference>直前の[^、。！？]+)
+    priority: 98
+    enabled: true
+  - id: REFERENCE-003
+    pattern: (?P<reference>以前の[^、。！？]+)
+    priority: 97
+    enabled: true

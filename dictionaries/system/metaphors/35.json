@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "domain": "展開",
+  "entries": [
+    {
+      "expression": "横展開する",
+      "interpretation": "一つの成果や対策を他の対象へ適用する",
+      "context": ["運用", "組織", "開発"],
+      "domain": "展開",
+      "aliases": ["水平展開する"],
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  prohibition:
+  - id: PROHIBITION-001
+    pattern: (?P<action>[^。！？]+?)(?:するな|しないで|してはならない|してはいけない|禁止(?:する)?|やめろ|避けろ|控えろ|厳禁|NG(?:とする)?)
+    priority: 99
+    enabled: true
+  - id: PROHIBITION-002
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:使うな|使用するな|採用するな|入れるな|混ぜるな|触るな|変えるな|消すな|削除するな)
+    priority: 98
+    enabled: true
+  - id: PROHIBITION-003
+    pattern: (?:絶対に|決して|一切)(?P<action>[^。！？]+?)(?:するな|しないこと|してはならない)
+    priority: 97
+    enabled: true
+  - id: PROHIBITION-004
+    pattern: (?P<action>[^。！？]+?)は(?:不可|禁止|認めない|許可しない)
+    priority: 96
+    enabled: true
+  - id: PROHIBITION-005
+    pattern: (?P<action>[^。！？]+?)を(?:行わないこと|実施しないこと|対象外とする)
+    priority: 95
+    enabled: true
+  - id: PROHIBITION-006
+    pattern: (?P<action>[^。！？]+?)なしで(?:進めるな|実行するな)
+    priority: 94
+    enabled: true
+  - id: PROHIBITION-007
+    pattern: (?P<action>[^。！？]+?)前に(?:反映するな|公開するな|送るな|実行するな)
+    priority: 93
+    enabled: true
+  - id: PROHIBITION-008
+    pattern: (?P<action>[^。！？]+?)だけは(?:するな|避けろ)
+    priority: 92
+    enabled: true
+  - id: PROHIBITION-009
+    pattern: (?P<target>[^。！？]+?)以外(?:触るな|変更するな|編集するな)
+    priority: 91
+    enabled: true
+  - id: PROHIBITION-010
+    pattern: (?P<action>[^。！？]+?)を勝手に(?:するな|決めるな|追加するな|省くな)
+    priority: 90
+    enabled: true
+  - id: PROHIBITION-011
+    pattern: (?P<action>[^。！？]+?)(?:て|で)はいけない
+    priority: 39
+    enabled: true
+  - id: PROHIBITION-012
+    pattern: (?P<action>[^。！？]+?)(?:削るな|落とすな|省くな)
+    priority: 38
+    enabled: true

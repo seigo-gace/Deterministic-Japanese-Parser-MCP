@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "domain": "根拠確認",
+  "entries": [
+    {"expression":"裏を取る","interpretation":"主張や情報を独立した根拠で確認する","context":["調査","報道","監査"],"domain":"根拠確認","aliases":["根拠を確認する"],"version":"1.0.0"},
+    {"expression":"根拠を積む","interpretation":"判断を支える証拠や資料を複数集める","context":["調査","設計","意思決定"],"domain":"根拠確認","aliases":["証拠を積み上げる"],"version":"1.0.0"}
+  ]
+}

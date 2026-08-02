@@ -1,0 +1,3 @@
+{
+  "version":"1.0.0","domain":"絞り込み","entries":[{"expression":"選択肢を潰す","interpretation":"不適切または不要な候補を除外する","context":["比較","設計","意思決定"],"domain":"絞り込み","aliases":["候補を落とす"],"version":"1.0.0"}]
+}

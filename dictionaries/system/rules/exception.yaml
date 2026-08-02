@@ -1,0 +1,28 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  exception:
+  - id: EXCEPTION-001
+    pattern: (?:ただし|但し|もっとも)(?P<exception>[^。！？]+)
+    priority: 99
+    enabled: true
+  - id: EXCEPTION-002
+    pattern: (?P<exception>[^、。！？]+?)は(?:除く|例外|対象外)
+    priority: 98
+    enabled: true
+  - id: EXCEPTION-003
+    pattern: (?P<exception>[^、。！？]+?)を除いて
+    priority: 97
+    enabled: true
+  - id: EXCEPTION-004
+    pattern: (?P<exception>[^、。！？]+?)以外は
+    priority: 96
+    enabled: true
+  - id: EXCEPTION-005
+    pattern: (?P<exception>[^、。！？]+?)だけは別
+    priority: 95
+    enabled: true
+  - id: EXCEPTION-006
+    pattern: 原則(?P<rule>[^、。！？]+?)、例外として(?P<exception>[^。！？]+)
+    priority: 94
+    enabled: true

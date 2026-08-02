@@ -1,0 +1,162 @@
+{
+  "version": "1.0.0",
+  "domain": "リスク管理",
+  "entries": [
+    {
+      "expression": "止血",
+      "interpretation": "被害や損失の拡大を一時的に止める",
+      "context": [
+        "障害",
+        "情報漏えい",
+        "コスト超過"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "止血する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "火種を潰す",
+      "interpretation": "将来の問題につながる原因を早期に除去する",
+      "context": [
+        "リスク",
+        "障害",
+        "品質"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "火種を消す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "地雷を踏む",
+      "interpretation": "既知または予測可能な危険な選択をして問題を起こす",
+      "context": [
+        "設計",
+        "アーキテクチャ",
+        "運用",
+        "計画"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "地雷を踏まない",
+        "地雷を避ける"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "爆弾を抱える",
+      "interpretation": "重大な未解決問題を残したまま進める",
+      "context": [
+        "技術的負債",
+        "障害",
+        "契約"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "時限爆弾を抱える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "穴が開く",
+      "interpretation": "セキュリティ・仕様・運用に欠陥が生じる",
+      "context": [
+        "セキュリティ",
+        "設計",
+        "運用"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "抜け穴ができる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "赤信号を出す",
+      "interpretation": "重大な危険または停止条件を明示する",
+      "context": [
+        "品質",
+        "運用",
+        "監査"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "警告を出す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "黄信号を出す",
+      "interpretation": "注意が必要だが即停止ではない状態を示す",
+      "context": [
+        "品質",
+        "運用",
+        "監査"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "注意信号を出す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "炎上する",
+      "interpretation": "問題や批判が急速に拡大する",
+      "context": [
+        "SNS",
+        "障害",
+        "プロジェクト"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "炎上"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "鎮火する",
+      "interpretation": "拡大していた問題や批判が収束する",
+      "context": [
+        "SNS",
+        "障害",
+        "インシデント"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "鎮静化する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "火に油を注ぐ",
+      "interpretation": "問題をさらに悪化させる行動を取る",
+      "context": [
+        "障害",
+        "対話",
+        "SNS"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "問題を悪化させる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "詰みになる",
+      "interpretation": "選択肢がなくなり進行不能になる",
+      "context": [
+        "計画",
+        "設計",
+        "運用"
+      ],
+      "domain": "リスク管理",
+      "aliases": [
+        "行き詰まる"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

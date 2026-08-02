@@ -1,0 +1,3 @@
+{
+  "version":"1.0.0","domain":"網羅","entries":[{"expression":"面で押さえる","interpretation":"個別対応でなく対象範囲全体を網羅する","context":["品質","運用","戦略"],"domain":"網羅","aliases":["全面対応する"],"version":"1.0.0"},{"expression":"拾い切る","interpretation":"対象となる要求・Issue・Taskを漏れなく収集する","context":["要件","解析","サポート"],"domain":"網羅","aliases":["全て拾う"],"version":"1.0.0"}]
+}

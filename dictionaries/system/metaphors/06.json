@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "domain": "スコープ管理",
+  "entries": [
+    {
+      "expression": "枝葉を切る",
+      "interpretation": "本題に不要な要素を除外する",
+      "context": [
+        "要件",
+        "設計",
+        "議論"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "枝葉を落とす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "幹を残す",
+      "interpretation": "中核目的・主要機能・不変条件を維持する",
+      "context": [
+        "設計",
+        "要件",
+        "移行"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "骨格を残す",
+        "芯を残す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "風呂敷を広げる",
+      "interpretation": "対象範囲や構想を大きく拡張する",
+      "context": [
+        "企画",
+        "要件",
+        "議論"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "話を広げる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "風呂敷を畳む",
+      "interpretation": "拡張した対象を整理して実行可能な範囲へ絞る",
+      "context": [
+        "企画",
+        "要件",
+        "計画"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "話を畳む"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "話を戻す",
+      "interpretation": "脱線した議論を指定された主題へ戻す",
+      "context": [
+        "会議",
+        "要件",
+        "対話"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "本題に戻す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "話を広げる",
+      "interpretation": "指定範囲外へ論点や作業を拡張する",
+      "context": [
+        "会議",
+        "要件",
+        "対話"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "論点を広げる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "的を絞る",
+      "interpretation": "対象・目的・論点を限定する",
+      "context": [
+        "調査",
+        "要件",
+        "分析"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "焦点を絞る"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

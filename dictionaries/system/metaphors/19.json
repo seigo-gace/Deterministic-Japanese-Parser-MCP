@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "domain": "分析",
+  "entries": [
+    {
+      "expression": "解像度を上げる",
+      "interpretation": "曖昧な内容を具体化し理解精度を高める",
+      "context": [
+        "要件",
+        "分析",
+        "企画"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "解像度を高める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "掘り下げる",
+      "interpretation": "対象をより詳細に分析する",
+      "context": [
+        "分析",
+        "調査",
+        "要件"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "深掘りする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "深掘りする",
+      "interpretation": "表面的な説明から原因・根拠・詳細へ進む",
+      "context": [
+        "分析",
+        "調査",
+        "要件"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "掘り下げる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "縦に掘る",
+      "interpretation": "一つの領域を詳細に掘り下げる",
+      "context": [
+        "分析",
+        "設計",
+        "調査"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "縦深掘りする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "点で見る",
+      "interpretation": "個別事象だけに注目する",
+      "context": [
+        "分析",
+        "監視",
+        "レビュー"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "局所的に見る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "面で見る",
+      "interpretation": "複数要素を全体構造として把握する",
+      "context": [
+        "分析",
+        "設計",
+        "戦略"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "全体で見る"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

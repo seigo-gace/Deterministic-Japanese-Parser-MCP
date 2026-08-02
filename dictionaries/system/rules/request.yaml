@@ -1,0 +1,48 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  request:
+  - id: REQUEST-001
+    pattern: (?P<action>[^。！？]+?)(?:してくれ|してください|してほしい|頼む|お願い(?:します)?|やれ|行え|実施しろ|作れ|出せ|調べろ|確認しろ|検証しろ|まとめろ)
+    priority: 99
+    enabled: true
+  - id: REQUEST-002
+    pattern: (?P<action>[^。！？]+?)を(?:実行|実施|作成|確認|検証|調査|整理|反映)すること
+    priority: 98
+    enabled: true
+  - id: REQUEST-003
+    pattern: (?P<action>[^。！？]+?)まで(?:やれ|行え|終わらせろ)
+    priority: 97
+    enabled: true
+  - id: REQUEST-004
+    pattern: (?P<action>[^。！？]+?)を徹底的に(?:調べろ|検証しろ|行え)
+    priority: 96
+    enabled: true
+  - id: REQUEST-005
+    pattern: (?P<action>[^。！？]+?)を全部(?:やれ|確認しろ|反映しろ)
+    priority: 95
+    enabled: true
+  - id: REQUEST-006
+    pattern: (?P<action>[^。！？]+?)から始めろ
+    priority: 94
+    enabled: true
+  - id: REQUEST-007
+    pattern: (?P<action>[^。！？]+?)へ進め
+    priority: 93
+    enabled: true
+  - id: REQUEST-008
+    pattern: (?P<action>[^。！？]+?)を完成させろ
+    priority: 92
+    enabled: true
+  - id: REQUEST-009
+    pattern: (?P<action>[^。！？]+?)を(?:実行する|検証する|確認する|作成する|反映する)
+    priority: 41
+    enabled: true
+  - id: REQUEST-010
+    pattern: (?P<action>[^。！？]+?)(?:塞げ|潰せ|残せ|入れろ|出せ|直せ)
+    priority: 40
+    enabled: true
+  - id: REQUEST-011
+    pattern: (?P<action>[^。！？]+?)(?:しろ|せよ|やれ)(?=[。！？]|$)
+    priority: 49
+    enabled: true

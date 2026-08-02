@@ -1,0 +1,3 @@
+{
+  "version":"1.0.0","domain":"統制","entries":[{"expression":"手綱を締める","interpretation":"運用や権限の統制を強化する","context":["セキュリティ","管理","組織"],"domain":"統制","aliases":["管理を強める"],"version":"1.0.0"},{"expression":"手綱を緩める","interpretation":"制約や統制を弱め自由度を上げる","context":["権限","運用","組織"],"domain":"統制","aliases":["制約を緩める"],"version":"1.0.0"}]
+}

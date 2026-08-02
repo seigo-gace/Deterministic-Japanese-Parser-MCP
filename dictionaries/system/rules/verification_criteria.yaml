@@ -1,0 +1,40 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  verification_criteria:
+  - id: VERIFICATION_CRITERIA-001
+    pattern: (?P<criterion>[^。！？]+?)を検証する
+    priority: 99
+    enabled: true
+  - id: VERIFICATION_CRITERIA-002
+    pattern: 検証条件は(?P<criterion>[^。！？]+)
+    priority: 98
+    enabled: true
+  - id: VERIFICATION_CRITERIA-003
+    pattern: (?P<criterion>[^。！？]+?)を確認すること
+    priority: 97
+    enabled: true
+  - id: VERIFICATION_CRITERIA-004
+    pattern: (?P<criterion>[^。！？]+?)でテストする
+    priority: 96
+    enabled: true
+  - id: VERIFICATION_CRITERIA-005
+    pattern: (?P<criterion>[^。！？]+?)が通ること
+    priority: 95
+    enabled: true
+  - id: VERIFICATION_CRITERIA-006
+    pattern: (?P<criterion>[^。！？]+?)を証拠付きで確認する
+    priority: 94
+    enabled: true
+  - id: VERIFICATION_CRITERIA-007
+    pattern: (?P<criterion>[^。！？]+?)(?:できること|すること)を確認する
+    priority: 43
+    enabled: true
+  - id: VERIFICATION_CRITERIA-008
+    pattern: (?P<criterion>[^。！？]+?)(?:一致すること|存在すること|通ること)$
+    priority: 42
+    enabled: true
+  - id: VERIFICATION_CRITERIA-009
+    pattern: (?P<criterion>[^。！？]+?)(?:一致すること|存在すること|通ること)(?=[。！？]|$)
+    priority: 31
+    enabled: true

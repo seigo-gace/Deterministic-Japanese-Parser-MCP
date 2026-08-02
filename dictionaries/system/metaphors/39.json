@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "domain": "承認",
+  "entries": [
+    {"expression":"青信号を出す","interpretation":"条件を満たしたため進行を許可する","context":["承認","リリース","検証"],"domain":"承認","aliases":["ゴーサインを出す"],"version":"1.0.0"}
+  ]
+}

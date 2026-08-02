@@ -1,0 +1,24 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  premise:
+  - id: PREMISE-001
+    pattern: 前提(?:として|は)[:：]?(?P<premise>[^。！？]+)
+    priority: 99
+    enabled: true
+  - id: PREMISE-002
+    pattern: (?P<premise>[^、。！？]+?)を前提とする
+    priority: 98
+    enabled: true
+  - id: PREMISE-003
+    pattern: 当然(?P<premise>[^。！？]+)
+    priority: 97
+    enabled: true
+  - id: PREMISE-004
+    pattern: (?P<premise>[^、。！？]+?)であるものとする
+    priority: 96
+    enabled: true
+  - id: PREMISE-005
+    pattern: 既に(?P<premise>[^。！？]+)
+    priority: 95
+    enabled: true

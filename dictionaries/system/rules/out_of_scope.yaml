@@ -1,0 +1,32 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  out_of_scope:
+  - id: OUT_OF_SCOPE-001
+    pattern: (?P<target>[^、。！？]+?)は対象外
+    priority: 99
+    enabled: true
+  - id: OUT_OF_SCOPE-002
+    pattern: (?P<target>[^、。！？]+?)には触れない
+    priority: 98
+    enabled: true
+  - id: OUT_OF_SCOPE-003
+    pattern: (?P<target>[^、。！？]+?)は今回やらない
+    priority: 97
+    enabled: true
+  - id: OUT_OF_SCOPE-004
+    pattern: (?P<target>[^、。！？]+?)を範囲から外す
+    priority: 96
+    enabled: true
+  - id: OUT_OF_SCOPE-005
+    pattern: (?P<target>[^、。！？]+?)以外は扱わない
+    priority: 95
+    enabled: true
+  - id: OUT_OF_SCOPE-006
+    pattern: (?P<target>[^、。！？]+?)は別件とする
+    priority: 94
+    enabled: true
+  - id: OUT_OF_SCOPE-007
+    pattern: (?P<target>[^、。！？]+?)を(?:やらない|実施しない|行わない)
+    priority: 43
+    enabled: true

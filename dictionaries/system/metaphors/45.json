@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "domain": "業務プロセス",
+  "entries": [
+    {"expression":"ボールを投げる","interpretation":"依頼または責任を別の担当へ渡す","context":["タスク","会議","チーム"],"domain":"業務プロセス","aliases":["ボールを渡す"],"version":"1.0.0"},
+    {"expression":"ボールを持つ","interpretation":"担当責任または未処理タスクを保持する","context":["タスク","会議","チーム"],"domain":"業務プロセス","aliases":["ボールを抱える"],"version":"1.0.0"},
+    {"expression":"投げ返す","interpretation":"処理可能な内容を実施せず相手へ戻す","context":["サポート","開発","確認"],"domain":"業務プロセス","aliases":["丸投げで返す"],"version":"1.0.0"},
+    {"expression":"丸投げする","interpretation":"必要な整理や責任を持たず作業全体を他者へ渡す","context":["タスク","組織","外注"],"domain":"業務プロセス","aliases":["丸投げ"],"version":"1.0.0"}
+  ]
+}

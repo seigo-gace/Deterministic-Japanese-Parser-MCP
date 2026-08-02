@@ -1,0 +1,30 @@
+{
+  "version":"1.0.0",
+  "cases":[
+    {"id":"G-0076","text":"ボトルネックを潰すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["ボトルネックを潰す"],"overall_status":null}},
+    {"id":"G-0077","text":"首根っこを押さえるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["首根っこを押さえる"],"overall_status":null}},
+    {"id":"G-0078","text":"ブラックボックスを開けるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["ブラックボックスを開ける"],"overall_status":null}},
+    {"id":"G-0079","text":"見える化するをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["見える化する"],"overall_status":null}},
+    {"id":"G-0080","text":"風通しを良くするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["風通しを良くする"],"overall_status":null}},
+    {"id":"G-0081","text":"枝葉を切るをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["枝葉を切る"],"overall_status":null}},
+    {"id":"G-0082","text":"幹を残すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["幹を残す"],"overall_status":null}},
+    {"id":"G-0083","text":"土台を固めるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["土台を固める"],"overall_status":null}},
+    {"id":"G-0084","text":"足場を組むをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["足場を組む"],"overall_status":null}},
+    {"id":"G-0085","text":"車輪の再発明をしてから次へ進め。","expected":{"intents":["request"],"metaphors":["車輪の再発明"],"overall_status":null}},
+    {"id":"G-0086","text":"風呂敷を広げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["風呂敷を広げる"],"overall_status":null}},
+    {"id":"G-0087","text":"風呂敷を畳むをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["風呂敷を畳む"],"overall_status":null}},
+    {"id":"G-0088","text":"鉈を振るうをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["鉈を振るう"],"overall_status":null}},
+    {"id":"G-0089","text":"叩き台を作るをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["叩き台を作る"],"overall_status":null}},
+    {"id":"G-0090","text":"磨き込むをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["磨き込む"],"overall_status":null}},
+    {"id":"G-0091","text":"穴を洗い出すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["穴を洗い出す"],"overall_status":null}},
+    {"id":"G-0092","text":"つなぎ込むをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["つなぎ込む"],"overall_status":null}},
+    {"id":"G-0093","text":"横串を刺すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["横串を刺す"],"overall_status":null}},
+    {"id":"G-0094","text":"線を引くをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["線を引く"],"overall_status":null}},
+    {"id":"G-0095","text":"一枚岩にするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["一枚岩にする"],"overall_status":null}},
+    {"id":"G-0096","text":"レールを敷くをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["レールを敷く"],"overall_status":null}},
+    {"id":"G-0097","text":"道筋をつけるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["道筋をつける"],"overall_status":null}},
+    {"id":"G-0098","text":"旗を立てるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["旗を立てる"],"overall_status":null}},
+    {"id":"G-0099","text":"着地点を決めるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["着地点を決める"],"overall_status":null}},
+    {"id":"G-0100","text":"ボールを投げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["ボールを投げる"],"overall_status":null}}
+  ]
+}

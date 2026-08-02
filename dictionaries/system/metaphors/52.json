@@ -1,0 +1,3 @@
+{
+  "version":"1.0.0","domain":"現状確認","entries":[{"expression":"足元を見る","interpretation":"現在の能力・制約・実態を現実的に確認する","context":["計画","経営","開発"],"domain":"現状確認","aliases":["現実を見る"],"version":"1.0.0"},{"expression":"棚卸しする","interpretation":"資産・機能・課題を一覧化して現状を確認する","context":["管理","設計","運用"],"domain":"現状確認","aliases":["一覧化する"],"version":"1.0.0"}]
+}
