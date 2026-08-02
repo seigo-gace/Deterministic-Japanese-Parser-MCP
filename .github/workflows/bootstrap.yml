@@ -1,9 +1,10 @@
 name: Bootstrap implementation
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/initial-public-implementation
+      - main
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +12,7 @@ permissions:
 
 jobs:
   unpack:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && github.head_ref == 'agent/initial-public-implementation'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout implementation branch
