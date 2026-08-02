@@ -1,0 +1,62 @@
+name: Finalize public implementation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'agent/initial-public-implementation'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/initial-public-implementation
+          fetch-depth: 0
+
+      - name: Rebuild and verify source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/repo.part* > /tmp/repo.tar.gz.b64
+          base64 --decode /tmp/repo.tar.gz.b64 > /tmp/repo.tar.gz
+          echo '098aef85f61d2375b28a1a6f222ba600dd2d832ea3e2ac19dfd58e913a0a9e84  /tmp/repo.tar.gz' | sha256sum --check
+          mkdir -p /tmp/final-source
+          tar -xzf /tmp/repo.tar.gz -C /tmp/final-source
+
+      - name: Install and validate final source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e /tmp/final-source
+          cd /tmp/final-source
+          python tools/validator.py
+          pytest -q
+          python -m compileall -q src tools scripts tests
+
+      - name: Replace branch tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/final-source/. .
+          git status --short
+
+      - name: Commit finalized implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: finalize public implementation'
+          git push origin HEAD:agent/initial-public-implementation
