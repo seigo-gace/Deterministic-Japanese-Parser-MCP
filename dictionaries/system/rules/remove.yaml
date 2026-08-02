@@ -1,0 +1,28 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  remove:
+  - id: REMOVE-001
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:削除しろ|消せ|外せ|廃止しろ|撤去しろ|取り除け|除外しろ|破棄しろ)
+    priority: 99
+    enabled: true
+  - id: REMOVE-002
+    pattern: (?P<target>[^。！？]+?)を(?:使わない|採用しない|対象から外す)
+    priority: 98
+    enabled: true
+  - id: REMOVE-003
+    pattern: (?P<target>[^。！？]+?)は(?:不要|廃止|撤回|削除対象)
+    priority: 97
+    enabled: true
+  - id: REMOVE-004
+    pattern: (?P<target>[^。！？]+?)を正本から除去する
+    priority: 96
+    enabled: true
+  - id: REMOVE-005
+    pattern: (?P<target>[^。！？]+?)を混在させない
+    priority: 95
+    enabled: true
+  - id: REMOVE-006
+    pattern: (?P<target>[^。！？]+?)を切り離す
+    priority: 94
+    enabled: true

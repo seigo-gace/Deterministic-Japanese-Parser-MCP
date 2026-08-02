@@ -1,0 +1,36 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  condition:
+  - id: CONDITION-001
+    pattern: (?:もし|仮に)(?P<condition>[^、。！？]+?)(?:なら|ならば|の場合)
+    priority: 99
+    enabled: true
+  - id: CONDITION-002
+    pattern: (?P<condition>[^、。！？]+?)(?:場合|とき|時)は
+    priority: 98
+    enabled: true
+  - id: CONDITION-003
+    pattern: (?P<condition>[^、。！？]+?)(?:たら|れば|なら)(?P<action>[^。！？]+)
+    priority: 97
+    enabled: true
+  - id: CONDITION-004
+    pattern: (?P<condition>[^、。！？]+?)を満たした(?:場合|とき)
+    priority: 96
+    enabled: true
+  - id: CONDITION-005
+    pattern: (?P<condition>[^、。！？]+?)に限り
+    priority: 95
+    enabled: true
+  - id: CONDITION-006
+    pattern: (?P<condition>[^、。！？]+?)であれば
+    priority: 94
+    enabled: true
+  - id: CONDITION-007
+    pattern: (?P<condition>[^、。！？]+?)が確認できたら
+    priority: 93
+    enabled: true
+  - id: CONDITION-008
+    pattern: (?P<condition>[^、。！？]+?)が終わってから
+    priority: 92
+    enabled: true

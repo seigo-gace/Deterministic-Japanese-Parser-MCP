@@ -1,0 +1,44 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  preserve:
+  - id: PRESERVE-001
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:残せ|残すこと|維持しろ|維持する|保持しろ|保持する|保て|守れ)
+    priority: 99
+    enabled: true
+  - id: PRESERVE-002
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:変更するな|壊すな|崩すな|殺すな|消すな|削るな)
+    priority: 98
+    enabled: true
+  - id: PRESERVE-003
+    pattern: (?P<target>[^。！？]+?)の(?:まま|現状|互換性)を(?:維持|保持)
+    priority: 97
+    enabled: true
+  - id: PRESERVE-004
+    pattern: (?P<target>[^。！？]+?)は(?:そのまま|現行のまま|固定)
+    priority: 96
+    enabled: true
+  - id: PRESERVE-005
+    pattern: (?P<target>[^。！？]+?)を(?:引き継げ|継承しろ|温存しろ)
+    priority: 95
+    enabled: true
+  - id: PRESERVE-006
+    pattern: (?P<target>[^。！？]+?)には(?:手を入れるな|触れるな)
+    priority: 94
+    enabled: true
+  - id: PRESERVE-007
+    pattern: (?P<target>[^。！？]+?)を不変条件とする
+    priority: 93
+    enabled: true
+  - id: PRESERVE-008
+    pattern: (?P<target>[^。！？]+?)を正本として扱う
+    priority: 92
+    enabled: true
+  - id: PRESERVE-009
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:保持する|保存する|残す|維持する)
+    priority: 41
+    enabled: true
+  - id: PRESERVE-010
+    pattern: (?P<target>[^。！？]+?)を(?:そのまま|現状のまま)?(?:保持する|保存する|残す|維持する)
+    priority: 30
+    enabled: true

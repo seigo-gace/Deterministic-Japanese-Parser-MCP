@@ -1,0 +1,20 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  question:
+  - id: QUESTION-001
+    pattern: (?P<topic>[^。！？]+?)(?:なのか|ですか|でしょうか|か)(?=[？?。！？]|$)[？?]?
+    priority: 99
+    enabled: true
+  - id: QUESTION-002
+    pattern: (?P<topic>[^。！？]+?)は(?:何|どれ|どこ|いつ|誰|なぜ|どう)(?:だ|です|なのか)?[？?]?
+    priority: 98
+    enabled: true
+  - id: QUESTION-003
+    pattern: (?P<topic>[^。！？]+?)を(?:教えて|説明して|確認したい)
+    priority: 97
+    enabled: true
+  - id: QUESTION-004
+    pattern: (?P<topic>[^。！？]+?)について(?:知りたい|聞きたい)
+    priority: 96
+    enabled: true

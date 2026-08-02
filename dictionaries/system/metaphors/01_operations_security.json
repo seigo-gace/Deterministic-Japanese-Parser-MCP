@@ -1,0 +1,199 @@
+{
+  "version": "1.0.0",
+  "category": "01_operations_security",
+  "entries": [
+    {
+      "expression": "つなぎ込む",
+      "interpretation": "別システムや機能を実際に接続して利用可能にする",
+      "context": [
+        "API",
+        "統合",
+        "デプロイ"
+      ],
+      "domain": "システム統合",
+      "aliases": [
+        "接続する",
+        "連結する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "ブラックボックスを開ける",
+      "interpretation": "内部処理や判断根拠を可視化する",
+      "context": [
+        "解析",
+        "監査",
+        "デバッグ"
+      ],
+      "domain": "可観測性",
+      "aliases": [
+        "ブラックボックス化を解く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "出口を作る",
+      "interpretation": "処理結果を利用・公開・連携できる経路を用意する",
+      "context": [
+        "API",
+        "設計",
+        "運用"
+      ],
+      "domain": "システム統合",
+      "aliases": [
+        "出力経路を作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "切り戻す",
+      "interpretation": "変更前の安定した状態へ戻す",
+      "context": [
+        "デプロイ",
+        "リリース",
+        "障害"
+      ],
+      "domain": "IT運用",
+      "aliases": [
+        "ロールバックする",
+        "元に戻す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "守りを固める",
+      "interpretation": "障害・攻撃・誤操作への防御を強化する",
+      "context": [
+        "セキュリティ",
+        "運用",
+        "品質"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "防御を固める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "橋を架ける",
+      "interpretation": "異なるシステム・組織・仕様の間を接続する",
+      "context": [
+        "統合",
+        "組織",
+        "移行"
+      ],
+      "domain": "システム統合",
+      "aliases": [
+        "橋渡しする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "歯車が狂う",
+      "interpretation": "連携・順序・前提のずれで全体が正常に動かなくなる",
+      "context": [
+        "システム",
+        "組織",
+        "工程"
+      ],
+      "domain": "障害",
+      "aliases": [
+        "噛み合わない"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "火消し",
+      "interpretation": "障害や問題の拡大を止めるための応急対応を行う",
+      "context": [
+        "障害",
+        "インシデント",
+        "緊急対応"
+      ],
+      "domain": "IT運用",
+      "aliases": [
+        "火を消す",
+        "消火対応"
+      ],
+      "version": "1.0.0",
+      "patterns": [
+        "火消し(?:を|に|する|して)?"
+      ]
+    },
+    {
+      "expression": "落ち着く",
+      "interpretation": "障害対応や変更後の状態が安定したことを確認する",
+      "context": [
+        "障害",
+        "変更",
+        "復旧",
+        "安定確認"
+      ],
+      "domain": "IT運用",
+      "aliases": [
+        "状態が落ち着く",
+        "安定する"
+      ],
+      "version": "1.0.0",
+      "patterns": [
+        "落ち着(?:く|いた|いて|いてから|くまで)"
+      ]
+    },
+    {
+      "expression": "見える化する",
+      "interpretation": "状態・進捗・根拠を可視化する",
+      "context": [
+        "運用",
+        "進捗",
+        "品質"
+      ],
+      "domain": "可観測性",
+      "aliases": [
+        "可視化する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "足元を固める",
+      "interpretation": "拡張前に現在の基盤・運用・品質を安定させる",
+      "context": [
+        "開発",
+        "運用",
+        "事業"
+      ],
+      "domain": "安定化",
+      "aliases": [
+        "基盤を固める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "鍵をかける",
+      "interpretation": "アクセスを制限し保護する",
+      "context": [
+        "データ",
+        "認証",
+        "セキュリティ"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "ロックする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "門番を置く",
+      "interpretation": "不正または不適切な処理を入口で止める",
+      "context": [
+        "認証",
+        "検証",
+        "セキュリティ"
+      ],
+      "domain": "セキュリティ",
+      "aliases": [
+        "ゲートを置く"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

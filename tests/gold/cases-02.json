@@ -1,0 +1,280 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "G-0026",
+      "text": "テストが通ったら公開する。",
+      "expected": {
+        "intents": [
+          "condition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0027",
+      "text": "もし曖昧なら実行しない。",
+      "expected": {
+        "intents": [
+          "condition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0028",
+      "text": "検証が終わってから反映する。",
+      "expected": {
+        "intents": [
+          "condition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0029",
+      "text": "条件を満たした場合は進める。",
+      "expected": {
+        "intents": [
+          "condition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0030",
+      "text": "権限が確認できたらPushする。",
+      "expected": {
+        "intents": [
+          "condition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0031",
+      "text": "PythonとV8を比較する。",
+      "expected": {
+        "intents": [
+          "comparison"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0032",
+      "text": "新案と旧案を比べる。",
+      "expected": {
+        "intents": [
+          "comparison"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0033",
+      "text": "現在版との差分を出す。",
+      "expected": {
+        "intents": [
+          "comparison"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0034",
+      "text": "AとBではどちらが速いか。",
+      "expected": {
+        "intents": [
+          "comparison"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0035",
+      "text": "仕様を基準に実装を評価する。",
+      "expected": {
+        "intents": [
+          "comparison"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0036",
+      "text": "AIではなく非AIで作る。",
+      "expected": {
+        "intents": [
+          "correction"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0037",
+      "text": "MCP仮を正式版に訂正する。",
+      "expected": {
+        "intents": [
+          "correction"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0038",
+      "text": "旧名称じゃない、Deterministic Japanese Parser MCPだ。",
+      "expected": {
+        "intents": [
+          "correction"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0039",
+      "text": "前言を撤回して公開用にする。",
+      "expected": {
+        "intents": [
+          "correction"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0040",
+      "text": "A→Bに変更する。",
+      "expected": {
+        "intents": [
+          "correction"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0041",
+      "text": "Python実装に決定する。",
+      "expected": {
+        "intents": [
+          "decision"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0042",
+      "text": "この構成を正式仕様とする。",
+      "expected": {
+        "intents": [
+          "decision"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0043",
+      "text": "MIT Licenseで行く。",
+      "expected": {
+        "intents": [
+          "decision"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0044",
+      "text": "この案を最終案とする。",
+      "expected": {
+        "intents": [
+          "decision"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0045",
+      "text": "systemとuserの分離を採用する。",
+      "expected": {
+        "intents": [
+          "decision"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0046",
+      "text": "対象は日本語解析MCP。",
+      "expected": {
+        "intents": [
+          "scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0047",
+      "text": "辞書だけを対象とする。",
+      "expected": {
+        "intents": [
+          "scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0048",
+      "text": "公開用構成に限定する。",
+      "expected": {
+        "intents": [
+          "scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0049",
+      "text": "Codeまで含める。",
+      "expected": {
+        "intents": [
+          "scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0050",
+      "text": "Repository全体を扱う。",
+      "expected": {
+        "intents": [
+          "scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    }
+  ]
+}

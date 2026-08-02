@@ -1,0 +1,32 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  correction:
+  - id: CORRECTION-001
+    pattern: (?P<old>[^、。！？]+?)ではなく(?P<new>[^、。！？]+)
+    priority: 99
+    enabled: true
+  - id: CORRECTION-002
+    pattern: (?P<old>[^、。！？]+?)を(?P<new>[^、。！？]+?)に(?:訂正|修正)する
+    priority: 98
+    enabled: true
+  - id: CORRECTION-003
+    pattern: (?P<old>[^、。！？]+?)→(?P<new>[^、。！？]+)
+    priority: 97
+    enabled: true
+  - id: CORRECTION-004
+    pattern: (?P<old>[^、。！？]+?)じゃない、?(?P<new>[^。！？]+)
+    priority: 96
+    enabled: true
+  - id: CORRECTION-005
+    pattern: 訂正[:：]?(?P<new>[^。！？]+)
+    priority: 95
+    enabled: true
+  - id: CORRECTION-006
+    pattern: 前言を撤回して(?P<new>[^。！？]+)
+    priority: 94
+    enabled: true
+  - id: CORRECTION-007
+    pattern: (?P<old>[^、。！？]+?)ではなくて(?P<new>[^。！？]+)
+    priority: 93
+    enabled: true

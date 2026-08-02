@@ -1,0 +1,300 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "G-0051",
+      "text": "週次運用は対象外。",
+      "expected": {
+        "intents": [
+          "out_of_scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0052",
+      "text": "SNS発信には触れない。",
+      "expected": {
+        "intents": [
+          "out_of_scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0053",
+      "text": "今回はデプロイをやらない。",
+      "expected": {
+        "intents": [
+          "out_of_scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0054",
+      "text": "月次計画を範囲から外す。",
+      "expected": {
+        "intents": [
+          "out_of_scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0055",
+      "text": "知名度目標は別件とする。",
+      "expected": {
+        "intents": [
+          "out_of_scope"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0056",
+      "text": "全テストが通れば完了とする。",
+      "expected": {
+        "intents": [
+          "completion_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0057",
+      "text": "完了条件は辞書とGoldが揃うこと。",
+      "expected": {
+        "intents": [
+          "completion_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0058",
+      "text": "Repositoryへ反映できたら完成。",
+      "expected": {
+        "intents": [
+          "completion_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0059",
+      "text": "p95が100ms未満を満たしたら完成。",
+      "expected": {
+        "intents": [
+          "completion_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0060",
+      "text": "全Fileが存在することをもって終了。",
+      "expected": {
+        "intents": [
+          "completion_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0061",
+      "text": "JSON Schemaを検証する。",
+      "expected": {
+        "intents": [
+          "verification_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0062",
+      "text": "全Ruleがコンパイルできることを確認する。",
+      "expected": {
+        "intents": [
+          "verification_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0063",
+      "text": "Gold Corpusでテストする。",
+      "expected": {
+        "intents": [
+          "verification_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0064",
+      "text": "位置spanが一致すること。",
+      "expected": {
+        "intents": [
+          "verification_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0065",
+      "text": "外部Action Guardが通ること。",
+      "expected": {
+        "intents": [
+          "verification_criteria"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0066",
+      "text": "火消しをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "火消し"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0067",
+      "text": "止血をしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "止血"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0068",
+      "text": "火種を潰すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "火種を潰す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0069",
+      "text": "穴を塞ぐをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "穴を塞ぐ"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0070",
+      "text": "地雷を踏むをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "地雷を踏む"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0071",
+      "text": "爆弾を抱えるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "爆弾を抱える"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0072",
+      "text": "根を絶つをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "根を絶つ"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0073",
+      "text": "膿を出すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "膿を出す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0074",
+      "text": "蓋をするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "蓋をする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0075",
+      "text": "切り戻すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "切り戻す"
+        ],
+        "overall_status": null
+      }
+    }
+  ]
+}

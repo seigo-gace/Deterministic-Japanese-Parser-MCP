@@ -1,0 +1,44 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  modify:
+  - id: MODIFY-001
+    pattern: (?P<target>[^。！？]+?)(?:を|は)(?:変更しろ|修正しろ|直せ|改めろ|更新しろ|改善しろ|入れ替えろ|置き換えろ|差し替えろ|再構成しろ)
+    priority: 99
+    enabled: true
+  - id: MODIFY-002
+    pattern: (?P<target>[^。！？]+?)に(?:変更|修正|更新|置換|移行)する
+    priority: 98
+    enabled: true
+  - id: MODIFY-003
+    pattern: (?P<target>[^。！？]+?)を(?P<new>[^。！？]+?)へ(?:変えろ|変更しろ|移行しろ)
+    priority: 97
+    enabled: true
+  - id: MODIFY-004
+    pattern: (?P<target>[^。！？]+?)だけ(?:変えろ|修正しろ|更新しろ)
+    priority: 96
+    enabled: true
+  - id: MODIFY-005
+    pattern: (?P<target>[^。！？]+?)を最新(?:仕様|内容|状態)に合わせる
+    priority: 95
+    enabled: true
+  - id: MODIFY-006
+    pattern: (?P<target>[^。！？]+?)を作り直す
+    priority: 94
+    enabled: true
+  - id: MODIFY-007
+    pattern: (?P<target>[^。！？]+?)を整理し直す
+    priority: 93
+    enabled: true
+  - id: MODIFY-008
+    pattern: (?P<target>[^。！？]+?)を実装可能な形にする
+    priority: 92
+    enabled: true
+  - id: MODIFY-009
+    pattern: (?P<target>[^。！？]+?)だけ(?:を)?(?:変更しろ|修正しろ|更新しろ)
+    priority: 41
+    enabled: true
+  - id: MODIFY-010
+    pattern: (?P<target>[^。！？]+?)を(?P<new>[^。！？]+?)へ(?:置き換えろ|差し替えろ|入れ替えろ)
+    priority: 40
+    enabled: true

@@ -1,0 +1,28 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  priority:
+  - id: PRIORITY-001
+    pattern: (?P<item>[^、。！？]+?)(?:を|が)(?:最優先|優先|先|第一)とする
+    priority: 99
+    enabled: true
+  - id: PRIORITY-002
+    pattern: (?:何より|まず|最初に)(?P<item>[^、。！？]+?)を
+    priority: 98
+    enabled: true
+  - id: PRIORITY-003
+    pattern: (?P<item>[^、。！？]+?)から先に
+    priority: 97
+    enabled: true
+  - id: PRIORITY-004
+    pattern: (?P<item>[^、。！？]+?)を後回しにする
+    priority: 96
+    enabled: true
+  - id: PRIORITY-005
+    pattern: (?P<item>[^、。！？]+?)は優先度(?:高|低)
+    priority: 95
+    enabled: true
+  - id: PRIORITY-006
+    pattern: (?P<item>[^、。！？]+?)を優先して(?P<other>[^。！？]+)
+    priority: 94
+    enabled: true

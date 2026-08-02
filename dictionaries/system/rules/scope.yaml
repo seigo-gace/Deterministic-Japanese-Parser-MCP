@@ -1,0 +1,28 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  scope:
+  - id: SCOPE-001
+    pattern: 対象は(?P<target>[^。！？]+)
+    priority: 99
+    enabled: true
+  - id: SCOPE-002
+    pattern: (?P<target>[^、。！？]+?)だけ(?:を|に)対象とする
+    priority: 98
+    enabled: true
+  - id: SCOPE-003
+    pattern: (?P<target>[^、。！？]+?)に限定する
+    priority: 97
+    enabled: true
+  - id: SCOPE-004
+    pattern: 範囲は(?P<target>[^。！？]+)
+    priority: 96
+    enabled: true
+  - id: SCOPE-005
+    pattern: (?P<target>[^、。！？]+?)まで含める
+    priority: 95
+    enabled: true
+  - id: SCOPE-006
+    pattern: (?P<target>[^、。！？]+?)全体を扱う
+    priority: 94
+    enabled: true

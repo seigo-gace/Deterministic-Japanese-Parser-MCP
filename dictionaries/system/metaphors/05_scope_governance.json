@@ -1,0 +1,229 @@
+{
+  "version": "1.0.0",
+  "category": "05_scope_governance",
+  "entries": [
+    {
+      "expression": "ハンドルを握る",
+      "interpretation": "意思決定権または運用主導権を持つ",
+      "context": [
+        "組織",
+        "運用",
+        "プロジェクト"
+      ],
+      "domain": "権限",
+      "aliases": [
+        "主導権を握る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "壁を作る",
+      "interpretation": "領域間の不要なアクセスや影響を遮断する",
+      "context": [
+        "セキュリティ",
+        "アーキテクチャ",
+        "組織"
+      ],
+      "domain": "境界管理",
+      "aliases": [
+        "隔離する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "幹を残す",
+      "interpretation": "中核目的・主要機能・不変条件を維持する",
+      "context": [
+        "設計",
+        "要件",
+        "移行"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "骨格を残す",
+        "芯を残す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手綱を締める",
+      "interpretation": "運用や権限の統制を強化する",
+      "context": [
+        "セキュリティ",
+        "管理",
+        "組織"
+      ],
+      "domain": "統制",
+      "aliases": [
+        "管理を強める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手綱を緩める",
+      "interpretation": "制約や統制を弱め自由度を上げる",
+      "context": [
+        "権限",
+        "運用",
+        "組織"
+      ],
+      "domain": "統制",
+      "aliases": [
+        "制約を緩める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "握る",
+      "interpretation": "情報・権限・Taskを自分の管理下に置く",
+      "context": [
+        "管理",
+        "組織",
+        "タスク"
+      ],
+      "domain": "権限",
+      "aliases": [
+        "掌握する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "枝葉を切る",
+      "interpretation": "本題に不要な要素を除外する",
+      "context": [
+        "要件",
+        "設計",
+        "議論"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "枝葉を落とす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "的を絞る",
+      "interpretation": "対象・目的・論点を限定する",
+      "context": [
+        "調査",
+        "要件",
+        "分析"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "焦点を絞る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "線を引く",
+      "interpretation": "責務・範囲・権限の境界を明確にする",
+      "context": [
+        "設計",
+        "契約",
+        "組織"
+      ],
+      "domain": "境界管理",
+      "aliases": [
+        "境界を引く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "話を広げる",
+      "interpretation": "指定範囲外へ論点や作業を拡張する",
+      "context": [
+        "会議",
+        "要件",
+        "対話"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "論点を広げる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "話を戻す",
+      "interpretation": "脱線した議論を指定された主題へ戻す",
+      "context": [
+        "会議",
+        "要件",
+        "対話"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "本題に戻す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "選択肢を潰す",
+      "interpretation": "不適切または不要な候補を除外する",
+      "context": [
+        "比較",
+        "設計",
+        "意思決定"
+      ],
+      "domain": "絞り込み",
+      "aliases": [
+        "候補を落とす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "青信号を出す",
+      "interpretation": "条件を満たしたため進行を許可する",
+      "context": [
+        "承認",
+        "リリース",
+        "検証"
+      ],
+      "domain": "承認",
+      "aliases": [
+        "ゴーサインを出す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "風呂敷を広げる",
+      "interpretation": "対象範囲や構想を大きく拡張する",
+      "context": [
+        "企画",
+        "要件",
+        "議論"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "風呂敷を畳む",
+      "interpretation": "拡張した対象を整理して実行可能な範囲へ絞る",
+      "context": [
+        "企画",
+        "要件",
+        "計画"
+      ],
+      "domain": "スコープ管理",
+      "aliases": [
+        "話を畳む"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "首根っこを押さえる",
+      "interpretation": "問題や依存関係の支配的な要因を確実に管理する",
+      "context": [
+        "依存関係",
+        "権限",
+        "リスク"
+      ],
+      "domain": "管理",
+      "aliases": [
+        "根元を押さえる"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

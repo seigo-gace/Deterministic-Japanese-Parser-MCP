@@ -1,0 +1,180 @@
+{
+  "version": "1.0.0",
+  "category": "03_quality_validation",
+  "entries": [
+    {
+      "expression": "先回りする",
+      "interpretation": "問題や要求が発生する前に対処する",
+      "context": [
+        "運用",
+        "サポート",
+        "設計"
+      ],
+      "domain": "予防",
+      "aliases": [
+        "予防対応する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "刺さらない",
+      "interpretation": "提案や説明が対象者の課題・関心に合致しない",
+      "context": [
+        "提案",
+        "UI",
+        "マーケティング"
+      ],
+      "domain": "不適合",
+      "aliases": [
+        "響かない"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "刺さる",
+      "interpretation": "提案や説明が対象者の課題・関心に強く合致する",
+      "context": [
+        "提案",
+        "UI",
+        "マーケティング"
+      ],
+      "domain": "適合",
+      "aliases": [
+        "響く"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "抜け漏れをなくす",
+      "interpretation": "必要項目を網羅し不足を残さない",
+      "context": [
+        "要件",
+        "設計",
+        "検証"
+      ],
+      "domain": "QA",
+      "aliases": [
+        "漏れなくする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "拾い切る",
+      "interpretation": "対象となる要求・Issue・Taskを漏れなく収集する",
+      "context": [
+        "要件",
+        "解析",
+        "サポート"
+      ],
+      "domain": "網羅",
+      "aliases": [
+        "全て拾う"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "漏れを潰す",
+      "interpretation": "未対応・未検証・未記載の項目を解消する",
+      "context": [
+        "検証",
+        "設計",
+        "管理"
+      ],
+      "domain": "QA",
+      "aliases": [
+        "抜けを潰す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "磨き込む",
+      "interpretation": "細部を継続的に改善して品質を高める",
+      "context": [
+        "UI",
+        "文章",
+        "設計",
+        "コード"
+      ],
+      "domain": "品質改善",
+      "aliases": [
+        "磨きをかける"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "穴を塞ぐ",
+      "interpretation": "設計漏れ・実装漏れ・検証漏れを解消する",
+      "context": [
+        "設計",
+        "実装",
+        "検証",
+        "品質"
+      ],
+      "domain": "QA",
+      "aliases": [
+        "穴を埋める",
+        "抜け穴を塞ぐ"
+      ],
+      "version": "1.0.0",
+      "patterns": [
+        "穴を(?:全部|すべて|完全に)?塞(?:ぐ|げ|いだ|ぐこと)"
+      ]
+    },
+    {
+      "expression": "穴を洗い出す",
+      "interpretation": "漏れ・矛盾・不足を網羅的に見つける",
+      "context": [
+        "設計",
+        "テスト",
+        "監査"
+      ],
+      "domain": "QA",
+      "aliases": [
+        "抜けを洗い出す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "答え合わせする",
+      "interpretation": "結果を正本・期待値・事実と照合する",
+      "context": [
+        "検証",
+        "レビュー",
+        "監査"
+      ],
+      "domain": "検証",
+      "aliases": [
+        "照合する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "網をかける",
+      "interpretation": "対象を漏れなく検査・監視・制約する",
+      "context": [
+        "監視",
+        "テスト",
+        "セキュリティ"
+      ],
+      "domain": "品質管理",
+      "aliases": [
+        "網羅する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "面で押さえる",
+      "interpretation": "個別対応でなく対象範囲全体を網羅する",
+      "context": [
+        "品質",
+        "運用",
+        "戦略"
+      ],
+      "domain": "網羅",
+      "aliases": [
+        "全面対応する"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

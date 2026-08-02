@@ -1,0 +1,89 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "G-0151",
+      "text": "落ち着いてから穴を塞げ。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "forbidden_intents": [
+          "question"
+        ],
+        "metaphors": [
+          "穴を塞ぐ"
+        ]
+      }
+    },
+    {
+      "id": "G-0152",
+      "text": "最後にGitHubへ入れろ。",
+      "expected": {
+        "intents": [
+          "sequence",
+          "request"
+        ],
+        "forbidden_intents": [
+          "question"
+        ],
+        "metaphors": []
+      }
+    },
+    {
+      "id": "G-0153",
+      "text": "これを前の案と比較しろ。",
+      "expected": {
+        "intents": [
+          "reference",
+          "comparison",
+          "request"
+        ],
+        "forbidden_intents": [
+          "question"
+        ],
+        "metaphors": []
+      }
+    },
+    {
+      "id": "G-0154",
+      "text": "障害の火消しをして、落ち着いてから穴を全部塞げ。最後にGitHubへ入れろ。",
+      "expected": {
+        "intents": [
+          "request",
+          "sequence"
+        ],
+        "forbidden_intents": [
+          "question"
+        ],
+        "metaphors": [
+          "火消し",
+          "落ち着く",
+          "穴を塞ぐ"
+        ],
+        "unique_metaphors": true,
+        "task_intents": [
+          "metaphor",
+          "action"
+        ]
+      }
+    },
+    {
+      "id": "G-0155",
+      "text": "今のUIは殺すな。APIだけ変更しろ。",
+      "expected": {
+        "intents": [
+          "preserve",
+          "modify"
+        ],
+        "metaphors": [],
+        "task_intents": [
+          "modify"
+        ],
+        "forbidden_task_intents": [
+          "request"
+        ]
+      }
+    }
+  ]
+}

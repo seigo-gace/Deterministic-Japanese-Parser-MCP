@@ -1,0 +1,331 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "G-0126",
+      "text": "門番を置くをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "門番を置く"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0127",
+      "text": "鍵をかけるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "鍵をかける"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0128",
+      "text": "壁を作るをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "壁を作る"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0129",
+      "text": "穴が開くをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "穴が開く"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0130",
+      "text": "漏れを潰すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "漏れを潰す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0131",
+      "text": "抜け漏れをなくすをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "抜け漏れをなくす"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0132",
+      "text": "守りを固めるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "守りを固める"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0133",
+      "text": "攻めに出るをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "攻めに出る"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0134",
+      "text": "赤信号を出すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "赤信号を出す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0135",
+      "text": "黄信号を出すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "黄信号を出す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0136",
+      "text": "青信号を出すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "青信号を出す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0137",
+      "text": "ブレーキをかけるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "ブレーキをかける"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0138",
+      "text": "アクセルを踏むをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "アクセルを踏む"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0139",
+      "text": "舵を切るをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "舵を切る"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0140",
+      "text": "軌道修正するをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "軌道修正する"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0141",
+      "text": "着火するをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "着火する"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0142",
+      "text": "火がつくをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "火がつく"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0143",
+      "text": "炎上するをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "炎上する"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0144",
+      "text": "鎮火するをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "鎮火する"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0145",
+      "text": "火に油を注ぐをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "火に油を注ぐ"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0146",
+      "text": "今のUIは殺すな。APIだけ変更しろ。",
+      "expected": {
+        "intents": [
+          "preserve",
+          "modify"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0147",
+      "text": "障害の火消しをして、落ち着いてから穴を全部塞げ。最後にGitHubへ入れろ。",
+      "expected": {
+        "intents": [
+          "request",
+          "sequence"
+        ],
+        "metaphors": [
+          "火消し",
+          "穴を塞ぐ"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0148",
+      "text": "旧仕様ではなく新仕様を採用する。ただしUIは変更するな。",
+      "expected": {
+        "intents": [
+          "correction",
+          "decision",
+          "exception",
+          "preserve"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0149",
+      "text": "テストが通ったら公開する。通らなければ公開するな。",
+      "expected": {
+        "intents": [
+          "condition",
+          "action",
+          "prohibition"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0150",
+      "text": "まず辞書を検証し、次にGold Corpusを実行する。",
+      "expected": {
+        "intents": [
+          "sequence",
+          "request"
+        ],
+        "metaphors": [],
+        "overall_status": null
+      }
+    }
+  ]
+}

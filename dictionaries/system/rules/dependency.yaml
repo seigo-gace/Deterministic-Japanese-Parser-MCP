@@ -1,0 +1,24 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  dependency:
+  - id: DEPENDENCY-001
+    pattern: (?P<task>[^、。！？]+?)は(?P<dependency>[^、。！？]+?)に依存する
+    priority: 99
+    enabled: true
+  - id: DEPENDENCY-002
+    pattern: (?P<dependency>[^、。！？]+?)がないと(?P<task>[^。！？]+?)できない
+    priority: 98
+    enabled: true
+  - id: DEPENDENCY-003
+    pattern: (?P<dependency>[^、。！？]+?)を前提に(?P<task>[^。！？]+)
+    priority: 97
+    enabled: true
+  - id: DEPENDENCY-004
+    pattern: (?P<task>[^、。！？]+?)の前に(?P<dependency>[^。！？]+?)が必要
+    priority: 96
+    enabled: true
+  - id: DEPENDENCY-005
+    pattern: (?P<dependency>[^、。！？]+?)完了後に(?P<task>[^。！？]+)
+    priority: 95
+    enabled: true

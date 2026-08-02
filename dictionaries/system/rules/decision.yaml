@@ -1,0 +1,36 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  decision:
+  - id: DECISION-001
+    pattern: (?P<target>[^、。！？]+?)(?:に|で)(?:決定|確定|決まり|決める|採用)する
+    priority: 99
+    enabled: true
+  - id: DECISION-002
+    pattern: (?P<target>[^、。！？]+?)を正式(?:仕様|名称|方針)とする
+    priority: 98
+    enabled: true
+  - id: DECISION-003
+    pattern: (?P<target>[^、。！？]+?)で行く
+    priority: 97
+    enabled: true
+  - id: DECISION-004
+    pattern: (?P<target>[^、。！？]+?)を採る
+    priority: 96
+    enabled: true
+  - id: DECISION-005
+    pattern: 結論[:：]?(?P<target>[^。！？]+)
+    priority: 95
+    enabled: true
+  - id: DECISION-006
+    pattern: (?P<target>[^、。！？]+?)を最終案とする
+    priority: 94
+    enabled: true
+  - id: DECISION-007
+    pattern: (?P<target>[^、。！？]+?)を(?:採用する|採択する|正式採用する)
+    priority: 43
+    enabled: true
+  - id: DECISION-008
+    pattern: (?P<target>[^、。！？]+?)を採用する
+    priority: 42
+    enabled: true

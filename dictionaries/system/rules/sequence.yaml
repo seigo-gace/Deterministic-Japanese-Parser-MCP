@@ -1,0 +1,36 @@
+version: 1.0.0
+timeout_ms: 25
+intents:
+  sequence:
+  - id: SEQUENCE-001
+    pattern: まず(?P<first>[^、。！？]+?)(?:、|。)?(?:次に|その後)(?P<second>[^。！？]+)
+    priority: 99
+    enabled: true
+  - id: SEQUENCE-002
+    pattern: (?P<first>[^、。！？]+?)(?:して|した)から(?P<second>[^。！？]+)
+    priority: 98
+    enabled: true
+  - id: SEQUENCE-003
+    pattern: (?P<first>[^、。！？]+?)(?<!最)(?:の後|後)に(?P<second>[^。！？]+)
+    priority: 97
+    enabled: true
+  - id: SEQUENCE-004
+    pattern: (?P<first>[^、。！？]+?)→(?P<second>[^。！？]+)
+    priority: 96
+    enabled: true
+  - id: SEQUENCE-005
+    pattern: (?P<first>[^、。！？]+?)、次いで(?P<second>[^。！？]+)
+    priority: 95
+    enabled: true
+  - id: SEQUENCE-006
+    pattern: 最後に(?P<last>[^。！？]+)
+    priority: 94
+    enabled: true
+  - id: SEQUENCE-007
+    pattern: 先に(?P<first>[^、。！？]+?)(?:して|を行い)、?(?P<second>[^。！？]+)
+    priority: 93
+    enabled: true
+  - id: SEQUENCE-008
+    pattern: (?P<first>[^、。！？]+?)が済むまで(?P<second>[^。！？]+?)しない
+    priority: 92
+    enabled: true
