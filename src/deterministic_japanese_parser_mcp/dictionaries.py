@@ -1,5 +1,7 @@
 from pathlib import Path
-import json, yaml
+import json
+
+import yaml
 
 
 def _load_yaml(path: Path) -> dict:
@@ -13,56 +15,93 @@ def _load_json(path: Path) -> dict:
 def _load_yaml_set(path: Path) -> dict:
     if path.is_file():
         return _load_yaml(path)
-    docs = [_load_yaml(p) for p in sorted(path.glob("*.yaml"))]
-    out = {"version": "0", "timeout_ms": 25, "intents": {}}
+    docs = [_load_yaml(item) for item in sorted(path.glob("*.yaml"))]
+    output = {"version": "0", "timeout_ms": 25, "intents": {}}
     for doc in docs:
-        out["version"] = doc.get("version", out["version"])
-        out["timeout_ms"] = doc.get("timeout_ms", out["timeout_ms"])
+        output["version"] = doc.get("version", output["version"])
+        output["timeout_ms"] = doc.get("timeout_ms", output["timeout_ms"])
         for intent, items in doc.get("intents", {}).items():
-            out["intents"].setdefault(intent, []).extend(items or [])
-    return out
+            output["intents"].setdefault(intent, []).extend(items or [])
+    return output
 
 
 def _load_json_set(path: Path) -> dict:
     if path.is_file():
         return _load_json(path)
-    docs = [_load_json(p) for p in sorted(path.glob("*.json"))]
-    out = {"version": "0", "entries": []}
+    docs = [
+        _load_json(item)
+        for item in sorted(path.glob("*.json"))
+        if item.name != "manifest.json"
+    ]
+    output = {"version": "0", "entries": []}
     for doc in docs:
-        out["version"] = doc.get("version", out["version"])
-        out["entries"].extend(doc.get("entries", []))
-    return out
+        output["version"] = doc.get("version", output["version"])
+        output["entries"].extend(doc.get("entries", []))
+    return output
 
 
 def merge_rule_docs(system: dict, user: dict) -> dict:
-    merged = {"version": system.get("version", "0"), "timeout_ms": system.get("timeout_ms", 25), "intents": {}}
-    for src in (system, user):
-        for intent, items in src.get("intents", {}).items():
+    merged = {
+        "version": system.get("version", "0"),
+        "timeout_ms": system.get("timeout_ms", 25),
+        "intents": {},
+    }
+    for source in (system, user):
+        for intent, items in source.get("intents", {}).items():
             merged["intents"].setdefault(intent, []).extend(items or [])
     return merged
 
 
 def merge_metaphors(system: dict, user: dict) -> dict:
-    by_exp = {}
-    for src in (system, user):
-        for item in src.get("entries", []):
-            by_exp[item["expression"]] = item
-    return {"version": system.get("version", "0"), "entries": list(by_exp.values())}
+    by_expression: dict[str, dict] = {}
+    for source in (system, user):
+        for item in source.get("entries", []):
+            by_expression[item["expression"]] = item
+    return {
+        "version": system.get("version", "0"),
+        "entries": list(by_expression.values()),
+    }
 
 
 def merge_templates(system: dict, user: dict) -> dict:
-    by_id = {}
-    for src in (system, user):
-        for item in src.get("templates", []):
+    by_id: dict[str, dict] = {}
+    for source in (system, user):
+        for item in source.get("templates", []):
             by_id[item["id"]] = item
-    return {"version": system.get("version", "0"), "templates": list(by_id.values())}
+    return {
+        "version": system.get("version", "0"),
+        "templates": list(by_id.values()),
+    }
+
+
+def merge_synonyms(system: dict, user: dict) -> dict:
+    groups: dict[str, list[str]] = {}
+    for source in (system, user):
+        for canonical, values in source.get("groups", {}).items():
+            bucket = groups.setdefault(canonical, [])
+            for value in [canonical, *(values or [])]:
+                if value and value not in bucket:
+                    bucket.append(value)
+    return {"version": system.get("version", "0"), "groups": groups}
 
 
 class DictionaryBundle:
     def __init__(self, system_dir: Path, user_dir: Path):
         system_rules = _load_yaml_set(system_dir / "rules")
         system_metaphors = _load_json_set(system_dir / "metaphors")
-        self.rules = merge_rule_docs(system_rules, _load_yaml(user_dir / "rules.yaml"))
-        self.metaphors = merge_metaphors(system_metaphors, _load_json(user_dir / "metaphor.json"))
-        self.templates = merge_templates(_load_yaml(system_dir / "task_templates.yaml"), _load_yaml(user_dir / "task_templates.yaml"))
-        self.synonyms = _load_yaml(system_dir / "synonyms.yaml")
+        self.rules = merge_rule_docs(
+            system_rules,
+            _load_yaml(user_dir / "rules.yaml"),
+        )
+        self.metaphors = merge_metaphors(
+            system_metaphors,
+            _load_json(user_dir / "metaphor.json"),
+        )
+        self.templates = merge_templates(
+            _load_yaml(system_dir / "task_templates.yaml"),
+            _load_yaml(user_dir / "task_templates.yaml"),
+        )
+        self.synonyms = merge_synonyms(
+            _load_yaml(system_dir / "synonyms.yaml"),
+            _load_yaml(user_dir / "synonyms.yaml"),
+        )
