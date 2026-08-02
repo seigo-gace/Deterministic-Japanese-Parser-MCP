@@ -13,11 +13,11 @@ A deterministic, non-generative MCP server for Japanese intent extraction, metap
 
 ## Included initial data
 
-- 151 curated metaphor / idiom entries
-- 148 deterministic intent patterns across 21 intent types
+- 152 curated metaphor / idiom entries
+- 150 deterministic intent patterns across 21 intent types
 - 29 task and workflow templates
 - 20 canonical synonym groups
-- 150 Gold Corpus cases
+- 155 Gold Corpus cases
 
 The bundled definitions are original project data. SudachiPy and SudachiDict are external dependencies and retain their own licenses.
 

@@ -1,0 +1,256 @@
+{
+  "version": "1.0.0",
+  "category": "02_development_change",
+  "entries": [
+    {
+      "expression": "ゼロベースで考える",
+      "interpretation": "既存前提を外して目的から再設計する",
+      "context": [
+        "設計",
+        "戦略",
+        "改善"
+      ],
+      "domain": "変更管理",
+      "aliases": [
+        "白紙から考える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "ボトルネックを潰す",
+      "interpretation": "処理全体を遅くしている制約を解消する",
+      "context": [
+        "性能",
+        "工程",
+        "組織"
+      ],
+      "domain": "最適化",
+      "aliases": [
+        "ボトルネックを解消する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "二本立てにする",
+      "interpretation": "二つの方式または経路を並行運用する",
+      "context": [
+        "設計",
+        "運用",
+        "事業"
+      ],
+      "domain": "構成",
+      "aliases": [
+        "二軸にする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "入口を広げる",
+      "interpretation": "入力元・利用者・対象範囲を拡大する",
+      "context": [
+        "API",
+        "事業",
+        "運用"
+      ],
+      "domain": "拡張",
+      "aliases": [
+        "受付を拡大する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "受け皿を作る",
+      "interpretation": "入力・需要・問い合わせを処理できる仕組みを用意する",
+      "context": [
+        "サポート",
+        "API",
+        "組織"
+      ],
+      "domain": "基盤",
+      "aliases": [
+        "受付基盤を作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "叩き台を作る",
+      "interpretation": "議論や改善の出発点となる初期案を作る",
+      "context": [
+        "企画",
+        "設計",
+        "文書"
+      ],
+      "domain": "開発プロセス",
+      "aliases": [
+        "たたき台を作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "土台を固める",
+      "interpretation": "後続作業が崩れないよう基礎条件を確定する",
+      "context": [
+        "設計",
+        "基盤",
+        "計画"
+      ],
+      "domain": "開発プロセス",
+      "aliases": [
+        "基礎を固める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "型を崩す",
+      "interpretation": "固定された形式や手順を変更または解除する",
+      "context": [
+        "文書",
+        "設計",
+        "業務"
+      ],
+      "domain": "変更",
+      "aliases": [
+        "定型を外す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手を入れる",
+      "interpretation": "既存物へ修正や改善を加える",
+      "context": [
+        "コード",
+        "設計",
+        "文章"
+      ],
+      "domain": "変更",
+      "aliases": [
+        "修正を加える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手を戻す",
+      "interpretation": "一度進めた作業を以前の状態へ戻す",
+      "context": [
+        "実装",
+        "変更",
+        "レビュー"
+      ],
+      "domain": "変更管理",
+      "aliases": [],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手札を増やす",
+      "interpretation": "選択可能な手段・機能・候補を増やす",
+      "context": [
+        "戦略",
+        "Skill",
+        "設計"
+      ],
+      "domain": "拡張",
+      "aliases": [
+        "選択肢を増やす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "手離れを良くする",
+      "interpretation": "人手による継続対応を減らし自動運用可能にする",
+      "context": [
+        "運用",
+        "自動化",
+        "サポート"
+      ],
+      "domain": "自動化",
+      "aliases": [
+        "手離れを改善する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "旧仕様に引っ張られる",
+      "interpretation": "旧構造を新設計の判断基準として不適切に流用する",
+      "context": [
+        "移行",
+        "リファクタリング",
+        "設計"
+      ],
+      "domain": "変更管理",
+      "aliases": [
+        "過去に引っ張られる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "流れを変える",
+      "interpretation": "既存の処理順序や経路を変更する",
+      "context": [
+        "業務",
+        "システム",
+        "運用"
+      ],
+      "domain": "変更",
+      "aliases": [
+        "フローを変更する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "白紙に戻す",
+      "interpretation": "既存案や決定を破棄して再検討する",
+      "context": [
+        "設計",
+        "契約",
+        "計画"
+      ],
+      "domain": "変更管理",
+      "aliases": [
+        "ゼロからやり直す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "足場を組む",
+      "interpretation": "本作業に入る前の作業環境や補助構造を準備する",
+      "context": [
+        "開発",
+        "移行",
+        "検証"
+      ],
+      "domain": "開発プロセス",
+      "aliases": [
+        "足場を作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "車輪の再発明",
+      "interpretation": "既に存在する解決策を不要に作り直す",
+      "context": [
+        "開発",
+        "設計",
+        "OSS"
+      ],
+      "domain": "開発プロセス",
+      "aliases": [
+        "車輪を再発明する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "鉈を振るう",
+      "interpretation": "不要部分を大きく削減する強い整理を行う",
+      "context": [
+        "整理",
+        "コスト削減",
+        "リファクタリング"
+      ],
+      "domain": "最適化",
+      "aliases": [
+        "大鉈を振るう"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

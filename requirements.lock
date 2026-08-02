@@ -1,7 +1,7 @@
-mcp==1.27.2
+mcp==1.28.1
 pydantic==2.13.4
 PyYAML==6.0.3
-regex==2026.5.9
+regex==2026.7.19
 SudachiPy==0.6.11
 SudachiDict-core==20260428
 pytest==9.0.2

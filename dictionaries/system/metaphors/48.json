@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"権限","entries":[{"expression":"ハンドルを握る","interpretation":"意思決定権または運用主導権を持つ","context":["組織","運用","プロジェクト"],"domain":"権限","aliases":["主導権を握る"],"version":"1.0.0"},{"expression":"握る","interpretation":"情報・権限・Taskを自分の管理下に置く","context":["管理","組織","タスク"],"domain":"権限","aliases":["掌握する"],"version":"1.0.0"}]
-}

@@ -1,8 +1,0 @@
-{
-  "version": "1.0.0",
-  "domain": "最適化",
-  "entries": [
-    {"expression":"ボトルネックを潰す","interpretation":"処理全体を遅くしている制約を解消する","context":["性能","工程","組織"],"domain":"最適化","aliases":["ボトルネックを解消する"],"version":"1.0.0"},
-    {"expression":"鉈を振るう","interpretation":"不要部分を大きく削減する強い整理を行う","context":["整理","コスト削減","リファクタリング"],"domain":"最適化","aliases":["大鉈を振るう"],"version":"1.0.0"}
-  ]
-}

@@ -10,7 +10,8 @@ def normalize_with_map(text: str) -> tuple[str, list[tuple[int,int]]]:
     out=[]; mapping=[]
     i=0
     while i < len(text):
-        if is_protected(i): out.append(text[i]); mapping.append((i,i+1)); i+=1; continue
+        if is_protected(i):
+            out.append(text[i]); mapping.append((i,i+1)); i+=1; continue
         n=unicodedata.normalize("NFKC", text[i])
         if not n: i+=1; continue
         for ch in n: out.append(ch); mapping.append((i,i+1))

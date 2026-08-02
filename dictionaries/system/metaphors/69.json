@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"開発プロセス","entries":[{"expression":"土台を固める","interpretation":"後続作業が崩れないよう基礎条件を確定する","context":["設計","基盤","計画"],"domain":"開発プロセス","aliases":["基礎を固める"],"version":"1.0.0"},{"expression":"足場を組む","interpretation":"本作業に入る前の作業環境や補助構造を準備する","context":["開発","移行","検証"],"domain":"開発プロセス","aliases":["足場を作る"],"version":"1.0.0"},{"expression":"車輪の再発明","interpretation":"既に存在する解決策を不要に作り直す","context":["開発","設計","OSS"],"domain":"開発プロセス","aliases":["車輪を再発明する"],"version":"1.0.0"},{"expression":"叩き台を作る","interpretation":"議論や改善の出発点となる初期案を作る","context":["企画","設計","文書"],"domain":"開発プロセス","aliases":["たたき台を作る"],"version":"1.0.0"}]
-}

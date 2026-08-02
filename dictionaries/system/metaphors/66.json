@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"進行管理","entries":[{"expression":"ブレーキをかける","interpretation":"進行速度を落とすか一時停止する","context":["プロジェクト","リリース","リスク"],"domain":"進行管理","aliases":["制動する"],"version":"1.0.0"},{"expression":"アクセルを踏む","interpretation":"進行速度や投資を増やす","context":["プロジェクト","事業","開発"],"domain":"進行管理","aliases":["加速する"],"version":"1.0.0"},{"expression":"軌道修正する","interpretation":"目標を維持しつつ進め方を修正する","context":["計画","プロジェクト","運用"],"domain":"進行管理","aliases":["軌道を修正する"],"version":"1.0.0"},{"expression":"後手に回る","interpretation":"問題発生後に遅れて対応する","context":["運用","サポート","リスク"],"domain":"進行管理","aliases":["対応が遅れる"],"version":"1.0.0"}]
-}

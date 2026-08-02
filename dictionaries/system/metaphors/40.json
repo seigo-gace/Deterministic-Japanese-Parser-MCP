@@ -1,8 +1,0 @@
-{
-  "version": "1.0.0",
-  "domain": "拡張",
-  "entries": [
-    {"expression":"入口を広げる","interpretation":"入力元・利用者・対象範囲を拡大する","context":["API","事業","運用"],"domain":"拡張","aliases":["受付を拡大する"],"version":"1.0.0"},
-    {"expression":"手札を増やす","interpretation":"選択可能な手段・機能・候補を増やす","context":["戦略","Skill","設計"],"domain":"拡張","aliases":["選択肢を増やす"],"version":"1.0.0"}
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "version": "1.0.0",
-  "domain": "戦略",
-  "entries": [
-    {"expression":"攻めに出る","interpretation":"維持中心から積極的な拡張や獲得へ移る","context":["事業","開発","営業"],"domain":"戦略","aliases":["攻勢に出る"],"version":"1.0.0"},
-    {"expression":"土俵を変える","interpretation":"評価基準や競争条件を変更する","context":["戦略","比較","交渉"],"domain":"戦略","aliases":["ゲームを変える"],"version":"1.0.0"}
-  ]
-}

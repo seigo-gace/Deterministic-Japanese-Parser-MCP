@@ -11,10 +11,10 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "seigo-gace"}]
 dependencies = [
-  "mcp>=1.27.2,<2",
+  "mcp>=1.28.1,<2",
   "pydantic>=2.13.4,<3",
   "PyYAML>=6.0.3,<7",
-  "regex>=2026.5.9",
+  "regex>=2026.7.19,<2027",
   "sudachipy==0.6.11",
   "sudachidict-core==20260428",
 ]
@@ -32,11 +32,20 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+
 [tool.setuptools.data-files]
-"share/deterministic-japanese-parser-mcp/dictionaries/system" = ["dictionaries/system/synonyms.yaml", "dictionaries/system/task_templates.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system" = [
+  "dictionaries/system/synonyms.yaml",
+  "dictionaries/system/task_templates.yaml",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/metaphors" = ["dictionaries/system/metaphors/*.json"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/rules" = ["dictionaries/system/rules/*.yaml"]
-"share/deterministic-japanese-parser-mcp/dictionaries/user" = ["dictionaries/user/metaphor.json", "dictionaries/user/rules.yaml", "dictionaries/user/synonyms.yaml", "dictionaries/user/task_templates.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/user" = [
+  "dictionaries/user/metaphor.json",
+  "dictionaries/user/rules.yaml",
+  "dictionaries/user/synonyms.yaml",
+  "dictionaries/user/task_templates.yaml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

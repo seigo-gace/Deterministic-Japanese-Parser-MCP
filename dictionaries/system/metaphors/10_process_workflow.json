@@ -1,0 +1,118 @@
+{
+  "version": "1.0.0",
+  "category": "10_process_workflow",
+  "entries": [
+    {
+      "expression": "ボールを投げる",
+      "interpretation": "依頼または責任を別の担当へ渡す",
+      "context": [
+        "タスク",
+        "会議",
+        "チーム"
+      ],
+      "domain": "業務プロセス",
+      "aliases": [
+        "ボールを渡す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "ボールを持つ",
+      "interpretation": "担当責任または未処理タスクを保持する",
+      "context": [
+        "タスク",
+        "会議",
+        "チーム"
+      ],
+      "domain": "業務プロセス",
+      "aliases": [
+        "ボールを抱える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "レールを敷く",
+      "interpretation": "後続作業が迷わず進められる手順や基盤を用意する",
+      "context": [
+        "運用",
+        "開発",
+        "教育"
+      ],
+      "domain": "プロセス設計",
+      "aliases": [
+        "道筋を作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "丸投げする",
+      "interpretation": "必要な整理や責任を持たず作業全体を他者へ渡す",
+      "context": [
+        "タスク",
+        "組織",
+        "外注"
+      ],
+      "domain": "業務プロセス",
+      "aliases": [
+        "丸投げ"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "投げ返す",
+      "interpretation": "処理可能な内容を実施せず相手へ戻す",
+      "context": [
+        "サポート",
+        "開発",
+        "確認"
+      ],
+      "domain": "業務プロセス",
+      "aliases": [
+        "丸投げで返す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "横展開する",
+      "interpretation": "一つの成果や対策を他の対象へ適用する",
+      "context": [
+        "運用",
+        "組織",
+        "開発"
+      ],
+      "domain": "展開",
+      "aliases": [
+        "水平展開する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "流れを作る",
+      "interpretation": "入力から完了までの継続的な処理経路を構築する",
+      "context": [
+        "業務",
+        "システム",
+        "運用"
+      ],
+      "domain": "プロセス設計",
+      "aliases": [
+        "フローを作る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "火がつく",
+      "interpretation": "作業や問題が急速に活発化する",
+      "context": [
+        "企画",
+        "障害",
+        "議論"
+      ],
+      "domain": "状態変化",
+      "aliases": [
+        "燃え始める"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

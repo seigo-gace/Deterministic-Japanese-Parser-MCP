@@ -2,6 +2,10 @@ version: 1.0.0
 timeout_ms: 25
 intents:
   comparison:
+  - id: COMPARISON-008
+    pattern: (?P<target>[^、。！？]+?)を(?P<base>[^、。！？]+?)と(?:比較|比べ|対比|照合)(?:する|しろ|せよ|して|してください)
+    priority: 100
+    enabled: true
   - id: COMPARISON-001
     pattern: (?P<target>[^、。！？]+?)と(?P<base>[^、。！？]+?)を(?:比較|比べ|対比|照合)する
     priority: 99

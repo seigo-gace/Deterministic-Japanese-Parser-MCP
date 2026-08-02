@@ -2,6 +2,10 @@ version: 1.0.0
 timeout_ms: 25
 intents:
   action:
+  - id: ACTION-003
+    pattern: (?P<action>[^。！？]+?)(?:入れろ|反映しろ|公開しろ|送信しろ|送れ|デプロイしろ|Pushしろ|pushしろ|コミットしろ)(?=[。！？]|$)
+    priority: 100
+    enabled: true
   - id: ACTION-001
     pattern: (?P<action>[^。！？]+?)(?:する|実行する|開始する|停止する|反映する|公開する|送信する|デプロイする|pushする|コミットする)$
     priority: 99

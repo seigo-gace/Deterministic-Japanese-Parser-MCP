@@ -5,5 +5,11 @@ __pycache__/
 .coverage
 htmlcov/
 .env
-logs/*.jsonl
+logs/**/*.jsonl
 proposals/*.yaml
+proposals/*.yml
+proposals/*.json
+proposals/*.jsonl
+build/
+dist/
+*.egg-info/

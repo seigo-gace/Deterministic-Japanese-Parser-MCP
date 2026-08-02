@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"障害","entries":[{"expression":"歯車が狂う","interpretation":"連携・順序・前提のずれで全体が正常に動かなくなる","context":["システム","組織","工程"],"domain":"障害","aliases":["噛み合わない"],"version":"1.0.0"}]
-}

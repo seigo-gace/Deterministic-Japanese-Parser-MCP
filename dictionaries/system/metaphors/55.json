@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"組織運営","entries":[{"expression":"風通しを良くする","interpretation":"情報や意見が滞らず共有される状態にする","context":["組織","コミュニケーション","設計"],"domain":"組織運営","aliases":["風通しを改善する"],"version":"1.0.0"},{"expression":"温度差がある","interpretation":"関係者間で認識・意欲・優先度が一致していない","context":["組織","会議","プロジェクト"],"domain":"組織運営","aliases":["温度感が違う"],"version":"1.0.0"},{"expression":"足並みを揃える","interpretation":"複数担当の進行速度・方針・前提を合わせる","context":["組織","プロジェクト","運用"],"domain":"組織運営","aliases":["歩調を合わせる"],"version":"1.0.0"}]
-}

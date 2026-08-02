@@ -11,7 +11,7 @@ intents:
     priority: 98
     enabled: true
   - id: SEQUENCE-003
-    pattern: (?P<first>[^、。！？]+?)(?:後|の後)に(?P<second>[^。！？]+)
+    pattern: (?P<first>[^、。！？]+?)(?<!最)(?:の後|後)に(?P<second>[^。！？]+)
     priority: 97
     enabled: true
   - id: SEQUENCE-004

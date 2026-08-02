@@ -1,0 +1,104 @@
+{
+  "version": "1.0.0",
+  "category": "11_control_reversibility",
+  "entries": [
+    {
+      "expression": "入口を絞る",
+      "interpretation": "入力元・権限・対象を制限する",
+      "context": [
+        "API",
+        "セキュリティ",
+        "運用"
+      ],
+      "domain": "制御",
+      "aliases": [
+        "受付を制限する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "口を塞ぐ",
+      "interpretation": "発言・通知・出力を不当に止める",
+      "context": [
+        "組織",
+        "セキュリティ",
+        "ログ"
+      ],
+      "domain": "制御",
+      "aliases": [
+        "発言を止める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "橋を焼く",
+      "interpretation": "以前の方式へ戻る経路を意図的に断つ",
+      "context": [
+        "移行",
+        "組織",
+        "戦略"
+      ],
+      "domain": "可逆性",
+      "aliases": [
+        "退路を断つ"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "片道切符にする",
+      "interpretation": "戻せない変更や選択を行う",
+      "context": [
+        "移行",
+        "デプロイ",
+        "契約"
+      ],
+      "domain": "可逆性",
+      "aliases": [
+        "不可逆にする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "蛇口を締める",
+      "interpretation": "流量・支出・アクセスを制限する",
+      "context": [
+        "コスト",
+        "API",
+        "運用"
+      ],
+      "domain": "制御",
+      "aliases": [
+        "流量を絞る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "蛇口を開く",
+      "interpretation": "流量・供給・アクセスを増やす",
+      "context": [
+        "API",
+        "運用",
+        "事業"
+      ],
+      "domain": "制御",
+      "aliases": [
+        "流量を増やす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "逃げ道を作る",
+      "interpretation": "障害時に安全に戻れる代替手段を用意する",
+      "context": [
+        "運用",
+        "設計",
+        "デプロイ"
+      ],
+      "domain": "可逆性",
+      "aliases": [
+        "退避経路を作る"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

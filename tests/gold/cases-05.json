@@ -1,30 +1,330 @@
 {
-  "version":"1.0.0",
-  "cases":[
-    {"id":"G-0101","text":"ボールを持つをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["ボールを持つ"],"overall_status":null}},
-    {"id":"G-0102","text":"キャッチボールするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["キャッチボールする"],"overall_status":null}},
-    {"id":"G-0103","text":"投げ返すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["投げ返す"],"overall_status":null}},
-    {"id":"G-0104","text":"丸投げするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["丸投げする"],"overall_status":null}},
-    {"id":"G-0105","text":"たらい回しにするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["たらい回しにする"],"overall_status":null}},
-    {"id":"G-0106","text":"釘を刺すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["釘を刺す"],"overall_status":null}},
-    {"id":"G-0107","text":"腹落ちするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["腹落ちする"],"overall_status":null}},
-    {"id":"G-0108","text":"行間を読むをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["行間を読む"],"overall_status":null}},
-    {"id":"G-0109","text":"言葉尻を捉えるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["言葉尻を捉える"],"overall_status":null}},
-    {"id":"G-0110","text":"話を戻すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["話を戻す"],"overall_status":null}},
-    {"id":"G-0111","text":"話を広げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["話を広げる"],"overall_status":null}},
-    {"id":"G-0112","text":"水を差すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["水を差す"],"overall_status":null}},
-    {"id":"G-0113","text":"温度差があるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["温度差がある"],"overall_status":null}},
-    {"id":"G-0114","text":"認識を揃えるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["認識を揃える"],"overall_status":null}},
-    {"id":"G-0115","text":"粒度を揃えるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["粒度を揃える"],"overall_status":null}},
-    {"id":"G-0116","text":"解像度を上げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["解像度を上げる"],"overall_status":null}},
-    {"id":"G-0117","text":"目線を上げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["目線を上げる"],"overall_status":null}},
-    {"id":"G-0118","text":"目線を下げるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["目線を下げる"],"overall_status":null}},
-    {"id":"G-0119","text":"手を動かすをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手を動かす"],"overall_status":null}},
-    {"id":"G-0120","text":"手を入れるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手を入れる"],"overall_status":null}},
-    {"id":"G-0121","text":"手を戻すをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手を戻す"],"overall_status":null}},
-    {"id":"G-0122","text":"手離れを良くするをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手離れを良くする"],"overall_status":null}},
-    {"id":"G-0123","text":"手綱を締めるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手綱を締める"],"overall_status":null}},
-    {"id":"G-0124","text":"手綱を緩めるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["手綱を緩める"],"overall_status":null}},
-    {"id":"G-0125","text":"網をかけるをしてから次へ進め。","expected":{"intents":["request"],"metaphors":["網をかける"],"overall_status":null}}
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "G-0101",
+      "text": "ボールを持つをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "ボールを持つ"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0102",
+      "text": "キャッチボールするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "キャッチボールする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0103",
+      "text": "投げ返すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "投げ返す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0104",
+      "text": "丸投げするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "丸投げする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0105",
+      "text": "たらい回しにするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "たらい回しにする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0106",
+      "text": "釘を刺すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "釘を刺す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0107",
+      "text": "腹落ちするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "腹落ちする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0108",
+      "text": "行間を読むをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "行間を読む"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0109",
+      "text": "言葉尻を捉えるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "言葉尻を捉える"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0110",
+      "text": "話を戻すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "話を戻す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0111",
+      "text": "話を広げるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "話を広げる"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0112",
+      "text": "水を差すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "水を差す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0113",
+      "text": "温度差があるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "温度差がある"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0114",
+      "text": "認識を揃えるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "認識を揃える"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0115",
+      "text": "粒度を揃えるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "粒度を揃える"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0116",
+      "text": "解像度を上げるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "解像度を上げる"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0117",
+      "text": "目線を上げるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "目線を上げる"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0118",
+      "text": "目線を下げるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "目線を下げる"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0119",
+      "text": "手を動かすをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手を動かす"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0120",
+      "text": "手を入れるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手を入れる"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0121",
+      "text": "手を戻すをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手を戻す"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0122",
+      "text": "手離れを良くするをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手離れを良くする"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0123",
+      "text": "手綱を締めるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手綱を締める"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0124",
+      "text": "手綱を緩めるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "手綱を緩める"
+        ],
+        "overall_status": null
+      }
+    },
+    {
+      "id": "G-0125",
+      "text": "網をかけるをしてから次へ進め。",
+      "expected": {
+        "intents": [
+          "request"
+        ],
+        "metaphors": [
+          "網をかける"
+        ],
+        "overall_status": null
+      }
+    }
   ]
 }

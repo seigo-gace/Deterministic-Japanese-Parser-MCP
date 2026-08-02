@@ -1,5 +1,0 @@
-{
-  "version": "1.0.0",
-  "domain": "整理",
-  "entries": [{"expression":"交通整理する","interpretation":"複数の論点・Task・依存関係を整理する","context":["会議","設計","プロジェクト"],"domain":"整理","aliases":["論点整理する"],"version":"1.0.0"}]
-}

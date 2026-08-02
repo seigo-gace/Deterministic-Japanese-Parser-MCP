@@ -1,55 +1,300 @@
 version: 1.0.0
 templates:
-- {id: TPL-001, intent: prohibition, action: 禁止制約を登録する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-002, intent: preserve, action: 維持対象を保護する, requires_target: true, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-003, intent: modify, action: 対象を変更する, requires_target: true, external_action: true, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-004, intent: remove, action: 対象を除去する, requires_target: true, external_action: true, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-005, intent: request, action: 要求を実行Taskへ変換する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-006, intent: question, action: 質問を回答要求として整理する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-007, intent: condition, action: 実行条件を登録する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-008, intent: sequence, action: Task順序を設定する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-009, intent: comparison, action: 比較Taskを生成する, requires_target: true, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-010, intent: exception, action: 例外条件を登録する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-011, intent: priority, action: 優先順位を設定する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-012, intent: correction, action: 旧内容を訂正内容へ置換する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-013, intent: decision, action: 採用決定を登録する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-014, intent: scope, action: 対象範囲を設定する, requires_target: true, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-015, intent: out_of_scope, action: 範囲外を設定する, requires_target: true, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-016, intent: dependency, action: 依存関係を設定する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-017, intent: completion_criteria, action: 完了条件を設定する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-018, intent: verification_criteria, action: 検証条件を設定する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-019, intent: premise, action: 前提条件を登録する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-020, intent: reference, action: 指示対象を解決する, requires_target: false, external_action: false, verification: [原文spanが存在する, statusが確定している]}
-- {id: TPL-021, intent: action, action: 実行Taskを生成する, requires_target: false, external_action: true, verification: [原文spanが存在する, statusが確定している]}
+- id: TPL-001
+  intent: prohibition
+  action: 禁止制約を登録する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-002
+  intent: preserve
+  action: 維持対象を保護する
+  requires_target: true
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-003
+  intent: modify
+  action: 対象を変更する
+  requires_target: true
+  external_action: true
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-004
+  intent: remove
+  action: 対象を除去する
+  requires_target: true
+  external_action: true
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-005
+  intent: request
+  action: 要求を実行Taskへ変換する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-006
+  intent: question
+  action: 質問を回答要求として整理する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-007
+  intent: condition
+  action: 実行条件を登録する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-008
+  intent: sequence
+  action: Task順序を設定する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-009
+  intent: comparison
+  action: 比較Taskを生成する
+  requires_target: true
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-010
+  intent: exception
+  action: 例外条件を登録する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-011
+  intent: priority
+  action: 優先順位を設定する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-012
+  intent: correction
+  action: 旧内容を訂正内容へ置換する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-013
+  intent: decision
+  action: 採用決定を登録する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-014
+  intent: scope
+  action: 対象範囲を設定する
+  requires_target: true
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-015
+  intent: out_of_scope
+  action: 範囲外を設定する
+  requires_target: true
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-016
+  intent: dependency
+  action: 依存関係を設定する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-017
+  intent: completion_criteria
+  action: 完了条件を設定する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-018
+  intent: verification_criteria
+  action: 検証条件を設定する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-019
+  intent: premise
+  action: 前提条件を登録する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-020
+  intent: reference
+  action: 指示対象を解決する
+  requires_target: false
+  external_action: false
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
+- id: TPL-021
+  intent: action
+  action: 実行Taskを生成する
+  requires_target: false
+  external_action: true
+  verification:
+  - 原文spanが存在する
+  - statusが確定している
 - id: WF-INCIDENT_RESPONSE
   intent: workflow
   name: incident_response
-  steps: [{order: 1, action: 影響範囲確認}, {order: 2, action: 応急対応}, {order: 3, action: 安定確認}, {order: 4, action: 根本原因分析}, {order: 5, action: 恒久対策}, {order: 6, action: 回帰検証}]
+  steps:
+  - order: 1
+    action: 影響範囲確認
+  - order: 2
+    action: 応急対応
+  - order: 3
+    action: 安定確認
+  - order: 4
+    action: 根本原因分析
+  - order: 5
+    action: 恒久対策
+  - order: 6
+    action: 回帰検証
 - id: WF-GITHUB_PUBLISH
   intent: workflow
   name: github_publish
-  steps: [{order: 1, action: 変更範囲確認}, {order: 2, action: 静的検証}, {order: 3, action: テスト実行}, {order: 4, action: 差分確認}, {order: 5, action: コミット}, {order: 6, action: Push}, {order: 7, action: 公開状態確認}]
+  steps:
+  - order: 1
+    action: 変更範囲確認
+  - order: 2
+    action: 静的検証
+  - order: 3
+    action: テスト実行
+  - order: 4
+    action: 差分確認
+  - order: 5
+    action: コミット
+  - order: 6
+    action: Push
+  - order: 7
+    action: 公開状態確認
 - id: WF-NOTION_CANONICAL_UPDATE
   intent: workflow
   name: notion_canonical_update
-  steps: [{order: 1, action: 議事録記録}, {order: 2, action: 正本更新}, {order: 3, action: 旧内容除去}, {order: 4, action: 関連設計同期}, {order: 5, action: 矛盾確認}, {order: 6, action: Status更新}]
+  steps:
+  - order: 1
+    action: 議事録記録
+  - order: 2
+    action: 正本更新
+  - order: 3
+    action: 旧内容除去
+  - order: 4
+    action: 関連設計同期
+  - order: 5
+    action: 矛盾確認
+  - order: 6
+    action: Status更新
 - id: WF-API_CHANGE
   intent: workflow
   name: api_change
-  steps: [{order: 1, action: 契約確認}, {order: 2, action: 影響範囲抽出}, {order: 3, action: 実装変更}, {order: 4, action: 互換性検証}, {order: 5, action: E2E検証}, {order: 6, action: 反映}]
+  steps:
+  - order: 1
+    action: 契約確認
+  - order: 2
+    action: 影響範囲抽出
+  - order: 3
+    action: 実装変更
+  - order: 4
+    action: 互換性検証
+  - order: 5
+    action: E2E検証
+  - order: 6
+    action: 反映
 - id: WF-DICTIONARY_UPDATE
   intent: workflow
   name: dictionary_update
-  steps: [{order: 1, action: 候補抽出}, {order: 2, action: 重複確認}, {order: 3, action: 形式検証}, {order: 4, action: 辞書追加}, {order: 5, action: Gold追加}, {order: 6, action: 回帰検証}]
+  steps:
+  - order: 1
+    action: 候補抽出
+  - order: 2
+    action: 重複確認
+  - order: 3
+    action: 形式検証
+  - order: 4
+    action: 辞書追加
+  - order: 5
+    action: Gold追加
+  - order: 6
+    action: 回帰検証
 - id: WF-RELEASE
   intent: workflow
   name: release
-  steps: [{order: 1, action: Version確定}, {order: 2, action: 変更履歴作成}, {order: 3, action: 全テスト}, {order: 4, action: Artifact作成}, {order: 5, action: 公開}, {order: 6, action: 公開物確認}]
+  steps:
+  - order: 1
+    action: Version確定
+  - order: 2
+    action: 変更履歴作成
+  - order: 3
+    action: 全テスト
+  - order: 4
+    action: Artifact作成
+  - order: 5
+    action: 公開
+  - order: 6
+    action: 公開物確認
 - id: WF-SECURITY_FIX
   intent: workflow
   name: security_fix
-  steps: [{order: 1, action: 影響遮断}, {order: 2, action: 秘密情報確認}, {order: 3, action: 修正}, {order: 4, action: 悪用経路検証}, {order: 5, action: 回帰検証}, {order: 6, action: 監査記録}]
+  steps:
+  - order: 1
+    action: 影響遮断
+  - order: 2
+    action: 秘密情報確認
+  - order: 3
+    action: 修正
+  - order: 4
+    action: 悪用経路検証
+  - order: 5
+    action: 回帰検証
+  - order: 6
+    action: 監査記録
 - id: WF-PERFORMANCE_FIX
   intent: workflow
   name: performance_fix
-  steps: [{order: 1, action: 計測条件固定}, {order: 2, action: Baseline計測}, {order: 3, action: ボトルネック特定}, {order: 4, action: 変更}, {order: 5, action: 再計測}, {order: 6, action: 回帰検証}]
+  steps:
+  - order: 1
+    action: 計測条件固定
+  - order: 2
+    action: Baseline計測
+  - order: 3
+    action: ボトルネック特定
+  - order: 4
+    action: 変更
+  - order: 5
+    action: 再計測
+  - order: 6
+    action: 回帰検証

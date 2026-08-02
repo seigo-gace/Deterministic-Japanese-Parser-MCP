@@ -1,0 +1,174 @@
+{
+  "version": "1.0.0",
+  "category": "08_communication_organization",
+  "entries": [
+    {
+      "expression": "たらい回しにする",
+      "interpretation": "担当間で処理せず相手を移動させ続ける",
+      "context": [
+        "サポート",
+        "組織",
+        "窓口"
+      ],
+      "domain": "サポート",
+      "aliases": [
+        "たらい回し"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "キャッチボールする",
+      "interpretation": "相互に確認や提案を往復して内容を詰める",
+      "context": [
+        "会議",
+        "レビュー",
+        "要件"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "キャッチボールをする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "拾う",
+      "interpretation": "見落とされていた要求・Issue・Taskを対応対象にする",
+      "context": [
+        "要件",
+        "Issue",
+        "サポート"
+      ],
+      "domain": "対応",
+      "aliases": [
+        "取り上げる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "水を差す",
+      "interpretation": "進行や合意を妨げる要因を持ち込む",
+      "context": [
+        "会議",
+        "企画",
+        "組織"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "冷水を浴びせる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "温度差がある",
+      "interpretation": "関係者間で認識・意欲・優先度が一致していない",
+      "context": [
+        "組織",
+        "会議",
+        "プロジェクト"
+      ],
+      "domain": "組織運営",
+      "aliases": [
+        "温度感が違う"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "腹落ちする",
+      "interpretation": "内容を表面的でなく納得できる形で理解する",
+      "context": [
+        "説明",
+        "合意",
+        "意思決定"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "腑に落ちる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "言葉尻を捉える",
+      "interpretation": "本質ではなく表現の細部だけを問題にする",
+      "context": [
+        "議論",
+        "レビュー",
+        "交渉"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "揚げ足を取る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "認識を揃える",
+      "interpretation": "関係者の前提・用語・目標を一致させる",
+      "context": [
+        "会議",
+        "要件",
+        "設計"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "目線を揃える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "足並みを揃える",
+      "interpretation": "複数担当の進行速度・方針・前提を合わせる",
+      "context": [
+        "組織",
+        "プロジェクト",
+        "運用"
+      ],
+      "domain": "組織運営",
+      "aliases": [
+        "歩調を合わせる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "逃げる",
+      "interpretation": "責任・判断・実行を避ける",
+      "context": [
+        "組織",
+        "タスク",
+        "意思決定"
+      ],
+      "domain": "責任",
+      "aliases": [
+        "責任逃れする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "釘を刺す",
+      "interpretation": "後の逸脱を防ぐため重要条件を事前に明示する",
+      "context": [
+        "契約",
+        "要件",
+        "注意"
+      ],
+      "domain": "コミュニケーション",
+      "aliases": [
+        "念を押す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "風通しを良くする",
+      "interpretation": "情報や意見が滞らず共有される状態にする",
+      "context": [
+        "組織",
+        "コミュニケーション",
+        "設計"
+      ],
+      "domain": "組織運営",
+      "aliases": [
+        "風通しを改善する"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

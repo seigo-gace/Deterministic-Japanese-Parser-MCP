@@ -1,0 +1,118 @@
+{
+  "version": "1.0.0",
+  "category": "09_system_information",
+  "entries": [
+    {
+      "expression": "一本化する",
+      "interpretation": "重複した経路・仕様・正本を一つへ統合する",
+      "context": [
+        "設計",
+        "文書",
+        "運用"
+      ],
+      "domain": "統合",
+      "aliases": [
+        "一元化する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "一枚岩にする",
+      "interpretation": "複数要素を矛盾なく一体化する",
+      "context": [
+        "組織",
+        "設計",
+        "仕様"
+      ],
+      "domain": "統合",
+      "aliases": [
+        "一枚岩になる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "交通整理する",
+      "interpretation": "複数の論点・Task・依存関係を整理する",
+      "context": [
+        "会議",
+        "設計",
+        "プロジェクト"
+      ],
+      "domain": "整理",
+      "aliases": [
+        "論点整理する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "型にはめる",
+      "interpretation": "自由形式の入力や作業を定型構造へ変換する",
+      "context": [
+        "文書",
+        "解析",
+        "業務"
+      ],
+      "domain": "構造化",
+      "aliases": [
+        "定型化する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "横串を刺す",
+      "interpretation": "複数領域へ共通ルールや観点を横断適用する",
+      "context": [
+        "組織",
+        "設計",
+        "管理"
+      ],
+      "domain": "横断管理",
+      "aliases": [
+        "横断する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "歯車を合わせる",
+      "interpretation": "複数の機能や担当が連動するよう調整する",
+      "context": [
+        "システム",
+        "組織",
+        "工程"
+      ],
+      "domain": "統合",
+      "aliases": [
+        "噛み合わせる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "粒度を揃える",
+      "interpretation": "情報やTaskの詳細度を統一する",
+      "context": [
+        "設計",
+        "文書",
+        "計画"
+      ],
+      "domain": "情報設計",
+      "aliases": [
+        "粒を揃える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "線でつなぐ",
+      "interpretation": "複数の事実や工程の関係を明確にする",
+      "context": [
+        "分析",
+        "設計",
+        "説明"
+      ],
+      "domain": "関係整理",
+      "aliases": [
+        "関連付ける"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

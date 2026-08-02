@@ -1,0 +1,268 @@
+{
+  "version": "1.0.0",
+  "category": "07_analysis_problem_solving",
+  "entries": [
+    {
+      "expression": "取りこぼす",
+      "interpretation": "必要な要求・情報・Taskを見落とす",
+      "context": [
+        "要件",
+        "解析",
+        "サポート"
+      ],
+      "domain": "不足",
+      "aliases": [
+        "見落とす"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "受け皿がない",
+      "interpretation": "入力や需要を処理する担当・仕組みが存在しない",
+      "context": [
+        "サポート",
+        "組織",
+        "システム"
+      ],
+      "domain": "不足",
+      "aliases": [
+        "受付先がない"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "掘り下げる",
+      "interpretation": "対象をより詳細に分析する",
+      "context": [
+        "分析",
+        "調査",
+        "要件"
+      ],
+      "domain": "分析",
+      "aliases": [],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "根を絶つ",
+      "interpretation": "問題の再発原因を根本から除去する",
+      "context": [
+        "障害",
+        "不正",
+        "再発防止"
+      ],
+      "domain": "問題解決",
+      "aliases": [
+        "根絶する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "棚卸しする",
+      "interpretation": "資産・機能・課題を一覧化して現状を確認する",
+      "context": [
+        "管理",
+        "設計",
+        "運用"
+      ],
+      "domain": "現状確認",
+      "aliases": [
+        "一覧化する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "洗う",
+      "interpretation": "対象を調査して問題・差異・事実を確認する",
+      "context": [
+        "監査",
+        "調査",
+        "デバッグ"
+      ],
+      "domain": "調査",
+      "aliases": [
+        "精査する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "深掘りする",
+      "interpretation": "表面的な説明から原因・根拠・詳細へ進む",
+      "context": [
+        "分析",
+        "調査",
+        "要件"
+      ],
+      "domain": "分析",
+      "aliases": [],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "潰し込む",
+      "interpretation": "問題・不足・差異を一件ずつ解消する",
+      "context": [
+        "デバッグ",
+        "検証",
+        "移行"
+      ],
+      "domain": "問題解決",
+      "aliases": [
+        "一つずつ潰す"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "点で見る",
+      "interpretation": "個別事象だけに注目する",
+      "context": [
+        "分析",
+        "監視",
+        "レビュー"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "局所的に見る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "的を外す",
+      "interpretation": "要求や目的と異なる対応をする",
+      "context": [
+        "対話",
+        "設計",
+        "分析"
+      ],
+      "domain": "誤読",
+      "aliases": [
+        "見当違いになる"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "縦に掘る",
+      "interpretation": "一つの領域を詳細に掘り下げる",
+      "context": [
+        "分析",
+        "設計",
+        "調査"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "縦深掘りする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "芯を食う",
+      "interpretation": "問題や要求の本質を正確に捉える",
+      "context": [
+        "分析",
+        "要件",
+        "対話"
+      ],
+      "domain": "読解",
+      "aliases": [
+        "本質を捉える"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "蓋をする",
+      "interpretation": "問題を解決せず見えない状態にする",
+      "context": [
+        "障害",
+        "品質",
+        "組織"
+      ],
+      "domain": "問題管理",
+      "aliases": [
+        "臭いものに蓋をする"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "行間を読む",
+      "interpretation": "明示されていない意図を文脈から推測する",
+      "context": [
+        "文章",
+        "会話",
+        "要件"
+      ],
+      "domain": "読解",
+      "aliases": [
+        "文脈を読む"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "解像度を上げる",
+      "interpretation": "曖昧な内容を具体化し理解精度を高める",
+      "context": [
+        "要件",
+        "分析",
+        "企画"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "解像度を高める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "詰まりを取る",
+      "interpretation": "停滞原因を除去して処理を再開する",
+      "context": [
+        "工程",
+        "性能",
+        "組織"
+      ],
+      "domain": "問題解決",
+      "aliases": [
+        "詰まりを解消する"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "詰める",
+      "interpretation": "未確定事項を具体化し決定可能な状態にする",
+      "context": [
+        "設計",
+        "交渉",
+        "計画"
+      ],
+      "domain": "具体化",
+      "aliases": [
+        "内容を詰める"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "足元を見る",
+      "interpretation": "現在の能力・制約・実態を現実的に確認する",
+      "context": [
+        "計画",
+        "経営",
+        "開発"
+      ],
+      "domain": "現状確認",
+      "aliases": [
+        "現実を見る"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "expression": "面で見る",
+      "interpretation": "複数要素を全体構造として把握する",
+      "context": [
+        "分析",
+        "設計",
+        "戦略"
+      ],
+      "domain": "分析",
+      "aliases": [
+        "全体で見る"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

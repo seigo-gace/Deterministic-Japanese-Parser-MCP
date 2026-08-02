@@ -1,3 +1,0 @@
-{
-  "version":"1.0.0","domain":"読解","entries":[{"expression":"行間を読む","interpretation":"明示されていない意図を文脈から推測する","context":["文章","会話","要件"],"domain":"読解","aliases":["文脈を読む"],"version":"1.0.0"},{"expression":"芯を食う","interpretation":"問題や要求の本質を正確に捉える","context":["分析","要件","対話"],"domain":"読解","aliases":["本質を捉える"],"version":"1.0.0"}]
-}
