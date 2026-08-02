@@ -1,5 +1,6 @@
 import hashlib
 import json
+from time import perf_counter
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 from deterministic_japanese_parser_mcp.metaphor import MetaphorMatcher
@@ -16,6 +17,10 @@ def semantic_hash(response) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
+
+
+def serialized_intents(intents) -> list[dict]:
+    return [intent.model_dump(mode="json") for intent in intents]
 
 
 def test_grapheme_normalization_and_original_span():
@@ -94,13 +99,25 @@ def test_metaphor_required_context_uses_local_clause():
 def test_indexed_and_exhaustive_rules_are_semantically_identical():
     engine = ParserEngine()
     samples = [
-        "今のUIは殺すな。APIだけ変更しろ。",
-        "これを前の案と比較しろ。",
-        "障害の火消しをして、落ち着いてから穴を全部塞げ。最後にGitHubへ入れろ。",
-        "あ" * 500,
+        AnalyzeRequest(
+            original_text="今のUIは殺すな。APIだけ変更しろ。",
+            deadline_ms=60000,
+        ),
+        AnalyzeRequest(
+            original_text="これを前の案と比較しろ。",
+            conversation_context=["案A", "案B"],
+            deadline_ms=60000,
+        ),
+        AnalyzeRequest(
+            original_text="障害の火消しをして、落ち着いてから穴を全部塞げ。最後にGitHubへ入れろ。",
+            deadline_ms=60000,
+        ),
+        AnalyzeRequest(
+            original_text="ｶﾞを変更しろ。",
+            deadline_ms=60000,
+        ),
     ]
-    for text in samples:
-        request = AnalyzeRequest(original_text=text, deadline_ms=60000)
+    for request in samples:
         indexed = engine.analyze(request).model_dump(mode="json")
         exhaustive = engine.analyze(
             request,
@@ -109,6 +126,25 @@ def test_indexed_and_exhaustive_rules_are_semantically_identical():
         indexed.pop("metrics", None)
         exhaustive.pop("metrics", None)
         assert indexed == exhaustive
+
+
+def test_indexed_and_exhaustive_intents_match_on_adversarial_unmatched_text():
+    engine = ParserEngine()
+    original = "あ" * 500
+    normalized, mapping = normalize_with_map(original)
+    indexed, _ = engine.rules.extract(
+        normalized,
+        mapping,
+        original,
+        deadline_at=perf_counter() + 60,
+    )
+    exhaustive, _ = engine.rules.extract_exhaustive(
+        normalized,
+        mapping,
+        original,
+        deadline_at=perf_counter() + 60,
+    )
+    assert serialized_intents(indexed) == serialized_intents(exhaustive)
 
 
 def test_task_graph_adds_sequence_dependency():
