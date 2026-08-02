@@ -25,6 +25,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          wc -c .bootstrap/repo.part*
+          sha256sum --check <<'CHECKSUMS'
+          1e9ffc48c98de672e5b11d9631e4ab8150f1e8c20ac819fb55841b594f77bc13  .bootstrap/repo.part00
+          4292fd526162c1268a30badf5ace117534c19d512c0607db8d13b7d65f888e8e  .bootstrap/repo.part01
+          b981c5900761b0975c8039aa0637c51fca70c38d40e1282f5f9de623791c30f6  .bootstrap/repo.part02
+          5fcf25dc6a0385fedd559d20d21627ef4f6e17cfede56015e2d972ad11dc89f4  .bootstrap/repo.part03
+          d0d7b6e1ae62861b3a8d22c9128d100668bb775f265c84e029897c08f235cee7  .bootstrap/repo.part04
+          13fd4153bc5453926da2568671b52f74635a6876c03b2c159af82d835cf9acdc  .bootstrap/repo.part05
+          1e785485a19ec19f13acbf12effd58d049d40adb3e5bc0090d4a85491e843e12  .bootstrap/repo.part06
+          CHECKSUMS
           cat .bootstrap/repo.part* > /tmp/repo.tar.gz.b64
           base64 --decode /tmp/repo.tar.gz.b64 > /tmp/repo.tar.gz
           echo '098aef85f61d2375b28a1a6f222ba600dd2d832ea3e2ac19dfd58e913a0a9e84  /tmp/repo.tar.gz' | sha256sum --check
