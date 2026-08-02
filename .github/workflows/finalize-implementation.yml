@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install -e /tmp/final-source
+          python -m pip install -e '/tmp/final-source[dev]'
           cd /tmp/final-source
           python tools/validator.py
           pytest -q
