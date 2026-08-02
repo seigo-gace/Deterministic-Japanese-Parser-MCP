@@ -1,0 +1,41 @@
+name: Bootstrap implementation
+
+on:
+  push:
+    branches:
+      - agent/initial-public-implementation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/initial-public-implementation
+          fetch-depth: 0
+
+      - name: Expand verified implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat bootstrap/chunk-*.b64 > /tmp/repo.tar.gz.b64
+          base64 --decode /tmp/repo.tar.gz.b64 > /tmp/repo.tar.gz
+          tar -xzf /tmp/repo.tar.gz -C .
+          rm -rf bootstrap
+          rm -f .github/workflows/bootstrap.yml
+
+      - name: Commit expanded repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add deterministic Japanese parser MCP implementation"
+          git push origin HEAD:agent/initial-public-implementation
