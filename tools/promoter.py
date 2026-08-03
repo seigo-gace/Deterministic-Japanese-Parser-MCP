@@ -372,6 +372,9 @@ def sync_metadata(
 
     readme_path = root / "README.md"
     readme = readme_path.read_text(encoding="utf-8")
+    open_lexicon_pattern = (
+        r"(\| Open lexical records \| \*\*)\d+(\*\* \|)"
+    )
     replacements = {
         r"(\| 比喩・慣用・語用表現 \| \*\*)\d+(\*\* \|)": counts["metaphors"],
         r"(\| 決定論的Intent Pattern \| \*\*)\d+(\*\* \|)": counts["rules"],
@@ -379,7 +382,7 @@ def sync_metadata(
         r"(\| Task / Workflow Template \| \*\*)\d+(\*\* \|)": counts["templates"],
         r"(\| Workflow \| \*\*)\d+(\*\* \|)": counts["workflows"],
         r"(\| Gold Corpus \| \*\*)\d+(\*\* \|)": counts["gold"],
-        r"(\| Open lexical records \| \*\*)\d+(\*\* \|)": counts["lexicon_records"],
+        open_lexicon_pattern: counts["lexicon_records"],
         r"(\| Metaphor, idiom, and pragmatic expressions \| \*\*)\d+(\*\* \|)": counts["metaphors"],
         r"(\| Deterministic intent patterns \| \*\*)\d+(\*\* \|)": counts["rules"],
         r"(\| Canonical synonym groups \| \*\*)\d+(\*\* \|)": counts["synonym_groups"],
@@ -388,10 +391,16 @@ def sync_metadata(
         r"(\| Gold Corpus cases \| \*\*)\d+(\*\* \|)": counts["gold"],
     }
     for pattern, value in replacements.items():
-        readme, changed = re.subn(pattern, rf"\g<1>{value}\g<2>", readme)
-        if changed != 1:
+        readme, changed = re.subn(
+            pattern,
+            rf"\g<1>{value}\g<2>",
+            readme,
+        )
+        expected_changes = 2 if pattern == open_lexicon_pattern else 1
+        if changed != expected_changes:
             raise ValueError(
-                f"README count marker mismatch: {pattern}: changed={changed}"
+                "README count marker mismatch: "
+                f"{pattern}: changed={changed} expected={expected_changes}"
             )
     readme_path.write_text(readme, encoding="utf-8")
 
