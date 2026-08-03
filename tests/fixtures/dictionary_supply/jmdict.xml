@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE JMdict [
+  <!ENTITY n "noun (common) (futsuumeishi)">
+  <!ENTITY vs "suru verb - included">
+  <!ENTITY comp "computing">
+]>
 <JMdict>
   <entry>
     <ent_seq>1234560</ent_seq>
     <k_ele><keb>修正</keb></k_ele>
     <r_ele><reb>しゅうせい</reb></r_ele>
     <sense>
-      <pos>noun (common) (futsuumeishi)</pos>
-      <pos>suru verb - included</pos>
-      <field>computing</field>
+      <pos>&n;</pos>
+      <pos>&vs;</pos>
+      <field>&comp;</field>
       <gloss xml:lang="eng">correction</gloss>
       <gloss xml:lang="eng">modification</gloss>
       <xref>変更</xref>
