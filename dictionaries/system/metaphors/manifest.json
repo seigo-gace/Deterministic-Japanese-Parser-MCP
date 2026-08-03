@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
-  "dictionary_version": "1.0.0",
-  "metaphor_entries": 152,
+  "dictionary_version": "1.1.0",
+  "metaphor_entries": 200,
   "category_files": {
     "01_operations_security.json": 13,
     "02_development_change.json": 18,
@@ -14,7 +14,17 @@
     "09_system_information.json": 8,
     "10_process_workflow.json": 8,
     "11_control_reversibility.json": 7,
-    "12_general.json": 1
+    "12_general.json": 1,
+    "13_everyday_instruction.json": 12,
+    "14_business_communication.json": 12,
+    "15_development_operations.json": 12,
+    "16_document_analysis.json": 12
   },
-  "source_policy": "project-authored definitions; no third-party dictionary text copied"
+  "research_basis": [
+    "NINJAL BCCWJ frequency and usage resources",
+    "NINJAL CEJC everyday conversation vocabulary and discourse resources",
+    "NINJAL corpus portal and Japanese web corpus resources",
+    "official GitHub, Digital Agency, and Microsoft technical documentation"
+  ],
+  "source_policy": "project-authored definitions; external corpora and official documents are used only to review usage and terminology; no third-party dictionary definitions or corpus passages are copied"
 }
