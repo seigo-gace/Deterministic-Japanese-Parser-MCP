@@ -9,9 +9,21 @@ def _compact(text: str) -> str:
 
 
 class Canonicalizer:
-    """Map surfaces to canonical groups with a deterministic prefix trie."""
+    """Map surfaces to canonical groups with a cached deterministic prefix trie."""
+
+    _CACHE: dict[str, tuple[dict, dict, int]] = {}
 
     def __init__(self, synonyms: dict):
+        cache_key = synonyms.get("_cache_key")
+        cached = self._CACHE.get(cache_key) if cache_key else None
+        if cached is not None:
+            (
+                self.surface_to_ids,
+                self.trie,
+                self.maximum_surface_length,
+            ) = cached
+            return
+
         surface_to_ids: dict[str, set[str]] = {}
         for canonical, surfaces in synonyms.get("groups", {}).items():
             for surface in [canonical, *(surfaces or [])]:
@@ -32,6 +44,14 @@ class Canonicalizer:
             node[_TERMINAL] = ids
         self.trie = trie
         self.maximum_surface_length = maximum
+        if cache_key:
+            self._CACHE[cache_key] = (
+                self.surface_to_ids,
+                self.trie,
+                self.maximum_surface_length,
+            )
+            while len(self._CACHE) > 8:
+                self._CACHE.pop(next(iter(self._CACHE)))
 
     @staticmethod
     def _ascii_boundary(
