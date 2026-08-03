@@ -2,8 +2,10 @@
 """Validate approved runtime lexicon packs and source/license evidence."""
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
+import gzip
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -25,15 +27,32 @@ ALLOWED_PUBLIC_LICENSES = {
 }
 
 
+def paths() -> list[Path]:
+    return sorted(
+        [
+            *LEXICON_DIR.rglob("*.jsonl"),
+            *LEXICON_DIR.rglob("*.jsonl.gz"),
+        ],
+        key=lambda item: str(item),
+    )
+
+
+def open_path(path: Path):
+    if path.name.endswith(".jsonl.gz"):
+        return gzip.open(path, "rt", encoding="utf-8")
+    return path.open("r", encoding="utf-8")
+
+
 def main() -> int:
     errors: list[str] = []
     ids: dict[str, str] = {}
     licenses: Counter[str] = Counter()
-    surfaces: dict[str, set[str]] = defaultdict(set)
+    surface_owner: dict[str, str] = {}
+    ambiguous_surfaces: set[str] = set()
     record_count = 0
 
-    for path in sorted(LEXICON_DIR.rglob("*.jsonl")):
-        with path.open("r", encoding="utf-8") as handle:
+    for path in paths():
+        with open_path(path) as handle:
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
@@ -50,7 +69,8 @@ def main() -> int:
                     )
                 if record.record_id in ids:
                     errors.append(
-                        f"duplicate runtime record_id: {record.record_id}: {ids[record.record_id]} / {path}"
+                        f"duplicate runtime record_id: {record.record_id}: "
+                        f"{ids[record.record_id]} / {path}"
                     )
                 ids[record.record_id] = str(path)
                 license_value = record.source.license
@@ -65,13 +85,22 @@ def main() -> int:
                     errors.append(f"missing source_sha256: {record.record_id}")
                 if "private" in str(path).lower() or "PRIVATE" in license_value:
                     errors.append(f"private data in runtime pack: {record.record_id}")
-                for surface in [record.lemma, *record.surfaces, *record.synonyms]:
-                    if surface:
-                        surfaces[surface].add(record.record_id)
+                for surface in [
+                    record.lemma,
+                    *record.surfaces,
+                    *record.synonyms,
+                ]:
+                    if not surface:
+                        continue
+                    owner = surface_owner.setdefault(surface, record.record_id)
+                    if owner != record.record_id:
+                        ambiguous_surfaces.add(surface)
 
-    ambiguity_count = sum(
-        1 for owners in surfaces.values() if len(owners) > 1
-    )
+    minimum = int(os.getenv("DJPMCP_MIN_LEXICON_RECORDS", "0"))
+    if record_count < minimum:
+        errors.append(
+            f"runtime lexicon minimum not met: required={minimum} actual={record_count}"
+        )
     if errors:
         print("LEXICON VALIDATION FAILED")
         for error in errors:
@@ -80,7 +109,7 @@ def main() -> int:
     print(
         "LEXICON VALIDATION OK: "
         f"records={record_count} licenses={dict(sorted(licenses.items()))} "
-        f"ambiguous_surfaces={ambiguity_count}"
+        f"ambiguous_surfaces={len(ambiguous_surfaces)} minimum={minimum}"
     )
     return 0
 
