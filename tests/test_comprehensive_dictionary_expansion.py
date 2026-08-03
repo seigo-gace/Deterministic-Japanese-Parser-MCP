@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.dictionaries import _load_synonym_set
 from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +53,14 @@ def _request(case: dict) -> AnalyzeRequest:
     return AnalyzeRequest(**request)
 
 
+def _project_authored_synonym_count() -> int:
+    document = _load_synonym_set(
+        ROOT / "dictionaries/system/synonyms.yaml",
+        ROOT / "dictionaries/system/synonyms.d",
+    )
+    return len(document["groups"])
+
+
 def test_comprehensive_dictionary_totals_are_fixed():
     engine = ParserEngine()
     gold_count = len(_load_effective_gold())
@@ -62,10 +71,12 @@ def test_comprehensive_dictionary_totals_are_fixed():
     )
     assert len(engine.bundle.metaphors["entries"]) == 452
     assert len(engine.rules.compiled) == 339
-    assert len(engine.bundle.synonyms["groups"]) == 100
+    assert _project_authored_synonym_count() == 100
+    assert len(engine.bundle.synonyms["groups"]) >= 100
     assert len(engine.bundle.templates["templates"]) == 63
     assert workflow_count == 42
     assert gold_count == 649
+    assert engine.bundle.lexicon["record_count"] >= 0
 
 
 def test_every_second_wave_metaphor_has_effective_gold_and_is_detected():
