@@ -91,6 +91,11 @@ class GraphGuard:
             related = set(unresolved.get("related_proposition_ids", []))
             status = unresolved.get("status")
             if related and related.intersection(closure):
+                if status in {
+                    ItemStatus.AMBIGUOUS.value,
+                    ItemStatus.INSUFFICIENT.value,
+                }:
+                    blocked.append("AMBIGUOUS_OR_INSUFFICIENT_REFERENCE")
                 blocked.append(f"{status}_ACTION_REFERENCE")
             elif unresolved.get("proposition_id") in closure:
                 blocked.append(f"{status}_ACTION_GRAPH")
