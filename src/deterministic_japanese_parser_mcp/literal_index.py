@@ -51,12 +51,17 @@ class LiteralIndex:
             sorted(set(values), key=lambda value: (-len(value), value))
             for values in self._outputs
         ]
+        self._root_chars = frozenset(self._transitions[0])
 
     @property
     def state_count(self) -> int:
         return len(self._transitions)
 
     def find(self, text: str) -> Iterator[tuple[str, int, int]]:
+        # Every registered literal must start with a root character. Rejecting
+        # text without any such character is exact and avoids a Python scan.
+        if not text or self._root_chars.isdisjoint(text):
+            return
         state = 0
         for end_index, char in enumerate(text, start=1):
             while state and char not in self._transitions[state]:
@@ -66,4 +71,6 @@ class LiteralIndex:
                 yield literal, end_index - len(literal), end_index
 
     def matched_literals(self, text: str) -> set[str]:
+        if not text or self._root_chars.isdisjoint(text):
+            return set()
         return {literal for literal, _, _ in self.find(text)}
