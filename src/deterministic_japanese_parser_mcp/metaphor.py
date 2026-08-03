@@ -49,6 +49,13 @@ class MetaphorMatcher:
             return ItemStatus.UNSUPPORTED
         return ItemStatus.RESOLVED
 
+    @staticmethod
+    def _overlaps(left: Metaphor, right: Metaphor) -> bool:
+        return (
+            left.span.start < right.span.end
+            and right.span.start < left.span.end
+        )
+
     def _literal_matches(self, text: str) -> list[tuple[dict, int, int]]:
         output: list[tuple[dict, int, int]] = []
         seen: set[tuple[str, int, int]] = set()
@@ -90,20 +97,36 @@ class MetaphorMatcher:
                 status=self._status(item, context_matches),
             ))
 
-        unique: dict[tuple, Metaphor] = {}
+        # One canonical expression may be found through both its exact surface
+        # and a longer alias in the same source span. Keep the longest
+        # overlapping match, while preserving genuinely repeated occurrences
+        # at separate positions in the sentence.
+        unique: list[Metaphor] = []
         for entry in sorted(
             output,
             key=lambda value: (
-                value.span.start,
-                -len(value.span.source_text),
                 value.expression,
+                -(value.span.end - value.span.start),
+                value.span.start,
+                value.span.end,
             ),
         ):
-            unique.setdefault((entry.span.start, entry.expression), entry)
+            if any(
+                existing.expression == entry.expression
+                and self._overlaps(existing, entry)
+                for existing in unique
+            ):
+                continue
+            unique.append(entry)
+        unique.sort(key=lambda value: (
+            value.span.start,
+            -len(value.span.source_text),
+            value.expression,
+        ))
         self.last_metrics = {
             "literal_count": len(self.literal_index),
             "literal_state_count": self.literal_matcher.state_count,
             "regex_pattern_count": len(self.compiled_patterns),
             "literal_candidate_count": literal_candidate_count,
         }
-        return list(unique.values())
+        return unique
