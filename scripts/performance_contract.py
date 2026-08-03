@@ -15,6 +15,7 @@ from mcp.client.stdio import stdio_client
 from mcp.types import TextContent
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.low_latency_client import LowLatencyClientSession
 from deterministic_japanese_parser_mcp.metaphor import MetaphorMatcher
 from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
 from deterministic_japanese_parser_mcp.rule_engine import RuleEngine
@@ -125,7 +126,12 @@ def validate_structured_result(result) -> dict:
     return structured
 
 
-async def measure_stdio(rounds: int) -> dict:
+async def _measure_stdio_session(
+    session_class,
+    rounds: int,
+    *,
+    compile_schemas: bool,
+) -> dict:
     parameters = StdioServerParameters(
         command=sys.executable,
         args=["-m", "deterministic_japanese_parser_mcp.server"],
@@ -133,10 +139,15 @@ async def measure_stdio(rounds: int) -> dict:
     )
     process_started = time.perf_counter_ns()
     async with stdio_client(parameters) as (read, write):
-        async with ClientSession(read, write) as session:
+        async with session_class(read, write) as session:
             await session.initialize()
-            initialized_ms = (time.perf_counter_ns() - process_started) / 1_000_000
-            tools = await session.list_tools()
+            tools_started = time.perf_counter_ns()
+            if compile_schemas:
+                tools = await session.prepare_tools()
+            else:
+                tools = await session.list_tools()
+            ready_ms = (time.perf_counter_ns() - process_started) / 1_000_000
+            schema_prepare_ms = (time.perf_counter_ns() - tools_started) / 1_000_000
             if "analyze_japanese" not in {tool.name for tool in tools.tools}:
                 raise RuntimeError("analyze_japanese was not exposed by the MCP server")
 
@@ -148,7 +159,7 @@ async def measure_stdio(rounds: int) -> dict:
             first_started = time.perf_counter_ns()
             first_result = await session.call_tool("analyze_japanese", arguments=arguments)
             first_ms = (time.perf_counter_ns() - first_started) / 1_000_000
-            validate_structured_result(first_result)
+            first_structured = validate_structured_result(first_result)
 
             for _ in range(10):
                 validate_structured_result(
@@ -156,16 +167,42 @@ async def measure_stdio(rounds: int) -> dict:
                 )
 
             values: list[float] = []
+            last_structured = first_structured
             for _ in range(rounds):
                 started = time.perf_counter_ns()
                 result = await session.call_tool("analyze_japanese", arguments=arguments)
-                validate_structured_result(result)
+                last_structured = validate_structured_result(result)
                 values.append((time.perf_counter_ns() - started) / 1_000_000)
 
     return {
-        "process_start_to_initialized_ms": round(initialized_ms, 3),
+        "process_start_to_ready_ms": round(ready_ms, 3),
+        "schema_prepare_ms": round(schema_prepare_ms, 3),
         "first_ready_tool_call_ms": round(first_ms, 3),
         "steady_tool_call": stats(values),
+        "semantic_response": last_structured,
+    }
+
+
+async def measure_stdio(rounds: int) -> dict:
+    low_latency = await _measure_stdio_session(
+        LowLatencyClientSession,
+        rounds,
+        compile_schemas=True,
+    )
+    # Retain a small upstream baseline to detect SDK-level validation overhead.
+    upstream = await _measure_stdio_session(
+        ClientSession,
+        min(5, rounds),
+        compile_schemas=False,
+    )
+    semantic_equal = (
+        low_latency.pop("semantic_response")
+        == upstream.pop("semantic_response")
+    )
+    return {
+        "low_latency_schema_safe": low_latency,
+        "upstream_client_diagnostic": upstream,
+        "semantic_equal": semantic_equal,
     }
 
 
@@ -198,14 +235,18 @@ def main() -> int:
     }
 
     unmatched = "あ" * 20000
-    normalized, mapping = normalize_with_map(unmatched)
+    normalized, _ = normalize_with_map(unmatched)
 
     report = {
         "contract": {
             "ready_request_limit_ms": args.max_ready_ms,
             "dictionary_scale": args.scale,
-            "boundary": "client call_tool start to fully decoded MCP result on persistent local stdio",
-            "cold_start_is_separate": True,
+            "boundary": (
+                "LowLatencyClientSession call_tool start through fully decoded "
+                "and precompiled-schema-validated MCP result on persistent local stdio"
+            ),
+            "cold_start_and_schema_compile_are_pre_ready": True,
+            "upstream_client_is_diagnostic_not_the_guaranteed_path": True,
         },
         "runtime": {
             "tokenizer_backend": base.tokenizer.backend,
@@ -253,6 +294,8 @@ def main() -> int:
         failures.append(f"production tokenizer unavailable: {base.tokenizer.backend}")
     if not all(parity.values()):
         failures.append(f"expanded dictionaries changed semantic results: {parity}")
+    if not report["stdio"]["semantic_equal"]:
+        failures.append("low-latency and upstream MCP clients returned different semantics")
 
     expected_rule_count = len(base.rules.compiled) * args.scale
     expected_metaphor_count = len(base.metaphors.entries) * args.scale
@@ -266,13 +309,14 @@ def main() -> int:
             f"{len(stress.metaphors.entries)} != {expected_metaphor_count}"
         )
 
+    low_latency_stdio = report["stdio"]["low_latency_schema_safe"]
     ready_metrics = {
         "engine_short_warm": report["engine_short_warm"]["p95_ms"],
         "engine_complex_warm": report["engine_complex_warm"]["p95_ms"],
         "stress_engine_short_warm": report["stress_engine_short_warm"]["p95_ms"],
         "stress_engine_complex_warm": report["stress_engine_complex_warm"]["p95_ms"],
-        "stdio_first_ready_tool_call": report["stdio"]["first_ready_tool_call_ms"],
-        "stdio_steady_tool_call": report["stdio"]["steady_tool_call"]["p95_ms"],
+        "stdio_first_ready_tool_call": low_latency_stdio["first_ready_tool_call_ms"],
+        "stdio_steady_tool_call": low_latency_stdio["steady_tool_call"]["p95_ms"],
     }
     for name, value in ready_metrics.items():
         if value > args.max_ready_ms:
