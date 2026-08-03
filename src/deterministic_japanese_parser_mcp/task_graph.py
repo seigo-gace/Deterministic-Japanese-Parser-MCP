@@ -34,6 +34,7 @@ class ActionTaskGraphBuilder:
             "action_task_count": 0,
             "task_constraint_count": 0,
             "action_task_edge_count": 0,
+            "suppressed_generic_request_count": 0,
         }
 
     @staticmethod
@@ -43,6 +44,13 @@ class ActionTaskGraphBuilder:
                 if argument.role == role and argument.value:
                     return argument.value
         return proposition.value
+
+    @staticmethod
+    def _overlaps(left, right) -> bool:
+        return (
+            left.source_span.start < right.source_span.end
+            and right.source_span.start < left.source_span.end
+        )
 
     @staticmethod
     def _order(
@@ -78,14 +86,26 @@ class ActionTaskGraphBuilder:
         proposition_by_id = {
             item.proposition_id: item for item in graph.propositions
         }
-        selected = [
+        candidates = [
             item
             for item in graph.propositions
             if item.intent_type in ACTION_INTENTS and item.executable_candidate
         ]
+        specific = [
+            item for item in candidates if item.intent_type != "request"
+        ]
+        selected = [
+            item
+            for item in candidates
+            if item.intent_type != "request"
+            or not any(self._overlaps(item, other) for other in specific)
+        ]
         selected.sort(
             key=lambda item: (item.source_span.start, item.proposition_id)
         )
+        selected_by_id = {
+            item.proposition_id: item for item in selected
+        }
         index_by_prop = {
             item.proposition_id: index for index, item in enumerate(selected)
         }
@@ -96,27 +116,46 @@ class ActionTaskGraphBuilder:
         dependency_edges: set[tuple[int, int]] = set()
         relation_by_edge: dict[tuple[int, int], str] = {}
 
+        def resolve_selected_target(target_id: str) -> str | None:
+            if target_id in selected_by_id:
+                return target_id
+            target = proposition_by_id.get(target_id)
+            if target is None or target.intent_type != "request":
+                return None
+            overlapping = [
+                item for item in selected if self._overlaps(target, item)
+            ]
+            if not overlapping:
+                return None
+            overlapping.sort(key=lambda item: (
+                0 if item.clause_id == target.clause_id else 1,
+                abs(item.source_span.start - target.source_span.start),
+                item.source_span.start,
+                item.proposition_id,
+            ))
+            return overlapping[0].proposition_id
+
         for edge in graph.scope_edges:
+            resolved_source_id = resolve_selected_target(edge.source_id)
+            resolved_target_id = resolve_selected_target(edge.target_id)
             if edge.relation in {"precedes", "depends_on"}:
                 if (
-                    edge.source_id in index_by_prop
-                    and edge.target_id in index_by_prop
+                    resolved_source_id in index_by_prop
+                    and resolved_target_id in index_by_prop
                 ):
-                    source = index_by_prop[edge.source_id]
-                    target = index_by_prop[edge.target_id]
+                    source = index_by_prop[resolved_source_id]
+                    target = index_by_prop[resolved_target_id]
                     pair = (
                         (source, target)
                         if edge.relation == "precedes"
                         else (target, source)
                     )
-                    dependency_edges.add(pair)
-                    relation_by_edge[pair] = edge.relation
+                    if pair[0] != pair[1]:
+                        dependency_edges.add(pair)
+                        relation_by_edge[pair] = edge.relation
                 continue
             constraint_type = _RELATION_CONSTRAINTS.get(edge.relation)
-            if (
-                not constraint_type
-                or edge.target_id not in constraints_by_target
-            ):
+            if not constraint_type or resolved_target_id not in constraints_by_target:
                 continue
             source = proposition_by_id.get(edge.source_id)
             constraint = TaskConstraint(
@@ -126,7 +165,7 @@ class ActionTaskGraphBuilder:
                 source_span=source.source_span if source else None,
                 status=edge.status,
             )
-            constraints_by_target[edge.target_id].append(constraint)
+            constraints_by_target[resolved_target_id].append(constraint)
             all_constraints.append(constraint)
 
         provisional: list[Task] = []
@@ -201,6 +240,7 @@ class ActionTaskGraphBuilder:
             "action_task_count": len(tasks),
             "task_constraint_count": len(all_constraints),
             "action_task_edge_count": len(dependency_edges),
+            "suppressed_generic_request_count": len(candidates) - len(selected),
         }
         return TaskGraph(
             tasks=tasks,
