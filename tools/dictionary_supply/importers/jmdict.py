@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
+from typing import Iterator
 
 TOOLS_ROOT = Path(__file__).resolve().parents[2]
 if str(TOOLS_ROOT) not in sys.path:
@@ -34,6 +35,7 @@ def parse_entry(
     *,
     source_version: str,
     source_sha256: str,
+    lexical_only: bool = False,
 ) -> list[LexiconRecord]:
     sequence = normalize_text(entry.findtext("ent_seq") or "")
     writings = _texts(entry, "k_ele/keb")
@@ -47,7 +49,6 @@ def parse_entry(
     all_pos: list[str] = []
     all_domains: list[str] = []
     all_labels: list[str] = []
-    synonyms: list[str] = []
     antonyms: list[str] = []
     related: list[str] = []
     for sense_index, sense in enumerate(entry.findall("sense"), 1):
@@ -55,8 +56,6 @@ def parse_entry(
         fields = _texts(sense, "field")
         misc = _texts(sense, "misc")
         dialect = _texts(sense, "dial")
-        cross_references = _texts(sense, "xref")
-        antonym_values = _texts(sense, "ant")
         for value in pos:
             if value not in all_pos:
                 all_pos.append(value)
@@ -66,28 +65,35 @@ def parse_entry(
         for value in [*misc, *dialect]:
             if value not in all_labels:
                 all_labels.append(value)
+        if lexical_only:
+            continue
+        cross_references = _texts(sense, "xref")
+        antonym_values = _texts(sense, "ant")
         for value in cross_references:
             if value not in related:
                 related.append(value)
         for value in antonym_values:
             if value not in antonyms:
                 antonyms.append(value)
-        glosses = []
         for gloss in sense.findall("gloss"):
             value = normalize_text(gloss.text or "")
             if not value:
                 continue
-            language = gloss.attrib.get("{http://www.w3.org/XML/1998/namespace}lang", "eng")
-            glosses.append((language, value))
-        for language, gloss in glosses:
+            language = gloss.attrib.get(
+                "{http://www.w3.org/XML/1998/namespace}lang",
+                "eng",
+            )
             senses.append({
                 "sense_id": f"{sequence}-{sense_index}-{language}",
-                "gloss": gloss,
+                "gloss": value,
                 "language": language,
                 "labels": [*misc, *dialect],
                 "domains": fields,
                 "examples": [],
-                "cross_references": [*cross_references, *antonym_values],
+                "cross_references": [
+                    *cross_references,
+                    *antonym_values,
+                ],
             })
 
     for lemma in lemmas:
@@ -98,8 +104,19 @@ def parse_entry(
             source_id=sequence or lemma,
             source_url="https://www.edrdg.org/jmdict/j_jmdict.html",
             source_sha256=source_sha256,
-            attribution="Electronic Dictionary Research and Development Group",
+            attribution=(
+                "Electronic Dictionary Research and Development Group"
+            ),
         )
+        notes = [
+            "Imported in lexical-identity-only mode; semantic relations require separate review."
+            if lexical_only
+            else (
+                "JMdict glosses are multilingual support evidence; "
+                "Japanese semantic definitions require review or another "
+                "Japanese source."
+            )
+        ]
         output.append(LexiconRecord(
             record_id=stable_id("JMD", sequence, lemma),
             lemma=lemma,
@@ -107,18 +124,41 @@ def parse_entry(
             surfaces=[*writings, *readings],
             part_of_speech=all_pos,
             senses=senses,
-            synonyms=synonyms,
             antonyms=antonyms,
             related=related,
             domains=all_domains,
             usage_labels=all_labels,
             source=source,
             review_status="needs_review",
-            notes=[
-                "JMdict glosses are multilingual support evidence; Japanese semantic definitions require review or another Japanese source."
-            ],
+            notes=notes,
         ).normalized())
     return output
+
+
+def iter_dump(
+    path: Path,
+    *,
+    source_version: str,
+    limit: int | None = None,
+    lexical_only: bool = False,
+) -> Iterator[LexiconRecord]:
+    checksum = sha256_file(path)
+    emitted = 0
+    with open_binary(path) as handle:
+        for _, element in ET.iterparse(handle, events=("end",)):
+            if element.tag != "entry":
+                continue
+            for record in parse_entry(
+                element,
+                source_version=source_version,
+                source_sha256=checksum,
+                lexical_only=lexical_only,
+            ):
+                yield record
+                emitted += 1
+                if limit is not None and emitted >= limit:
+                    return
+            element.clear()
 
 
 def import_dump(
@@ -126,22 +166,14 @@ def import_dump(
     *,
     source_version: str,
     limit: int | None = None,
+    lexical_only: bool = False,
 ) -> list[LexiconRecord]:
-    checksum = sha256_file(path)
-    output: list[LexiconRecord] = []
-    with open_binary(path) as handle:
-        for _, element in ET.iterparse(handle, events=("end",)):
-            if element.tag != "entry":
-                continue
-            output.extend(parse_entry(
-                element,
-                source_version=source_version,
-                source_sha256=checksum,
-            ))
-            element.clear()
-            if limit is not None and len(output) >= limit:
-                return output[:limit]
-    return output
+    return list(iter_dump(
+        path,
+        source_version=source_version,
+        limit=limit,
+        lexical_only=lexical_only,
+    ))
 
 
 def main() -> int:
@@ -152,16 +184,29 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-version", required=True)
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--lexical-only",
+        action="store_true",
+        help=(
+            "Import lemma, readings, POS and labels without glosses or semantic "
+            "relations. Intended for the trusted 100k+ base lexicon."
+        ),
+    )
     args = parser.parse_args()
     count = write_jsonl(
         args.output,
-        import_dump(
+        iter_dump(
             args.input,
             source_version=args.source_version,
             limit=args.limit,
+            lexical_only=args.lexical_only,
         ),
     )
-    print(f"JMDICT IMPORT OK: records={count} output={args.output}")
+    print(
+        "JMDICT IMPORT OK: "
+        f"records={count} lexical_only={args.lexical_only} "
+        f"output={args.output}"
+    )
     return 0
 
 
