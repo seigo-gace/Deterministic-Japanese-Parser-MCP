@@ -20,6 +20,12 @@ def test_literal_index_returns_overlapping_matches_deterministically():
     ]
 
 
+def test_literal_index_rejects_same_root_without_exact_prefix():
+    index = LiteralIndex(["あれ", "以前", "変更する"])
+    assert not index._has_possible_match("あ" * 20000)
+    assert list(index.find("あ" * 20000)) == []
+
+
 def test_literal_index_lookup_does_not_depend_on_literal_count_for_correctness():
     literals = [f"負荷試験専用{i:05d}" for i in range(5000)]
     target = literals[-1]
