@@ -1,4 +1,4 @@
-version: 1.1.1
+version: 1.1.2
 timeout_ms: 25
 intents:
   action:
@@ -59,7 +59,7 @@ intents:
   - {id: CU-PROHIBITION-003, pattern: '(?P<target>[^。！？!?]+?)(?:しないで|しないこと|してはいけない)(?=[。！？!?]|$)', priority: 82, enabled: true}
   question:
   - {id: CU-QUESTION-001, pattern: '(?P<target>[^。！？!?]+?)(?:って何|とは何|は何)(?=[。！？!?]|$)', priority: 80, enabled: true}
-  - {id: CU-QUESTION-002, pattern: '(?:なぜ|どうして)(?P<target>[^。！？!?]+?)(?:なの|なのか|ですか)(?=[。！？!?]|$)', priority: 82, enabled: true}
+  - {id: CU-QUESTION-002, pattern: '(?:なぜ|どうして)(?P<target>[^。！？!?]+?)(?:の|のか|なの|なのか|ですか)(?=[。！？!?]|$)', priority: 82, enabled: true}
   - {id: CU-QUESTION-003, pattern: '(?P<target>[^。！？!?]+?)(?:どうすればいい|どうやる|できますか)(?=[。！？!?]|$)', priority: 81, enabled: true}
   reference:
   - {id: CU-REFERENCE-001, pattern: '(?P<reference>さっきの(?:案|話|指示|内容|もの))', priority: 84, enabled: true}
