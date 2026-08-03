@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
 
 ROOT = Path(__file__).resolve().parents[1]
 NEW_METAPHOR_FILES = {
@@ -63,7 +64,7 @@ def test_every_new_metaphor_has_a_gold_case_and_is_detected():
     assert detected == set(entries)
 
 
-def test_every_common_usage_rule_has_a_gold_case_and_fires():
+def test_every_common_usage_rule_is_indexed_matches_gold_and_preserves_meaning():
     expansion = yaml.safe_load(
         (
             ROOT
@@ -78,18 +79,56 @@ def test_every_common_usage_rule_has_a_gold_case_and_fires():
     assert len(expected_rule_ids) == 63
 
     engine = ParserEngine()
-    fired: set[str] = set()
-    for case in _load_cases("cases-10.json"):
-        response = engine.analyze(_request(case))
-        fired.update(
-            item.rule_id
-            for item in response.intents
-            if item.rule_id in expected_rule_ids
-        )
-    assert fired == expected_rule_ids, {
-        "missing_rule_ids": sorted(expected_rule_ids - fired),
-        "fired_count": len(fired),
+    compiled_by_id = {
+        item["id"]: (index, intent_type, pattern)
+        for index, (intent_type, item, pattern) in enumerate(engine.rules.compiled)
+        if item["id"] in expected_rule_ids
     }
+    assert set(compiled_by_id) == expected_rule_ids
+    assert all(
+        index not in engine.rules.always_scan
+        for index, _, _ in compiled_by_id.values()
+    )
+
+    candidate_rule_ids: set[str] = set()
+    regex_matched_rule_ids: set[str] = set()
+    final_intents_seen: set[str] = set()
+
+    for case in _load_cases("cases-10.json"):
+        normalized, _ = normalize_with_map(case["text"])
+        candidate_indices = engine.rules.candidate_indices(normalized)
+        response = engine.analyze(_request(case))
+        final_types = {item.type for item in response.intents}
+        expected_types = set(case["expected"].get("intents", []))
+        assert expected_types <= final_types, {
+            "case": case["id"],
+            "expected": sorted(expected_types),
+            "actual": sorted(final_types),
+        }
+        final_intents_seen.update(final_types)
+
+        for rule_id, (index, intent_type, pattern) in compiled_by_id.items():
+            if index not in candidate_indices:
+                continue
+            candidate_rule_ids.add(rule_id)
+            if pattern.search(normalized, timeout=engine.rules.timeout):
+                regex_matched_rule_ids.add(rule_id)
+                assert intent_type in final_types, {
+                    "case": case["id"],
+                    "rule_id": rule_id,
+                    "rule_intent": intent_type,
+                    "final_intents": sorted(final_types),
+                }
+
+    assert candidate_rule_ids == expected_rule_ids, {
+        "not_indexed_by_any_gold": sorted(expected_rule_ids - candidate_rule_ids),
+    }
+    assert regex_matched_rule_ids == expected_rule_ids, {
+        "not_matched_by_any_gold": sorted(
+            expected_rule_ids - regex_matched_rule_ids
+        ),
+    }
+    assert set(expansion["intents"]) <= final_intents_seen
 
 
 def test_all_new_synonym_groups_are_queryable_without_hiding_overlap():
