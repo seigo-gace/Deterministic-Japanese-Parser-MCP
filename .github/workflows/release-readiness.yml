@@ -46,7 +46,7 @@ jobs:
           python -m pip install --no-index --find-links wheelhouse pytest pytest-cov
           python -m pip freeze | sort > reports/offline-installed-environment.txt
 
-      - name: Verify installed wheel outside repository
+      - name: Verify installed wheel and lexicon packs outside repository
         env:
           PIP_NO_INDEX: "1"
         run: |
@@ -67,11 +67,14 @@ jobs:
           assert response.meaning_graph.semantic_hash
           assert [task.intent_type for task in response.task_graph.tasks] == ["modify"]
           assert response.original_text == "UIは維持する。APIだけ変更しろ。"
+          assert hasattr(engine.bundle, "lexicon")
+          assert "entries" in engine.bundle.lexicon
           print({
               "installed_wheel": "OK",
               "tokenizer": engine.tokenizer.backend,
               "rules": len(engine.rules.compiled),
               "metaphors": len(engine.metaphors.entries),
+              "open_lexicon_records": len(engine.bundle.lexicon["entries"]),
               "propositions": len(response.meaning_graph.propositions),
               "action_tasks": len(response.task_graph.tasks),
           })
@@ -85,6 +88,14 @@ jobs:
           . .offline-venv/bin/activate
           python scripts/preflight.py | tee reports/offline-preflight.json
 
+      - name: Offline runtime lexicon provenance and license validation
+        env:
+          PIP_NO_INDEX: "1"
+        run: |
+          set -o pipefail
+          . .offline-venv/bin/activate
+          python tools/lexicon_validator.py | tee reports/offline-lexicon-validator.txt
+
       - name: Offline dictionary and Gold validation
         env:
           PIP_NO_INDEX: "1"
@@ -93,7 +104,7 @@ jobs:
           . .offline-venv/bin/activate
           python tools/validator.py | tee reports/offline-validator.txt
 
-      - name: Offline unit and MCP stdio E2E tests
+      - name: Offline unit, importer, supply-chain and MCP stdio E2E tests
         env:
           PIP_NO_INDEX: "1"
         run: |
