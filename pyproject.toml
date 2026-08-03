@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deterministic-japanese-parser-mcp"
-version = "0.1.0"
-description = "Deterministic, non-generative Japanese intent extraction and task decomposition MCP server"
+version = "0.2.0"
+description = "Non-AI deterministic Japanese Meaning Graph and action-safety MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -31,7 +31,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
 
 [tool.setuptools.data-files]
 "share/deterministic-japanese-parser-mcp/dictionaries/system" = [

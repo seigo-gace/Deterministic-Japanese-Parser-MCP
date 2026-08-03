@@ -11,19 +11,13 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
-from .models import (
-    AnalysisDepth,
-    AnalyzeRequest,
-    AnalyzeResponse,
-    ExecutionMode,
-)
+from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
 
 SERVER_NAME = "deterministic-japanese-parser"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 TOOL_NAME = "analyze_japanese"
 
 server = Server(SERVER_NAME)
-# Backwards-compatible public name retained from the former FastMCP boundary.
 mcp = server
 _engine: ParserEngine | None = None
 
@@ -42,7 +36,7 @@ def analyze_japanese(
     protected_elements: list[str] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.ANALYSIS,
     analysis_depth: AnalysisDepth = AnalysisDepth.AUTO,
-    deadline_ms: int = 2000,
+    deadline_ms: int = 50,
 ) -> AnalyzeResponse:
     """Backwards-compatible direct Python entrypoint for the MCP tool."""
     return engine().analyze(AnalyzeRequest(
@@ -57,14 +51,16 @@ def analyze_japanese(
 
 
 def prewarm() -> ParserEngine:
-    """Load all runtime data and warm the complete parser before readiness."""
+    """Load runtime data and warm the complete parser before readiness."""
     instance = engine()
     response = analyze_japanese(
         original_text="UIは残せ。APIだけ変更しろ。",
-        deadline_ms=60000,
+        deadline_ms=50,
     )
-    if not response.intents:
-        raise RuntimeError("parser prewarm validation produced no intents")
+    if not response.meaning_graph.propositions:
+        raise RuntimeError("parser prewarm produced no MeaningGraph")
+    if not response.task_graph.tasks:
+        raise RuntimeError("parser prewarm produced no action TaskGraph")
     return instance
 
 
@@ -74,8 +70,9 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name=TOOL_NAME,
             description=(
-                "Deterministically analyze Japanese text into intents, references, "
-                "metaphors, contradictions, guard results, and ordered Task Packets."
+                "Deterministically transform Japanese text into a MeaningGraph, "
+                "typed scope relations, an action TaskGraph, legacy compatibility "
+                "views, and an action-relevance safety decision."
             ),
             inputSchema=AnalyzeRequest.model_json_schema(),
             outputSchema=AnalyzeResponse.model_json_schema(),
@@ -84,29 +81,23 @@ async def list_tools() -> list[types.Tool]:
 
 
 @server.call_tool(validate_input=False)
-async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-    """Return the complete structured response without duplicate JSON conversion.
-
-    Input is validated by the authoritative Pydantic request model. The result is
-    already an AnalyzeResponse model and the advertised output schema is validated
-    by LowLatencyClientSession using a validator compiled before readiness.
-    """
+async def call_tool(
+    name: str,
+    arguments: dict[str, Any],
+) -> types.CallToolResult:
     if name != TOOL_NAME:
         return types.CallToolResult(
             content=[types.TextContent(type="text", text=f"Unknown tool: {name}")],
             isError=True,
         )
-
     try:
         request = AnalyzeRequest.model_validate(arguments)
     except ValidationError as error:
         return types.CallToolResult(
-            content=[
-                types.TextContent(
-                    type="text",
-                    text=f"Input validation error: {error.errors(include_url=False)}",
-                )
-            ],
+            content=[types.TextContent(
+                type="text",
+                text=f"Input validation error: {error.errors(include_url=False)}",
+            )],
             isError=True,
         )
 
@@ -115,16 +106,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResul
     summary = {
         "overall_status": structured["overall_status"],
         "execution_allowed": structured["execution_allowed"],
-        "intent_count": len(structured["intents"]),
-        "task_count": len(structured["tasks"]),
+        "proposition_count": len(structured["meaning_graph"]["propositions"]),
+        "action_task_count": len(structured["task_graph"]["tasks"]),
+        "semantic_hash": structured["meaning_graph"]["semantic_hash"],
     }
     return types.CallToolResult(
-        content=[
-            types.TextContent(
-                type="text",
-                text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
-            )
-        ],
+        content=[types.TextContent(
+            type="text",
+            text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
+        )],
         structuredContent=structured,
         isError=False,
     )

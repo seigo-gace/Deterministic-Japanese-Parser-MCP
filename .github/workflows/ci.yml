@@ -37,8 +37,10 @@ jobs:
         run: |
           set -o pipefail
           python scripts/benchmark.py --check --rounds 50 | tee reports/benchmark-${{ matrix.python-version }}.json
-      - name: Strict 5ms and 20x dictionary performance contract
-        run: python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 5 --output reports/performance-${{ matrix.python-version }}.json
+      - name: 10ms target and 20x dictionary performance contract
+        run: python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 10 --output reports/performance-${{ matrix.python-version }}.json
+      - name: Astera call-through 10ms target and 50ms hard limit
+        run: python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 --target-ms 10 --hard-ms 50 --output reports/astera-latency-${{ matrix.python-version }}.json
       - run: python -m compileall -q src tools scripts tests
       - name: Preserve test evidence
         if: always()

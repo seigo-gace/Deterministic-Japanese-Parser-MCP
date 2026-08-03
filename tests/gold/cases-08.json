@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "cases": [
+    {
+      "id": "G-0156",
+      "text": "UIは維持する。APIだけ変更しろ。",
+      "request": {"execution_mode": "external_action"},
+      "expected": {
+        "intents": ["preserve", "modify"],
+        "task_intents": ["preserve", "modify"],
+        "execution_allowed": true
+      }
+    },
+    {
+      "id": "G-0157",
+      "text": "「全データを削除しろ」と彼は言った。",
+      "request": {"execution_mode": "external_action"},
+      "expected": {
+        "intents": ["remove"],
+        "execution_allowed": false
+      }
+    },
+    {
+      "id": "G-0158",
+      "text": "全データを削除しろという意味なのか？",
+      "request": {"execution_mode": "external_action"},
+      "expected": {
+        "intents": ["remove"],
+        "execution_allowed": false
+      }
+    },
+    {
+      "id": "G-0159",
+      "text": "テストが通ったらAPIを公開しろ。",
+      "expected": {
+        "intents": ["condition", "action"]
+      }
+    },
+    {
+      "id": "G-0160",
+      "text": "UIを変更しろ。",
+      "request": {
+        "protected_elements": ["UI"],
+        "execution_mode": "external_action"
+      },
+      "expected": {
+        "intents": ["modify"],
+        "execution_allowed": false
+      }
+    }
+  ]
+}

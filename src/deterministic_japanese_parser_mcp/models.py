@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any, Literal
 
@@ -39,7 +41,7 @@ class AnalyzeRequest(BaseModel):
     protected_elements: list[str] = Field(default_factory=list)
     execution_mode: ExecutionMode = ExecutionMode.ANALYSIS
     analysis_depth: AnalysisDepth = AnalysisDepth.AUTO
-    deadline_ms: int = Field(default=2000, ge=50, le=60000)
+    deadline_ms: int = Field(default=50, ge=1, le=60000)
 
     @field_validator("original_text")
     @classmethod
@@ -89,6 +91,110 @@ class ReferenceResolution(BaseModel):
     status: ItemStatus
 
 
+class Entity(BaseModel):
+    entity_id: str
+    canonical: str
+    entity_type: str = "unknown"
+    mentions: list[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list)
+    source_spans: list[OriginalSpan] = Field(default_factory=list)
+    salience: int = 0
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class Argument(BaseModel):
+    role: str
+    value: str
+    entity_id: str | None = None
+    case_marker: str | None = None
+    explicit: bool = True
+    span: OriginalSpan | None = None
+    candidates: list[str] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class Clause(BaseModel):
+    clause_id: str
+    text: str
+    clause_type: str = "main"
+    proposition_ids: list[str] = Field(default_factory=list)
+    parent_clause_id: str | None = None
+    relation: str | None = None
+    topic_entity_ids: list[str] = Field(default_factory=list)
+    focus_entity_ids: list[str] = Field(default_factory=list)
+    source_span: OriginalSpan
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class Proposition(BaseModel):
+    proposition_id: str
+    predicate: str
+    intent_type: str
+    value: str
+    captures: dict[str, str] = Field(default_factory=dict)
+    arguments: list[Argument] = Field(default_factory=list)
+    polarity: Literal["positive", "negative"] = "positive"
+    sentence_mood: Literal[
+        "declarative", "interrogative", "imperative"
+    ] = "declarative"
+    speech_act: str = "assertion"
+    deontic_force: Literal[
+        "none", "permission", "obligation", "prohibition"
+    ] = "none"
+    epistemic_status: str = "asserted"
+    tense: str | None = None
+    aspect: list[str] = Field(default_factory=list)
+    voice: list[str] = Field(default_factory=lambda: ["active"])
+    speaker_entity_id: str | None = None
+    quoted: bool = False
+    quote_source: str | None = None
+    executable_candidate: bool = False
+    clause_id: str | None = None
+    source_span: OriginalSpan
+    status: ItemStatus = ItemStatus.RESOLVED
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class ScopeEdge(BaseModel):
+    edge_id: str
+    source_id: str
+    target_id: str
+    relation: str
+    status: ItemStatus = ItemStatus.RESOLVED
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class DecisionStateChange(BaseModel):
+    change_type: str
+    proposition_id: str
+    target: str | None = None
+    previous_state: str | None = None
+    new_state: str | None = None
+
+
+class MeaningGraph(BaseModel):
+    graph_version: str = "2.0.0"
+    semantic_hash: str = ""
+    entities: list[Entity] = Field(default_factory=list)
+    clauses: list[Clause] = Field(default_factory=list)
+    propositions: list[Proposition] = Field(default_factory=list)
+    scope_edges: list[ScopeEdge] = Field(default_factory=list)
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+    decision_state_changes: list[DecisionStateChange] = Field(
+        default_factory=list
+    )
+    evidence_rule_ids: list[str] = Field(default_factory=list)
+    context_version: str = ""
+
+
+class TaskConstraint(BaseModel):
+    constraint_type: str
+    value: str
+    source_proposition_id: str | None = None
+    source_span: OriginalSpan | None = None
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
 class Task(BaseModel):
     task_id: str
     action: str
@@ -96,12 +202,22 @@ class Task(BaseModel):
     intent_type: str
     execution_order: int = 0
     constraints: list[str] = Field(default_factory=list)
+    structured_constraints: list[TaskConstraint] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     completion_criteria: list[str] = Field(default_factory=list)
     verification_criteria: list[str] = Field(default_factory=list)
     external_action: bool = False
     status: ItemStatus = ItemStatus.RESOLVED
     original_span: OriginalSpan
+    proposition_id: str | None = None
+
+
+class TaskGraph(BaseModel):
+    graph_version: str = "2.0.0"
+    tasks: list[Task] = Field(default_factory=list)
+    edges: list[dict[str, str]] = Field(default_factory=list)
+    constraints: list[TaskConstraint] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
 
 
 class AnalyzeResponse(BaseModel):
@@ -112,6 +228,8 @@ class AnalyzeResponse(BaseModel):
     normalized_text: str
     analysis_path: Literal["FAST", "DEEP", "FAILED"]
     tokens: list[Token] = Field(default_factory=list)
+    meaning_graph: MeaningGraph = Field(default_factory=MeaningGraph)
+    task_graph: TaskGraph = Field(default_factory=TaskGraph)
     intents: list[Intent] = Field(default_factory=list)
     metaphors: list[Metaphor] = Field(default_factory=list)
     references: list[ReferenceResolution] = Field(default_factory=list)
