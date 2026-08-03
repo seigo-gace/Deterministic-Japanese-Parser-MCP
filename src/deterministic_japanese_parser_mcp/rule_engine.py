@@ -5,6 +5,7 @@ import warnings
 
 import regex
 
+from .literal_index import LiteralIndex
 from .models import Intent, ItemStatus
 from .normalizer import span_to_original
 
@@ -118,30 +119,20 @@ class RuleEngine:
             literal: frozenset(indices)
             for literal, indices in trigger_index.items()
         }
-        by_first: dict[str, list[str]] = {}
-        for literal in self.trigger_index:
-            by_first.setdefault(literal[0], []).append(literal)
-        self.triggers_by_first = {
-            char: tuple(sorted(values, key=lambda item: (-len(item), item)))
-            for char, values in by_first.items()
-        }
+        self.literal_index = LiteralIndex(self.trigger_index)
         self.last_metrics = {
             "total_rule_count": len(self.compiled),
             "candidate_rule_count": len(self.compiled),
             "indexed_rule_count": len(self.compiled) - len(self.always_scan),
             "always_scan_rule_count": len(self.always_scan),
+            "rule_literal_count": self.literal_index.literal_count,
+            "rule_literal_state_count": self.literal_index.state_count,
         }
 
     def candidate_indices(self, text: str) -> set[int]:
         candidates = set(self.always_scan)
-        matched_literals: set[str] = set()
-        for index, char in enumerate(text):
-            for literal in self.triggers_by_first.get(char, ()):
-                if literal in matched_literals:
-                    continue
-                if text.startswith(literal, index):
-                    matched_literals.add(literal)
-                    candidates.update(self.trigger_index[literal])
+        for literal in self.literal_index.matched_literals(text):
+            candidates.update(self.trigger_index[literal])
         return candidates
 
     def _extract_indices(
@@ -242,6 +233,8 @@ class RuleEngine:
             "candidate_rule_count": len(candidates),
             "indexed_rule_count": len(self.compiled) - len(self.always_scan),
             "always_scan_rule_count": len(self.always_scan),
+            "rule_literal_count": self.literal_index.literal_count,
+            "rule_literal_state_count": self.literal_index.state_count,
         }
         return self._extract_indices(
             candidates, text, mapping, original, deadline_at
