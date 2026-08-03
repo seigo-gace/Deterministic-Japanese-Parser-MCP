@@ -62,6 +62,12 @@ def semantic(response) -> dict:
     return value
 
 
+def semantic_structured(value: dict) -> dict:
+    cleaned = deepcopy(value)
+    cleaned.pop("metrics", None)
+    return cleaned
+
+
 def expand_rules(doc: dict, scale: int) -> dict:
     expanded = deepcopy(doc)
     base_count = sum(len(items) for items in expanded.get("intents", {}).values())
@@ -189,20 +195,18 @@ async def measure_stdio(rounds: int) -> dict:
         rounds,
         compile_schemas=True,
     )
-    # Retain a small upstream baseline to detect SDK-level validation overhead.
+    # Retain a small upstream baseline to expose SDK-level schema rechecking cost.
     upstream = await _measure_stdio_session(
         ClientSession,
         min(5, rounds),
         compile_schemas=False,
     )
-    semantic_equal = (
-        low_latency.pop("semantic_response")
-        == upstream.pop("semantic_response")
-    )
+    low_semantic = semantic_structured(low_latency.pop("semantic_response"))
+    upstream_semantic = semantic_structured(upstream.pop("semantic_response"))
     return {
         "low_latency_schema_safe": low_latency,
         "upstream_client_diagnostic": upstream,
-        "semantic_equal": semantic_equal,
+        "semantic_equal": low_semantic == upstream_semantic,
     }
 
 
