@@ -4,7 +4,7 @@ import asyncio
 import json
 from typing import Any
 
-import mcp.server.stdio
+import mcp.server.stdio as mcp_stdio
 import mcp.types as types
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
@@ -136,7 +136,7 @@ def analyze_sync(request: AnalyzeRequest) -> AnalyzeResponse:
 
 async def run() -> None:
     prewarm()
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+    async with mcp_stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
             write_stream,
