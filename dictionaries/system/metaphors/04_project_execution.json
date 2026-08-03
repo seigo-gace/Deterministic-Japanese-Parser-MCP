@@ -5,197 +5,113 @@
     {
       "expression": "アクセルを踏む",
       "interpretation": "進行速度や投資を増やす",
-      "context": [
-        "プロジェクト",
-        "事業",
-        "開発"
-      ],
+      "context": ["プロジェクト", "事業", "開発"],
       "domain": "進行管理",
-      "aliases": [
-        "加速する"
-      ],
+      "aliases": ["加速する"],
       "version": "1.0.0"
     },
     {
       "expression": "ブレーキをかける",
       "interpretation": "進行速度を落とすか一時停止する",
-      "context": [
-        "プロジェクト",
-        "リリース",
-        "リスク"
-      ],
+      "context": ["プロジェクト", "リリース", "リスク"],
       "domain": "進行管理",
-      "aliases": [
-        "制動する"
-      ],
+      "aliases": ["制動する"],
       "version": "1.0.0"
     },
     {
       "expression": "二兎を追う",
       "interpretation": "複数目標を同時に狙いどちらも失敗する危険を取る",
-      "context": [
-        "戦略",
-        "要件",
-        "計画"
-      ],
+      "context": ["戦略", "要件", "計画"],
       "domain": "優先順位",
-      "aliases": [
-        "二兎を追う者は一兎をも得ず"
-      ],
+      "aliases": ["二兎を追う者は一兎をも得ず"],
       "version": "1.0.0"
     },
     {
       "expression": "土俵に乗せる",
       "interpretation": "比較・検討・実行の対象として扱える状態にする",
-      "context": [
-        "企画",
-        "比較",
-        "提案"
-      ],
+      "context": ["企画", "比較", "提案"],
       "domain": "準備",
-      "aliases": [
-        "検討対象にする"
-      ],
+      "aliases": ["検討対象にする"],
       "version": "1.0.0"
     },
     {
       "expression": "寝かせる",
       "interpretation": "すぐ確定せず時間を置いて再評価する",
-      "context": [
-        "企画",
-        "文章",
-        "意思決定"
-      ],
+      "context": ["企画", "文章", "意思決定"],
       "domain": "保留",
-      "aliases": [
-        "一旦置く"
-      ],
+      "aliases": ["時間を置く"],
       "version": "1.0.0"
     },
     {
       "expression": "後手に回る",
       "interpretation": "問題発生後に遅れて対応する",
-      "context": [
-        "運用",
-        "サポート",
-        "リスク"
-      ],
+      "context": ["運用", "サポート", "リスク"],
       "domain": "進行管理",
-      "aliases": [
-        "対応が遅れる"
-      ],
+      "aliases": ["対応が遅れる"],
       "version": "1.0.0"
     },
     {
       "expression": "手を動かす",
       "interpretation": "検討だけでなく実際の作業を開始する",
-      "context": [
-        "開発",
-        "検証",
-        "作業"
-      ],
+      "context": ["開発", "検証", "作業"],
       "domain": "実行",
-      "aliases": [
-        "作業に着手する"
-      ],
+      "aliases": ["作業に着手する"],
       "version": "1.0.0"
     },
     {
       "expression": "旗を立てる",
       "interpretation": "方針・目標・責任主体を明示する",
-      "context": [
-        "計画",
-        "組織",
-        "プロジェクト"
-      ],
+      "context": ["計画", "組織", "プロジェクト"],
       "domain": "プロジェクト管理",
-      "aliases": [
-        "旗印を立てる"
-      ],
+      "aliases": ["旗印を立てる"],
       "version": "1.0.0"
     },
     {
       "expression": "棚上げする",
       "interpretation": "決定または実行を保留して後回しにする",
-      "context": [
-        "会議",
-        "計画",
-        "課題"
-      ],
+      "context": ["会議", "計画", "課題"],
       "domain": "保留",
-      "aliases": [
-        "保留にする"
-      ],
+      "aliases": ["保留にする"],
       "version": "1.0.0"
     },
     {
       "expression": "流れを止める",
       "interpretation": "処理・承認・供給を停止する",
-      "context": [
-        "運用",
-        "承認",
-        "システム"
-      ],
+      "context": ["運用", "承認", "システム"],
       "domain": "停止",
-      "aliases": [
-        "フローを止める"
-      ],
+      "aliases": ["フローを止める"],
       "version": "1.0.0"
     },
     {
       "expression": "目線を下げる",
       "interpretation": "抽象論から具体的な実行内容へ落とし込む",
-      "context": [
-        "設計",
-        "実装",
-        "計画"
-      ],
+      "context": ["設計", "実装", "計画"],
       "domain": "実行計画",
-      "aliases": [
-        "具体化する"
-      ],
+      "aliases": ["具体化する"],
       "version": "1.0.0"
     },
     {
       "expression": "着火する",
       "interpretation": "作業・議論・需要を意図的に開始または活性化する",
-      "context": [
-        "企画",
-        "開発",
-        "マーケティング"
-      ],
+      "context": ["企画", "開発", "マーケティング"],
       "domain": "開始",
-      "aliases": [
-        "火をつける"
-      ],
+      "aliases": ["火をつける"],
       "version": "1.0.0"
     },
     {
       "expression": "軌道修正する",
       "interpretation": "目標を維持しつつ進め方を修正する",
-      "context": [
-        "計画",
-        "プロジェクト",
-        "運用"
-      ],
+      "context": ["計画", "プロジェクト", "運用"],
       "domain": "進行管理",
-      "aliases": [
-        "軌道を修正する"
-      ],
+      "aliases": ["軌道を修正する"],
       "version": "1.0.0"
     },
     {
       "expression": "道筋をつける",
       "interpretation": "目的達成までの順序と依存関係を明確にする",
-      "context": [
-        "計画",
-        "設計",
-        "実装"
-      ],
+      "context": ["計画", "設計", "実装"],
       "domain": "計画",
-      "aliases": [
-        "筋道をつける"
-      ],
+      "aliases": ["筋道をつける"],
       "version": "1.0.0"
     }
   ]
