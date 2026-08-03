@@ -6,6 +6,8 @@ __pycache__/
 htmlcov/
 .env
 logs/**/*.jsonl
+downloads/
+work/
 proposals/*.yaml
 proposals/*.yml
 proposals/*.json

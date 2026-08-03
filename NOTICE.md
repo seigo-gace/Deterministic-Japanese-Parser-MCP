@@ -1,3 +1,17 @@
 # Third-party notices
 
-This project depends on SudachiPy and SudachiDict. SudachiDict is distributed under Apache License 2.0. The bundled project dictionaries are original curated entries created for this repository; no corpus sentences or third-party dictionary definitions are copied into them.
+## Runtime dependencies
+
+This project depends on SudachiPy and SudachiDict. SudachiDict is distributed under Apache License 2.0.
+
+## Project-authored dictionaries
+
+The currently bundled metaphor, pragmatic-expression, intent-rule, synonym, workflow, and Gold data are project-authored curated entries. External corpora and public documentation were used to review usage and terminology; corpus passages and third-party dictionary definitions were not copied into those original packs.
+
+## Open dictionary supply chain
+
+The repository includes importers and review tooling for Japanese Wiktionary, Wikidata Lexemes, JMdict, and SudachiDict source data. Importer output and review proposals are not automatically part of the runtime dictionaries.
+
+When reviewed external dictionary records are promoted, they are stored in license-separated packs under `dictionaries/system/lexicon.d/`. Each promoted batch must add a source manifest under `dictionaries/sources/` and a batch notice below containing dataset, version, license, and attribution. The source license continues to govern the imported data; the project's MIT code license does not replace it.
+
+At the current repository state, no external open-lexicon records have been promoted into the runtime packs.

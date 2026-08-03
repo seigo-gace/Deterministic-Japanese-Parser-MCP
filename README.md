@@ -30,7 +30,7 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 
 このServerは回答文を生成しません。後続Systemが、日本語の指示・制約・判断・参照・含意候補を安全に処理するための構造を返します。
 
-### 現在の辞書規模
+### 現在の実収録規模
 
 | データ | 件数 |
 |---|---:|
@@ -41,10 +41,15 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 | Task / Workflow Template | **63** |
 | Workflow | **42** |
 | Gold Corpus | **649** |
+| Open lexical records | **0** |
 
-### 2026年8月の包括拡張
+`Open lexical records`は、無料辞書から取得した全候補数ではなく、Source・License・意味・衝突・Gold・全回帰・性能検証を通過し、`review_status=approved`でRuntime Packへ正式昇格した件数です。
 
-第一波の実用語彙追加を出発点に、第二波では次の14領域へ**252表現**を追加しました。
+無料辞書資源のImporterと昇格Pipelineは実装済みですが、このCommitでは外部辞書の全Dumpを無審査でRepositoryへ収録していません。
+
+### 2026年8月の包括辞書拡張
+
+第一波と第二波を通じて、次の14領域へ実用表現を追加しました。
 
 1. 会話修復・認識合わせ
 2. 時系列・進捗・停滞・日程変更
@@ -74,11 +79,158 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 - 日常口語：`ちょっと置いとく`、`ぱっと見る`、`ざっと洗う`、`念のため見る`
 - 間接表現：`今は難しいです`、`その点は確認が必要です`、`その案には懸念があります`
 
-全追加表現・意味・Domain・採用基準・保留語・検証契約は、[`docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md`](docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md)に記録しています。第一波の監査記録は[`docs/DICTIONARY_EXPANSION_2026-08.md`](docs/DICTIONARY_EXPANSION_2026-08.md)にあります。
+詳細：
 
-### Pattern拡張
+- [`docs/DICTIONARY_EXPANSION_2026-08.md`](docs/DICTIONARY_EXPANSION_2026-08.md)
+- [`docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md`](docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md)
 
-既存21 Intent Typeすべてへ6 Patternずつ、合計**126 Pattern**を追加しました。
+### 無料辞書を使う継続追加Pipeline
+
+骨格だけだった`learner.py`、`expander.py`、`gold_generator.py`を、無料・機械可読の辞書資源から継続的に辞書を増やせるSupply Chainへ完成させました。
+
+対応Source：
+
+| Source | 使用内容 | Data License |
+|---|---|---|
+| Japanese Wiktionary | 日本語語釈、品詞、慣用句、類義語、関連語、活用候補 | CC BY-SA / GFDL |
+| Wikidata Lexemes | Lemma、Form、Sense、Lexical Category、構造化関係 | CC0 |
+| JMdict | 表記、読み、品詞、分野、用法、Cross Reference | CC BY-SA |
+| SudachiDict source CSV | 表記、読み、品詞、正規化形 | Apache 2.0 |
+| Masked unresolved logs | 実利用上の不足候補 | Review専用・公開Pack昇格禁止 |
+
+処理順：
+
+```text
+Official Open Dump / Masked Runtime Log
+    ↓
+Atomic Download + SHA-256 Source Manifest
+    ↓
+Source-specific Importer
+    ↓
+Common Lexicon JSONL
+    ↓
+learner.py
+    ├─ 既存Metaphor Surface衝突
+    ├─ 既存Rule Pattern衝突
+    ├─ 既存Canonical Surface衝突
+    └─ Source／License Evidence
+    ↓
+expander.py
+    ├─ Surface／Form補強
+    ├─ Alias候補
+    └─ 多義Surface分離
+    ↓
+gold_generator.py
+    ├─ 肯定
+    ├─ 否定
+    ├─ 引用
+    ├─ 疑問
+    └─ External Action Guard候補
+    ↓
+reviewer.py
+    ├─ 意味・意図確認
+    ├─ 衝突解決
+    ├─ 肯定例・否定例
+    └─ External Action確認
+    ↓
+promoter.py --apply --performance
+    ├─ License別Runtime Pack
+    ├─ Metaphor／Rule／Synonym Fragment
+    ├─ Review済みGold
+    ├─ Source Manifest
+    ├─ README／Manifest／Version同期
+    ├─ 全回帰・Offline・性能検証
+    └─ Failure時の全Rollback
+```
+
+詳細な実行Command：[`tools/README.md`](tools/README.md)
+
+設計・Review・License・Rollback契約：[`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+
+### Source別Importer
+
+```text
+tools/dictionary_supply/importers/
+├── wiktionary.py
+├── wikidata_lexemes.py
+├── jmdict.py
+└── sudachi_csv.py
+```
+
+各Sourceを共通Schemaへ変換します。
+
+```json
+{
+  "record_id": "...",
+  "lemma": "...",
+  "readings": [],
+  "surfaces": [],
+  "part_of_speech": [],
+  "lexical_category": null,
+  "senses": [],
+  "forms": [],
+  "synonyms": [],
+  "antonyms": [],
+  "related": [],
+  "domains": [],
+  "usage_labels": [],
+  "source": {
+    "dataset": "...",
+    "version": "...",
+    "license": "...",
+    "source_id": "...",
+    "source_url": "...",
+    "source_sha256": "...",
+    "attribution": "..."
+  },
+  "review_status": "needs_review"
+}
+```
+
+同じ語でもReadingやSenseが異なる場合は一つの意味へ潰しません。
+
+### License別Runtime Pack
+
+```text
+dictionaries/system/lexicon.d/
+├── cc0/
+├── apache-2.0/
+├── cc-by-sa/
+└── copyleft-other/
+```
+
+MITのProgram Codeと外部辞書DataのLicenseを同一扱いにしません。各RecordへSource License、Version、Source ID、URL、SHA-256、Attributionを保持します。
+
+以下はRuntime Packへ昇格できません。
+
+- `review_status`が`approved`以外
+- `PRIVATE-REVIEW-ONLY`
+- License不明
+- Source ID欠落
+- 未解決のSurface／Meaning衝突
+- Gold、全回帰、External Action、安全性、性能Gateの未通過
+
+### Transactional Promotion
+
+`promoter.py`はDry Runを既定とし、`--apply`を指定した場合だけ書き込みます。
+
+```bash
+python tools/promoter.py \
+  --bundle reviewed/2026-08-open-lexicon.yaml \
+  --batch-id 2026-08-open-lexicon
+
+python tools/promoter.py \
+  --bundle reviewed/2026-08-open-lexicon.yaml \
+  --batch-id 2026-08-open-lexicon \
+  --apply \
+  --performance
+```
+
+書込前に対象FileをBackupし、Validator、pytest、compileall、20倍辞書、Astera call-throughのいずれかが失敗した場合は、新規Fileを削除し、変更前のFileをByte単位で復元します。
+
+### Pattern・類義語・Workflow
+
+既存21 Intent Typeへ実用Patternを追加しています。
 
 - `action`
 - `comparison`
@@ -102,47 +254,17 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 - `sequence`
 - `verification_criteria`
 
-新規Ruleは、Compile成功だけでは採用済みになりません。全Ruleについて、固定LiteralによるIndex登録、専用Gold文でのRegex一致、最終Meaning側でのIntent一致、Indexed / Exhaustive意味同値を検証します。`prohibition`と`out_of_scope`はExternal Actionを必ずBlockします。
+新規RuleはCompile成功だけでは採用しません。固定LiteralによるIndex登録、専用Gold文でのRegex一致、最終Meaning側でのIntent一致、Indexed／Exhaustive意味同値を検証します。
 
-### 類義語とWorkflow
-
-Canonical Groupは40群から**100群**へ増やしました。会話修復、再確認、再評価、遅延、監視、追跡、復旧準備、代替案、Risk低減、期待調整、Scope確定、権限制限、匿名化、暗号化、監査、構文確認、校正、推敲、間接拒否、保留回答、Escalation、顧客案内などを追加しています。
-
-Workflowは18件から**42件**へ増やしました。追加した主なWorkflow：
-
-- Dialogue Repair
-- Ambiguity Resolution
-- Scope Freeze
-- Risk Review
-- External Action Safety
-- Privacy Review
-- Secret Rotation
-- Access Review
-- Incident Communication
-- Observability Setup
-- Data Contract Change
-- Safe Schema Migration
-- Webhook Integration
-- API Deprecation
-- Mobile Release
-- Responsive UI Review
-- Accessibility Remediation
-- Customer Onboarding
-- Support Deflection
-- Pricing Change
-- Payment Flow Change
-- Content Publication
-- Localization Review
-- Repository Publication
-
-各追加Workflowは7段階の順序付きStepsを持ち、準備・実行・検証・記録を省略しません。
+WorkflowはDialogue Repair、Ambiguity Resolution、Scope Freeze、Risk Review、External Action Safety、Privacy Review、Incident Communication、Data Contract Change、Safe Schema Migration、Webhook Integration、API Deprecation、Mobile Release、Responsive UI Review、Accessibility Remediation、Customer Onboarding、Support Deflection、Pricing Change、Payment Flow Change、Content Publication、Localization Review、Repository Publicationなどを含みます。
 
 ### 分割辞書構造
 
-将来の大規模拡張で巨大Fileを直接書き換え続けないよう、次のFragment Directoryを追加しました。
-
 ```text
 dictionaries/system/
+├── metaphors/
+├── rules/
+├── lexicon.d/
 ├── synonyms.yaml
 ├── synonyms.d/
 │   └── *.yaml
@@ -151,23 +273,7 @@ dictionaries/system/
     └── *.yaml
 ```
 
-Loaderは元の正本Fileを先に読み、Fragmentを名前順で読み込み、重複を決定論的に統合します。Offline WheelにもFragment Directoryを含め、Repository外Installで読込可能かを検証します。
-
-### 辞書拡張の調査方針
-
-候補を最初から少数へ限定せず、現代書き言葉、日常会話、職場会話、Web日本語、技術Documentの領域を横断して収集し、次を確認します。
-
-1. 実際の日本語で使われる、または十分に使われる可能性があるか。
-2. 文字通りの意味と比喩・業務・語用上の意味を区別できるか。
-3. Action、Constraint、状態、談話機能、態度、判断保留のどれへ変換するか。
-4. 既存Entry・Alias・Canonical Groupと衝突しないか。
-5. 自然なGold Corpus Caseを一件ずつ作成できるか。
-6. 外部Actionを誤って許可するRiskがないか。
-7. 丁寧さだけから上下関係・承認・拒否を断定していないか。
-
-使用傾向と用語確認には、国立国語研究所のBCCWJ1・BCCWJ2・CEJC・CSJ・職場会話・日本語Webコーパス関連資料、GitHub公式Document、デジタル庁、Microsoft、W3C等の一次資料を参照します。外部辞書の定義文やコーパス本文はコピーせず、`interpretation`、Pattern、Gold Caseは本Project用に独自記述します。
-
-`やばい`、`えぐい`、`神`、`回す`、`落とす`、`刺す`、`飛ばす`など、単独では世代・Community・Domain・文脈により意味や極性が変わり過ぎる語は、無条件Mappingを行いません。識別可能な長い構文または十分なContext条件ができるまで保留します。
+Loaderは正本File、Fragment、承認済みLexicon Packを決定論的に読み込みます。Open Lexiconの承認済みSurface／SynonymはCanonicalizerへ統合されます。一つのSurfaceが複数Canonicalを持つ場合は衝突を隠さず候補集合として保持します。
 
 ### 設計原則
 
@@ -181,6 +287,8 @@ Loaderは元の正本Fileを先に読み、Fragmentを名前順で読み込み�
 - 婉曲拒否・保留・懸念・確認要求を同一の肯定Intentへ潰さない。
 - 確定不能な内容は推測せず、`AMBIGUOUS`、`INSUFFICIENT`、`UNSUPPORTED`、`TIMEOUT`として返す。
 - 同一入力・同一Context・同一Versionから同一Semantic Hashを返す。
+- 自動生成Proposalを無審査でSystem辞書へ入れない。
+- Runtimeから外部辞書をDownloadしない。
 
 ### 処理構造
 
@@ -244,7 +352,7 @@ Schema検証済みStructured Response
 }
 ```
 
-`intents`と`tasks`も引き続き返しますが、新規連携では`meaning_graph`と`task_graph`を使用してください。
+新規連携では`meaning_graph`と`task_graph`を使用してください。`intents`と`tasks`も互換Viewとして返します。
 
 ### ActionとConstraintの分離
 
@@ -270,7 +378,7 @@ Constraint: 対象範囲はAPIだけ
 「全データを削除しろ」と彼は言った。
 ```
 
-引用内の削除命令候補はMeaning Graphへ記録しますが、`executable_candidate=false`となり、外部Actionは許可されません。
+引用内の命令候補はMeaning Graphへ記録しますが、外部Actionは許可されません。
 
 ```text
 全データを削除しろという意味なのか？
@@ -302,19 +410,18 @@ Asteraの回答処理全体目標は**100ms以内**です。このうち本MCP�
 | 同じ測定境界の絶対上限 | 50ms以下 |
 | 50msまでに確定不能 | `TIMEOUT`を返し外部ActionをBlock |
 
-測定には、常駐済みlocal stdio、Decode、事前Compile済みPydantic Schemaによる完全検証、Meaning Graph、Task Graph、Guard結果の受領までを含みます。Process起動、辞書読込、Regex Compile、Index構築、Sudachi初期化、Schema CompileはReady前に完了させます。
+Process起動、辞書読込、Regex Compile、Index構築、Sudachi初期化、Schema CompileはReady前に完了させます。
 
 ### 辞書量と速度
 
 辞書を毎回全走査しません。
 
-- Literal Rule / Metaphor：Aho-Corasick型Index
+- Literal Rule／Metaphor：Aho-Corasick型Index
 - 活用・機能表現：事前Compileされた決定表
 - 述語・Domain辞書：Key別Index
+- Lexicon Surface／Synonym：Canonical Index
 - User辞書：System辞書と分離
 - 実行中の辞書：Version固定Snapshot
-
-追加した126 Intent Patternはすべて固定Literalを持ち、Rule Indexへ載る構造です。追加した252表現は一件ごとに専用Gold Caseを持ちます。
 
 「辞書が無限に増えても計算量が変わらない」とは保証しません。Releaseでは、非一致大量辞書、同一入力への大量一致、意味衝突、Domain衝突、Context増加、Graph Node増加、Astera call-throughを検証します。
 
@@ -326,7 +433,7 @@ cd Deterministic-Japanese-Parser-MCP
 python -m venv .venv
 ```
 
-Linux / macOS：
+Linux／macOS：
 
 ```bash
 . .venv/bin/activate
@@ -380,6 +487,7 @@ print(response.execution_allowed)
 ### 検証
 
 ```bash
+python tools/lexicon_validator.py
 python tools/validator.py
 pytest
 python scripts/test_harness.py
@@ -391,38 +499,50 @@ python -m compileall -q src tools scripts tests
 
 GitHub Actionsでは次を検証します。
 
-- Python 3.10 / 3.12
+- Python 3.10／3.12
+- Japanese Wiktionary／Wikidata Lexemes／JMdict／Sudachi Importer Fixture
+- Common Lexicon Schema Round Trip
+- Proposal Source／License Evidence
+- Review GateとConflict Resolution
+- Private Logの公開Pack昇格拒否
+- License別Runtime Pack
+- Runtime Lexicon Provenance
 - MCP stdio E2E
-- 452表現・339 Rule・100 Canonical Group・63 Template・42 Workflow・649 Goldの固定件数
-- 252追加表現の全件実検出
-- 126追加RuleのIndex登録・Regex一致・最終Intent一致
-- Indexed / Exhaustive意味同値
+- 452表現・339 Rule・100 Canonical Group・63 Template・42 Workflow・649 Goldの既存回帰
+- Indexed／Exhaustive意味同値
 - 辞書ScaleとLatency
-- Astera call-through 10ms目標 / 50ms上限
+- Astera call-through 10ms目標／50ms上限
 - Offline Wheel InstallとRepository外Import
 - Release ManifestとEvidence Hash
 
 ### Security
 
 - RuntimeでLLMまたは外部AIを呼び出さない。
+- Runtimeで外部辞書をDownloadしない。
 - 入力本文を外部Networkへ送信しない。
+- Private Logを公開辞書Packへ昇格しない。
 - 引用・疑問・未解決参照をActionへ昇格しない。
 - 重要なScope未解決、矛盾、TimeoutではFail Closedする。
 - 保護対象への変更をBlockする。
 - Logの秘密情報・個人情報をMaskする。
 - 辞書Proposalを自動採用しない。
+- Source、License、Checksum、Attributionを失ったRecordを読み込まない。
 
 ### 現在の限界
 
 本MCPは、任意の日本語を人間と同等に理解すると保証するものではありません。現在のMeaning Graphは、Version固定された文法・Rule・辞書で根拠を説明できる範囲を構造化します。皮肉、暗黙の常識、複雑なゼロ代名詞、複数段落の談話解釈、地域差・世代差が大きい俗語など、確定できない内容を推測で埋めません。
 
+Open Dictionary Supply Chainは大量候補の取得・変換・審査・昇格を自動化しますが、辞書の語釈を自動的に実行可能Intentへ変換するものではありません。意味・Scope・安全性を確認したProposalだけを昇格します。
+
 ### Contributing
 
-辞書・Grammar・Meaning Graph・Gold Corpus変更には、候補一覧、意味・意図、採用／保留／除外理由、期待構造、衝突Case、全Entry Coverage、全Testと性能結果を添付してください。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
+辞書・Grammar・Meaning Graph・Gold Corpus変更には、候補一覧、Source／License、意味・意図、採用／保留／除外理由、期待構造、衝突Case、全Entry Coverage、全Testと性能結果を添付してください。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
 
 ### License
 
-MIT License。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照してください。
+Program CodeはMIT Licenseです。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照してください。
+
+外部辞書から昇格したDataは、Recordおよび`dictionaries/sources/`のManifestに記録された各Source Licenseへ従います。
 
 ---
 
@@ -436,7 +556,7 @@ MIT License。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照�
 
 It does not call an LLM or external AI at runtime. It combines Sudachi morphological information, version-locked dictionaries, precompiled rule indexes, a deterministic grammar kernel, typed scope relations, context resolution, contradiction detection, an action Task Graph, and a fail-closed External Action Guard.
 
-### Dictionary volume
+### Current promoted data
 
 | Data | Count |
 |---|---:|
@@ -447,25 +567,60 @@ It does not call an LLM or external AI at runtime. It combines Sudachi morpholog
 | Task / workflow templates | **63** |
 | Workflows | **42** |
 | Gold Corpus cases | **649** |
+| Open lexical records | **0** |
 
-### Comprehensive August 2026 expansion
+`Open lexical records` counts only records that have been reviewed, promoted into runtime packs, and passed provenance, regression, action-safety, offline, and performance gates. Importer output and unreviewed proposals are not counted as runtime data.
 
-The second expansion wave adds 252 expressions across dialogue repair, temporal progress, constraints, attitude and feedback, planning and risk, incident recovery, document revision, ownership and escalation, data/API integration, security and privacy, UI/UX accessibility, customer support, casual spoken instructions, and indirect pragmatic speech acts.
+### Open dictionary supply chain
 
-All expressions and adoption decisions are documented in [`docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md`](docs/COMPREHENSIVE_DICTIONARY_EXPANSION_2026-08.md).
+The original learner, expander, and Gold-generator skeletons are now a complete, repeatable pipeline for adding large open Japanese dictionary resources.
 
-Every existing intent type receives six additional practical patterns, for 126 new rules. Each rule must be compiled, selected by the literal index, matched by a dedicated Gold sentence, and preserved as the intended final semantic type. New prohibition and out-of-scope rules must deny external-action execution.
+Supported inputs:
 
-### Modular dictionaries
-
-Large canonical additions can be stored under:
+- Japanese Wiktionary XML dumps
+- Wikidata Lexeme JSON dumps
+- JMdict XML
+- SudachiDict source CSV
+- masked unresolved runtime logs as private review evidence
 
 ```text
-dictionaries/system/synonyms.d/*.yaml
-dictionaries/system/task_templates.d/*.yaml
+Open dump or masked log
+  → atomic download and SHA-256 manifest
+  → source-specific importer
+  → common lexicon JSONL
+  → collision-aware proposal bundle
+  → sense-safe expansion
+  → Gold candidate matrix
+  → mandatory human review
+  → transactional promotion
+  → full regression, offline and performance gates
 ```
 
-The original canonical files load first. Fragments load in deterministic filename order and are merged without losing overlapping canonical forms. Both directories are included in offline wheels and verified outside the repository.
+Detailed commands: [`tools/README.md`](tools/README.md)
+
+Architecture and review contract: [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+
+### Provenance and licensing
+
+Approved runtime lexicons are separated by data license:
+
+```text
+dictionaries/system/lexicon.d/
+├── cc0/
+├── apache-2.0/
+├── cc-by-sa/
+└── copyleft-other/
+```
+
+Every promoted record preserves the source dataset, source version, license, source ID, source URL, SHA-256, and attribution. The MIT license of the program code does not replace the licenses of imported dictionary data.
+
+Private logs, unknown licenses, unreviewed records, unresolved collisions, and records without source evidence cannot enter public runtime packs.
+
+### Transactional promotion
+
+Promotion is dry-run by default. With `--apply --performance`, it writes license-separated packs and dictionary fragments, creates reviewed Gold cases and source manifests, updates public counts and versions, and runs the full validator, test, offline, 20x-scale, and Astera latency contracts.
+
+Any failure removes new files and restores every changed file byte-for-byte.
 
 ### Core guarantees
 
@@ -478,7 +633,8 @@ The original canonical files load first. Fragments load in deterministic filenam
 - Preserve indirect refusal, hesitation, concern, and information requests as distinct pragmatic evidence.
 - Return explicit unresolved states rather than inventing omitted meaning.
 - Return the same Semantic Hash for the same input, context, and version.
-- Require dedicated Gold coverage for every new expression and rule.
+- Never auto-promote generated dictionary proposals.
+- Never download dictionary data at runtime.
 
 ### Architecture
 
@@ -516,17 +672,22 @@ Request
 | Absolute call-through hard limit | <= 50 ms |
 | Unresolved at hard deadline | Return `TIMEOUT` and block external action |
 
-The call-through boundary includes a persistent local stdio call, decoding, precompiled Pydantic output-schema validation, and delivery of the complete Meaning Graph, Task Graph, and Guard result. Cold start and index/schema compilation complete before readiness.
+The call-through boundary includes persistent local stdio, decoding, precompiled output-schema validation, and delivery of the complete Meaning Graph, Task Graph, and Guard result. Cold start and index/schema compilation complete before readiness.
 
 ### Validation contract
 
 CI validates:
 
 - Python 3.10 and 3.12
+- all four open-dictionary importer fixtures
+- common lexicon schema round-trip
+- proposal source and license evidence
+- review and conflict-resolution gates
+- rejection of private-log promotion
+- license-separated runtime packs
+- runtime lexicon provenance
 - MCP stdio end-to-end behavior
-- fixed totals of 452 expressions, 339 rules, 100 synonym groups, 63 templates, 42 workflows, and 649 Gold cases
-- actual detection of all 252 second-wave expressions
-- index selection, regex matching, and final semantic type for all 126 second-wave rules
+- existing totals and Gold regression
 - indexed/exhaustive semantic parity
 - dictionary-scale and latency contracts
 - Astera call-through target and hard limit
@@ -570,6 +731,7 @@ print(response.task_graph)
 ### Validation commands
 
 ```bash
+python tools/lexicon_validator.py
 python tools/validator.py
 pytest
 python scripts/benchmark.py --check
@@ -580,8 +742,12 @@ python -m compileall -q src tools scripts tests
 
 ### Scope and limitations
 
-This project does not claim human-level understanding of arbitrary Japanese. It deterministically structures meaning that can be supported by versioned grammar, rules, dictionaries, and context. It fails closed when quotation, reference, scope, discourse, or pragmatic intent cannot be resolved safely.
+This project does not claim human-level understanding of arbitrary Japanese. It deterministically structures meaning supported by versioned grammar, rules, dictionaries, and context, and fails closed when quotation, reference, scope, discourse, or pragmatic intent cannot be resolved safely.
+
+The supply chain automates large-scale collection, conversion, review preparation, testing, and promotion. It does not treat every dictionary definition as an executable intent. Only reviewed entries with sufficient meaning, scope, provenance, and safety evidence are promoted.
 
 ### License
 
-MIT License. See [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md).
+Program code is MIT licensed. See [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md).
+
+Promoted external dictionary data remains governed by the source licenses recorded on each record and under `dictionaries/sources/`.

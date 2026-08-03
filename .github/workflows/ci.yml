@@ -27,11 +27,15 @@ jobs:
         run: |
           set -o pipefail
           python scripts/preflight.py | tee reports/preflight-${{ matrix.python-version }}.json
+      - name: Runtime lexicon provenance and license validation
+        run: |
+          set -o pipefail
+          python tools/lexicon_validator.py | tee reports/lexicon-validator-${{ matrix.python-version }}.txt
       - name: Dictionary and Gold validation
         run: |
           set -o pipefail
           python tools/validator.py | tee reports/validator-${{ matrix.python-version }}.txt
-      - name: Unit and MCP stdio E2E tests
+      - name: Unit, importer, supply-chain and MCP stdio E2E tests
         run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
       - name: Existing benchmark regression gate
         run: |

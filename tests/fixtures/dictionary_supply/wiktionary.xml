@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">
+  <page>
+    <title>火消し</title>
+    <revision>
+      <id>1001</id>
+      <text xml:space="preserve">==日本語==
+===名詞===
+# 火事を消すこと。
+# （比喩）発生した問題や混乱を収束させること。
+====類義語====
+* [[鎮火]]
+====関連語====
+* [[消火]]
+</text>
+    </revision>
+  </page>
+  <page>
+    <title>API</title>
+    <revision>
+      <id>1002</id>
+      <text xml:space="preserve">==英語==
+===略語===
+# application programming interface
+</text>
+    </revision>
+  </page>
+</mediawiki>
