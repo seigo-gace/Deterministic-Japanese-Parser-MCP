@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -80,14 +80,19 @@ def _proposal_id(kind: str, *parts: str) -> str:
 
 def _first_japanese_gloss(record: LexiconRecord) -> str | None:
     for sense in record.senses:
-        if sense.get("language") == "ja" and normalize_text(sense.get("gloss", "")):
+        if (
+            sense.get("language") == "ja"
+            and normalize_text(sense.get("gloss", ""))
+        ):
             return normalize_text(sense["gloss"])
     return None
 
 
 def _intent_candidates(texts: Iterable[str]) -> list[tuple[str, str]]:
     candidates: list[tuple[str, str]] = []
-    joined = "\n".join(normalize_text(item) for item in texts if item)
+    joined = "\n".join(
+        normalize_text(item) for item in texts if item
+    )
     for intent, markers in _INTENT_MARKERS.items():
         for marker in markers:
             if marker in joined:
@@ -137,15 +142,13 @@ def build_proposals(
             "source_id": record.source.source_id,
             "source_url": record.source.source_url,
             "source_sha256": record.source.source_sha256,
+            "attribution": record.source.attribution,
         }]
-        lexicon_payload = {
-            "record": record.to_dict(),
-        }
         proposals.append(Proposal(
             proposal_id=_proposal_id("lexicon", record.record_id),
             kind="lexicon",
             status="needs_review",
-            payload=lexicon_payload,
+            payload={"record": record.to_dict()},
             source_record_ids=[record.record_id],
             evidence=source_evidence,
             conflicts=[],
@@ -169,7 +172,9 @@ def build_proposals(
                 if surface in existing_metaphor_surfaces
             ]
             proposals.append(Proposal(
-                proposal_id=_proposal_id("metaphor", record.record_id, gloss),
+                proposal_id=_proposal_id(
+                    "metaphor", record.record_id, gloss
+                ),
                 kind="metaphor",
                 status="needs_review",
                 payload={
@@ -180,13 +185,21 @@ def build_proposals(
                         if item != record.lemma
                     ],
                     "interpretation": gloss,
-                    "context": [*record.domains, *record.usage_labels],
+                    "context": [
+                        *record.domains,
+                        *record.usage_labels,
+                    ],
                     "context_policy": (
                         "required_any"
-                        if len(record.lemma) <= 3 and (record.domains or record.usage_labels)
+                        if len(record.lemma) <= 3
+                        and (record.domains or record.usage_labels)
                         else "optional"
                     ),
-                    "domain": record.domains[0] if record.domains else "general",
+                    "domain": (
+                        record.domains[0]
+                        if record.domains
+                        else "general"
+                    ),
                     "version": "generated-review",
                 },
                 source_record_ids=[record.record_id],
@@ -219,7 +232,10 @@ def build_proposals(
                 payload={
                     "canonical": record.lemma,
                     "surfaces": surfaces,
-                    "sense_ids": [item.get("sense_id") for item in record.senses],
+                    "sense_ids": [
+                        item.get("sense_id")
+                        for item in record.senses
+                    ],
                 },
                 source_record_ids=[record.record_id],
                 evidence=source_evidence,
@@ -233,11 +249,17 @@ def build_proposals(
         texts = [
             record.lemma,
             *record.surfaces,
-            *[item.get("gloss", "") for item in record.senses],
+            *[
+                item.get("gloss", "")
+                for item in record.senses
+            ],
         ]
         for intent, marker in _intent_candidates(texts):
             literal = record.lemma
-            pattern = rf"(?P<target>.+?)(?:を|に|は)?{re.escape(literal)}(?:する|しろ|して|してください|してくれ)?[。！？!?]?$"
+            pattern = (
+                rf"(?P<target>.+?)(?:を|に|は)?{re.escape(literal)}"
+                rf"(?:する|しろ|して|してください|してくれ)?[。！？!?]?$"
+            )
             conflicts = []
             if pattern in existing_rule_patterns:
                 conflicts.append({
@@ -245,13 +267,19 @@ def build_proposals(
                     "pattern": pattern,
                 })
             proposals.append(Proposal(
-                proposal_id=_proposal_id("rule", record.record_id, intent, marker),
+                proposal_id=_proposal_id(
+                    "rule", record.record_id, intent, marker
+                ),
                 kind="rule",
                 status="needs_review",
                 payload={
                     "intent": intent,
                     "rule": {
-                        "id": stable_id("AUTO-RULE", record.record_id, intent),
+                        "id": stable_id(
+                            "AUTO-RULE",
+                            record.record_id,
+                            intent,
+                        ),
                         "pattern": pattern,
                         "priority": 20,
                         "value": "{target}",
@@ -262,7 +290,10 @@ def build_proposals(
                 source_record_ids=[record.record_id],
                 evidence=source_evidence,
                 conflicts=conflicts,
-                score=max(20, _score(record, kind="rule") - 20),
+                score=max(
+                    20,
+                    _score(record, kind="rule") - 20,
+                ),
                 review_notes=[
                     "Rule proposal is never auto-approved; verify target capture, scope and negative examples."
                 ],
@@ -275,7 +306,11 @@ def build_proposals(
             unique[proposal.proposal_id] = proposal
     return sorted(
         unique.values(),
-        key=lambda item: (-item.score, item.kind, item.proposal_id),
+        key=lambda item: (
+            -item.score,
+            item.kind,
+            item.proposal_id,
+        ),
     )
 
 
@@ -296,11 +331,19 @@ def write_bundle(
         "counts": dict(sorted(counts.items())),
         "proposals": values,
     }
-    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
     payload["bundle_sha256"] = hashlib.sha256(encoded).hexdigest()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+        yaml.safe_dump(
+            payload,
+            allow_unicode=True,
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
     return payload
@@ -321,9 +364,13 @@ def load_bundle(path: Path) -> dict:
             raise ValueError(f"duplicate proposal_id: {proposal_id}")
         ids.add(proposal_id)
         if proposal.get("status") not in {
-            "needs_review", "approved", "rejected", "blocked"
+            "needs_review",
+            "approved",
+            "rejected",
+            "blocked",
         }:
             raise ValueError(
-                f"invalid proposal status: {proposal_id}: {proposal.get('status')}"
+                "invalid proposal status: "
+                f"{proposal_id}: {proposal.get('status')}"
             )
     return value
