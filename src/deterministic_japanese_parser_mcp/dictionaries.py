@@ -40,6 +40,40 @@ def _load_json_set(path: Path) -> dict:
     return output
 
 
+def _load_yaml_fragments(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    return [_load_yaml(item) for item in sorted(path.glob("*.yaml"))]
+
+
+def _load_template_set(primary: Path, fragments: Path) -> dict:
+    docs: list[dict] = []
+    if primary.is_file():
+        docs.append(_load_yaml(primary))
+    docs.extend(_load_yaml_fragments(fragments))
+    output = {"version": "0", "templates": []}
+    for doc in docs:
+        output["version"] = doc.get("version", output["version"])
+        output["templates"].extend(doc.get("templates", []) or [])
+    return output
+
+
+def _load_synonym_set(primary: Path, fragments: Path) -> dict:
+    docs: list[dict] = []
+    if primary.is_file():
+        docs.append(_load_yaml(primary))
+    docs.extend(_load_yaml_fragments(fragments))
+    output: dict = {"version": "0", "groups": {}}
+    for doc in docs:
+        output["version"] = doc.get("version", output["version"])
+        for canonical, values in doc.get("groups", {}).items():
+            bucket = output["groups"].setdefault(canonical, [])
+            for value in [canonical, *(values or [])]:
+                if value and value not in bucket:
+                    bucket.append(value)
+    return output
+
+
 def merge_rule_docs(system: dict, user: dict) -> dict:
     merged = {
         "version": system.get("version", "0"),
@@ -89,6 +123,14 @@ class DictionaryBundle:
     def __init__(self, system_dir: Path, user_dir: Path):
         system_rules = _load_yaml_set(system_dir / "rules")
         system_metaphors = _load_json_set(system_dir / "metaphors")
+        system_templates = _load_template_set(
+            system_dir / "task_templates.yaml",
+            system_dir / "task_templates.d",
+        )
+        system_synonyms = _load_synonym_set(
+            system_dir / "synonyms.yaml",
+            system_dir / "synonyms.d",
+        )
         self.rules = merge_rule_docs(
             system_rules,
             _load_yaml(user_dir / "rules.yaml"),
@@ -98,10 +140,10 @@ class DictionaryBundle:
             _load_json(user_dir / "metaphor.json"),
         )
         self.templates = merge_templates(
-            _load_yaml(system_dir / "task_templates.yaml"),
+            system_templates,
             _load_yaml(user_dir / "task_templates.yaml"),
         )
         self.synonyms = merge_synonyms(
-            _load_yaml(system_dir / "synonyms.yaml"),
+            system_synonyms,
             _load_yaml(user_dir / "synonyms.yaml"),
         )
