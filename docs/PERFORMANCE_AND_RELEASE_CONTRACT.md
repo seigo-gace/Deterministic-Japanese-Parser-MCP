@@ -1,143 +1,176 @@
-# Shiori / Deterministic Japanese Parser MCP
+# Deterministic Japanese Parser MCP
 # Performance and Release Contract
 
-## 1. MCPの本来の目的
+## 1. 目的
 
-このMCPは回答文を生成するAIではない。日本語の入力から、意図、制約、指示対象、比喩、矛盾、実行順序、外部Actionの可否を、非AI・非生成・決定論的に抽出し、後続Systemが安全に扱える構造へ変換するParserである。
+このMCPは回答生成AIではない。日本語入力を、原文Span、Entity、Clause、Proposition、Argument、型付きScope、Task Constraint、外部Action可否を持つMeaning Graphへ、非AI・非生成・決定論的に変換する。
 
-速度改善のために解析機能を削除してはならない。高速経路は、全件解析と同じ意味結果を返すことを自動検証できる場合だけ採用する。
+速度のために意味解析機能を削除してはならない。高速経路、Cache、Indexは、非高速経路とSemantic Responseが一致すると自動検証できる場合だけReleaseへ採用する。
 
-## 2. 正確性契約
+## 2. 意味正本
 
-Release候補は以下をすべて満たさなければならない。
+- Meaning Graphを唯一の意味正本とする。
+- Rule / Regexは候補とEvidenceを供給し、最終的なTask／Guardを直接決定しない。
+- 旧`intents`、`references`、`tasks`はMeaning Graphから生成する互換Viewとする。
+- 禁止、維持、条件、例外、対象範囲、完了条件、検証条件は、原則としてAction Taskへ接続されたConstraintとする。
+- 引用内・疑問・反語候補・未解決参照の命令を外部Actionとして許可しない。
+
+## 3. 正確性契約
+
+Release候補は以下をすべて満たす。
 
 - Gold Corpus全件成功
-- Indexed RuleとExhaustive Ruleの意味結果一致
-- 原文、正規化結果、Intent、Capture、Rule ID、Span、Reference、Metaphor、Task、Dependency、Guard結果の回帰なし
+- Meaning Graph専用Test成功
+- Indexed RuleとExhaustive RuleのSemantic Response一致
+- 原文、正規化、Span、Meaning Graph、Task Graph、Guard、互換Viewの回帰なし
 - 同一入力・同一Context・同一Versionで同一Semantic Hash
-- 外部Actionで曖昧性、矛盾、Timeoutがある場合はBlock
-- Python 3.10と3.12で同じ意味結果
+- Cache Hit / MissでSemantic Hash一致
+- 引用内命令の誤実行0
+- 疑問文内命令の誤実行0
+- Scope未確定Actionの誤許可0
+- 未解決参照を含むActionの誤許可0
+- 保護対象への誤変更許可0
+- Python 3.10 / 3.12で同じ意味結果
 - MCP stdio E2E成功
 
-時間、候補数などのMetricは実行環境差があるため意味同値比較から除外するが、別の性能Gateで検証する。
+Metric、実行時間、Candidate数は意味同値比較から除外し、性能Gateで別途検証する。
 
-## 3. 速度契約
+## 4. 性能契約
 
-### 3.1 5msの測定境界
+### 4.1 Astera全体
 
-このRepositoryが保証対象にできる「利用者へ結果が到達するまで」は、常駐済みのローカルMCP Clientが`call_tool`を開始してから、stdioを通じてServerが完全な構造化応答を返し、DecodeとOutput Model検証を完了するまでとする。
+Asteraの回答処理全体目標は100ms以内とする。
 
-5ms保証経路では、Package同梱の`LowLatencyClientSession`を使用する。このClientは、Serverが公開したOutput Schemaと`AnalyzeResponse`のSchemaが一致することをReady前に確認し、Pydantic Validatorを一度だけCompileする。各応答はCompile済みValidatorで完全検証するため、検証の省略ではない。
+### 4.2 MCP通常目標
 
-公式SDKの標準`ClientSession.call_tool()`は比較用診断経路として測定するが、応答ごとに巨大なJSON Schemaを再処理するため5ms保証対象には含めない。低遅延経路と標準経路のSemantic Responseが一致しなければReleaseを失敗させる。
+Astera側でのCall開始から、常駐local stdioを通じてServer応答を受け、Decodeし、事前Compile済みの正式Pydantic Schemaで完全検証し、Meaning Graph・Task Graph・Guard結果を後続処理へ渡せる状態になるまで、p95 10ms以下を通常目標とする。
 
-以下を自動計測する。
+### 4.3 絶対上限
 
-1. Parser内部の短文Warm応答 p95
-2. Parser内部の複合文Warm応答 p95
-3. MCP初期化・Schema準備完了後の最初のTool Call
-4. 常駐stdio Tool Call p95
-5. 20倍辞書での短文／複合文Warm応答 p95
-6. 20倍辞書・20,000文字でのRule／Metaphor Index検索 p95
+同じ測定境界で50msを絶対上限とする。50ms以内に確定できない場合、推測した結果を成功として返さず、`TIMEOUT`を明示し、外部ActionをBlockする。
 
-各項目のRelease Gateは **5.000ms以下** とする。
+### 4.4 内部最適目標
 
-### 3.2 Cold Start
+常駐済みKernelおよびLowLatency local stdio経路の最適目標として5ms以下を維持する。ただし5msを満たさないだけで、10ms通常目標と50ms絶対上限を満たすReleaseを失敗とはしない。
 
-Process起動、Python Import、Sudachi Dictionary読込、辞書File読込、Regex Compile、Index構築、Output Schema Compileは5ms契約へ混ぜない。その代わり、これらをMCP Ready判定前に必ず完了する。
+### 4.5 Ready前処理
 
-`server.prewarm()`は以下を実行してからstdio受付を開始する。
+次をRuntime測定へ混ぜない代わりに、MCP Ready前に必ず完了する。
 
-- 全辞書読込
-- 全Regex Compile
-- Rule／Metaphor Index構築
-- Sudachi初期化
-- 代表入力による一度目の完全解析
+- Package Import
+- Sudachi Dictionary初期化
+- System / User辞書読込
+- Regex Compile
+- Literal / Metaphor Index構築
+- Grammar Table構築
+- Dictionary Snapshot確定
+- Output Schema Compile
+- 代表入力によるPrewarm
 
-`LowLatencyClientSession.prepare_tools()`はTool一覧取得とSchema一致確認、Validator Compileを完了してからReadyとする。
+### 4.6 Remote境界
 
-Cold Start時間とSchema準備時間はReportへ記録するが、Ready後のTool Callと混同しない。
+Remote Network、MCP Host間通信、利用者端末、UI描画は本Repository単体の保証外とする。製品側は入力確定から画面描画完了までを別Probeで測定し、本MCPのlocal stdio結果と混同しない。
 
-### 3.3 Network／UIを含む製品全体
+## 5. 辞書拡張契約
 
-Remote Network、MCP Host、利用者端末、UI描画はこのRepositoryの制御外であり、本Repository単体から5msを保証したと報告してはならない。Remote製品へ組み込む場合は、製品側で「入力確定から画面描画完了まで」の外部Probeを追加し、本MCPのstdio測定と分離して提出する。
+辞書量が増えても全辞書を単純全走査しない。
 
-## 4. 辞書拡張契約
+- Literal Rule / Metaphor: Aho-Corasick型Index
+- 機能表現・活用: Compile済みGrammar Table
+- 述語・Domain: Key別Index / Shard
+- Runtime辞書: Immutable Version Snapshot
+- Snapshot更新: 別領域でCompile・検証後に原子的切替
 
-「辞書が無制限に増えても計算量が一切増えない」という保証は行わない。保証容量を明示し、実データで検証する。
+「辞書が無制限に増えても処理量が変わらない」とは保証しない。保証容量、最大入力長、最大Context数、最大Candidate数、最大Graph Node数、MemoryをRelease Reportへ明記する。
 
-現在のRelease Gateは次の20倍構成とする。
+Scale Testは次を分離して行う。
 
-- Rule: 150件から3,000件
-- Metaphor: 152件から3,040件
-- 既存の短文／複合文に一致しないDecoy辞書を追加
-- Base辞書と20倍辞書のSemantic Response完全一致
-- 20倍構成でも5ms Gateを維持
+1. Non-match Scale：無関係Entry大量追加
+2. High-match Scale：一入力への大量一致
+3. Collision Scale：同一表現の意味衝突
+4. Domain Scale：Domain数とShard増加
+5. Grammar Scale：機能表現・文法候補増加
+6. Context Scale：会話State増加
+7. Graph Scale：Clause / Proposition / Scope Edge増加
+8. Cache Hit / Miss意味同値
+9. Snapshot切替前後の決定性
 
-RuleとMetaphorのLiteral検索にはAho-Corasick型Indexを使用し、検索時間を登録Literal数の単純全走査へ依存させない。証明不能なRegex Ruleは必ずExhaustive Fallbackへ残す。
+現在の20倍Decoy試験はNon-match Scaleの証拠として維持するが、それだけで全衝突耐性を証明したとは報告しない。
 
-保証容量を拡張する場合は、Scale値、最大文字数、Context数、p50／p95／p99、Memory、Semantic Parityを更新してからReleaseする。
+## 6. DeadlineとFail Closed
 
-## 5. Deployment前の必須順序
+すべてのPhaseは共通の50ms Deadlineを共有する。Candidate上限、Graph Node上限、Scope Edge上限へ達した場合、候補を勝手に捨てて一件へ確定しない。
 
-Release用Workflowは次の順序を変更してはならない。
+- 確定可能：`RESOLVED`
+- 複数解釈：`AMBIGUOUS`
+- 必須情報不足：`INSUFFICIENT`
+- 未対応：`UNSUPPORTED`
+- 矛盾：`CONTRADICTORY`
+- Deadline到達：`TIMEOUT`
+
+External Actionでは対象ActionのAction-Relevance Closureに未解決NodeがあればBlockする。無関係な説明文の曖昧さだけで全Actionを止めないが、関連性そのものが不明ならBlockする。
+
+## 7. Deployment前の必須順序
 
 1. Source Checkout
-2. Build Toolの取得
-3. Runtime／Test依存をWheelhouseへ全Download・Build
+2. Build Tool取得
+3. Runtime / Test依存をWheelhouseへ全Download / Build
 4. Project Wheel作成
 5. WheelhouseとProject WheelのSHA-256 Manifest作成
-6. 新しいVirtual Environment作成
-7. `PIP_NO_INDEX=1`と`--no-index`でWheelhouseだけからInstall
-8. Repository外のWorking DirectoryからInstalled WheelをImport
-9. `scripts/preflight.py`
-10. Dictionary／Gold Validator
-11. pytestとMCP stdio E2E
-12. 5ms Performance Contract
-13. compileall
-14. Test Report、Performance Report、Manifest、Wheelhouse、Project WheelをArtifact化
+6. Clean Virtual Environment作成
+7. `PIP_NO_INDEX=1`、`--no-index`でWheelhouseのみからInstall
+8. Repository外からInstalled WheelをImport
+9. Deployment Preflight
+10. Dictionary / Gold Validator
+11. pytest / MCP stdio E2E
+12. Indexed / Exhaustive Semantic Parity
+13. 20倍辞書Performance Contract
+14. Astera 10ms / 50ms Call-through Contract
+15. compileall
+16. Report、Manifest、Wheelhouse、WheelをArtifact保存
 
-Step 3より後にNetwork Downloadを必要とする構成はRelease不可とする。Runtime起動時のModel／辞書／依存Downloadは禁止する。
+Dependency準備後にRuntime Downloadを必要とする構成はRelease不可とする。
 
-## 6. 客観的エビデンス
-
-Release Artifactには以下を含める。
+## 8. Release Evidence
 
 - Project Wheel
-- 全依存WheelのWheelhouse
-- SHA-256 Release Manifest
-- 解決済みDependency一覧
+- Dependency Wheelhouse
+- SHA-256 Manifest
+- Dependency一覧
 - Preflight Report
-- Performance Contract Report
-- pytest結果
-- Validator結果
+- Validator Report
+- pytest JUnit
+- Benchmark Report
+- Dictionary Scale Report
+- Astera Latency Report
+- MCP stdio E2E Evidence
 
-GitHub Actionsの成功表示だけでなく、Report本文とArtifactを確認できる状態を残す。
+GitHub Actionsの緑表示だけでなく、Report本文とArtifactを確認可能にする。
 
-## 7. 完了条件チェックリスト
+## 9. 完了条件
 
-- [ ] MCPの目的を変えていない
-- [ ] 解析機能を速度のために削除していない
-- [ ] Gold Corpus全件成功
-- [ ] Indexed／Exhaustive意味同値
-- [ ] 20回以上の決定性Hash一致
-- [ ] Python 3.10／3.12成功
-- [ ] 常駐stdioの最初のCallが5ms以下
-- [ ] 常駐stdio p95が5ms以下
-- [ ] 20倍辞書のCore p95が5ms以下
-- [ ] 20倍辞書で意味結果不変
-- [ ] LowLatency／標準Clientの意味結果一致
+- [ ] Meaning Graphが唯一の意味正本
+- [ ] Legacy Intent / Taskが互換View
+- [ ] Quote / Interrogative Fail Closed
+- [ ] ActionとConstraintが分離
+- [ ] Gold Corpus成功
+- [ ] Meaning Graph専用Test成功
+- [ ] Indexed / Exhaustive意味同値
+- [ ] Semantic Hash決定性
+- [ ] Python 3.10 / 3.12成功
+- [ ] p95 10ms以下
+- [ ] 最大50ms以下
+- [ ] 20倍辞書で意味不変
+- [ ] Collision / Context / Graph Scaleの証拠
 - [ ] Offline Install成功
-- [ ] Installed Wheelから辞書を読める
-- [ ] Runtime Downloadがない
-- [ ] Manifestの全FileにSHA-256がある
+- [ ] Runtime Downloadなし
 - [ ] MCP stdio E2E成功
-- [ ] Test／Performance ReportをArtifact保存
+- [ ] 全EvidenceをArtifact保存
 
-一項目でも失敗した状態を「完了」と報告してはならない。
+一項目でも失敗した状態を「完全」または「Verified」と報告してはならない。
 
 ---
 
 ## English summary
 
-This MCP is a deterministic Japanese parser, not a response-generating AI. Release candidates must preserve full semantic behavior, pass Gold and exhaustive-parity checks, preload all runtime data before the MCP handshake, prepare and compile the advertised response contract before readiness, install from a fully prepared offline wheelhouse, and meet a 5ms ready-state latency gate for internal parsing and persistent local stdio calls through `LowLatencyClientSession`. The low-latency path validates every response with a precompiled authoritative Pydantic validator and must remain semantically identical to the standard MCP client path. The current tested expansion capacity is 20x the bundled rule and metaphor dictionaries. Remote network and UI latency must be measured separately by the consuming product and must never be presented as guaranteed by this repository alone.
+The parser uses a Meaning Graph as its single semantic source of truth. Rules provide candidates and evidence; typed scope relations, action constraints, and an action-relevance guard determine execution safety. The normal Astera-side call-through target is p95 <= 10 ms, the absolute validated-response handoff limit is 50 ms, and Astera's total response target is 100 ms. A resident 5 ms path remains an optimization goal rather than the only release gate. Releases must preserve legacy compatibility views, deterministic semantic hashes, fail-closed quotation/interrogative behavior, indexed/exhaustive parity, dictionary-scale evidence, offline installation, and complete CI artifacts.
