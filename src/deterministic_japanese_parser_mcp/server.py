@@ -14,6 +14,22 @@ def engine() -> ParserEngine:
     return _engine
 
 
+def prewarm() -> ParserEngine:
+    """Load dictionaries, compile indexes, initialize Sudachi, and warm caches.
+
+    This runs before the MCP stdio handshake so the first user tool call does
+    not pay dependency loading or dictionary initialization costs.
+    """
+    instance = engine()
+    response = instance.analyze(AnalyzeRequest(
+        original_text="UIは残せ。APIだけ変更しろ。",
+        deadline_ms=60000,
+    ))
+    if not response.intents:
+        raise RuntimeError("parser prewarm validation produced no intents")
+    return instance
+
+
 @mcp.tool()
 def analyze_japanese(
     original_text: str,
@@ -42,6 +58,7 @@ def analyze_sync(request: AnalyzeRequest) -> AnalyzeResponse:
 
 
 def main() -> None:
+    prewarm()
     mcp.run(transport="stdio")
 
 
