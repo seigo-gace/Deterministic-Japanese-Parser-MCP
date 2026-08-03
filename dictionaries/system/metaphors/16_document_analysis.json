@@ -1,0 +1,114 @@
+{
+  "version": "1.1.0",
+  "category": "16_document_analysis",
+  "entries": [
+    {
+      "expression": "骨子を作る",
+      "interpretation": "文書・提案・説明の中心構造と主要論点を先に組み立てる",
+      "context": ["文書", "提案", "説明", "構成", "論点"],
+      "context_policy": "required_any",
+      "domain": "文書設計",
+      "aliases": ["骨組みを作る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "肉付けする",
+      "interpretation": "骨子へ根拠・詳細・例・説明を追加して内容を具体化する",
+      "context": ["文書", "説明", "根拠", "詳細", "例"],
+      "context_policy": "required_any",
+      "domain": "文書作成",
+      "aliases": ["内容を肉付けする"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "軸を通す",
+      "interpretation": "文書・提案・判断で中心主張または評価基準を一貫させる",
+      "context": ["主張", "構成", "提案", "判断", "文書"],
+      "context_policy": "required_any",
+      "domain": "一貫性",
+      "aliases": ["一本の軸を通す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "筋を通す",
+      "interpretation": "論理展開または手続の前後関係を矛盾なく一貫させる",
+      "context": ["論理", "手続", "説明", "判断", "経緯"],
+      "context_policy": "required_any",
+      "domain": "整合性",
+      "aliases": ["論理の筋を通す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "噛み砕く",
+      "interpretation": "難しい概念・専門用語・説明を理解しやすい表現へ言い換える",
+      "context": ["説明", "用語", "概念", "専門", "初心者"],
+      "context_policy": "required_any",
+      "domain": "説明",
+      "aliases": ["分かりやすく噛み砕く"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "具体に落とす",
+      "interpretation": "抽象的な方針・構想・要求を実行可能な手順やTaskへ変換する",
+      "context": ["方針", "構想", "要求", "手順", "Task"],
+      "context_policy": "required_any",
+      "domain": "具体化",
+      "aliases": ["具体策に落とす"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "抽象度を上げる",
+      "interpretation": "個別事例から共通原理・上位概念・一般化された説明へ移す",
+      "context": ["分析", "概念", "原理", "共通", "事例"],
+      "context_policy": "required_any",
+      "domain": "抽象化",
+      "aliases": ["一段抽象化する"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "抽象度を下げる",
+      "interpretation": "上位概念を具体例・条件・手順・実装単位へ展開する",
+      "context": ["設計", "手順", "実装", "具体例", "条件"],
+      "context_policy": "required_any",
+      "domain": "具体化",
+      "aliases": ["一段具体化する"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "話が飛ぶ",
+      "interpretation": "必要な理由・接続・前提を示さず別の論点や結論へ移る",
+      "context": ["議論", "文章", "説明", "論点", "結論"],
+      "context_policy": "required_any",
+      "domain": "論理飛躍",
+      "aliases": ["論点が飛ぶ"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "ねじれを直す",
+      "interpretation": "主語と述語、修飾先、視点、並列関係の不整合を修正する",
+      "context": ["文", "文章", "主語", "述語", "修飾"],
+      "context_policy": "required_any",
+      "domain": "日本語校正",
+      "aliases": ["文のねじれを直す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "見出しを立てる",
+      "interpretation": "内容を区分し検索・走査しやすくするHeadingを設ける",
+      "context": ["文書", "Page", "ページ", "記事", "構成"],
+      "context_policy": "required_any",
+      "domain": "文書構造",
+      "aliases": ["セクション見出しを立てる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "一文一義にする",
+      "interpretation": "一つの文へ一つの主要命題だけを置き解釈の競合を減らす",
+      "context": ["文", "文章", "命題", "読みやすさ", "校正"],
+      "context_policy": "required_any",
+      "domain": "日本語校正",
+      "aliases": ["一文一意にする"],
+      "version": "1.1.0"
+    }
+  ]
+}
