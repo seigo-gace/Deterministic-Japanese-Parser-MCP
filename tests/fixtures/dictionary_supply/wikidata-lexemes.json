@@ -1,0 +1,32 @@
+[
+  {
+    "id": "L100",
+    "type": "lexeme",
+    "language": "Q5287",
+    "lexicalCategory": "Q24905",
+    "lemmas": {"ja": {"language": "ja", "value": "直す"}},
+    "forms": [
+      {
+        "id": "L100-F1",
+        "representations": {"ja": {"language": "ja", "value": "直した"}},
+        "grammaticalFeatures": ["Q146786"]
+      }
+    ],
+    "senses": [
+      {
+        "id": "L100-S1",
+        "glosses": {"ja": {"language": "ja", "value": "問題のある状態を正常にする"}},
+        "claims": {}
+      }
+    ]
+  },
+  {
+    "id": "L200",
+    "type": "lexeme",
+    "language": "Q1860",
+    "lexicalCategory": "Q24905",
+    "lemmas": {"en": {"language": "en", "value": "fix"}},
+    "forms": [],
+    "senses": []
+  }
+]
