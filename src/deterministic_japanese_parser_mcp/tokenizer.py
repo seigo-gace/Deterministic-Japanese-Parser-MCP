@@ -1,4 +1,5 @@
 import re
+
 from .models import Token
 from .normalizer import span_to_original
 
@@ -7,6 +8,7 @@ try:
 except ImportError:  # development fallback; production package installs SudachiPy
     dictionary = None
     sudachi_tokenizer = None
+
 
 class JapaneseTokenizer:
     def __init__(self):
@@ -24,10 +26,14 @@ class JapaneseTokenizer:
             cursor = 0
             for morpheme in self._tok.tokenize(normalized, self._mode):
                 surface = morpheme.surface()
-                start = normalized.find(surface, cursor)
-                if start < 0:
-                    start = cursor
-                end = start + len(surface)
+                try:
+                    start = morpheme.begin()
+                    end = morpheme.end()
+                except AttributeError:  # pragma: no cover - pinned Sudachi has offsets
+                    start = normalized.find(surface, cursor)
+                    if start < 0:
+                        start = cursor
+                    end = start + len(surface)
                 cursor = end
                 result.append(Token(
                     surface=surface,
