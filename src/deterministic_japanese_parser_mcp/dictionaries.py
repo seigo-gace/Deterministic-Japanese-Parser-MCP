@@ -102,6 +102,47 @@ def _load_synonym_set(primary: Path, fragments: Path) -> dict:
     return output
 
 
+def _load_lexicon_set(path: Path) -> dict:
+    output = {"version": "0", "entries": [], "groups": {}}
+    if not path.exists():
+        return output
+    by_id: dict[str, dict] = {}
+    for item_path in sorted(path.glob("*.jsonl")):
+        with item_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"invalid lexicon JSONL: {item_path}:{line_number}: {exc}"
+                    ) from exc
+                record_id = item.get("record_id")
+                lemma = item.get("lemma")
+                if not record_id or not lemma:
+                    raise ValueError(
+                        f"lexicon record_id/lemma required: {item_path}:{line_number}"
+                    )
+                if item.get("review_status") != "approved":
+                    raise ValueError(
+                        f"runtime lexicon contains unapproved record: {record_id}"
+                    )
+                by_id[record_id] = item
+    output["entries"] = list(by_id.values())
+    for item in output["entries"]:
+        lemma = item["lemma"]
+        bucket = output["groups"].setdefault(lemma, [])
+        for surface in [lemma, *item.get("surfaces", []), *item.get("synonyms", [])]:
+            if surface and surface not in bucket:
+                bucket.append(surface)
+        source = item.get("source") or {}
+        version = source.get("version")
+        if version:
+            output["version"] = version
+    return output
+
+
 def merge_rule_docs(system: dict, user: dict) -> dict:
     merged = {
         "version": system.get("version", "0"),
@@ -136,15 +177,19 @@ def merge_templates(system: dict, user: dict) -> dict:
     }
 
 
-def merge_synonyms(system: dict, user: dict) -> dict:
+def merge_synonyms(*sources: dict) -> dict:
     groups: dict[str, list[str]] = {}
-    for source in (system, user):
-        for canonical, values in source.get("groups", {}).items():
+    version = "0"
+    for source in sources:
+        if source.get("version"):
+            version = source.get("version", version)
+        source_groups = source.get("groups", {})
+        for canonical, values in source_groups.items():
             bucket = groups.setdefault(canonical, [])
             for value in [canonical, *(values or [])]:
                 if value and value not in bucket:
                     bucket.append(value)
-    return {"version": system.get("version", "0"), "groups": groups}
+    return {"version": version, "groups": groups}
 
 
 class DictionaryBundle:
@@ -159,6 +204,7 @@ class DictionaryBundle:
             system_dir / "synonyms.yaml",
             system_dir / "synonyms.d",
         )
+        system_lexicon = _load_lexicon_set(system_dir / "lexicon.d")
         self.rules = merge_rule_docs(
             system_rules,
             _load_yaml(user_dir / "rules.yaml"),
@@ -171,7 +217,9 @@ class DictionaryBundle:
             system_templates,
             _load_yaml(user_dir / "task_templates.yaml"),
         )
+        self.lexicon = system_lexicon
         self.synonyms = merge_synonyms(
             system_synonyms,
+            system_lexicon,
             _load_yaml(user_dir / "synonyms.yaml"),
         )
