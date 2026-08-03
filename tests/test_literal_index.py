@@ -1,7 +1,10 @@
 from deterministic_japanese_parser_mcp.literal_index import LiteralIndex
 from deterministic_japanese_parser_mcp.metaphor import MetaphorMatcher
 from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
-from deterministic_japanese_parser_mcp.rule_engine import RuleEngine
+from deterministic_japanese_parser_mcp.rule_engine import (
+    RuleEngine,
+    _extract_proven_triggers,
+)
 
 
 def test_literal_index_returns_overlapping_matches_deterministically():
@@ -24,6 +27,20 @@ def test_literal_index_lookup_does_not_depend_on_literal_count_for_correctness()
     assert list(index.find(f"開始{target}終了")) == [
         (target, 2, 2 + len(target)),
     ]
+
+
+def test_trigger_selection_prefers_long_mandatory_sequence_over_character_set():
+    assert _extract_proven_triggers("(?P<target>[あい])を変更する") == (
+        "を変更する",
+    )
+
+
+def test_trigger_selection_preserves_every_branch_alternative():
+    assert set(_extract_proven_triggers("(?:変更する|修正する|改善する)")) == {
+        "変更する",
+        "修正する",
+        "改善する",
+    }
 
 
 def test_rule_index_matches_exhaustive_with_large_decoy_dictionary():
