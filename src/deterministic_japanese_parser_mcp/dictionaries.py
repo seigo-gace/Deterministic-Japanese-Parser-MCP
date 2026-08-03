@@ -1,5 +1,6 @@
 from pathlib import Path
 import gzip
+import hashlib
 import json
 
 import yaml
@@ -221,8 +222,37 @@ def merge_synonyms(*sources: dict) -> dict:
     return {"version": version, "groups": groups}
 
 
+def _dictionary_fingerprint(system_dir: Path, user_dir: Path) -> tuple:
+    values: list[tuple[str, int, int]] = []
+    for root in (system_dir, user_dir):
+        if not root.exists():
+            continue
+        for path in sorted(
+            (item for item in root.rglob("*") if item.is_file()),
+            key=lambda item: str(item),
+        ):
+            stat = path.stat()
+            values.append((str(path.resolve()), stat.st_size, stat.st_mtime_ns))
+    return tuple(values)
+
+
 class DictionaryBundle:
+    _CACHE: dict[tuple, tuple[dict, dict, dict, dict, dict]] = {}
+
     def __init__(self, system_dir: Path, user_dir: Path):
+        fingerprint = _dictionary_fingerprint(system_dir, user_dir)
+        key = (str(system_dir.resolve()), str(user_dir.resolve()), fingerprint)
+        cached = self._CACHE.get(key)
+        if cached is not None:
+            (
+                self.rules,
+                self.metaphors,
+                self.templates,
+                self.lexicon,
+                self.synonyms,
+            ) = cached
+            return
+
         system_rules = _load_yaml_set(system_dir / "rules")
         system_metaphors = _load_json_set(system_dir / "metaphors")
         system_templates = _load_template_set(
@@ -246,9 +276,27 @@ class DictionaryBundle:
             system_templates,
             _load_yaml(user_dir / "task_templates.yaml"),
         )
-        self.lexicon = system_lexicon
         self.synonyms = merge_synonyms(
             system_synonyms,
             system_lexicon,
             _load_yaml(user_dir / "synonyms.yaml"),
         )
+        cache_digest = hashlib.sha256(
+            repr(key).encode("utf-8")
+        ).hexdigest()
+        self.synonyms["_cache_key"] = cache_digest
+        self.lexicon = {
+            key_name: value
+            for key_name, value in system_lexicon.items()
+            if key_name != "groups"
+        }
+        snapshot = (
+            self.rules,
+            self.metaphors,
+            self.templates,
+            self.lexicon,
+            self.synonyms,
+        )
+        self._CACHE[key] = snapshot
+        while len(self._CACHE) > 8:
+            self._CACHE.pop(next(iter(self._CACHE)))
