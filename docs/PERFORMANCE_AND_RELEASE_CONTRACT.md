@@ -25,13 +25,17 @@ Release候補は以下をすべて満たさなければならない。
 
 ### 3.1 5msの測定境界
 
-このRepositoryが保証対象にできる「利用者へ結果が到達するまで」は、常駐済みのローカルMCP Clientが`call_tool`を開始してから、stdioを通じてServerが完全な構造化応答を返し、MCP SDKがDecodeを完了するまでとする。
+このRepositoryが保証対象にできる「利用者へ結果が到達するまで」は、常駐済みのローカルMCP Clientが`call_tool`を開始してから、stdioを通じてServerが完全な構造化応答を返し、DecodeとOutput Model検証を完了するまでとする。
+
+5ms保証経路では、Package同梱の`LowLatencyClientSession`を使用する。このClientは、Serverが公開したOutput Schemaと`AnalyzeResponse`のSchemaが一致することをReady前に確認し、Pydantic Validatorを一度だけCompileする。各応答はCompile済みValidatorで完全検証するため、検証の省略ではない。
+
+公式SDKの標準`ClientSession.call_tool()`は比較用診断経路として測定するが、応答ごとに巨大なJSON Schemaを再処理するため5ms保証対象には含めない。低遅延経路と標準経路のSemantic Responseが一致しなければReleaseを失敗させる。
 
 以下を自動計測する。
 
 1. Parser内部の短文Warm応答 p95
 2. Parser内部の複合文Warm応答 p95
-3. MCP初期化完了後の最初のTool Call
+3. MCP初期化・Schema準備完了後の最初のTool Call
 4. 常駐stdio Tool Call p95
 5. 20倍辞書での短文／複合文Warm応答 p95
 6. 20倍辞書・20,000文字でのRule／Metaphor Index検索 p95
@@ -40,7 +44,7 @@ Release候補は以下をすべて満たさなければならない。
 
 ### 3.2 Cold Start
 
-Process起動、Python Import、Sudachi Dictionary読込、辞書File読込、Regex Compile、Index構築は5ms契約へ混ぜない。その代わり、これらをMCP handshake前に必ず完了する。
+Process起動、Python Import、Sudachi Dictionary読込、辞書File読込、Regex Compile、Index構築、Output Schema Compileは5ms契約へ混ぜない。その代わり、これらをMCP Ready判定前に必ず完了する。
 
 `server.prewarm()`は以下を実行してからstdio受付を開始する。
 
@@ -50,7 +54,9 @@ Process起動、Python Import、Sudachi Dictionary読込、辞書File読込、Re
 - Sudachi初期化
 - 代表入力による一度目の完全解析
 
-Cold Start時間はReportへ記録するが、Ready後のTool Callと混同しない。
+`LowLatencyClientSession.prepare_tools()`はTool一覧取得とSchema一致確認、Validator Compileを完了してからReadyとする。
+
+Cold Start時間とSchema準備時間はReportへ記録するが、Ready後のTool Callと混同しない。
 
 ### 3.3 Network／UIを含む製品全体
 
@@ -120,6 +126,7 @@ GitHub Actionsの成功表示だけでなく、Report本文とArtifactを確認�
 - [ ] 常駐stdio p95が5ms以下
 - [ ] 20倍辞書のCore p95が5ms以下
 - [ ] 20倍辞書で意味結果不変
+- [ ] LowLatency／標準Clientの意味結果一致
 - [ ] Offline Install成功
 - [ ] Installed Wheelから辞書を読める
 - [ ] Runtime Downloadがない
@@ -133,4 +140,4 @@ GitHub Actionsの成功表示だけでなく、Report本文とArtifactを確認�
 
 ## English summary
 
-This MCP is a deterministic Japanese parser, not a response-generating AI. Release candidates must preserve full semantic behavior, pass Gold and exhaustive-parity checks, preload all runtime data before the MCP handshake, install from a fully prepared offline wheelhouse, and meet a 5ms ready-state latency gate for internal parsing and persistent local stdio calls. The current tested expansion capacity is 20x the bundled rule and metaphor dictionaries. Remote network and UI latency must be measured separately by the consuming product and must never be presented as guaranteed by this repository alone.
+This MCP is a deterministic Japanese parser, not a response-generating AI. Release candidates must preserve full semantic behavior, pass Gold and exhaustive-parity checks, preload all runtime data before the MCP handshake, prepare and compile the advertised response contract before readiness, install from a fully prepared offline wheelhouse, and meet a 5ms ready-state latency gate for internal parsing and persistent local stdio calls through `LowLatencyClientSession`. The low-latency path validates every response with a precompiled authoritative Pydantic validator and must remain semantically identical to the standard MCP client path. The current tested expansion capacity is 20x the bundled rule and metaphor dictionaries. Remote network and UI latency must be measured separately by the consuming product and must never be presented as guaranteed by this repository alone.
