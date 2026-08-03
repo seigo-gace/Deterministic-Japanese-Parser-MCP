@@ -6,8 +6,11 @@ import argparse
 from collections import Counter
 import gzip
 import hashlib
+import io
 import json
+from itertools import chain
 from pathlib import Path
+import re
 import sys
 from typing import Iterable
 
@@ -16,7 +19,11 @@ TOOLS_ROOT = ROOT / "tools"
 if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
-from dictionary_supply.common import LexiconRecord, read_jsonl
+from dictionary_supply.common import (
+    LexiconRecord,
+    read_jsonl,
+    sha256_file,
+)
 
 TRUSTED_BASE_SOURCES = {
     ("JMdict", "CC-BY-SA-4.0"),
@@ -64,12 +71,19 @@ def lexical_base_record(record: LexiconRecord) -> LexiconRecord:
     record.notes = [
         *record.notes,
         "Automatically approved as lexical identity data only.",
-        "No intent, task, metaphor, pragmatic meaning, or external action was auto-promoted.",
+        (
+            "No intent, task, metaphor, pragmatic meaning, or external action "
+            "was auto-promoted."
+        ),
     ]
     return record.normalized()
 
 
-def deduplicate(records: Iterable[LexiconRecord]) -> list[LexiconRecord]:
+def deduplicate(
+    records: Iterable[LexiconRecord],
+    *,
+    maximum_records: int | None = None,
+) -> list[LexiconRecord]:
     by_key: dict[tuple, LexiconRecord] = {}
     for raw in records:
         record = lexical_base_record(raw)
@@ -81,12 +95,18 @@ def deduplicate(records: Iterable[LexiconRecord]) -> list[LexiconRecord]:
         current = by_key.get(key)
         if current is None:
             by_key[key] = record
+            if (
+                maximum_records is not None
+                and len(by_key) >= maximum_records
+            ):
+                break
             continue
         for value in record.surfaces:
             if value not in current.surfaces:
                 current.surfaces.append(value)
         current.notes.append(
-            f"Merged lexical source record: {record.source.dataset}:{record.source.source_id}"
+            "Merged lexical source record: "
+            f"{record.source.dataset}:{record.source.source_id}"
         )
         current.normalized()
     return sorted(
@@ -100,12 +120,43 @@ def deduplicate(records: Iterable[LexiconRecord]) -> list[LexiconRecord]:
     )
 
 
+def _write_deterministic_gzip(
+    path: Path,
+    records: list[LexiconRecord],
+) -> str:
+    digest = hashlib.sha256()
+    with path.open("wb") as raw:
+        with gzip.GzipFile(
+            filename="",
+            mode="wb",
+            fileobj=raw,
+            compresslevel=9,
+            mtime=0,
+        ) as compressed:
+            with io.TextIOWrapper(
+                compressed,
+                encoding="utf-8",
+                newline="\n",
+            ) as handle:
+                for record in records:
+                    line = json.dumps(
+                        record.to_dict(),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ) + "\n"
+                    handle.write(line)
+                    digest.update(line.encode("utf-8"))
+    return digest.hexdigest()
+
+
 def write_shards(
     output_root: Path,
     *,
     batch_id: str,
     records: list[LexiconRecord],
     shard_size: int,
+    repo_root: Path | None = None,
 ) -> tuple[list[dict], int]:
     shards: list[dict] = []
     total_bytes = 0
@@ -114,6 +165,7 @@ def write_shards(
         bucket = license_bucket(record.source.license)
         by_bucket.setdefault(bucket, []).append(record)
 
+    root = (repo_root or output_root.parent.parent.parent).resolve()
     for bucket, bucket_records in sorted(by_bucket.items()):
         directory = output_root / bucket
         directory.mkdir(parents=True, exist_ok=True)
@@ -123,33 +175,89 @@ def write_shards(
             if path.exists():
                 raise ValueError(f"base lexicon shard already exists: {path}")
             selected = bucket_records[start : start + shard_size]
-            digest = hashlib.sha256()
-            with gzip.open(
-                path,
-                "wt",
-                encoding="utf-8",
-                newline="\n",
-                compresslevel=9,
-            ) as handle:
-                for record in selected:
-                    line = json.dumps(
-                        record.to_dict(),
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ) + "\n"
-                    handle.write(line)
-                    digest.update(line.encode("utf-8"))
+            content_digest = _write_deterministic_gzip(path, selected)
             size = path.stat().st_size
             total_bytes += size
             shards.append({
-                "path": str(path.relative_to(output_root.parent.parent.parent)),
+                "path": str(path.resolve().relative_to(root)),
                 "license_bucket": bucket,
                 "record_count": len(selected),
-                "uncompressed_content_sha256": digest.hexdigest(),
+                "uncompressed_content_sha256": content_digest,
+                "compressed_sha256": sha256_file(path),
                 "compressed_bytes": size,
             })
     return shards, total_bytes
+
+
+def sync_repository_metadata(
+    repo_root: Path,
+    *,
+    batch_id: str,
+    record_count: int,
+) -> None:
+    manifest_path = (
+        repo_root
+        / "dictionaries/system/metaphors/manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["open_lexicon_records"] = record_count
+    manifest["open_lexicon_release_batch"] = batch_id
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    readme_path = repo_root / "README.md"
+    readme = readme_path.read_text(encoding="utf-8")
+    readme, changed = re.subn(
+        r"(\| Open lexical records \| \*\*)\d+(\*\* \|)",
+        rf"\g<1>{record_count}\g<2>",
+        readme,
+    )
+    if changed != 2:
+        raise ValueError(
+            "README open lexical record markers must exist in Japanese and "
+            f"English tables: changed={changed}"
+        )
+    readme = readme.replace(
+        (
+            "無料辞書資源のImporterと昇格Pipelineは実装済みですが、"
+            "このCommitでは外部辞書の全Dumpを無審査でRepositoryへ"
+            "収録していません。"
+        ),
+        (
+            f"このRelease artifactには、信頼済みOpen SourceからBuildした"
+            f"語彙識別専用Base Lexiconを{record_count}件収録しています。"
+            "語義・Intent・Task・比喩・外部Actionは自動昇格していません。"
+        ),
+    )
+    readme = readme.replace(
+        (
+            "At the current repository state, no external open-lexicon records "
+            "have been promoted into the runtime packs."
+        ),
+        (
+            f"This release artifact contains {record_count} trusted open lexical "
+            "identity records. No sense, intent, task, metaphor, pragmatic "
+            "meaning, or external action was auto-promoted."
+        ),
+    )
+    readme_path.write_text(readme, encoding="utf-8")
+
+    notice_path = repo_root / "NOTICE.md"
+    notice = notice_path.read_text(encoding="utf-8")
+    notice = notice.replace(
+        (
+            "At the current repository state, no external open-lexicon records "
+            "have been promoted into the runtime packs."
+        ),
+        (
+            f"Release batch `{batch_id}` contains {record_count} automatically "
+            "approved lexical-identity records from trusted open sources. "
+            "Semantic and executable meanings were not auto-promoted."
+        ),
+    )
+    notice_path.write_text(notice, encoding="utf-8")
 
 
 def main() -> int:
@@ -161,6 +269,8 @@ def main() -> int:
     parser.add_argument("--minimum-records", type=int, default=100000)
     parser.add_argument("--maximum-records", type=int)
     parser.add_argument("--shard-size", type=int, default=10000)
+    parser.add_argument("--repo-root", type=Path, default=ROOT)
+    parser.add_argument("--sync-repository-metadata", action="store_true")
     args = parser.parse_args()
     if args.minimum_records < 1:
         parser.error("minimum-records must be at least 1")
@@ -172,12 +282,11 @@ def main() -> int:
     ):
         parser.error("maximum-records must be >= minimum-records")
 
-    imported: list[LexiconRecord] = []
-    for path in args.input:
-        imported.extend(read_jsonl(path))
-    records = deduplicate(imported)
-    if args.maximum_records is not None:
-        records = records[: args.maximum_records]
+    stream = chain.from_iterable(read_jsonl(path) for path in args.input)
+    records = deduplicate(
+        stream,
+        maximum_records=args.maximum_records,
+    )
     if len(records) < args.minimum_records:
         raise RuntimeError(
             "open lexicon minimum was not reached: "
@@ -189,16 +298,26 @@ def main() -> int:
         batch_id=args.batch_id,
         records=records,
         shard_size=args.shard_size,
+        repo_root=args.repo_root,
     )
-    sources = Counter(
-        (
+    source_values: dict[tuple, dict] = {}
+    source_counts: Counter[tuple] = Counter()
+    for item in records:
+        key = (
             item.source.dataset,
             item.source.version,
             item.source.license,
             item.source.source_sha256,
         )
-        for item in records
-    )
+        source_counts[key] += 1
+        source_values[key] = {
+            "dataset": item.source.dataset,
+            "version": item.source.version,
+            "license": item.source.license,
+            "source_url": item.source.source_url,
+            "source_sha256": item.source.source_sha256,
+            "attribution": item.source.attribution,
+        }
     surface_count = sum(len(item.surfaces) for item in records)
     payload = {
         "schema_version": "1.0.0",
@@ -210,13 +329,10 @@ def main() -> int:
         "compressed_bytes": compressed_bytes,
         "sources": [
             {
-                "dataset": key[0],
-                "version": key[1],
-                "license": key[2],
-                "source_sha256": key[3],
-                "record_count": count,
+                **source_values[key],
+                "record_count": source_counts[key],
             }
-            for key, count in sorted(sources.items())
+            for key in sorted(source_values)
         ],
         "shards": shards,
         "semantic_auto_promotion": False,
@@ -227,6 +343,12 @@ def main() -> int:
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    if args.sync_repository_metadata:
+        sync_repository_metadata(
+            args.repo_root,
+            batch_id=args.batch_id,
+            record_count=len(records),
+        )
     print(
         "OPEN LEXICON BUILD OK: "
         f"records={len(records)} surfaces={surface_count} "
