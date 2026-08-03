@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterable, Iterator
-import re
 
 
 class LiteralIndex:
@@ -52,38 +51,20 @@ class LiteralIndex:
             sorted(set(values), key=lambda value: (-len(value), value))
             for values in self._outputs
         ]
-
-        # Every literal must contain its own leading prefix. Searching the
-        # deduplicated prefix set in C provides an exact negative filter before
-        # the Python Aho-Corasick traversal. Four characters are selective for
-        # Japanese rules while keeping the compiled expression compact.
-        prefixes = {
-            literal[: min(4, len(literal))]
-            for literal in unique
-        }
-        prefix_expression = "|".join(
-            re.escape(prefix)
-            for prefix in sorted(prefixes, key=lambda value: (-len(value), value))
-        )
-        self._prefix_pattern = (
-            re.compile(f"(?:{prefix_expression})") if prefix_expression else None
-        )
+        self._root_chars = frozenset(self._transitions[0])
 
     @property
     def state_count(self) -> int:
         return len(self._transitions)
 
-    def _has_possible_match(self, text: str) -> bool:
-        # This is exact, not heuristic: if no registered literal prefix exists
-        # in the text, no complete registered literal can exist either.
-        return bool(
-            text
-            and self._prefix_pattern
-            and self._prefix_pattern.search(text)
-        )
+    def _has_possible_start(self, text: str) -> bool:
+        # Every registered literal must begin with one root character. After the
+        # rule engine chooses a discriminative mandatory trigger cover, this
+        # exact C-level set test rejects long impossible payloads cheaply.
+        return bool(text and not self._root_chars.isdisjoint(text))
 
     def find(self, text: str) -> Iterator[tuple[str, int, int]]:
-        if not self._has_possible_match(text):
+        if not self._has_possible_start(text):
             return
         state = 0
         for end_index, char in enumerate(text, start=1):
@@ -94,6 +75,6 @@ class LiteralIndex:
                 yield literal, end_index - len(literal), end_index
 
     def matched_literals(self, text: str) -> set[str]:
-        if not self._has_possible_match(text):
+        if not self._has_possible_start(text):
             return set()
         return {literal for literal, _, _ in self.find(text)}
