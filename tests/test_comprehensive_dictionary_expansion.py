@@ -30,6 +30,15 @@ NEW_SYNONYM_FILE = "comprehensive_groups_2026_08.yaml"
 NEW_WORKFLOW_FILE = "comprehensive_workflows_2026_08.yaml"
 
 
+def _load_effective_gold() -> list[dict]:
+    by_id: dict[str, dict] = {}
+    for path in sorted((ROOT / "tests/gold").glob("*.json")):
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        for case in doc.get("cases", []):
+            by_id[case["id"]] = case
+    return list(by_id.values())
+
+
 def _load_cases(filename: str) -> list[dict]:
     return json.loads(
         (ROOT / "tests/gold" / filename).read_text(encoding="utf-8")
@@ -45,10 +54,7 @@ def _request(case: dict) -> AnalyzeRequest:
 
 def test_comprehensive_dictionary_totals_are_fixed():
     engine = ParserEngine()
-    gold_count = sum(
-        len(json.loads(path.read_text(encoding="utf-8")).get("cases", []))
-        for path in sorted((ROOT / "tests/gold").glob("*.json"))
-    )
+    gold_count = len(_load_effective_gold())
     workflow_count = sum(
         1
         for item in engine.bundle.templates["templates"]
@@ -62,32 +68,42 @@ def test_comprehensive_dictionary_totals_are_fixed():
     assert gold_count == 649
 
 
-def test_every_second_wave_metaphor_has_gold_and_is_detected():
-    entries: dict[str, dict] = {}
+def test_every_second_wave_metaphor_has_effective_gold_and_is_detected():
+    metaphor_dir = ROOT / "dictionaries/system/metaphors"
+    controls = json.loads(
+        (metaphor_dir / "overrides.json").read_text(encoding="utf-8")
+    )
+    excluded = set(controls["override_expressions"]) | set(
+        controls["disabled_expressions"]
+    )
+    expected_expressions: set[str] = set()
     for filename in sorted(NEW_METAPHOR_FILES):
         doc = json.loads(
-            (ROOT / "dictionaries/system/metaphors" / filename).read_text(
-                encoding="utf-8"
-            )
+            (metaphor_dir / filename).read_text(encoding="utf-8")
         )
         assert len(doc["entries"]) == 18
-        for item in doc["entries"]:
-            assert item["expression"] not in entries
-            entries[item["expression"]] = item
-    assert len(entries) == 252
+        expected_expressions.update(
+            item["expression"]
+            for item in doc["entries"]
+            if item["expression"] not in excluded
+        )
+    expected_expressions.update(
+        item["expression"] for item in controls["replacement_entries"]
+    )
+    assert len(expected_expressions) == 252
 
     cases = [
         case
-        for path in sorted((ROOT / "tests/gold").glob("cases-11-*.json"))
-        for case in json.loads(path.read_text(encoding="utf-8"))["cases"]
+        for case in _load_effective_gold()
+        if 272 <= int(case["id"].split("-")[1]) <= 523
     ]
     assert len(cases) == 252
-    expected_expressions = {
+    gold_expressions = {
         expression
         for case in cases
         for expression in case["expected"].get("metaphors", [])
     }
-    assert set(entries) == expected_expressions
+    assert expected_expressions == gold_expressions
 
     engine = ParserEngine()
     detected: set[str] = set()
@@ -100,8 +116,8 @@ def test_every_second_wave_metaphor_has_gold_and_is_detected():
             "expected": sorted(expected),
             "actual": sorted(actual),
         }
-        detected.update(actual.intersection(entries))
-    assert detected == set(entries)
+        detected.update(actual.intersection(expected_expressions))
+    assert detected == expected_expressions
 
 
 def test_every_second_wave_rule_is_indexed_matches_gold_and_preserves_meaning():
