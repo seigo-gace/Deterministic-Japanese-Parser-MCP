@@ -8,5 +8,5 @@ VERSION = {
     "parser_version": "SudachiPy-0.6.11",
     "parser_dictionary_version": "SudachiDict-core-20260428",
     "metaphor_dictionary_version": "1.1.0",
-    "task_definition_version": "1.1.0",
+    "task_definition_version": "2.1.0",
 }
