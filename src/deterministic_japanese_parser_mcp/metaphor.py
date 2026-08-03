@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import regex
 
+from .literal_index import LiteralIndex
 from .models import ItemStatus, Metaphor
 from .normalizer import span_to_original
 
@@ -21,16 +22,11 @@ class MetaphorMatcher:
             for pattern in item.get("patterns", []):
                 self.compiled_patterns.append((item, regex.compile(pattern)))
         self.literal_index = literal_index
-        by_first: dict[str, list[str]] = {}
-        for literal in literal_index:
-            by_first.setdefault(literal[0], []).append(literal)
-        self.literals_by_first = {
-            char: tuple(sorted(values, key=lambda item: (-len(item), item)))
-            for char, values in by_first.items()
-        }
+        self.literal_matcher = LiteralIndex(literal_index)
         self.last_timeouts: list[dict] = []
         self.last_metrics: dict[str, int] = {
             "literal_count": len(literal_index),
+            "literal_state_count": self.literal_matcher.state_count,
             "regex_pattern_count": len(self.compiled_patterns),
             "literal_candidate_count": 0,
         }
@@ -56,16 +52,12 @@ class MetaphorMatcher:
     def _literal_matches(self, text: str) -> list[tuple[dict, int, int]]:
         output: list[tuple[dict, int, int]] = []
         seen: set[tuple[str, int, int]] = set()
-        for index, char in enumerate(text):
-            for literal in self.literals_by_first.get(char, ()):
-                if not text.startswith(literal, index):
-                    continue
-                end = index + len(literal)
-                for item in self.literal_index[literal]:
-                    key = (item["expression"], index, end)
-                    if key not in seen:
-                        seen.add(key)
-                        output.append((item, index, end))
+        for literal, start, end in self.literal_matcher.find(text):
+            for item in self.literal_index[literal]:
+                key = (item["expression"], start, end)
+                if key not in seen:
+                    seen.add(key)
+                    output.append((item, start, end))
         return output
 
     def find(self, text, mapping, original) -> list[Metaphor]:
@@ -110,6 +102,7 @@ class MetaphorMatcher:
             unique.setdefault((entry.span.start, entry.expression), entry)
         self.last_metrics = {
             "literal_count": len(self.literal_index),
+            "literal_state_count": self.literal_matcher.state_count,
             "regex_pattern_count": len(self.compiled_patterns),
             "literal_candidate_count": literal_candidate_count,
         }
