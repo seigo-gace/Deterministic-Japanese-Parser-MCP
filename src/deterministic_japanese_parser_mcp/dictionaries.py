@@ -1,4 +1,5 @@
 from pathlib import Path
+import gzip
 import json
 
 import yaml
@@ -102,13 +103,33 @@ def _load_synonym_set(primary: Path, fragments: Path) -> dict:
     return output
 
 
+def _lexicon_paths(path: Path) -> list[Path]:
+    return sorted(
+        [*path.rglob("*.jsonl"), *path.rglob("*.jsonl.gz")],
+        key=lambda item: str(item),
+    )
+
+
+def _open_lexicon(path: Path):
+    if path.name.endswith(".jsonl.gz"):
+        return gzip.open(path, "rt", encoding="utf-8")
+    return path.open("r", encoding="utf-8")
+
+
 def _load_lexicon_set(path: Path) -> dict:
-    output = {"version": "0", "entries": [], "groups": {}}
+    output = {
+        "version": "0",
+        "record_count": 0,
+        "groups": {},
+        "source_versions": [],
+    }
     if not path.exists():
         return output
-    by_id: dict[str, dict] = {}
-    for item_path in sorted(path.rglob("*.jsonl")):
-        with item_path.open("r", encoding="utf-8") as handle:
+
+    seen_ids: set[str] = set()
+    versions: set[str] = set()
+    for item_path in _lexicon_paths(path):
+        with _open_lexicon(item_path) as handle:
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
@@ -124,23 +145,29 @@ def _load_lexicon_set(path: Path) -> dict:
                     raise ValueError(
                         f"lexicon record_id/lemma required: {item_path}:{line_number}"
                     )
+                if record_id in seen_ids:
+                    raise ValueError(
+                        f"duplicate runtime lexicon record_id: {record_id}"
+                    )
                 if item.get("review_status") != "approved":
                     raise ValueError(
                         f"runtime lexicon contains unapproved record: {record_id}"
                     )
-                by_id[record_id] = item
-    output["entries"] = list(by_id.values())
-    versions: list[str] = []
-    for item in output["entries"]:
-        lemma = item["lemma"]
-        bucket = output["groups"].setdefault(lemma, [])
-        for surface in [lemma, *item.get("surfaces", []), *item.get("synonyms", [])]:
-            if surface and surface not in bucket:
-                bucket.append(surface)
-        source = item.get("source") or {}
-        version = source.get("version")
-        if version and version not in versions:
-            versions.append(version)
+                seen_ids.add(record_id)
+                output["record_count"] += 1
+                bucket = output["groups"].setdefault(lemma, [])
+                for surface in [
+                    lemma,
+                    *item.get("surfaces", []),
+                    *item.get("synonyms", []),
+                ]:
+                    if surface and surface not in bucket:
+                        bucket.append(surface)
+                source = item.get("source") or {}
+                version = source.get("version")
+                if version:
+                    versions.add(version)
+    output["source_versions"] = sorted(versions)
     if versions:
         output["version"] = "+".join(sorted(versions))
     return output
@@ -186,8 +213,7 @@ def merge_synonyms(*sources: dict) -> dict:
     for source in sources:
         if source.get("version"):
             version = source.get("version", version)
-        source_groups = source.get("groups", {})
-        for canonical, values in source_groups.items():
+        for canonical, values in source.get("groups", {}).items():
             bucket = groups.setdefault(canonical, [])
             for value in [canonical, *(values or [])]:
                 if value and value not in bucket:
