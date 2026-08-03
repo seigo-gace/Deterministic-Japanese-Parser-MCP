@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "batch_id": "source-tree",
+  "mode": "no_external_runtime_lexicon_promoted",
+  "record_count": 0,
+  "sources": [],
+  "note": "Release Readiness builds and verifies the 100000+ record open lexical base before wheel creation. The source checkout intentionally contains no unreviewed full dumps."
+}
