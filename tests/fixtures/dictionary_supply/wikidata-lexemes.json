@@ -5,6 +5,15 @@
     "language": "Q5287",
     "lexicalCategory": "Q24905",
     "lemmas": {"ja": {"language": "ja", "value": "直す"}},
+    "claims": {
+      "P5191": [
+        {
+          "mainsnak": {
+            "datavalue": {"value": {"id": "L099"}}
+          }
+        }
+      ]
+    },
     "forms": [
       {
         "id": "L100-F1",
@@ -16,7 +25,22 @@
       {
         "id": "L100-S1",
         "glosses": {"ja": {"language": "ja", "value": "問題のある状態を正常にする"}},
-        "claims": {}
+        "claims": {
+          "P5973": [
+            {
+              "mainsnak": {
+                "datavalue": {"value": {"id": "L101-S1"}}
+              }
+            }
+          ],
+          "P5974": [
+            {
+              "mainsnak": {
+                "datavalue": {"value": {"id": "L102-S1"}}
+              }
+            }
+          ]
+        }
       }
     ]
   },
