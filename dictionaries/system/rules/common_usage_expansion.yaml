@@ -1,0 +1,296 @@
+version: 1.1.0
+timeout_ms: 25
+intents:
+  action:
+  - id: CU-ACTION-001
+    pattern: (?P<action>[^。！？]+?)(?:しておいて|までやって)(?=[。！？]|$)
+    priority: 76
+    enabled: true
+  - id: CU-ACTION-002
+    pattern: (?P<action>[^。！？]+?)(?:を実施して|を処理して|に対応して)(?=[。！？]|$)
+    priority: 74
+    enabled: true
+  - id: CU-ACTION-003
+    pattern: (?P<action>[^。！？]+?)(?:進めろ|進めてくれ|済ませろ|終わらせろ)(?=[。！？]|$)
+    priority: 78
+    enabled: true
+
+  comparison:
+  - id: CU-COMPARISON-001
+    pattern: (?P<target>[^。！？]+?)(?:の違い|の差分|の差)(?:を出して|を示して|を明確にして)(?=[。！？]|$)
+    priority: 77
+    enabled: true
+  - id: CU-COMPARISON-002
+    pattern: (?P<target>[^。！？]+?)(?:どちら|どっち)(?:が|を)(?:良い|適切|強い|速い)(?:か)?(?=[。！？]|$)
+    priority: 76
+    enabled: true
+  - id: CU-COMPARISON-003
+    pattern: (?P<target>[^。！？]+?)(?:を比べて|を比較して|を対比して)(?=[。！？]|$)
+    priority: 75
+    enabled: true
+
+  completion_criteria:
+  - id: CU-COMPLETION-001
+    pattern: (?:完了条件|完成条件|Done条件)(?:は|として)?(?P<criterion>[^。！？]+)
+    priority: 80
+    enabled: true
+  - id: CU-COMPLETION-002
+    pattern: (?P<criterion>[^。！？]+?)(?:できたら|終わったら|通ったら)(?:完了|完成|Done)(?=[。！？]|$)
+    priority: 78
+    enabled: true
+  - id: CU-COMPLETION-003
+    pattern: (?P<criterion>[^。！？]+?)をもって(?:完了|完成|終了)(?=[。！？]|$)
+    priority: 79
+    enabled: true
+
+  condition:
+  - id: CU-CONDITION-001
+    pattern: (?P<condition>[^。！？]+?)(?:の場合|のとき|の時)(?:は|だけ)?
+    priority: 72
+    enabled: true
+  - id: CU-CONDITION-002
+    pattern: (?:もし|仮に)(?P<condition>[^。！？]+?)(?:なら|たら|れば)
+    priority: 79
+    enabled: true
+  - id: CU-CONDITION-003
+    pattern: (?P<condition>[^。！？]+?)(?:次第|に限り|に限って)(?=[、。！？]|$)
+    priority: 74
+    enabled: true
+
+  correction:
+  - id: CU-CORRECTION-001
+    pattern: (?:違う|そうじゃない|訂正する)[、,。]?(?P<new>[^。！？]+)
+    priority: 84
+    enabled: true
+  - id: CU-CORRECTION-002
+    pattern: (?:言い直すと|正確には|正しくは)(?P<new>[^。！？]+)
+    priority: 83
+    enabled: true
+  - id: CU-CORRECTION-003
+    pattern: (?P<old>[^。！？]+?)(?:じゃなく|ではなく|ではなくて)(?P<new>[^。！？]+)
+    priority: 82
+    enabled: true
+
+  decision:
+  - id: CU-DECISION-001
+    pattern: (?P<target>[^。！？]+?)(?:で決定|で確定|に決める|を採用する)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+  - id: CU-DECISION-002
+    pattern: (?P<target>これ|それ|この案|その案)(?:でいく|にする|で進める)(?=[。！？]|$)
+    priority: 81
+    enabled: true
+  - id: CU-DECISION-003
+    pattern: (?P<target>[^。！？]+?)(?:を正式採用|を最終決定|でFIX)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+
+  dependency:
+  - id: CU-DEPENDENCY-001
+    pattern: (?P<dependency>[^。！？]+?)(?:が終わってから|を終えてから)(?P<task>[^。！？]+)
+    priority: 81
+    enabled: true
+  - id: CU-DEPENDENCY-002
+    pattern: (?P<task>[^。！？]+?)(?:は|が)(?P<dependency>[^。！？]+?)(?:に依存する|次第だ)(?=[。！？]|$)
+    priority: 78
+    enabled: true
+  - id: CU-DEPENDENCY-003
+    pattern: (?P<dependency>[^。！？]+?)(?:なしでは|がないと)(?P<task>[^。！？]+?)(?:できない|進められない)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+
+  exception:
+  - id: CU-EXCEPTION-001
+    pattern: (?P<exception>[^。！？]+?)(?:以外は|以外を|を除いて)
+    priority: 78
+    enabled: true
+  - id: CU-EXCEPTION-002
+    pattern: (?:ただし|但し|例外として)(?P<exception>[^。！？]+)
+    priority: 82
+    enabled: true
+  - id: CU-EXCEPTION-003
+    pattern: (?P<exception>[^。！？]+?)(?:だけは|に限っては)
+    priority: 76
+    enabled: true
+
+  modify:
+  - id: CU-MODIFY-001
+    pattern: (?P<target>[^。！？]+?)(?:を直して|を書き換えて|を変えて)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+  - id: CU-MODIFY-002
+    pattern: (?P<target>[^。！？]+?)(?:を更新して|を調整して|を整えて)(?=[。！？]|$)
+    priority: 79
+    enabled: true
+  - id: CU-MODIFY-003
+    pattern: (?P<target>[^。！？]+?)(?:を修正してくれ|を変更してくれ|を改めて)(?=[。！？]|$)
+    priority: 84
+    enabled: true
+
+  out_of_scope:
+  - id: CU-OUT-OF-SCOPE-001
+    pattern: (?P<target>[^。！？]+?)(?:は対象外|は範囲外|は別扱い)(?=[。！？]|$)
+    priority: 83
+    enabled: true
+  - id: CU-OUT-OF-SCOPE-002
+    pattern: (?P<target>[^。！？]+?)(?:には触らない|は触らない|は弄らない)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+  - id: CU-OUT-OF-SCOPE-003
+    pattern: (?P<target>[^。！？]+?)(?:は含めない|はやらない|は扱わない)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+
+  premise:
+  - id: CU-PREMISE-001
+    pattern: (?:前提として|前提は)(?P<premise>[^。！？]+)
+    priority: 80
+    enabled: true
+  - id: CU-PREMISE-002
+    pattern: (?P<premise>[^。！？]+?)を前提に
+    priority: 79
+    enabled: true
+  - id: CU-PREMISE-003
+    pattern: (?:そもそも|まず)(?P<premise>[^。！？]+?)(?:である|だ|になっている)(?=[。！？]|$)
+    priority: 74
+    enabled: true
+
+  preserve:
+  - id: CU-PRESERVE-001
+    pattern: (?P<target>[^。！？]+?)(?:はそのまま|は維持|を残して)(?=[。！？]|$)
+    priority: 83
+    enabled: true
+  - id: CU-PRESERVE-002
+    pattern: (?P<target>[^。！？]+?)(?:を変えずに|を崩さずに|に触れずに)
+    priority: 82
+    enabled: true
+  - id: CU-PRESERVE-003
+    pattern: (?P<target>[^。！？]+?)(?:は消さない|は残せ|を保持して)(?=[。！？]|$)
+    priority: 81
+    enabled: true
+
+  priority:
+  - id: CU-PRIORITY-001
+    pattern: (?:最優先で|何より先に)(?P<task>[^。！？]+)
+    priority: 84
+    enabled: true
+  - id: CU-PRIORITY-002
+    pattern: (?P<task>[^。！？]+?)(?:を先に|から先に|を優先して)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+  - id: CU-PRIORITY-003
+    pattern: (?:優先順位は|第一優先は)(?P<task>[^。！？]+)
+    priority: 82
+    enabled: true
+
+  prohibition:
+  - id: CU-PROHIBITION-001
+    pattern: (?P<target>[^。！？]+?)(?:はやめろ|はやめて|は禁止)(?=[。！？]|$)
+    priority: 86
+    enabled: true
+  - id: CU-PROHIBITION-002
+    pattern: (?P<target>[^。！？]+?)(?:に触るな|を弄るな|を勝手に変えるな)(?=[。！？]|$)
+    priority: 88
+    enabled: true
+  - id: CU-PROHIBITION-003
+    pattern: (?P<target>[^。！？]+?)(?:しないで|しないこと|してはいけない)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+
+  question:
+  - id: CU-QUESTION-001
+    pattern: (?P<target>[^。！？]+?)(?:って何|とは何|は何)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+  - id: CU-QUESTION-002
+    pattern: (?:なぜ|どうして)(?P<target>[^。！？]+?)(?:なの|なのか|ですか)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+  - id: CU-QUESTION-003
+    pattern: (?P<target>[^。！？]+?)(?:どうすればいい|どうやる|できますか)(?=[。！？]|$)
+    priority: 81
+    enabled: true
+
+  reference:
+  - id: CU-REFERENCE-001
+    pattern: (?P<reference>さっきの(?:案|話|指示|内容|もの))
+    priority: 84
+    enabled: true
+  - id: CU-REFERENCE-002
+    pattern: (?P<reference>前の(?:案|版|指示|内容|ページ|コード))
+    priority: 83
+    enabled: true
+  - id: CU-REFERENCE-003
+    pattern: (?P<reference>(?:この|その)(?:部分|箇所|内容|案|ページ)|上記(?:内容|項目|案))
+    priority: 82
+    enabled: true
+
+  remove:
+  - id: CU-REMOVE-001
+    pattern: (?P<target>[^。！？]+?)(?:を消して|を外して|を削って)(?=[。！？]|$)
+    priority: 84
+    enabled: true
+  - id: CU-REMOVE-002
+    pattern: (?P<target>[^。！？]+?)(?:をなくして|を取り除いて|を撤去して)(?=[。！？]|$)
+    priority: 82
+    enabled: true
+  - id: CU-REMOVE-003
+    pattern: (?P<target>[^。！？]+?)(?:を廃止して|を破棄して|を除外して)(?=[。！？]|$)
+    priority: 83
+    enabled: true
+
+  request:
+  - id: CU-REQUEST-001
+    pattern: (?P<target>[^。！？]+?)(?:してくれ|してください|してほしい)(?=[。！？]|$)
+    priority: 78
+    enabled: true
+  - id: CU-REQUEST-002
+    pattern: (?P<target>[^。！？]+?)(?:を頼む|をお願い|を任せる)(?=[。！？]|$)
+    priority: 76
+    enabled: true
+  - id: CU-REQUEST-003
+    pattern: (?:お願いだから|頼むから)?(?P<target>[^。！？]+?)(?:やってくれ|進めてくれ|対応してくれ)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+
+  scope:
+  - id: CU-SCOPE-001
+    pattern: (?:対象は|範囲は)(?P<target>[^。！？]+)
+    priority: 82
+    enabled: true
+  - id: CU-SCOPE-002
+    pattern: (?P<target>[^。！？]+?)(?:だけに限定|のみに限定|だけでいい)(?=[。！？]|$)
+    priority: 81
+    enabled: true
+  - id: CU-SCOPE-003
+    pattern: (?P<target>[^。！？]+?)(?:までを対象|に絞って|だけ扱う)(?=[。！？]|$)
+    priority: 79
+    enabled: true
+
+  sequence:
+  - id: CU-SEQUENCE-001
+    pattern: (?:まず|最初に)(?P<first>[^。！？]+?)(?:次に|その後)(?P<second>[^。！？]+)
+    priority: 84
+    enabled: true
+  - id: CU-SEQUENCE-002
+    pattern: (?P<first>[^。！？]+?)(?:してから|を終えてから)(?P<second>[^。！？]+)
+    priority: 82
+    enabled: true
+  - id: CU-SEQUENCE-003
+    pattern: (?:最後に|仕上げに)(?P<last>[^。！？]+)
+    priority: 80
+    enabled: true
+
+  verification_criteria:
+  - id: CU-VERIFICATION-001
+    pattern: (?:検証条件|合格条件|確認条件)(?:は|として)?(?P<criterion>[^。！？]+)
+    priority: 82
+    enabled: true
+  - id: CU-VERIFICATION-002
+    pattern: (?P<criterion>[^。！？]+?)(?:が通ること|を確認できること|が一致すること)(?=[。！？]|$)
+    priority: 80
+    enabled: true
+  - id: CU-VERIFICATION-003
+    pattern: (?P<criterion>[^。！？]+?)をもって(?:合格|検証完了|確認完了)(?=[。！？]|$)
+    priority: 81
+    enabled: true
