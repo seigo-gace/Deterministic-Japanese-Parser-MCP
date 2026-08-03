@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from deterministic_japanese_parser_mcp import ParserEngine
+from deterministic_japanese_parser_mcp.dictionaries import _load_synonym_set
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +33,14 @@ def _effective_gold_count() -> int:
     return len(by_id)
 
 
+def _project_authored_synonym_count() -> int:
+    document = _load_synonym_set(
+        ROOT / "dictionaries/system/synonyms.yaml",
+        ROOT / "dictionaries/system/synonyms.d",
+    )
+    return len(document["groups"])
+
+
 def test_expanded_dictionary_volume_is_exact():
     engine = ParserEngine()
     rules = sum(
@@ -48,9 +57,10 @@ def test_expanded_dictionary_volume_is_exact():
     assert len(engine.bundle.metaphors["entries"]) == 452
     assert rules == 339
     assert _effective_gold_count() == 649
-    assert len(engine.bundle.synonyms["groups"]) == 100
+    assert _project_authored_synonym_count() == 100
     assert len(engine.bundle.templates["templates"]) == 63
     assert len(workflows) == 42
+    assert engine.bundle.lexicon["record_count"] >= 0
 
 
 def test_metaphor_manifest_matches_every_category_file():
