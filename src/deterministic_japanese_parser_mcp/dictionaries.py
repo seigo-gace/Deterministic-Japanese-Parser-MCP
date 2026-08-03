@@ -107,7 +107,7 @@ def _load_lexicon_set(path: Path) -> dict:
     if not path.exists():
         return output
     by_id: dict[str, dict] = {}
-    for item_path in sorted(path.glob("*.jsonl")):
+    for item_path in sorted(path.rglob("*.jsonl")):
         with item_path.open("r", encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
@@ -130,6 +130,7 @@ def _load_lexicon_set(path: Path) -> dict:
                     )
                 by_id[record_id] = item
     output["entries"] = list(by_id.values())
+    versions: list[str] = []
     for item in output["entries"]:
         lemma = item["lemma"]
         bucket = output["groups"].setdefault(lemma, [])
@@ -138,8 +139,10 @@ def _load_lexicon_set(path: Path) -> dict:
                 bucket.append(surface)
         source = item.get("source") or {}
         version = source.get("version")
-        if version:
-            output["version"] = version
+        if version and version not in versions:
+            versions.append(version)
+    if versions:
+        output["version"] = "+".join(sorted(versions))
     return output
 
 
