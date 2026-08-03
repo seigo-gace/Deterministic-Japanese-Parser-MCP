@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterable, Iterator
+import re
 
 
 class LiteralIndex:
@@ -51,16 +52,24 @@ class LiteralIndex:
             sorted(set(values), key=lambda value: (-len(value), value))
             for values in self._outputs
         ]
-        self._root_chars = frozenset(self._transitions[0])
+        root_chars = "".join(sorted(self._transitions[0]))
+        self._root_pattern = (
+            re.compile(f"[{re.escape(root_chars)}]") if root_chars else None
+        )
 
     @property
     def state_count(self) -> int:
         return len(self._transitions)
 
+    def _has_possible_start(self, text: str) -> bool:
+        # The compiled regex scans in C and avoids per-character Python overhead
+        # for long payloads that cannot begin any registered literal.
+        return bool(text and self._root_pattern and self._root_pattern.search(text))
+
     def find(self, text: str) -> Iterator[tuple[str, int, int]]:
         # Every registered literal must start with a root character. Rejecting
         # text without any such character is exact and avoids a Python scan.
-        if not text or self._root_chars.isdisjoint(text):
+        if not self._has_possible_start(text):
             return
         state = 0
         for end_index, char in enumerate(text, start=1):
@@ -71,6 +80,6 @@ class LiteralIndex:
                 yield literal, end_index - len(literal), end_index
 
     def matched_literals(self, text: str) -> set[str]:
-        if not text or self._root_chars.isdisjoint(text):
+        if not self._has_possible_start(text):
             return set()
         return {literal for literal, _, _ in self.find(text)}
