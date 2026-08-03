@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 import sys
 
-import yaml
-
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = ROOT / "tools"
 if str(TOOLS_ROOT) not in sys.path:
@@ -54,6 +52,7 @@ def test_wikidata_importer_filters_japanese_and_preserves_forms():
     assert record.forms[0]["representation"] == "直した"
     assert record.senses[0]["gloss"] == "問題のある状態を正常にする"
     assert record.source.license == "CC0-1.0"
+    assert record.source.source_sha256
 
 
 def test_jmdict_importer_preserves_pos_domain_and_cross_references():
@@ -170,22 +169,26 @@ def test_promoter_separates_licenses_and_marks_lexicon_approved(tmp_path):
             assert row["source"]["license"] in {"CC0-1.0", "Apache-2.0"}
 
 
-def test_private_log_lexicon_cannot_be_promoted(tmp_path):
-    source = {
-        "dataset": "private-log",
-        "version": "1",
-        "license": "PRIVATE-REVIEW-ONLY",
-        "source_id": "1",
-    }
-    record = LexiconRecord.from_dict({
+def private_record() -> LexiconRecord:
+    return LexiconRecord.from_dict({
         "schema_version": "1.0.0",
         "record_id": "PRIVATE-1",
-        "lemma": "秘密の入力",
-        "source": source,
+        "lemma": "APIを公開",
+        "source": {
+            "dataset": "private-log",
+            "version": "1",
+            "license": "PRIVATE-REVIEW-ONLY",
+            "source_id": "1",
+        },
         "review_status": "needs_review",
     })
+
+
+def test_private_log_lexicon_cannot_be_promoted(tmp_path):
     proposal = next(
-        item for item in build_proposals([record]) if item.kind == "lexicon"
+        item
+        for item in build_proposals([private_record()])
+        if item.kind == "lexicon"
     ).to_dict()
     proposal["status"] = "approved"
     proposal["review"] = {"notes": ["must remain private"]}
@@ -195,3 +198,26 @@ def test_private_log_lexicon_cannot_be_promoted(tmp_path):
         assert "cannot be promoted" in str(exc)
     else:
         raise AssertionError("private log content must never enter public packs")
+
+
+def test_private_log_rule_cannot_be_promoted(tmp_path):
+    proposal = next(
+        item
+        for item in build_proposals([private_record()])
+        if item.kind == "rule"
+    ).to_dict()
+    proposal["status"] = "approved"
+    proposal["review"] = {
+        "notes": ["must remain private"],
+        "positive_examples": ["APIを公開しろ。"],
+        "negative_examples": ["APIを公開しない。"],
+        "external_action_reviewed": True,
+    }
+    try:
+        promoter.prepare_files(tmp_path, "private-rule-batch", [proposal])
+    except ValueError as exc:
+        assert "cannot be promoted" in str(exc)
+    else:
+        raise AssertionError(
+            "private log evidence must never enter public rule packs"
+        )
