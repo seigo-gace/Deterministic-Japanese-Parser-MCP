@@ -1,0 +1,150 @@
+{
+  "version": "1.2.0",
+  "category": "17_dialogue_repair_alignment",
+  "entries": [
+    {
+      "expression": "話を戻す",
+      "interpretation": "脱線した会話・議論を直前の主題へ戻す",
+      "context": ["議論", "会話", "論点"],
+      "context_policy": "required_any",
+      "domain": "会話修復",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "論点を戻す",
+      "interpretation": "議論の焦点を本来扱うべき論点へ復帰させる",
+      "context": ["議論", "論点", "会議"],
+      "context_policy": "required_any",
+      "domain": "論点管理",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "話の筋を戻す",
+      "interpretation": "説明や議論の論理的な流れを元の筋道へ戻す",
+      "context": ["説明", "議論", "流れ"],
+      "context_policy": "required_any",
+      "domain": "会話修復",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "認識をそろえる",
+      "interpretation": "複数人の理解・前提・解釈を一致させる",
+      "context": ["認識", "前提", "関係者"],
+      "context_policy": "required_any",
+      "domain": "認識合わせ",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "認識差を埋める",
+      "interpretation": "人や部署の理解の差を確認して縮める",
+      "context": ["認識", "部署", "関係者"],
+      "context_policy": "required_any",
+      "domain": "認識合わせ",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "すれ違いを解く",
+      "interpretation": "誤解や前提差による対話の不一致を解消する",
+      "context": ["誤解", "会話", "認識"],
+      "context_policy": "required_any",
+      "domain": "会話修復",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "意図を汲み直す",
+      "interpretation": "発言や指示の目的を再度読み取り直す",
+      "context": ["意図", "指示", "発言"],
+      "context_policy": "required_any",
+      "domain": "意図理解",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "言葉を補う",
+      "interpretation": "省略された主語・目的・条件などを補足する",
+      "context": ["説明", "文", "条件"],
+      "context_policy": "required_any",
+      "domain": "省略補完",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "言い方を改める",
+      "interpretation": "誤解や不快感を避けるため表現を修正する",
+      "context": ["表現", "説明", "発言"],
+      "context_policy": "required_any",
+      "domain": "表現修正",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "前置きを置く",
+      "interpretation": "主張の前に前提・制約・背景を提示する",
+      "context": ["前提", "説明", "主張"],
+      "context_policy": "required_any",
+      "domain": "談話構成",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "話を受ける",
+      "interpretation": "直前の発言を踏まえて応答や議論を続ける",
+      "context": ["発言", "会話", "議論"],
+      "context_policy": "required_any",
+      "domain": "応答接続",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "話を引き取る",
+      "interpretation": "他者の説明・進行・対応を自分が継続する",
+      "context": ["説明", "進行", "担当"],
+      "context_policy": "required_any",
+      "domain": "担当移管",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "話を広げる",
+      "interpretation": "関連する観点や対象を追加して議論範囲を拡張する",
+      "context": ["議論", "観点", "話題"],
+      "context_policy": "required_any",
+      "domain": "話題拡張",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "話を絞る",
+      "interpretation": "複数の話題から必要な論点だけへ範囲を限定する",
+      "context": ["議論", "論点", "話題"],
+      "context_policy": "required_any",
+      "domain": "話題限定",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "論点を分ける",
+      "interpretation": "混在する複数の論点を独立項目として扱う",
+      "context": ["論点", "議論", "課題"],
+      "context_policy": "required_any",
+      "domain": "論点整理",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "いったん区切る",
+      "interpretation": "会話や作業を中断ではなく区切りとして停止する",
+      "context": ["会話", "作業", "議論"],
+      "context_policy": "required_any",
+      "domain": "会話制御",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "確認を差し込む",
+      "interpretation": "進行中の説明や作業の途中に確認工程を追加する",
+      "context": ["確認", "説明", "作業"],
+      "context_policy": "required_any",
+      "domain": "確認挿入",
+      "version": "1.2.0"
+    },
+    {
+      "expression": "結論を置き直す",
+      "interpretation": "新しい根拠を踏まえて結論の位置付けを再設定する",
+      "context": ["結論", "根拠", "判断"],
+      "context_policy": "required_any",
+      "domain": "結論修正",
+      "version": "1.2.0"
+    }
+  ]
+}

@@ -1,0 +1,434 @@
+version: 1.2.0
+templates:
+- id: WF-DIALOGUE-REPAIR
+  intent: workflow
+  name: dialogue_repair
+  steps:
+  - order: 1
+    action: 直前発言と対象論点を特定
+  - order: 2
+    action: 認識差・省略・参照を抽出
+  - order: 3
+    action: 話者ごとの主張を分離
+  - order: 4
+    action: 誤解が生じた表現を確認
+  - order: 5
+    action: 共通前提を再設定
+  - order: 6
+    action: 修正版の理解を提示
+  - order: 7
+    action: 合意済み内容を記録
+- id: WF-AMBIGUITY-RESOLUTION
+  intent: workflow
+  name: ambiguity_resolution
+  steps:
+  - order: 1
+    action: 曖昧語と省略箇所を列挙
+  - order: 2
+    action: 候補解釈を生成
+  - order: 3
+    action: 文法・語彙Evidenceを確認
+  - order: 4
+    action: 会話Contextと既知Entityを照合
+  - order: 5
+    action: 外部Action Riskを評価
+  - order: 6
+    action: 確定不能候補を保持
+  - order: 7
+    action: 必要な確認質問を生成
+- id: WF-SCOPE-FREEZE
+  intent: workflow
+  name: scope_freeze
+  steps:
+  - order: 1
+    action: 目的と成果物を確定
+  - order: 2
+    action: 対象範囲を列挙
+  - order: 3
+    action: 範囲外を明示
+  - order: 4
+    action: 例外条件を定義
+  - order: 5
+    action: 関連依存を確認
+  - order: 6
+    action: 変更受付条件を設定
+  - order: 7
+    action: Scope Versionを固定
+- id: WF-RISK-REVIEW
+  intent: workflow
+  name: risk_review
+  steps:
+  - order: 1
+    action: 対象変更を分解
+  - order: 2
+    action: Failure Modeを列挙
+  - order: 3
+    action: 発生確率と影響を評価
+  - order: 4
+    action: 既存Controlを確認
+  - order: 5
+    action: 低減策と代替案を定義
+  - order: 6
+    action: 残存Riskを承認
+  - order: 7
+    action: 監視条件を記録
+- id: WF-EXTERNAL-ACTION-SAFETY
+  intent: workflow
+  name: external_action_safety
+  steps:
+  - order: 1
+    action: 原文指示を保護
+  - order: 2
+    action: 禁止・維持・範囲外を抽出
+  - order: 3
+    action: 引用・疑問・反語を除外
+  - order: 4
+    action: 参照先を確定
+  - order: 5
+    action: Credentialと権限を確認
+  - order: 6
+    action: Dry RunまたはPreviewを実行
+  - order: 7
+    action: 実行結果とEvidenceを保存
+- id: WF-PRIVACY-REVIEW
+  intent: workflow
+  name: privacy_review
+  steps:
+  - order: 1
+    action: 個人情報と機密Dataを分類
+  - order: 2
+    action: 収集目的と法的根拠を確認
+  - order: 3
+    action: Data Flowを図示
+  - order: 4
+    action: 保存場所と期間を確認
+  - order: 5
+    action: 最小化・匿名化・暗号化を適用
+  - order: 6
+    action: 第三者提供とAccessを監査
+  - order: 7
+    action: 削除・開示・訂正手順を検証
+- id: WF-SECRET-ROTATION
+  intent: workflow
+  name: secret_rotation
+  steps:
+  - order: 1
+    action: 対象Secretと利用箇所を棚卸し
+  - order: 2
+    action: 新Secretを生成
+  - order: 3
+    action: 安全な保管先へ登録
+  - order: 4
+    action: 依存Serviceを段階切替
+  - order: 5
+    action: 旧Secret利用を監視
+  - order: 6
+    action: 旧Secretを失効
+  - order: 7
+    action: 監査記録と復旧手順を保存
+- id: WF-ACCESS-REVIEW
+  intent: workflow
+  name: access_review
+  steps:
+  - order: 1
+    action: User・Service Accountを列挙
+  - order: 2
+    action: 現行RoleとPermissionを取得
+  - order: 3
+    action: 利用実績と必要性を確認
+  - order: 4
+    action: 過剰権限を削減
+  - order: 5
+    action: 必要権限を期限付き付与
+  - order: 6
+    action: Break Glass手順を確認
+  - order: 7
+    action: Access Review Evidenceを保存
+- id: WF-INCIDENT-COMMUNICATION
+  intent: workflow
+  name: incident_communication
+  steps:
+  - order: 1
+    action: 事象と影響範囲を確定
+  - order: 2
+    action: 一次連絡先を決定
+  - order: 3
+    action: 利用者向け説明を作成
+  - order: 4
+    action: 社内Statusを同期
+  - order: 5
+    action: 更新頻度と次回時刻を設定
+  - order: 6
+    action: 復旧後の最終報告を作成
+  - order: 7
+    action: Timelineと判断根拠を記録
+- id: WF-OBSERVABILITY-SETUP
+  intent: workflow
+  name: observability_setup
+  steps:
+  - order: 1
+    action: 重要User Flowを列挙
+  - order: 2
+    action: SLIとError Eventを定義
+  - order: 3
+    action: 構造化Logを設計
+  - order: 4
+    action: MetricとDashboardを作成
+  - order: 5
+    action: Trace Contextを接続
+  - order: 6
+    action: Alert閾値と通知先を設定
+  - order: 7
+    action: 障害演習で検知を確認
+- id: WF-DATA-CONTRACT-CHANGE
+  intent: workflow
+  name: data_contract_change
+  steps:
+  - order: 1
+    action: ProducerとConsumerを特定
+  - order: 2
+    action: 現行SchemaとSemanticsを固定
+  - order: 3
+    action: 互換性Riskを分類
+  - order: 4
+    action: Versioned Contractを設計
+  - order: 5
+    action: Dual Read・Dual Writeを検討
+  - order: 6
+    action: Consumerごとに移行Test
+  - order: 7
+    action: 旧Contract廃止条件を確認
+- id: WF-SCHEMA-MIGRATION-SAFE
+  intent: workflow
+  name: schema_migration_safe
+  steps:
+  - order: 1
+    action: Migration目的を明確化
+  - order: 2
+    action: BackupとRollback Pointを作成
+  - order: 3
+    action: Forward・Backward互換性を確認
+  - order: 4
+    action: 小規模DataでDry Run
+  - order: 5
+    action: 本Migrationを段階実行
+  - order: 6
+    action: 件数・Hash・制約を照合
+  - order: 7
+    action: 旧Schema撤去前に監視
+- id: WF-WEBHOOK-INTEGRATION
+  intent: workflow
+  name: webhook_integration
+  steps:
+  - order: 1
+    action: Provider仕様と署名方式を確認
+  - order: 2
+    action: Raw Body保存要件を定義
+  - order: 3
+    action: Replay・重複・順序を設計
+  - order: 4
+    action: Retry・DLQ・Spoolを実装
+  - order: 5
+    action: SSRF・Rate Limitを確認
+  - order: 6
+    action: Provider別E2Eを実行
+  - order: 7
+    action: 監視と再送手順を検証
+- id: WF-API-DEPRECATION
+  intent: workflow
+  name: api_deprecation
+  steps:
+  - order: 1
+    action: 利用Consumerを棚卸し
+  - order: 2
+    action: 代替APIを提供
+  - order: 3
+    action: Deprecated Noticeを公開
+  - order: 4
+    action: 利用量を継続監視
+  - order: 5
+    action: 移行支援と期限を設定
+  - order: 6
+    action: Error化前に段階警告
+  - order: 7
+    action: 停止後に残存Callを確認
+- id: WF-MOBILE-RELEASE
+  intent: workflow
+  name: mobile_release
+  steps:
+  - order: 1
+    action: 対象VersionとPlatformを固定
+  - order: 2
+    action: 署名・権限・設定を確認
+  - order: 3
+    action: 端末とOS Matrixで検証
+  - order: 4
+    action: Store Metadataを更新
+  - order: 5
+    action: Staged Rolloutを設定
+  - order: 6
+    action: Crash・ANR・Reviewを監視
+  - order: 7
+    action: Rollback・Hotfix判断を記録
+- id: WF-RESPONSIVE-UI-REVIEW
+  intent: workflow
+  name: responsive_ui_review
+  steps:
+  - order: 1
+    action: 主要画面とBreakpointを列挙
+  - order: 2
+    action: Phone・Tablet・Desktopで表示
+  - order: 3
+    action: Touch Targetと入力を確認
+  - order: 4
+    action: Overflow・Scroll・Keyboardを検証
+  - order: 5
+    action: 画像・Font・Performanceを確認
+  - order: 6
+    action: OrientationとSafe Areaを確認
+  - order: 7
+    action: 全User Flowを再実行
+- id: WF-ACCESSIBILITY-REMEDIATION
+  intent: workflow
+  name: accessibility_remediation
+  steps:
+  - order: 1
+    action: IssueをWCAG観点で分類
+  - order: 2
+    action: Semantic HTMLとRoleを修正
+  - order: 3
+    action: Keyboard・Focusを修正
+  - order: 4
+    action: Label・Name・Descriptionを修正
+  - order: 5
+    action: ContrastとZoomを修正
+  - order: 6
+    action: Screen Readerで再Test
+  - order: 7
+    action: Regression Testを追加
+- id: WF-CUSTOMER-ONBOARDING
+  intent: workflow
+  name: customer_onboarding
+  steps:
+  - order: 1
+    action: 利用者の目的を分類
+  - order: 2
+    action: 最短の初回成功を定義
+  - order: 3
+    action: 登録・認証・初期設定を案内
+  - order: 4
+    action: Sample Dataで成功体験を作る
+  - order: 5
+    action: つまずき点へHelpを配置
+  - order: 6
+    action: Activation Eventを計測
+  - order: 7
+    action: 未完了利用者へ復帰導線を出す
+- id: WF-SUPPORT-DEFLECTION
+  intent: workflow
+  name: support_deflection
+  steps:
+  - order: 1
+    action: 問い合わせLogを分類
+  - order: 2
+    action: 頻出原因を特定
+  - order: 3
+    action: 正本Answerを作成
+  - order: 4
+    action: UI内Helpと検索へ反映
+  - order: 5
+    action: 継続質問Caseを追加
+  - order: 6
+    action: 解決率とEscalationを測定
+  - order: 7
+    action: 未解決領域をKBへ追加
+- id: WF-PRICING-CHANGE
+  intent: workflow
+  name: pricing_change
+  steps:
+  - order: 1
+    action: 現行Plan・Credit・Optionを固定
+  - order: 2
+    action: 変更理由と対象を明確化
+  - order: 3
+    action: 既存契約への影響を評価
+  - order: 4
+    action: 表示・Checkout・請求を同期
+  - order: 5
+    action: 税・領収書・返金を確認
+  - order: 6
+    action: Sandbox決済とE2Eを実行
+  - order: 7
+    action: 利用者告知と移行条件を公開
+- id: WF-PAYMENT-FLOW-CHANGE
+  intent: workflow
+  name: payment_flow_change
+  steps:
+  - order: 1
+    action: Accountから決済までのFlowを図示
+  - order: 2
+    action: Provider Contractを確認
+  - order: 3
+    action: 成功・失敗・取消を実装
+  - order: 4
+    action: Webhook整合と冪等性を検証
+  - order: 5
+    action: Credit反映と返金を検証
+  - order: 6
+    action: PCI・個人情報境界を確認
+  - order: 7
+    action: 本番少額Testと監視を実行
+- id: WF-CONTENT-PUBLICATION
+  intent: workflow
+  name: content_publication
+  steps:
+  - order: 1
+    action: 読者と公開範囲を確認
+  - order: 2
+    action: 正本と根拠Sourceを固定
+  - order: 3
+    action: 秘密・個人情報を除去
+  - order: 4
+    action: 日本語・英語・Linkを校正
+  - order: 5
+    action: SEO・OGP・Accessibilityを確認
+  - order: 6
+    action: Previewと承認を取得
+  - order: 7
+    action: 公開後に表示とLinkを確認
+- id: WF-LOCALIZATION-REVIEW
+  intent: workflow
+  name: localization_review
+  steps:
+  - order: 1
+    action: Source Textと保護要素を固定
+  - order: 2
+    action: Localeと用語集を指定
+  - order: 3
+    action: UI長さとPluralを確認
+  - order: 4
+    action: 日付・数値・通貨を確認
+  - order: 5
+    action: RTL・Font・Fallbackを確認
+  - order: 6
+    action: Native ReviewとContext Test
+  - order: 7
+    action: 言語切替E2Eを実行
+- id: WF-REPOSITORY-PUBLICATION
+  intent: workflow
+  name: repository_publication
+  steps:
+  - order: 1
+    action: 公開範囲と秘密情報を監査
+  - order: 2
+    action: README・LICENSE・SECURITYを整備
+  - order: 3
+    action: Install・Usage・Exampleを検証
+  - order: 4
+    action: Issue・PR Templateを整備
+  - order: 5
+    action: Release Artifactを再現生成
+  - order: 6
+    action: Public Repositoryへ反映
+  - order: 7
+    action: 公開後にCloneとFresh Installを確認

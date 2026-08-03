@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 import regex
@@ -13,17 +14,63 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.dictionaries import _load_json_set
+
+METAPHOR_DIR = ROOT / "dictionaries/system/metaphors"
+GOLD_DIR = ROOT / "tests/gold"
+
+
+def _load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_metaphors() -> list[dict]:
-    entries: list[dict] = []
-    for path in sorted((ROOT / "dictionaries/system/metaphors").glob("*.json")):
-        if path.name == "manifest.json":
+    return _load_json_set(METAPHOR_DIR).get("entries", [])
+
+
+def validate_metaphor_controls() -> list[str]:
+    errors: list[str] = []
+    control_path = METAPHOR_DIR / "overrides.json"
+    controls = _load_json(control_path) if control_path.exists() else {}
+    allowed_overrides = set(controls.get("override_expressions", []))
+    disabled = set(controls.get("disabled_expressions", []))
+
+    occurrences: Counter[str] = Counter()
+    for path in sorted(METAPHOR_DIR.glob("*.json")):
+        if path.name in {"manifest.json", "overrides.json"}:
             continue
-        entries.extend(
-            json.loads(path.read_text(encoding="utf-8")).get("entries", [])
-        )
-    return entries
+        for item in _load_json(path).get("entries", []):
+            occurrences[item["expression"]] += 1
+
+    for expression, count in sorted(occurrences.items()):
+        if count > 1 and expression not in allowed_overrides:
+            errors.append(
+                f"undeclared metaphor override: {expression}: occurrences={count}"
+            )
+    for expression in sorted(allowed_overrides):
+        if occurrences[expression] < 2:
+            errors.append(
+                f"declared metaphor override has no duplicate source: {expression}"
+            )
+    for expression in sorted(disabled):
+        if occurrences[expression] == 0:
+            errors.append(f"disabled metaphor source is missing: {expression}")
+
+    final_expressions = {item["expression"] for item in load_metaphors()}
+    for expression in disabled:
+        if expression in final_expressions:
+            errors.append(f"disabled metaphor remains active: {expression}")
+    for item in controls.get("replacement_entries", []):
+        if item["expression"] not in final_expressions:
+            errors.append(
+                f"replacement metaphor was not loaded: {item['expression']}"
+            )
+    for expression in controls.get("pattern_overrides", {}):
+        if expression not in final_expressions:
+            errors.append(
+                f"pattern override target is not active: {expression}"
+            )
+    return errors
 
 
 def load_rules() -> dict[str, list[dict]]:
@@ -36,12 +83,17 @@ def load_rules() -> dict[str, list[dict]]:
 
 
 def load_gold() -> list[dict]:
-    cases: list[dict] = []
-    for path in sorted((ROOT / "tests/gold").glob("*.json")):
-        cases.extend(
-            json.loads(path.read_text(encoding="utf-8")).get("cases", [])
-        )
-    return cases
+    by_id: dict[str, dict] = {}
+    for path in sorted(GOLD_DIR.glob("*.json")):
+        doc = _load_json(path)
+        allow_override = doc.get("override_policy") == "last_case_id_wins"
+        for case in doc.get("cases", []):
+            if case["id"] in by_id and not allow_override:
+                raise ValueError(
+                    f"duplicate Gold id without override policy: {case['id']}"
+                )
+            by_id[case["id"]] = case
+    return list(by_id.values())
 
 
 def semantic_response(response) -> dict:
@@ -69,6 +121,7 @@ def request_from_case(case: dict) -> AnalyzeRequest:
 
 def main() -> int:
     errors: list[str] = []
+    errors.extend(validate_metaphor_controls())
     metaphors = load_metaphors()
     seen: set[str] = set()
     surface_owner: dict[str, str] = {}
@@ -84,7 +137,7 @@ def main() -> int:
                 errors.append(f"metaphor missing {key}: {entry}")
         expression = entry.get("expression")
         if expression in seen:
-            errors.append(f"duplicate metaphor: {expression}")
+            errors.append(f"duplicate effective metaphor: {expression}")
         seen.add(expression)
         for surface in [expression, *entry.get("aliases", [])]:
             owner = surface_owner.get(surface)
@@ -99,9 +152,9 @@ def main() -> int:
                 f"invalid context_policy: {expression}: {policy}"
             )
 
-    manifest_path = ROOT / "dictionaries/system/metaphors/manifest.json"
+    manifest_path = METAPHOR_DIR / "manifest.json"
     if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _load_json(manifest_path)
         if manifest.get("metaphor_entries") != len(metaphors):
             errors.append(
                 "manifest metaphor count mismatch: "
@@ -121,7 +174,11 @@ def main() -> int:
                 errors.append(f"bad regex {item['id']}: {exc}")
 
     engine = ParserEngine()
-    gold = load_gold()
+    try:
+        gold = load_gold()
+    except ValueError as exc:
+        errors.append(str(exc))
+        gold = []
     failures: list[dict] = []
     parity_failures: list[dict] = []
     for case in gold:

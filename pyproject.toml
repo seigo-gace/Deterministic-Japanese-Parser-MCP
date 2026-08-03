@@ -39,6 +39,8 @@ where = ["src"]
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/metaphors" = ["dictionaries/system/metaphors/*.json"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/rules" = ["dictionaries/system/rules/*.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/synonyms.d" = ["dictionaries/system/synonyms.d/*.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/task_templates.d" = ["dictionaries/system/task_templates.d/*.yaml"]
 "share/deterministic-japanese-parser-mcp/dictionaries/user" = [
   "dictionaries/user/metaphor.json",
   "dictionaries/user/rules.yaml",
