@@ -61,7 +61,7 @@ def main() -> int:
                     )
                 if not record.source.source_id:
                     errors.append(f"missing source_id: {record.record_id}")
-                if record.source.dataset != "Wikidata Lexemes" and not record.source.source_sha256:
+                if not record.source.source_sha256:
                     errors.append(f"missing source_sha256: {record.record_id}")
                 if "private" in str(path).lower() or "PRIVATE" in license_value:
                     errors.append(f"private data in runtime pack: {record.record_id}")
@@ -69,7 +69,9 @@ def main() -> int:
                     if surface:
                         surfaces[surface].add(record.record_id)
 
-    ambiguity_count = sum(1 for owners in surfaces.values() if len(owners) > 1)
+    ambiguity_count = sum(
+        1 for owners in surfaces.values() if len(owners) > 1
+    )
     if errors:
         print("LEXICON VALIDATION FAILED")
         for error in errors:
