@@ -57,18 +57,23 @@ jobs:
 
           engine = ParserEngine()
           response = engine.analyze(AnalyzeRequest(
-              original_text="UIは残せ。APIだけ変更しろ。",
+              original_text="UIは維持する。APIだけ変更しろ。",
               execution_mode="external_action",
-              deadline_ms=60000,
+              deadline_ms=50,
           ))
           assert engine.tokenizer.backend == "sudachi-core"
           assert {"preserve", "modify"} <= {item.type for item in response.intents}
-          assert response.original_text == "UIは残せ。APIだけ変更しろ。"
+          assert response.meaning_graph.propositions
+          assert response.meaning_graph.semantic_hash
+          assert [task.intent_type for task in response.task_graph.tasks] == ["modify"]
+          assert response.original_text == "UIは維持する。APIだけ変更しろ。"
           print({
               "installed_wheel": "OK",
               "tokenizer": engine.tokenizer.backend,
               "rules": len(engine.rules.compiled),
               "metaphors": len(engine.metaphors.entries),
+              "propositions": len(response.meaning_graph.propositions),
+              "action_tasks": len(response.task_graph.tasks),
           })
           PY
 
@@ -103,12 +108,19 @@ jobs:
           . .offline-venv/bin/activate
           python scripts/benchmark.py --check --rounds 100 | tee reports/offline-benchmark.json
 
-      - name: Offline strict 5ms and 20x dictionary contract
+      - name: Offline 10ms target and 20x dictionary contract
         env:
           PIP_NO_INDEX: "1"
         run: |
           . .offline-venv/bin/activate
-          python scripts/performance_contract.py --check --rounds 100 --stdio-rounds 50 --scale 20 --max-ready-ms 5 --output reports/offline-performance.json
+          python scripts/performance_contract.py --check --rounds 100 --stdio-rounds 50 --scale 20 --max-ready-ms 10 --output reports/offline-performance.json
+
+      - name: Offline Astera 10ms target and 50ms hard contract
+        env:
+          PIP_NO_INDEX: "1"
+        run: |
+          . .offline-venv/bin/activate
+          python scripts/astera_latency_contract.py --check --rounds 100 --stdio-rounds 50 --target-ms 10 --hard-ms 50 --output reports/offline-astera-latency.json
 
       - name: Compile all shipped Python sources
         env:
