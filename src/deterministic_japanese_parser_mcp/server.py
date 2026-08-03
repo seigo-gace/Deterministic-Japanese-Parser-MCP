@@ -11,13 +11,20 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
-from .models import AnalyzeRequest, AnalyzeResponse
+from .models import (
+    AnalysisDepth,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    ExecutionMode,
+)
 
 SERVER_NAME = "deterministic-japanese-parser"
 SERVER_VERSION = "0.1.0"
 TOOL_NAME = "analyze_japanese"
 
 server = Server(SERVER_NAME)
+# Backwards-compatible public name retained from the former FastMCP boundary.
+mcp = server
 _engine: ParserEngine | None = None
 
 
@@ -28,13 +35,34 @@ def engine() -> ParserEngine:
     return _engine
 
 
+def analyze_japanese(
+    original_text: str,
+    conversation_context: list[str] | None = None,
+    known_entities: list[str] | None = None,
+    protected_elements: list[str] | None = None,
+    execution_mode: ExecutionMode = ExecutionMode.ANALYSIS,
+    analysis_depth: AnalysisDepth = AnalysisDepth.AUTO,
+    deadline_ms: int = 2000,
+) -> AnalyzeResponse:
+    """Backwards-compatible direct Python entrypoint for the MCP tool."""
+    return engine().analyze(AnalyzeRequest(
+        original_text=original_text,
+        conversation_context=conversation_context or [],
+        known_entities=known_entities or [],
+        protected_elements=protected_elements or [],
+        execution_mode=execution_mode,
+        analysis_depth=analysis_depth,
+        deadline_ms=deadline_ms,
+    ))
+
+
 def prewarm() -> ParserEngine:
     """Load all runtime data and warm the complete parser before readiness."""
     instance = engine()
-    response = instance.analyze(AnalyzeRequest(
+    response = analyze_japanese(
         original_text="UIは残せ。APIだけ変更しろ。",
         deadline_ms=60000,
-    ))
+    )
     if not response.intents:
         raise RuntimeError("parser prewarm validation produced no intents")
     return instance
