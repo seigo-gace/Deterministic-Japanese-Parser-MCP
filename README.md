@@ -30,6 +30,44 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 
 このServerは回答文を生成しません。後続Systemが、日本語の指示を安全に処理するための構造を返します。
 
+### 現在の辞書規模
+
+| データ | 件数 |
+|---|---:|
+| 比喩・慣用表現 | **200** |
+| 決定論的Intent Pattern | **213** |
+| Intent Type | **21** |
+| 類義語Canonical Group | **40** |
+| Task / Workflow Template | **39** |
+| Workflow | **18** |
+| Gold Corpus | **271** |
+
+2026年8月の拡張では、既存の開発・設計中心の語彙に加え、日常指示、業務Communication、担当移管、合意形成、障害切り分け、再現確認、暫定／恒久対応、文書構造、日本語校正に関する表現を追加しました。
+
+追加した主な表現例：
+
+- 日常指示：`一旦置く`、`巻き取る`、`持ち越す`、`手短にまとめる`
+- 業務Communication：`すり合わせる`、`話を通す`、`根回しする`、`宿題にする`
+- 開発・運用：`切り分ける`、`再現を取る`、`ログを追う`、`影響範囲を洗う`
+- 文書・読解：`骨子を作る`、`肉付けする`、`噛み砕く`、`ねじれを直す`
+
+候補一覧、意味・意図、採用理由、誤検出Risk、保留・除外理由は[`docs/DICTIONARY_EXPANSION_2026-08.md`](docs/DICTIONARY_EXPANSION_2026-08.md)に記録しています。
+
+### 辞書拡張の調査方針
+
+候補は最初から少数へ限定せず、広く収集した後に次を確認します。
+
+1. 現代の書き言葉・日常会話・業務・開発で実際に使われる、または使われる可能性が高いか。
+2. 文字通りの意味と比喩・業務上の意味を区別できるか。
+3. Action、Constraint、状態、談話機能のどれへ変換するか。
+4. 既存EntryやAliasと衝突しないか。
+5. 自然なGold Corpus Caseを作成できるか。
+6. 外部Actionを誤って許可するRiskがないか。
+
+使用傾向と用語確認には、国立国語研究所のBCCWJ・CEJC・日本語Webコーパス関連資料、GitHub公式Document、デジタル庁デザインシステム、Microsoft Learnの技術文書Guideline等を参照します。外部辞書の定義文やコーパス本文はコピーせず、`interpretation`は本Project用に独自記述します。
+
+短く多義的な表現は無条件に確定しません。たとえば`切り分ける`は「調査」「分解」「原因特定」の複数Canonical候補を保持します。比喩側では周辺Contextが一致しない場合、`AMBIGUOUS`として扱います。
+
 ### 設計原則
 
 - `original_text`を変更しない。
@@ -164,31 +202,36 @@ Asteraの回答処理全体目標は**100ms以内**です。このうち本MCP�
 
 測定には、常駐済みlocal stdio、Decode、事前Compile済みPydantic Schemaによる完全検証、Meaning Graph、Task Graph、Guard結果の受領までを含みます。Process起動、辞書読込、Regex Compile、Index構築、Sudachi初期化、Schema CompileはReady前に完了させます。
 
-Remote NetworkやUI描画はこのRepositoryの性能保証には含めません。
-
-### 辞書拡張
+### 辞書量と速度
 
 辞書を毎回全走査しません。
 
-- Literal Rule / Metaphor: Aho-Corasick型Index
-- 活用・機能表現: 事前Compileされた決定表
-- 述語・Domain辞書: Key別Shard
-- User辞書: System辞書と分離
-- 実行中の辞書: Version固定Snapshot
+- Literal Rule / Metaphor：Aho-Corasick型Index
+- 活用・機能表現：事前Compileされた決定表
+- 述語・Domain辞書：Key別Index
+- User辞書：System辞書と分離
+- 実行中の辞書：Version固定Snapshot
 
-「辞書が無限に増えても計算量が変わらない」とは保証しません。保証容量ごとに、非一致大量辞書だけでなく、同一入力への大量一致、意味衝突、Domain衝突、Context増加、Graph Node増加を検証します。
+追加した63 Intent Patternはすべて固定Literalを持ち、Rule Indexへ載る構造です。追加した48比喩・慣用表現は一件ごとにGold Caseを持ちます。
 
-### 初期収録データ
+「辞書が無限に増えても計算量が変わらない」とは保証しません。Releaseでは、非一致大量辞書、同一入力への大量一致、意味衝突、Domain衝突、Context増加、Graph Node増加、Astera call-throughを検証します。
 
-- 比喩・慣用表現：152件
-- 決定論的Intent Pattern：150件
-- Intent Type：21種類
-- Task / Workflow Template：29件
-- 類義語Canonical Group：20件
-- Gold Corpus：160件
-- Meaning Graph / Scope / Quote / Guard専用Test
+### 追加Workflow
 
-既存Gold Corpusは互換性回帰として維持します。Meaning Graphの構造精度は専用Testと構造Annotation Corpusで検証します。
+既存Workflowに加えて、以下を収録しています。
+
+- Requirement Analysis
+- Bug Reproduction
+- Root Cause Analysis
+- Document Revision
+- Data Migration
+- Dependency Upgrade
+- Account / Authentication Change
+- UI Accessibility Review
+- Knowledge Base Update
+- Rollback / Recovery
+
+各Workflowは準備・実行・検証・記録を省略しません。
 
 ### Install
 
@@ -261,7 +304,7 @@ python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
 python -m compileall -q src tools scripts tests
 ```
 
-GitHub ActionsではPython 3.10 / 3.12、MCP stdio E2E、Indexed / Exhaustive意味同値、20倍辞書、Astera call-through、Offline Wheel Install、Release Manifestを検証します。
+GitHub ActionsではPython 3.10 / 3.12、MCP stdio E2E、Indexed / Exhaustive意味同値、辞書Scale、全追加Entry Coverage、Astera call-through、Offline Wheel Install、Release Manifestを検証します。
 
 ### Security
 
@@ -279,7 +322,7 @@ GitHub ActionsではPython 3.10 / 3.12、MCP stdio E2E、Indexed / Exhaustive意
 
 ### Contributing
 
-辞書・Grammar・Meaning Graph・Gold Corpus変更には、対象表現、期待構造、衝突Case、最小差分Case、全Testと性能結果を添付してください。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
+辞書・Grammar・Meaning Graph・Gold Corpus変更には、候補一覧、意味・意図、採用／保留／除外理由、期待構造、衝突Case、全Entry Coverage、全Testと性能結果を添付してください。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
 
 ### License
 
@@ -297,7 +340,17 @@ MIT License。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照�
 
 It does not call an LLM or external AI at runtime. It combines Sudachi morphological information, version-locked dictionaries, precompiled rule indexes, a deterministic grammar kernel, typed scope relations, context resolution, contradiction detection, an action Task Graph, and a fail-closed External Action Guard.
 
-The server does not generate answers. It returns a structure that downstream systems can inspect and execute safely.
+### Dictionary volume
+
+- 200 metaphor and idiomatic-expression entries
+- 213 deterministic intent patterns across 21 intent types
+- 40 canonical synonym groups
+- 39 task/workflow templates, including 18 workflows
+- 271 Gold Corpus cases
+
+The August 2026 expansion adds everyday instructions, business communication, ownership transfer, agreement building, incident diagnosis, reproduction testing, temporary/permanent fixes, document structure, and Japanese-writing review expressions.
+
+Candidate sourcing and review are documented in [`docs/DICTIONARY_EXPANSION_2026-08.md`](docs/DICTIONARY_EXPANSION_2026-08.md). Usage tendencies are checked against NINJAL BCCWJ, CEJC, Japanese web-corpus resources, and official technical documentation. External dictionary definitions and corpus passages are not copied; interpretations are authored for this project.
 
 ### Core guarantees
 
@@ -309,6 +362,7 @@ The server does not generate answers. It returns a structure that downstream sys
 - Never execute quoted or interrogative command candidates.
 - Return explicit unresolved states rather than inventing omitted meaning.
 - Return the same Semantic Hash for the same input, context, and version.
+- Require one Gold case for every new metaphor and every new rule.
 
 ### Architecture
 
@@ -348,11 +402,9 @@ Request
 
 The call-through boundary includes a persistent local stdio call, decoding, precompiled Pydantic output-schema validation, and delivery of the complete Meaning Graph, Task Graph, and Guard result. Cold start and index/schema compilation complete before readiness.
 
-Astera's end-to-end response target is 100 ms. Remote network and UI rendering are measured separately.
-
 ### Dictionary scale
 
-The runtime uses indexed, versioned dictionary snapshots and does not linearly scan every registered literal. Releases validate non-matching scale, high-match collisions, domain collisions, context growth, graph growth, semantic parity, and latency. The project does not claim that unlimited dictionary growth is free.
+The runtime uses indexed, versioned dictionary snapshots and does not linearly scan every registered literal. All 63 newly added intent patterns contain mandatory indexable literals. CI verifies coverage for every new metaphor and rule, indexed/exhaustive semantic parity, collision handling, dictionary scale, and latency.
 
 ### Install and run
 
@@ -399,7 +451,7 @@ python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
 python -m compileall -q src tools scripts tests
 ```
 
-CI validates Python 3.10 and 3.12, MCP stdio E2E, indexed/exhaustive semantic parity, 20x dictionary scale, Astera call-through latency, offline wheel installation, and evidence manifests.
+CI validates Python 3.10 and 3.12, MCP stdio E2E, all expanded-entry coverage, indexed/exhaustive semantic parity, dictionary scale, Astera call-through latency, offline wheel installation, and evidence manifests.
 
 ### Scope and limitations
 
