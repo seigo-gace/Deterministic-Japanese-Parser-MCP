@@ -2,10 +2,16 @@ name: CI
 on:
   push:
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.12"]
     steps:
@@ -16,7 +22,29 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - run: python tools/validator.py
-      - run: pytest
-      - run: python scripts/benchmark.py --check --rounds 50
+      - run: mkdir -p reports
+      - name: Deployment preflight
+        run: |
+          set -o pipefail
+          python scripts/preflight.py | tee reports/preflight-${{ matrix.python-version }}.json
+      - name: Dictionary and Gold validation
+        run: |
+          set -o pipefail
+          python tools/validator.py | tee reports/validator-${{ matrix.python-version }}.txt
+      - name: Unit and MCP stdio E2E tests
+        run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
+      - name: Existing benchmark regression gate
+        run: |
+          set -o pipefail
+          python scripts/benchmark.py --check --rounds 50 | tee reports/benchmark-${{ matrix.python-version }}.json
+      - name: Strict 5ms and 20x dictionary performance contract
+        run: python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 5 --output reports/performance-${{ matrix.python-version }}.json
       - run: python -m compileall -q src tools scripts tests
+      - name: Preserve test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-python-${{ matrix.python-version }}
+          path: reports
+          if-no-files-found: warn
+          retention-days: 30

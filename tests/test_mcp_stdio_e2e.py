@@ -23,7 +23,9 @@ async def _run_stdio_round_trip() -> None:
             await session.initialize()
 
             tools = await session.list_tools()
-            assert "analyze_japanese" in {tool.name for tool in tools.tools}
+            tool_map = {tool.name: tool for tool in tools.tools}
+            assert "analyze_japanese" in tool_map
+            assert tool_map["analyze_japanese"].outputSchema is not None
 
             result = await session.call_tool(
                 "analyze_japanese",
@@ -47,6 +49,17 @@ async def _run_stdio_round_trip() -> None:
             intent_types = {item["type"] for item in structured["intents"]}
             assert {"preserve", "modify"} <= intent_types
             assert structured["overall_status"] in {"COMPLETE", "PARTIAL"}
+
+            invalid = await session.call_tool(
+                "analyze_japanese",
+                arguments={"original_text": ""},
+            )
+            assert invalid.isError
+            assert any(
+                "Input validation error" in item.text
+                for item in invalid.content
+                if isinstance(item, TextContent)
+            )
 
 
 def test_mcp_stdio_round_trip() -> None:

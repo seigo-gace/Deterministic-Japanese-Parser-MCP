@@ -1,9 +1,30 @@
-from mcp.server.fastmcp import FastMCP
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import Any
+
+import mcp.server.stdio as mcp_stdio
+import mcp.types as types
+from mcp.server.lowlevel import NotificationOptions, Server
+from mcp.server.models import InitializationOptions
+from pydantic import ValidationError
 
 from .engine import ParserEngine
-from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
+from .models import (
+    AnalysisDepth,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    ExecutionMode,
+)
 
-mcp = FastMCP("deterministic-japanese-parser", json_response=True)
+SERVER_NAME = "deterministic-japanese-parser"
+SERVER_VERSION = "0.1.0"
+TOOL_NAME = "analyze_japanese"
+
+server = Server(SERVER_NAME)
+# Backwards-compatible public name retained from the former FastMCP boundary.
+mcp = server
 _engine: ParserEngine | None = None
 
 
@@ -14,7 +35,6 @@ def engine() -> ParserEngine:
     return _engine
 
 
-@mcp.tool()
 def analyze_japanese(
     original_text: str,
     conversation_context: list[str] | None = None,
@@ -24,8 +44,8 @@ def analyze_japanese(
     analysis_depth: AnalysisDepth = AnalysisDepth.AUTO,
     deadline_ms: int = 2000,
 ) -> AnalyzeResponse:
-    """Deterministically analyze Japanese text into intents, references, and Task Packets."""
-    request = AnalyzeRequest(
+    """Backwards-compatible direct Python entrypoint for the MCP tool."""
+    return engine().analyze(AnalyzeRequest(
         original_text=original_text,
         conversation_context=conversation_context or [],
         known_entities=known_entities or [],
@@ -33,16 +53,106 @@ def analyze_japanese(
         execution_mode=execution_mode,
         analysis_depth=analysis_depth,
         deadline_ms=deadline_ms,
+    ))
+
+
+def prewarm() -> ParserEngine:
+    """Load all runtime data and warm the complete parser before readiness."""
+    instance = engine()
+    response = analyze_japanese(
+        original_text="UIは残せ。APIだけ変更しろ。",
+        deadline_ms=60000,
     )
-    return engine().analyze(request)
+    if not response.intents:
+        raise RuntimeError("parser prewarm validation produced no intents")
+    return instance
+
+
+@server.list_tools()
+async def list_tools() -> list[types.Tool]:
+    return [
+        types.Tool(
+            name=TOOL_NAME,
+            description=(
+                "Deterministically analyze Japanese text into intents, references, "
+                "metaphors, contradictions, guard results, and ordered Task Packets."
+            ),
+            inputSchema=AnalyzeRequest.model_json_schema(),
+            outputSchema=AnalyzeResponse.model_json_schema(),
+        )
+    ]
+
+
+@server.call_tool(validate_input=False)
+async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+    """Return the complete structured response without duplicate JSON conversion.
+
+    Input is validated by the authoritative Pydantic request model. The result is
+    already an AnalyzeResponse model and the advertised output schema is validated
+    by LowLatencyClientSession using a validator compiled before readiness.
+    """
+    if name != TOOL_NAME:
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=f"Unknown tool: {name}")],
+            isError=True,
+        )
+
+    try:
+        request = AnalyzeRequest.model_validate(arguments)
+    except ValidationError as error:
+        return types.CallToolResult(
+            content=[
+                types.TextContent(
+                    type="text",
+                    text=f"Input validation error: {error.errors(include_url=False)}",
+                )
+            ],
+            isError=True,
+        )
+
+    response = engine().analyze(request)
+    structured = response.model_dump(mode="json")
+    summary = {
+        "overall_status": structured["overall_status"],
+        "execution_allowed": structured["execution_allowed"],
+        "intent_count": len(structured["intents"]),
+        "task_count": len(structured["tasks"]),
+    }
+    return types.CallToolResult(
+        content=[
+            types.TextContent(
+                type="text",
+                text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
+            )
+        ],
+        structuredContent=structured,
+        isError=False,
+    )
 
 
 def analyze_sync(request: AnalyzeRequest) -> AnalyzeResponse:
     return engine().analyze(request)
 
 
+async def run() -> None:
+    prewarm()
+    async with mcp_stdio.stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name=SERVER_NAME,
+                server_version=SERVER_VERSION,
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+            ),
+        )
+
+
 def main() -> None:
-    mcp.run(transport="stdio")
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

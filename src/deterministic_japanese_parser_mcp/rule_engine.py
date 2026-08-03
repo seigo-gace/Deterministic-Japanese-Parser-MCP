@@ -5,6 +5,7 @@ import warnings
 
 import regex
 
+from .literal_index import LiteralIndex
 from .models import Intent, ItemStatus
 from .normalizer import span_to_original
 
@@ -25,41 +26,65 @@ def _literal_run(tokens, start: int) -> tuple[str, int]:
     return "".join(chars), index
 
 
-def _proven_triggers(tokens) -> set[str] | None:
-    """Return literals whose union is guaranteed to cover every regex match.
+def _cover_score(cover: set[str]) -> tuple[int, float, int, int]:
+    """Prefer the most selective proven OR-cover for one regex.
 
-    Unsupported or optional constructs return no proof, leaving the rule on the
-    exhaustive fallback path. No rule is skipped unless the trigger requirement
-    is mechanically proven from its regex structure.
+    Every returned cover is mandatory as a whole: at least one literal in the
+    cover must occur for the regex to match. Longer minimum literals reduce
+    false candidates; smaller covers reduce index size and lookup work.
+    """
+    lengths = [len(value) for value in cover]
+    return (
+        min(lengths),
+        sum(lengths) / len(lengths),
+        -len(cover),
+        sum(lengths),
+    )
+
+
+def _best_cover(covers: list[set[str]]) -> set[str] | None:
+    valid = [cover for cover in covers if cover]
+    return max(valid, key=_cover_score) if valid else None
+
+
+def _proven_covers(tokens) -> list[set[str]]:
+    """Return independently mandatory literal covers from a regex sequence.
+
+    Concatenated components are all mandatory, so each contributes a possible
+    cover and the most selective one can be chosen. A branch contributes the
+    union of one proven cover from every branch. Optional or unsupported
+    constructs contribute no cover, but later mandatory sequence components can
+    still safely prove the rule.
     """
     if sre_parse is None:
-        return None
-    guaranteed_parts: list[set[str]] = []
+        return []
+
+    covers: list[set[str]] = []
     index = 0
     while index < len(tokens):
         op, argument = tokens[index]
         if op is sre_parse.LITERAL:
             literal, index = _literal_run(tokens, index)
             if literal:
-                guaranteed_parts.append({literal})
+                covers.append({literal})
             continue
-        candidate: set[str] | None = None
+
         if op is sre_parse.SUBPATTERN:
-            candidate = _proven_triggers(argument[-1])
+            covers.extend(_proven_covers(argument[-1]))
         elif op is sre_parse.BRANCH:
-            branch_sets: list[set[str]] = []
+            branch_covers: list[set[str]] = []
             for branch in argument[1]:
-                branch_triggers = _proven_triggers(branch)
-                if not branch_triggers:
-                    branch_sets = []
+                best = _best_cover(_proven_covers(branch))
+                if best is None:
+                    branch_covers = []
                     break
-                branch_sets.append(branch_triggers)
-            if branch_sets:
-                candidate = set().union(*branch_sets)
+                branch_covers.append(best)
+            if branch_covers:
+                covers.append(set().union(*branch_covers))
         elif op in {sre_parse.MAX_REPEAT, sre_parse.MIN_REPEAT}:
             minimum, _, repeated = argument
             if minimum >= 1:
-                candidate = _proven_triggers(repeated)
+                covers.extend(_proven_covers(repeated))
         elif op is sre_parse.IN:
             literals: set[str] = set()
             valid = True
@@ -70,13 +95,9 @@ def _proven_triggers(tokens) -> set[str] | None:
                     valid = False
                     break
             if valid and literals:
-                candidate = literals
-        if candidate:
-            guaranteed_parts.append(candidate)
+                covers.append(literals)
         index += 1
-    if not guaranteed_parts:
-        return None
-    return set().union(*guaranteed_parts)
+    return covers
 
 
 def _extract_proven_triggers(pattern: str) -> tuple[str, ...]:
@@ -86,7 +107,7 @@ def _extract_proven_triggers(pattern: str) -> tuple[str, ...]:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             parsed = sre_parse.parse(pattern)
-        triggers = _proven_triggers(parsed)
+        triggers = _best_cover(_proven_covers(parsed))
     except Exception:
         return ()
     if not triggers:
@@ -118,30 +139,20 @@ class RuleEngine:
             literal: frozenset(indices)
             for literal, indices in trigger_index.items()
         }
-        by_first: dict[str, list[str]] = {}
-        for literal in self.trigger_index:
-            by_first.setdefault(literal[0], []).append(literal)
-        self.triggers_by_first = {
-            char: tuple(sorted(values, key=lambda item: (-len(item), item)))
-            for char, values in by_first.items()
-        }
+        self.literal_index = LiteralIndex(self.trigger_index)
         self.last_metrics = {
             "total_rule_count": len(self.compiled),
             "candidate_rule_count": len(self.compiled),
             "indexed_rule_count": len(self.compiled) - len(self.always_scan),
             "always_scan_rule_count": len(self.always_scan),
+            "rule_literal_count": self.literal_index.literal_count,
+            "rule_literal_state_count": self.literal_index.state_count,
         }
 
     def candidate_indices(self, text: str) -> set[int]:
         candidates = set(self.always_scan)
-        matched_literals: set[str] = set()
-        for index, char in enumerate(text):
-            for literal in self.triggers_by_first.get(char, ()):
-                if literal in matched_literals:
-                    continue
-                if text.startswith(literal, index):
-                    matched_literals.add(literal)
-                    candidates.update(self.trigger_index[literal])
+        for literal in self.literal_index.matched_literals(text):
+            candidates.update(self.trigger_index[literal])
         return candidates
 
     def _extract_indices(
@@ -242,6 +253,8 @@ class RuleEngine:
             "candidate_rule_count": len(candidates),
             "indexed_rule_count": len(self.compiled) - len(self.always_scan),
             "always_scan_rule_count": len(self.always_scan),
+            "rule_literal_count": self.literal_index.literal_count,
+            "rule_literal_state_count": self.literal_index.state_count,
         }
         return self._extract_indices(
             candidates, text, mapping, original, deadline_at
