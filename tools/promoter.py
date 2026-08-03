@@ -8,10 +8,8 @@ import copy
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 
 import yaml
 
@@ -22,18 +20,16 @@ for item in (ROOT / "src", TOOLS_ROOT):
         sys.path.insert(0, str(item))
 
 from deterministic_japanese_parser_mcp.config import Settings
-from deterministic_japanese_parser_mcp.dictionaries import (
-    DictionaryBundle,
-    _load_json_set,
-)
-from dictionary_supply.common import LexiconRecord, stable_id
+from deterministic_japanese_parser_mcp.dictionaries import DictionaryBundle
+from dictionary_supply.common import LexiconRecord
 from dictionary_supply.proposals import load_bundle
 
 _BATCH = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
+_PRIVATE_BUCKETS = {"private-review-only", "license-review-required"}
 
 
 def license_bucket(license_expression: str) -> str:
-    value = license_expression.upper()
+    value = (license_expression or "").upper()
     if "PRIVATE" in value:
         return "private-review-only"
     if "CC0" in value:
@@ -55,6 +51,22 @@ def semver_patch(value: str) -> str:
     return f"{major}.{minor}.{patch + 1}"
 
 
+def evidence_buckets(proposal: dict) -> set[str]:
+    evidence = proposal.get("evidence", [])
+    if not evidence:
+        raise ValueError(
+            f"approved proposal has no source evidence: {proposal.get('proposal_id')}"
+        )
+    buckets: set[str] = set()
+    for item in evidence:
+        if not item.get("dataset") or not item.get("version"):
+            raise ValueError(
+                f"source dataset/version is required: {proposal.get('proposal_id')}"
+            )
+        buckets.add(license_bucket(item.get("license", "")))
+    return buckets
+
+
 def approved_proposals(bundle: dict) -> list[dict]:
     output = [
         item
@@ -64,9 +76,16 @@ def approved_proposals(bundle: dict) -> list[dict]:
     if not output:
         raise ValueError("review bundle contains no approved proposals")
     for item in output:
+        proposal_id = item.get("proposal_id")
         if not item.get("review", {}).get("notes"):
             raise ValueError(
-                f"approved proposal has no review notes: {item['proposal_id']}"
+                f"approved proposal has no review notes: {proposal_id}"
+            )
+        blocked = evidence_buckets(item).intersection(_PRIVATE_BUCKETS)
+        if blocked:
+            raise ValueError(
+                "proposal source cannot enter public runtime dictionaries: "
+                f"{proposal_id}: {sorted(blocked)}"
             )
     return output
 
@@ -74,7 +93,9 @@ def approved_proposals(bundle: dict) -> list[dict]:
 def source_manifest(batch_id: str, proposals: list[dict]) -> dict:
     sources: dict[tuple, dict] = {}
     licenses = Counter()
+    kinds = Counter()
     for proposal in proposals:
+        kinds[proposal["kind"]] += 1
         for item in proposal.get("evidence", []):
             key = (
                 item.get("dataset"),
@@ -88,6 +109,7 @@ def source_manifest(batch_id: str, proposals: list[dict]) -> dict:
         "schema_version": "1.0.0",
         "batch_id": batch_id,
         "proposal_count": len(proposals),
+        "proposal_kinds": dict(sorted(kinds.items())),
         "proposal_ids": [item["proposal_id"] for item in proposals],
         "licenses": dict(sorted(licenses.items())),
         "sources": list(sources.values()),
@@ -133,6 +155,7 @@ def gold_cases(proposal: dict, sequence_start: int) -> list[dict]:
             output.append({
                 "id": f"AUTO-{sequence:06d}",
                 "proposal_id": proposal["proposal_id"],
+                "variant": variant,
                 "text": text,
                 "request": request,
                 "expected": expected,
@@ -140,7 +163,11 @@ def gold_cases(proposal: dict, sequence_start: int) -> list[dict]:
     return output
 
 
-def prepare_files(root: Path, batch_id: str, proposals: list[dict]) -> dict[Path, str]:
+def prepare_files(
+    root: Path,
+    batch_id: str,
+    proposals: list[dict],
+) -> dict[Path, str]:
     files: dict[Path, str] = {}
     lexicon_by_license: dict[str, list[dict]] = {}
     metaphor_entries: list[dict] = []
@@ -149,28 +176,36 @@ def prepare_files(root: Path, batch_id: str, proposals: list[dict]) -> dict[Path
     gold: list[dict] = []
 
     for proposal in proposals:
+        proposal_id = proposal["proposal_id"]
         kind = proposal["kind"]
         payload = proposal.get("payload", {})
+        blocked = evidence_buckets(proposal).intersection(_PRIVATE_BUCKETS)
+        if blocked:
+            raise ValueError(
+                f"source cannot be promoted: {proposal_id}: {sorted(blocked)}"
+            )
+
         if kind == "lexicon":
             record = LexiconRecord.from_dict(payload["record"])
             record.review_status = "approved"
             bucket = license_bucket(record.source.license)
-            if bucket in {"private-review-only", "license-review-required"}:
+            if bucket in _PRIVATE_BUCKETS:
                 raise ValueError(
-                    f"source cannot be promoted to public runtime pack: {record.record_id}: {record.source.license}"
+                    "source cannot be promoted to public runtime pack: "
+                    f"{record.record_id}: {record.source.license}"
                 )
             lexicon_by_license.setdefault(bucket, []).append(record.to_dict())
         elif kind == "metaphor":
             entry = copy.deepcopy(payload)
             entry["version"] = batch_id
-            entry["source_proposal_id"] = proposal["proposal_id"]
+            entry["source_proposal_id"] = proposal_id
             entry["source_evidence"] = proposal.get("evidence", [])
             metaphor_entries.append(entry)
             gold.extend(gold_cases(proposal, len(gold)))
         elif kind == "rule":
             intent = payload["intent"]
             rule = copy.deepcopy(payload["rule"])
-            rule["source_proposal_id"] = proposal["proposal_id"]
+            rule["source_proposal_id"] = proposal_id
             rule["source_evidence"] = proposal.get("evidence", [])
             rules.setdefault(intent, []).append(rule)
             gold.extend(gold_cases(proposal, len(gold)))
@@ -185,7 +220,10 @@ def prepare_files(root: Path, batch_id: str, proposals: list[dict]) -> dict[Path
 
     for bucket, records in lexicon_by_license.items():
         path = root / "dictionaries/system/lexicon.d" / bucket / f"{batch_id}.jsonl"
-        lines = [json.dumps(item, ensure_ascii=False, sort_keys=True) for item in records]
+        lines = [
+            json.dumps(item, ensure_ascii=False, sort_keys=True)
+            for item in records
+        ]
         files[path] = "\n".join(lines) + "\n"
     if metaphor_entries:
         path = root / "dictionaries/system/metaphors" / f"generated-{batch_id}.json"
@@ -216,12 +254,14 @@ def prepare_files(root: Path, batch_id: str, proposals: list[dict]) -> dict[Path
             indent=2,
         ) + "\n"
 
-    manifest = source_manifest(batch_id, proposals)
-    files[root / "dictionaries/sources" / f"{batch_id}.json"] = json.dumps(
-        manifest,
-        ensure_ascii=False,
-        indent=2,
-    ) + "\n"
+    files[root / "dictionaries/sources" / f"{batch_id}.json"] = (
+        json.dumps(
+            source_manifest(batch_id, proposals),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n"
+    )
     return files
 
 
@@ -233,7 +273,8 @@ def effective_counts(root: Path) -> dict[str, int]:
     )
     bundle = DictionaryBundle(settings.system_dict_dir, settings.user_dict_dir)
     rule_count = sum(
-        len(items) for items in bundle.rules.get("intents", {}).values()
+        len(items)
+        for items in bundle.rules.get("intents", {}).values()
     )
     gold_ids: set[str] = set()
     for path in sorted((root / "tests/gold").glob("*.json")):
@@ -256,7 +297,62 @@ def effective_counts(root: Path) -> dict[str, int]:
     }
 
 
-def sync_metadata(root: Path, counts: dict[str, int]) -> None:
+def patch_version_key(text: str, key: str) -> str:
+    pattern = rf'("{re.escape(key)}": ")(\d+\.\d+\.\d+)(")'
+    match = re.search(pattern, text)
+    if not match:
+        raise ValueError(f"version key not found: {key}")
+    return re.sub(
+        pattern,
+        lambda item: item.group(1) + semver_patch(item.group(2)) + item.group(3),
+        text,
+        count=1,
+    )
+
+
+def sync_notice(root: Path, batch_id: str, proposals: list[dict]) -> None:
+    notice_path = root / "NOTICE.md"
+    notice = notice_path.read_text(encoding="utf-8")
+    marker = f"<!-- dictionary-batch:{batch_id} -->"
+    if marker in notice:
+        raise ValueError(f"NOTICE already contains batch: {batch_id}")
+    manifest = source_manifest(batch_id, proposals)
+    lines = [
+        "",
+        marker,
+        f"## Dictionary data batch `{batch_id}`",
+        "",
+        "This batch contains reviewed data derived from the following sources. "
+        "The data remains governed by the recorded source licenses.",
+        "",
+    ]
+    for source in manifest["sources"]:
+        lines.append(
+            "- "
+            + " | ".join(
+                str(value)
+                for value in (
+                    source.get("dataset"),
+                    source.get("version"),
+                    source.get("license"),
+                    source.get("attribution"),
+                )
+                if value
+            )
+        )
+    notice_path.write_text(
+        notice.rstrip() + "\n" + "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+
+
+def sync_metadata(
+    root: Path,
+    counts: dict[str, int],
+    proposals: list[dict],
+    batch_id: str,
+) -> None:
+    kinds = {item["kind"] for item in proposals}
     manifest_path = root / "dictionaries/system/metaphors/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["metaphor_entries"] = counts["metaphors"]
@@ -266,6 +362,9 @@ def sync_metadata(root: Path, counts: dict[str, int]) -> None:
     manifest["workflow_templates"] = counts["workflows"]
     manifest["gold_cases"] = counts["gold"]
     manifest["open_lexicon_records"] = counts["lexicon_records"]
+    manifest["dictionary_version"] = semver_patch(
+        manifest["dictionary_version"]
+    )
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -280,44 +379,51 @@ def sync_metadata(root: Path, counts: dict[str, int]) -> None:
         r"(\| Task / Workflow Template \| \*\*)\d+(\*\* \|)": counts["templates"],
         r"(\| Workflow \| \*\*)\d+(\*\* \|)": counts["workflows"],
         r"(\| Gold Corpus \| \*\*)\d+(\*\* \|)": counts["gold"],
+        r"(\| Open lexical records \| \*\*)\d+(\*\* \|)": counts["lexicon_records"],
+        r"(\| Metaphor, idiom, and pragmatic expressions \| \*\*)\d+(\*\* \|)": counts["metaphors"],
+        r"(\| Deterministic intent patterns \| \*\*)\d+(\*\* \|)": counts["rules"],
+        r"(\| Canonical synonym groups \| \*\*)\d+(\*\* \|)": counts["synonym_groups"],
+        r"(\| Task / workflow templates \| \*\*)\d+(\*\* \|)": counts["templates"],
+        r"(\| Workflows \| \*\*)\d+(\*\* \|)": counts["workflows"],
+        r"(\| Gold Corpus cases \| \*\*)\d+(\*\* \|)": counts["gold"],
     }
     for pattern, value in replacements.items():
         readme, changed = re.subn(pattern, rf"\g<1>{value}\g<2>", readme)
         if changed != 1:
-            raise ValueError(f"README count marker mismatch: {pattern}: changed={changed}")
-    marker = "| Open lexical records |"
-    if marker not in readme:
-        table_line = f"| Open lexical records | **{counts['lexicon_records']}** |\n"
-        readme = readme.replace(
-            "| Gold Corpus | **" + str(counts["gold"]) + "** |\n",
-            "| Gold Corpus | **" + str(counts["gold"]) + "** |\n" + table_line,
-        )
-    else:
-        readme = re.sub(
-            r"(\| Open lexical records \| \*\*)\d+(\*\* \|)",
-            rf"\g<1>{counts['lexicon_records']}\g<2>",
-            readme,
-        )
+            raise ValueError(
+                f"README count marker mismatch: {pattern}: changed={changed}"
+            )
     readme_path.write_text(readme, encoding="utf-8")
 
     version_path = root / "src/deterministic_japanese_parser_mcp/version.py"
     version_text = version_path.read_text(encoding="utf-8")
-    match = re.search(r'"dictionary_version": "([^"]+)"', version_text)
-    if not match:
-        raise ValueError("dictionary_version not found")
-    new_version = semver_patch(match.group(1))
-    version_text = version_text.replace(
-        f'"dictionary_version": "{match.group(1)}"',
-        f'"dictionary_version": "{new_version}"',
-    )
+    version_text = patch_version_key(version_text, "dictionary_version")
+    if "rule" in kinds:
+        version_text = patch_version_key(version_text, "rule_version")
+    if "metaphor" in kinds:
+        version_text = patch_version_key(
+            version_text,
+            "metaphor_dictionary_version",
+        )
     version_path.write_text(version_text, encoding="utf-8")
+    sync_notice(root, batch_id, proposals)
 
 
 def run_checks(root: Path, *, performance: bool) -> None:
     commands = [
+        [sys.executable, "tools/lexicon_validator.py"],
         [sys.executable, "tools/validator.py"],
         [sys.executable, "-m", "pytest"],
-        [sys.executable, "-m", "compileall", "-q", "src", "tools", "scripts", "tests"],
+        [
+            sys.executable,
+            "-m",
+            "compileall",
+            "-q",
+            "src",
+            "tools",
+            "scripts",
+            "tests",
+        ],
     ]
     if performance:
         commands.extend([
@@ -382,6 +488,7 @@ def main() -> int:
     touched.update({
         root / "dictionaries/system/metaphors/manifest.json",
         root / "README.md",
+        root / "NOTICE.md",
         root / "src/deterministic_japanese_parser_mcp/version.py",
     })
     backup: dict[Path, bytes | None] = {
@@ -395,7 +502,7 @@ def main() -> int:
                 raise ValueError(f"promotion target already exists: {path}")
             path.write_text(content, encoding="utf-8")
         counts = effective_counts(root)
-        sync_metadata(root, counts)
+        sync_metadata(root, counts, proposals, args.batch_id)
         run_checks(root, performance=args.performance)
     except Exception:
         for path, content in backup.items():
