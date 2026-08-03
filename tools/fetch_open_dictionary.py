@@ -24,7 +24,7 @@ SOURCES = {
         "homepage": "https://www.wikidata.org/wiki/Wikidata:Lexicographical_data",
     },
     "jmdict": {
-        "url": "https://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+        "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
         "license": "CC-BY-SA-4.0",
         "attribution": "Electronic Dictionary Research and Development Group",
         "homepage": "https://www.edrdg.org/wiki/JMdict-EDICT_Dictionary_Project",
@@ -113,7 +113,8 @@ def main() -> int:
         encoding="utf-8",
     )
     print(
-        f"FETCH OK: source={args.source} bytes={payload['bytes']} sha256={digest} output={args.output}"
+        f"FETCH OK: source={args.source} bytes={payload['bytes']} "
+        f"sha256={digest} output={args.output}"
     )
     return 0
 
