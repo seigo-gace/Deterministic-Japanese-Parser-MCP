@@ -9,6 +9,7 @@ def test_literal_index_returns_overlapping_matches_deterministically():
     assert list(index.find("直前の案と前の案")) == [
         ("前の", 1, 3),
         ("直前の案", 0, 4),
+        ("前の案", 1, 4),
         ("案", 3, 4),
         ("前の", 5, 7),
         ("前の案", 5, 8),
