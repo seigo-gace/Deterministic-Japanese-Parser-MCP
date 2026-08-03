@@ -51,20 +51,39 @@ class LiteralIndex:
             sorted(set(values), key=lambda value: (-len(value), value))
             for values in self._outputs
         ]
-        self._root_chars = frozenset(self._transitions[0])
+
+        prefixes_by_first: dict[str, set[str]] = {}
+        for literal in unique:
+            prefix = literal[: min(4, len(literal))]
+            prefixes_by_first.setdefault(prefix[0], set()).add(prefix)
+        self._prefixes_by_first = {
+            first: tuple(sorted(values, key=lambda value: (-len(value), value)))
+            for first, values in prefixes_by_first.items()
+        }
+        self._root_chars = frozenset(prefixes_by_first)
 
     @property
     def state_count(self) -> int:
         return len(self._transitions)
 
-    def _has_possible_start(self, text: str) -> bool:
-        # Every registered literal must begin with one root character. After the
-        # rule engine chooses a discriminative mandatory trigger cover, this
-        # exact C-level set test rejects long impossible payloads cheaply.
-        return bool(text and not self._root_chars.isdisjoint(text))
+    def _has_possible_match(self, text: str) -> bool:
+        """Reject text lacking every exact leading prefix.
+
+        This cannot introduce false negatives: each complete literal necessarily
+        contains its own stored leading prefix. `str.find` executes in C, and we
+        only inspect prefix buckets whose first character actually occurs.
+        """
+        if not text:
+            return False
+        present_roots = self._root_chars.intersection(text)
+        for first in present_roots:
+            for prefix in self._prefixes_by_first[first]:
+                if prefix in text:
+                    return True
+        return False
 
     def find(self, text: str) -> Iterator[tuple[str, int, int]]:
-        if not self._has_possible_start(text):
+        if not self._has_possible_match(text):
             return
         state = 0
         for end_index, char in enumerate(text, start=1):
@@ -75,6 +94,6 @@ class LiteralIndex:
                 yield literal, end_index - len(literal), end_index
 
     def matched_literals(self, text: str) -> set[str]:
-        if not self._has_possible_start(text):
+        if not self._has_possible_match(text):
             return set()
         return {literal for literal, _, _ in self.find(text)}
