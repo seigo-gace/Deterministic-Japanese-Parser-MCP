@@ -29,6 +29,19 @@ def _representation(value: dict, language: str = "ja") -> str | None:
     return None
 
 
+def _claim_target(statement: dict) -> str | None:
+    value = (
+        statement.get("mainsnak", {})
+        .get("datavalue", {})
+        .get("value")
+    )
+    if isinstance(value, dict):
+        candidate = value.get("id")
+    else:
+        candidate = value
+    return candidate if isinstance(candidate, str) else None
+
+
 def parse_lexeme(
     entity: dict,
     *,
@@ -42,33 +55,45 @@ def parse_lexeme(
     lemma = _representation(entity.get("lemmas", {}))
     if not lemma:
         return None
+
     forms: list[dict] = []
     surfaces: list[str] = [lemma]
     readings: list[str] = []
     for form in entity.get("forms", []):
-        representation = _representation(form.get("representations", {}))
+        representation = _representation(
+            form.get("representations", {})
+        )
         if not representation:
             continue
         if representation not in surfaces:
             surfaces.append(representation)
         forms.append({
             "representation": representation,
-            "grammatical_features": list(form.get("grammaticalFeatures", [])),
+            "grammatical_features": list(
+                form.get("grammaticalFeatures", [])
+            ),
         })
         for statement in form.get("claims", {}).get("P898", []):
-            value = (
-                statement.get("mainsnak", {})
-                .get("datavalue", {})
-                .get("value")
-            )
-            if isinstance(value, str) and value not in readings:
+            value = _claim_target(statement)
+            if value and value not in readings:
                 readings.append(value)
+
     senses: list[dict] = []
-    synonyms: list[str] = []
-    antonyms: list[str] = []
-    related: list[str] = []
     for sense in entity.get("senses", []):
         gloss = _representation(sense.get("glosses", {}))
+        cross_references: list[str] = []
+        claims = sense.get("claims", {})
+        for property_id, prefix in (
+            ("P5973", "synonym_sense"),
+            ("P5974", "antonym_sense"),
+        ):
+            for statement in claims.get(property_id, []):
+                candidate = _claim_target(statement)
+                reference = (
+                    f"{prefix}:{candidate}" if candidate else None
+                )
+                if reference and reference not in cross_references:
+                    cross_references.append(reference)
         if gloss:
             senses.append({
                 "sense_id": sense.get("id"),
@@ -77,26 +102,18 @@ def parse_lexeme(
                 "labels": [],
                 "domains": [],
                 "examples": [],
-                "cross_references": [],
+                "cross_references": cross_references,
             })
-        claims = sense.get("claims", {})
-        for property_id, target in (
-            ("P5973", synonyms),
-            ("P5974", antonyms),
-            ("P5191", related),
-        ):
-            for statement in claims.get(property_id, []):
-                value = (
-                    statement.get("mainsnak", {})
-                    .get("datavalue", {})
-                    .get("value")
-                )
-                if isinstance(value, dict):
-                    candidate = value.get("id")
-                else:
-                    candidate = value
-                if isinstance(candidate, str) and candidate not in target:
-                    target.append(candidate)
+
+    related: list[str] = []
+    for statement in entity.get("claims", {}).get("P5191", []):
+        candidate = _claim_target(statement)
+        relation = (
+            f"derived_from_lexeme:{candidate}" if candidate else None
+        )
+        if relation and relation not in related:
+            related.append(relation)
+
     entity_id = entity.get("id", stable_id("LEXEME", lemma))
     source = SourceInfo(
         dataset="Wikidata Lexemes",
@@ -115,8 +132,6 @@ def parse_lexeme(
         lexical_category=entity.get("lexicalCategory"),
         senses=senses,
         forms=forms,
-        synonyms=synonyms,
-        antonyms=antonyms,
         related=related,
         source=source,
         review_status="needs_review",
@@ -199,7 +214,9 @@ def main() -> int:
             limit=args.limit,
         ),
     )
-    print(f"WIKIDATA LEXEME IMPORT OK: records={count} output={args.output}")
+    print(
+        f"WIKIDATA LEXEME IMPORT OK: records={count} output={args.output}"
+    )
     return 0
 
 
