@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from .engine import ParserEngine
 from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
+from .normalizer import normalize_with_map
 
 SERVER_NAME = "deterministic-japanese-parser"
 SERVER_VERSION = "0.2.0"
@@ -51,16 +52,30 @@ def analyze_japanese(
 
 
 def prewarm() -> ParserEngine:
-    """Load runtime data and warm the complete parser before readiness."""
+    """Complete cold initialization before the runtime deadline starts."""
     instance = engine()
+    sample = "UIは残せ。APIだけ変更しろ。"
+
+    # Sudachi performs lazy initialization on its first tokenization. That work
+    # belongs to readiness, not to the 50 ms serving contract. Warm every lazy
+    # component explicitly before validating the first deadline-bound response.
+    normalized, mapping = normalize_with_map(sample)
+    instance.tokenizer.tokenize(normalized, mapping, sample)
+    instance.rules.candidate_indices(normalized)
+    instance.metaphors.literal_matcher.matched_literals(normalized)
+    AnalyzeRequest.model_json_schema()
+    AnalyzeResponse.model_json_schema()
+
     response = analyze_japanese(
-        original_text="UIは残せ。APIだけ変更しろ。",
+        original_text=sample,
         deadline_ms=50,
     )
     if not response.meaning_graph.propositions:
         raise RuntimeError("parser prewarm produced no MeaningGraph")
     if not response.task_graph.tasks:
         raise RuntimeError("parser prewarm produced no action TaskGraph")
+    if not response.metrics.get("hard_deadline_met"):
+        raise RuntimeError("parser prewarm exceeded the runtime hard deadline")
     return instance
 
 

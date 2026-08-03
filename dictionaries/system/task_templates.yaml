@@ -1,4 +1,4 @@
-version: 1.0.0
+version: 1.1.0
 templates:
 - id: TPL-001
   intent: prohibition
@@ -298,3 +298,183 @@ templates:
     action: 再計測
   - order: 6
     action: 回帰検証
+- id: WF-REQUIREMENT_ANALYSIS
+  intent: workflow
+  name: requirement_analysis
+  steps:
+  - order: 1
+    action: 原文・資料・会話Contextを収集
+  - order: 2
+    action: 原文と引用範囲を保護
+  - order: 3
+    action: 目的・対象・制約・禁止・維持を抽出
+  - order: 4
+    action: 省略・参照・曖昧性を列挙
+  - order: 5
+    action: Meaning Graphを構築
+  - order: 6
+    action: 矛盾・Scope・依存を検証
+  - order: 7
+    action: 決定事項と未決事項を記録
+- id: WF-BUG_REPRODUCTION
+  intent: workflow
+  name: bug_reproduction
+  steps:
+  - order: 1
+    action: 対象Version・環境・設定を固定
+  - order: 2
+    action: 再現手順を整理
+  - order: 3
+    action: 期待結果と実結果を分離
+  - order: 4
+    action: 同条件で複数回再実行
+  - order: 5
+    action: Log・Trace・Network Evidenceを保存
+  - order: 6
+    action: 最小再現Caseを作成
+  - order: 7
+    action: 再現可否と条件を記録
+- id: WF-ROOT_CAUSE_ANALYSIS
+  intent: workflow
+  name: root_cause_analysis
+  steps:
+  - order: 1
+    action: 事象Timelineを作成
+  - order: 2
+    action: 影響範囲と非影響範囲を確定
+  - order: 3
+    action: 原因候補を切り分け
+  - order: 4
+    action: 各仮説をEvidenceで検証
+  - order: 5
+    action: 根本原因と誘発条件を分離
+  - order: 6
+    action: 暫定対応と恒久対応を定義
+  - order: 7
+    action: 再発防止Testを実行
+- id: WF-DOCUMENT_REVISION
+  intent: workflow
+  name: document_revision
+  steps:
+  - order: 1
+    action: 読者・目的・提出形式を確認
+  - order: 2
+    action: 原文の主張と禁止変更点を抽出
+  - order: 3
+    action: 骨子と見出しを再構成
+  - order: 4
+    action: 本文を修正・肉付け
+  - order: 5
+    action: 主述・修飾・論理・文体を整合
+  - order: 6
+    action: 曖昧表現と重複を除去
+  - order: 7
+    action: 最終校正と原意確認
+- id: WF-DATA-MIGRATION
+  intent: workflow
+  name: data_migration
+  steps:
+  - order: 1
+    action: 移行元・移行先Schemaを固定
+  - order: 2
+    action: BackupとRollback Pointを作成
+  - order: 3
+    action: Field Mappingと変換規則を定義
+  - order: 4
+    action: Dry Runを実行
+  - order: 5
+    action: Dataを移行
+  - order: 6
+    action: 件数・Hash・参照整合性を検証
+  - order: 7
+    action: Rollback可能性を確認して切替
+- id: WF-DEPENDENCY-UPGRADE
+  intent: workflow
+  name: dependency_upgrade
+  steps:
+  - order: 1
+    action: 現行Versionと更新先Versionを固定
+  - order: 2
+    action: Release Note・Security Advisoryを確認
+  - order: 3
+    action: API・Runtime互換性を確認
+  - order: 4
+    action: Lock Fileと依存定義を更新
+  - order: 5
+    action: Unit・Integration・E2Eを実行
+  - order: 6
+    action: 性能・Memory・Artifactを比較
+  - order: 7
+    action: Rollback手順を確認して反映
+- id: WF-ACCOUNT-AUTH-CHANGE
+  intent: workflow
+  name: account_auth_change
+  steps:
+  - order: 1
+    action: 登録・Login・Logout・Recovery Flowを確認
+  - order: 2
+    action: Threat Modelと保護対象を定義
+  - order: 3
+    action: 既存Accountの移行方針を確定
+  - order: 4
+    action: 認証・認可・Session処理を変更
+  - order: 5
+    action: Token・Cookie・期限・失効を検証
+  - order: 6
+    action: Passkey・2FA・Backup Codeを検証
+  - order: 7
+    action: Audit Logと復旧手順を確認
+- id: WF-UI-ACCESSIBILITY-REVIEW
+  intent: workflow
+  name: ui_accessibility_review
+  steps:
+  - order: 1
+    action: 主要User Flowを列挙
+  - order: 2
+    action: Semantic StructureとHeadingを確認
+  - order: 3
+    action: Keyboard操作とFocus順を検証
+  - order: 4
+    action: Contrast・文字拡大・Responsiveを検証
+  - order: 5
+    action: Label・Error・Status通知を確認
+  - order: 6
+    action: Screen Readerで主要Flowを実行
+  - order: 7
+    action: 修正後の回帰確認
+- id: WF-KNOWLEDGE-BASE-UPDATE
+  intent: workflow
+  name: knowledge_base_update
+  steps:
+  - order: 1
+    action: Question LogとEvidence Sourceを収集
+  - order: 2
+    action: 既存回答の不足・誤り・重複を分類
+  - order: 3
+    action: 正本AnswerとMappingを更新
+  - order: 4
+    action: Index・Hash・Versionを更新
+  - order: 5
+    action: 一次質問と継続質問をTest
+  - order: 6
+    action: 未対応範囲を明示
+  - order: 7
+    action: 公開状態と参照Pathを確認
+- id: WF-ROLLBACK-RECOVERY
+  intent: workflow
+  name: rollback_recovery
+  steps:
+  - order: 1
+    action: Rollback Triggerと責任者を確認
+  - order: 2
+    action: 追加変更を凍結
+  - order: 3
+    action: 現状態・Log・Data Snapshotを保存
+  - order: 4
+    action: 安定Versionへ切り戻し
+  - order: 5
+    action: Health・Data・外部連携を検証
+  - order: 6
+    action: Traffic・受付・Jobを段階再開
+  - order: 7
+    action: 原因・判断・再発防止を記録

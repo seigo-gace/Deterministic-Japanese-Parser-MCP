@@ -1,0 +1,114 @@
+{
+  "version": "1.1.0",
+  "category": "15_development_operations",
+  "entries": [
+    {
+      "expression": "切り分ける",
+      "interpretation": "障害・不具合・責任範囲を要因別に分離して原因候補を絞る",
+      "context": ["障害", "不具合", "原因", "環境", "問題"],
+      "context_policy": "required_any",
+      "domain": "障害調査",
+      "aliases": ["原因を切り分ける"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "再現を取る",
+      "interpretation": "同じ条件と手順で問題が再び発生することを確認する",
+      "context": ["バグ", "障害", "不具合", "手順", "環境"],
+      "context_policy": "required_any",
+      "domain": "Debug",
+      "aliases": ["再現確認を取る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "ログを追う",
+      "interpretation": "Logの時系列・関連ID・処理経路をたどって事象と原因を確認する",
+      "context": ["ログ", "障害", "処理", "Trace", "トレース"],
+      "context_policy": "required_any",
+      "domain": "可観測性",
+      "aliases": ["ログをたどる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "影響範囲を洗う",
+      "interpretation": "変更・障害・依存更新が影響する機能・利用者・Dataを網羅確認する",
+      "context": ["変更", "障害", "依存", "機能", "利用者"],
+      "context_policy": "required_any",
+      "domain": "Impact Analysis",
+      "aliases": ["影響箇所を洗う"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "暫定対応を入れる",
+      "interpretation": "原因除去前に被害・停止・不便を抑える一時対策を適用する",
+      "context": ["障害", "緊急", "被害", "停止", "不具合"],
+      "context_policy": "required_any",
+      "domain": "Incident Response",
+      "aliases": ["応急対応を入れる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "恒久対応を入れる",
+      "interpretation": "根本原因を除去し再発を防ぐ長期的な修正を適用する",
+      "context": ["原因", "再発", "障害", "修正", "対策"],
+      "context_policy": "required_any",
+      "domain": "Problem Management",
+      "aliases": ["恒久対策を入れる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "巻き戻す",
+      "interpretation": "変更・Data・状態を安全だった以前のVersionへ戻す",
+      "context": ["変更", "Version", "データ", "状態", "Deploy"],
+      "context_policy": "required_any",
+      "domain": "変更管理",
+      "aliases": ["状態を巻き戻す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "凍結する",
+      "interpretation": "安全確認または判断完了まで変更・公開・受付を一時停止する",
+      "context": ["変更", "Release", "リリース", "公開", "受付"],
+      "context_policy": "required_any",
+      "domain": "Change Freeze",
+      "aliases": ["変更を凍結する"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "塩漬けにする",
+      "interpretation": "課題・資産・負債を処理せず長期間残す",
+      "context": ["課題", "負債", "資産", "Issue", "問題"],
+      "context_policy": "required_any",
+      "domain": "Technical Debt",
+      "aliases": ["課題を塩漬けにする"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "デグレする",
+      "interpretation": "変更によって既存機能・品質・性能が以前より悪化する",
+      "context": ["変更", "機能", "Test", "テスト", "性能"],
+      "context_policy": "required_any",
+      "domain": "Regression",
+      "aliases": ["デグレーションする"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "依存を剥がす",
+      "interpretation": "Module・Library・System間の直接依存を除去または弱化する",
+      "context": ["Module", "モジュール", "Library", "ライブラリ", "依存"],
+      "context_policy": "required_any",
+      "domain": "Architecture",
+      "aliases": ["依存関係を剥がす"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "責務を切る",
+      "interpretation": "機能・Module・担当の責任範囲を分離し境界を明確にする",
+      "context": ["Module", "モジュール", "設計", "機能", "担当"],
+      "context_policy": "required_any",
+      "domain": "Architecture",
+      "aliases": ["責務を分ける"],
+      "version": "1.1.0"
+    }
+  ]
+}

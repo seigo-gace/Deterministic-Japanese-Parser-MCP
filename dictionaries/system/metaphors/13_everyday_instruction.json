@@ -1,0 +1,114 @@
+{
+  "version": "1.1.0",
+  "category": "13_everyday_instruction",
+  "entries": [
+    {
+      "expression": "一旦置く",
+      "interpretation": "議論・判断・作業を否定せず一時的に保留する",
+      "context": ["議論", "判断", "作業", "案", "課題"],
+      "context_policy": "required_any",
+      "domain": "保留",
+      "aliases": ["ひとまず置く"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "巻き取る",
+      "interpretation": "他者が保持している担当・対応・Taskを自分側で引き受ける",
+      "context": ["担当", "対応", "Task", "タスク", "作業"],
+      "context_policy": "required_any",
+      "domain": "担当移管",
+      "aliases": ["担当を引き取る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "持ち越す",
+      "interpretation": "未解決事項を現在の回で確定せず後続の回・期限へ送る",
+      "context": ["課題", "会議", "次回", "期限", "判断"],
+      "context_policy": "required_any",
+      "domain": "保留",
+      "aliases": ["次回に回す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "先に進める",
+      "interpretation": "現在の非Blocking事項を待たず後続工程を開始する",
+      "context": ["工程", "作業", "開発", "実装", "検証"],
+      "context_policy": "required_any",
+      "domain": "進行管理",
+      "aliases": ["次へ進める"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "要点を押さえる",
+      "interpretation": "理解・判断・説明に必要な重要事項を特定して保持する",
+      "context": ["要点", "説明", "内容", "資料", "確認"],
+      "context_policy": "required_any",
+      "domain": "読解",
+      "aliases": ["ポイントを押さえる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "ざっくり出す",
+      "interpretation": "精密確定前の初期案・概算・大枠を短時間で作る",
+      "context": ["案", "概算", "見積", "大枠", "構成"],
+      "context_policy": "required_any",
+      "domain": "初期検討",
+      "aliases": ["粗く出す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "きっちり詰める",
+      "interpretation": "条件・仕様・詳細を具体化し未確定部分を残さない",
+      "context": ["条件", "仕様", "設計", "詳細", "契約"],
+      "context_policy": "required_any",
+      "domain": "具体化",
+      "aliases": ["細部まで詰める"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "バラして考える",
+      "interpretation": "問題・要件・構造を構成要素へ分解して検討する",
+      "context": ["問題", "要件", "構造", "Task", "タスク"],
+      "context_policy": "required_any",
+      "domain": "分析",
+      "aliases": ["要素に分けて考える"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "まとめて片付ける",
+      "interpretation": "関連する複数のTask・課題・処理を一括で完了させる",
+      "context": ["Task", "タスク", "課題", "処理", "作業"],
+      "context_policy": "required_any",
+      "domain": "一括処理",
+      "aliases": ["一気に片付ける"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "手短にまとめる",
+      "interpretation": "主要点を残しながら説明・回答・文書を短く整理する",
+      "context": ["説明", "回答", "文書", "内容", "要約"],
+      "context_policy": "required_any",
+      "domain": "要約",
+      "aliases": ["短くまとめる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "確認を取る",
+      "interpretation": "関係者から明示的な確認・了承・承認を得る",
+      "context": ["関係者", "担当", "承認", "了承", "確認"],
+      "context_policy": "required_any",
+      "domain": "合意形成",
+      "aliases": ["明示確認を取る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "話を切る",
+      "interpretation": "現在の議論・説明・交渉をその時点で終了する",
+      "context": ["議論", "会議", "説明", "交渉", "話"],
+      "context_policy": "required_any",
+      "domain": "会話制御",
+      "aliases": ["ここで話を切る"],
+      "version": "1.1.0"
+    }
+  ]
+}
