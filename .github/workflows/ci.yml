@@ -18,4 +18,5 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: python tools/validator.py
       - run: pytest
+      - run: python scripts/benchmark.py --check --rounds 50
       - run: python -m compileall -q src tools scripts tests

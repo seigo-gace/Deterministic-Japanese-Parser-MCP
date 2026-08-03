@@ -7,10 +7,10 @@ intents:
     priority: 99
     enabled: true
   - id: REFERENCE-002
-    pattern: (?P<reference>直前の[^、。！？]+)
-    priority: 98
+    pattern: (?P<reference>直前の[^、。！？]+?)(?=(?:を|は|が|に|で|と|へ|より|から|まで|について|$))
+    priority: 100
     enabled: true
   - id: REFERENCE-003
-    pattern: (?P<reference>以前の[^、。！？]+)
-    priority: 97
+    pattern: (?P<reference>以前の[^、。！？]+?)(?=(?:を|は|が|に|で|と|へ|より|から|まで|について|$))
+    priority: 100
     enabled: true
