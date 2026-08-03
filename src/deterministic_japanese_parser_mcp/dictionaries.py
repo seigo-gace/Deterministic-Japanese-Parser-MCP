@@ -28,16 +28,44 @@ def _load_yaml_set(path: Path) -> dict:
 def _load_json_set(path: Path) -> dict:
     if path.is_file():
         return _load_json(path)
-    docs = [
-        _load_json(item)
-        for item in sorted(path.glob("*.json"))
-        if item.name != "manifest.json"
-    ]
-    output = {"version": "0", "entries": []}
-    for doc in docs:
-        output["version"] = doc.get("version", output["version"])
-        output["entries"].extend(doc.get("entries", []))
-    return output
+
+    control_path = path / "overrides.json"
+    controls = _load_json(control_path) if control_path.exists() else {}
+    by_expression: dict[str, dict] = {}
+    version = "0"
+
+    for item_path in sorted(path.glob("*.json")):
+        if item_path.name in {"manifest.json", "overrides.json"}:
+            continue
+        doc = _load_json(item_path)
+        version = doc.get("version", version)
+        for item in doc.get("entries", []):
+            by_expression[item["expression"]] = item
+
+    for expression, patterns in controls.get("pattern_overrides", {}).items():
+        if expression not in by_expression:
+            raise ValueError(
+                f"metaphor pattern override target is missing: {expression}"
+            )
+        item = dict(by_expression[expression])
+        merged_patterns = list(item.get("patterns", []))
+        for pattern in patterns:
+            if pattern not in merged_patterns:
+                merged_patterns.append(pattern)
+        item["patterns"] = merged_patterns
+        by_expression[expression] = item
+
+    for expression in controls.get("disabled_expressions", []):
+        by_expression.pop(expression, None)
+
+    for item in controls.get("replacement_entries", []):
+        by_expression[item["expression"]] = item
+
+    return {
+        "version": controls.get("version", version),
+        "entries": list(by_expression.values()),
+        "controls": controls,
+    }
 
 
 def _load_yaml_fragments(path: Path) -> list[dict]:
