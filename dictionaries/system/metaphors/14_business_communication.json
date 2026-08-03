@@ -1,0 +1,114 @@
+{
+  "version": "1.1.0",
+  "category": "14_business_communication",
+  "entries": [
+    {
+      "expression": "すり合わせる",
+      "interpretation": "関係者間で異なる前提・認識・条件・詳細を一致させる",
+      "context": ["認識", "要件", "条件", "仕様", "関係者"],
+      "context_policy": "required_any",
+      "domain": "合意形成",
+      "aliases": ["認識をすり合わせる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "話を通す",
+      "interpretation": "関係者へ事前説明し了解または承認を得られる状態にする",
+      "context": ["関係者", "上長", "承認", "組織", "担当"],
+      "context_policy": "required_any",
+      "domain": "承認",
+      "aliases": ["関係者に話を通す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "根回しする",
+      "interpretation": "正式な決定・会議の前に関係者へ説明と調整を行う",
+      "context": ["関係者", "会議", "承認", "決定", "組織"],
+      "context_policy": "required_any",
+      "domain": "事前調整",
+      "aliases": ["事前に根回しする"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "持ち帰る",
+      "interpretation": "その場では回答・決定せず内部確認や再検討へ戻す",
+      "context": ["会議", "回答", "確認", "検討", "決定"],
+      "context_policy": "required_any",
+      "domain": "保留",
+      "aliases": ["一度持ち帰る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "宿題にする",
+      "interpretation": "未解決事項を後続で回答・処理するTaskとして登録する",
+      "context": ["課題", "会議", "次回", "Task", "タスク"],
+      "context_policy": "required_any",
+      "domain": "Task管理",
+      "aliases": ["次回の宿題にする"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "腹を割る",
+      "interpretation": "建前や遠慮を外し率直な意見・事情を共有する",
+      "context": ["会話", "交渉", "本音", "意見", "事情"],
+      "context_policy": "required_any",
+      "domain": "コミュニケーション",
+      "aliases": ["腹を割って話す"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "落とし所を探る",
+      "interpretation": "対立する条件の間で合意可能な妥協点を探索する",
+      "context": ["交渉", "合意", "条件", "対立", "会議"],
+      "context_policy": "required_any",
+      "domain": "合意形成",
+      "aliases": ["着地点を探る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "風向きを見る",
+      "interpretation": "関係者・市場・状況の反応や方向を確認して判断時期を測る",
+      "context": ["市場", "組織", "状況", "反応", "関係者"],
+      "context_policy": "required_any",
+      "domain": "状況判断",
+      "aliases": ["周囲の反応を見る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "板挟みになる",
+      "interpretation": "相反する複数の要求・立場の間で自由に判断できない状態になる",
+      "context": ["要求", "関係者", "立場", "担当", "組織"],
+      "context_policy": "required_any",
+      "domain": "Conflict",
+      "aliases": ["両者の板挟みになる"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "声を拾う",
+      "interpretation": "利用者・現場・関係者の意見や要求を収集する",
+      "context": ["利用者", "現場", "意見", "要望", "関係者"],
+      "context_policy": "required_any",
+      "domain": "要求収集",
+      "aliases": ["現場の声を拾う"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "汲み取る",
+      "interpretation": "明示されていない意図・要望・感情を文脈から理解する",
+      "context": ["意図", "要望", "文脈", "気持ち", "要求"],
+      "context_policy": "required_any",
+      "domain": "読解",
+      "aliases": ["意図を汲み取る"],
+      "version": "1.1.0"
+    },
+    {
+      "expression": "口火を切る",
+      "interpretation": "複数人の中で最初に議論・作業・提案を開始する",
+      "context": ["議論", "会議", "作業", "提案", "発言"],
+      "context_policy": "required_any",
+      "domain": "開始",
+      "aliases": ["議論の口火を切る"],
+      "version": "1.1.0"
+    }
+  ]
+}
