@@ -32,6 +32,10 @@ def test_unqualified_slang_remains_ambiguous() -> None:
     response = engine.analyze(AnalyzeRequest(original_text="エグい。"))
     match = _feature(response, "SLANG-EGUI-001")
     assert match.status.value == "AMBIGUOUS"
+    assert set(match.candidate_ids) == {
+        "egui.negative-extreme",
+        "egui.positive-extreme",
+    }
     assert response.overall_status.value == "PARTIAL"
     assert any(
         item["type"] == "language_feature"
@@ -62,6 +66,13 @@ def test_modality_level_reaches_same_clause_proposition() -> None:
         item.force_level == 5
         for item in response.meaning_graph.propositions
     )
+
+
+def test_absolute_adverb_alone_is_not_a_level_five_command() -> None:
+    engine = ParserEngine()
+    response = engine.analyze(AnalyzeRequest(original_text="絶対に成功する。"))
+    ids = {item.entry_id for item in response.meaning_graph.language_features}
+    assert "MODALITY-COMMAND-LV5-001" not in ids
 
 
 def test_honorific_resolution_uses_social_context() -> None:
@@ -98,3 +109,16 @@ def test_longest_sentence_final_particle_wins() -> None:
     assert "PARTICLE-YONE-001" in ids
     assert "PARTICLE-NE-001" not in ids
     assert "PARTICLE-YO-001" not in ids
+
+
+def test_backchannel_exact_match_allows_terminal_punctuation() -> None:
+    engine = ParserEngine()
+    response = engine.analyze(AnalyzeRequest(original_text="はい。"))
+    assert _feature(response, "BACKCHANNEL-HAI-001").status.value == "RESOLVED"
+
+
+def test_sentence_final_particle_does_not_match_inside_verb() -> None:
+    engine = ParserEngine()
+    response = engine.analyze(AnalyzeRequest(original_text="死ね。"))
+    ids = {item.entry_id for item in response.meaning_graph.language_features}
+    assert "PARTICLE-NE-001" not in ids
