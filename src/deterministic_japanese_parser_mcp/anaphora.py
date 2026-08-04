@@ -74,13 +74,13 @@ class AnaphoraResolver:
             if value and value not in seen:
                 output.append((value, "current", rank))
                 seen.add(value)
-        for rank, value in enumerate(reversed(context)):
-            if value and value not in seen:
-                output.append((value, "context", rank))
-                seen.add(value)
         for rank, value in enumerate(reversed(known)):
             if value and value not in seen:
                 output.append((value, "known", rank))
+                seen.add(value)
+        for rank, value in enumerate(reversed(context)):
+            if value and value not in seen:
+                output.append((value, "context", rank))
                 seen.add(value)
         return output
 
@@ -102,9 +102,9 @@ class AnaphoraResolver:
         rank: int,
     ) -> int:
         base = {
+            "known": 110,
             "current": 100,
             "context": 70,
-            "known": 55,
         }[source]
         score = base - min(30, rank * 4)
         head = self._head(reference)
@@ -150,7 +150,8 @@ class AnaphoraResolver:
                 selected = pair[1] if len(pair) == 2 else None
                 candidates = pair
                 scores = {
-                    value: 200 - index for index, value in enumerate(reversed(pair))
+                    value: 200 - index
+                    for index, value in enumerate(reversed(pair))
                 }
                 reason = "ordered_pair:last" if selected else None
             else:
@@ -168,7 +169,8 @@ class AnaphoraResolver:
                 ranked = [item for item in ranked if item[0] > 0]
                 candidates = [item[1] for item in ranked[:max_candidates]]
                 scores = {
-                    value: score for score, value, _ in ranked[:max_candidates]
+                    value: score
+                    for score, value, _ in ranked[:max_candidates]
                 }
                 selected = None
                 reason = None
@@ -181,7 +183,7 @@ class AnaphoraResolver:
                         or (
                             top[0] >= 100
                             and top[0] - second >= 20
-                            and (head or top[2] == "current")
+                            and (head or top[2] in {"current", "known"})
                         )
                     ):
                         selected = top[1]
