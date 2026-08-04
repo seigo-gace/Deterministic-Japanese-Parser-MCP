@@ -1,0 +1,6 @@
+schema_version: "1.0.0"
+approved_fragments:
+  core-2026-08.yaml:
+    status: approved
+    source_sha256: afdb4802cdcb206451c91b698443d8c5e82d8425f6ee28d15cd616e4a8df8ee9
+    review_id: core-language-contract-2026-08
