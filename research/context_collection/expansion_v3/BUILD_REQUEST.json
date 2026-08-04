@@ -1,7 +1,7 @@
 {
-  "request_id": "context-v3-5000-2026-08-05T03:35:00+09:00",
+  "request_id": "context-v3-5000-2026-08-05T03:36:00+09:00",
   "execution_scope": "github-only",
-  "status": "RUN_REQUESTED",
+  "status": "READY_FOR_REOPEN_TRIGGER",
   "target_total": 5000,
   "existing_raw_count": 1145,
   "existing_normalized_unique_count": 1144,
