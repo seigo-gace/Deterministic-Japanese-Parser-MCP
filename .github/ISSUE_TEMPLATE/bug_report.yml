@@ -1,0 +1,86 @@
+name: Bug report / 不具合報告
+description: Report a reproducible parser, dictionary, MCP, validation, or packaging defect.
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        再現可能な不具合を報告してください。秘密情報、個人情報、非公開URLは記載しないでください。
+        Report a reproducible defect. Do not include secrets, personal data, or private URLs.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit SHA / VersionまたはCommit SHA
+      placeholder: "0.3.1 or fd90b083..."
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component / 対象Component
+      options:
+        - Parser / Meaning Graph
+        - Task Graph / External Action Guard
+        - Rule / Metaphor / Synonym dictionary
+        - Open Dictionary Supply Chain
+        - MCP server / stdio
+        - Packaging / Offline install
+        - Validation / Performance
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input / 入力
+      description: Provide the smallest input that reproduces the defect. Mask sensitive content.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result / 期待結果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result / 実際の結果
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps / 再現手順
+      placeholder: |
+        1. Install ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 実行環境
+      placeholder: "OS, Python version, installation method, MCP client"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or evidence / Log・Evidence
+      description: Remove secrets and personal data before attaching logs.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation / 確認
+      options:
+        - label: I searched existing issues for the same defect. / 同じ不具合が既に報告されていないか確認しました。
+          required: true
+        - label: I removed secrets, credentials, personal data, and private URLs. / 秘密情報・認証情報・個人情報・非公開URLを除外しました。
+          required: true
+        - label: This is not a vulnerability report. / 脆弱性の詳細報告ではありません。
+          required: true
