@@ -3,6 +3,7 @@
   "generated_at": "2026-08-05T04:13:11+09:00",
   "status": "CANDIDATE_TARGET_REACHED_STRICT",
   "total_entries": 5000,
+  "global_unique_surface_count": 5000,
   "existing_v2_raw_rows": 1145,
   "existing_v2_unique_surfaces": 1144,
   "merged_existing_duplicates": 1,
@@ -39,11 +40,31 @@
     "web-category-candidate": 704,
     "orthographic-variant-candidate": 406
   },
+  "provenance_groups": {
+    "retained_web_and_orthographic_candidates": 2638,
+    "productive_japanese_construction_expansions": 2362
+  },
   "license_counts": {
     "確認中": 1144,
     "CC BY-SA / source-dependent / 確認中": 3856
   },
-  "global_unique_surface_count": 5000,
+  "canonical_github_storage": {
+    "format": "nine Base64 parts of compact JSON inventory plus deterministic YAML rehydrator",
+    "inventory_xz_sha256": "2945cfb324df112001af3d1d72d8e529ba6ddb351419f9185b6e8f732f661db1",
+    "inventory_xz_bytes": 61404,
+    "base64_part_count": 9,
+    "inventory_rows": 5000,
+    "rehydrator": "data/generate_yaml_from_inventory.py",
+    "validator": "data/validate_generated.py",
+    "checksum_ledger": "data/inventory_checksums.json"
+  },
+  "local_full_yaml_archive": {
+    "file": "context-expansion-v3-5000.tar.xz",
+    "sha256": "06d832a6ce5669f95b4a3f84ad157fce6761e283c030ef410c9c622360cd6406",
+    "bytes": 478888,
+    "yaml_files": 5000,
+    "stored_in_github": false
+  },
   "all_review_status": "needs-evidence",
   "semantic_completion_claim_allowed": false,
   "runtime_promotion_allowed": false,
