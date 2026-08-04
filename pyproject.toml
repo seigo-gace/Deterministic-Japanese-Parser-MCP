@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deterministic-japanese-parser-mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "Non-AI deterministic Japanese Meaning Graph and action-safety MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [{name = "seigo-gace"}]
 dependencies = [
   "mcp>=1.28.1,<2",
