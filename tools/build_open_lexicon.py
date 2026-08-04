@@ -61,13 +61,7 @@ def lexical_base_record(record: LexiconRecord) -> LexiconRecord:
         raise ValueError(f"source checksum is required: {record.record_id}")
 
     # Automatic approval is limited to lexical identity information.
-    # Readings remain metadata; they are not promoted as orthographic aliases.
-    reading_set = set(record.readings)
-    record.surfaces = [
-        surface
-        for surface in record.surfaces
-        if surface == record.lemma or surface not in reading_set
-    ]
+    # Source importers must separate orthographic surfaces from readings.
     record.senses = []
     record.synonyms = []
     record.antonyms = []
