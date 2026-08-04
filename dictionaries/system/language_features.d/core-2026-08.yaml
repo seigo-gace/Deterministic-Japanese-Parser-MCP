@@ -1,0 +1,569 @@
+schema_version: "1.0.0"
+version: "2026-08-core-1"
+entries:
+  - entry_id: "SENSORY-KIRAKIRA-001"
+    feature_type: "onomatopoeia"
+    surfaces:
+      - value: "きらきら"
+        match_mode: token
+      - value: "キラキラ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "kirakira.visual.sparkling"
+        label: "小さく明るい光が反復して輝く"
+        parameters:
+          modality: "visual"
+          brightness: 4
+          repetition: 4
+          pleasantness: 3
+          intensity: 3
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-onomatopoeia-kirakira"
+
+  - entry_id: "SENSORY-GIRAGIRA-001"
+    feature_type: "onomatopoeia"
+    surfaces:
+      - value: "ぎらぎら"
+        match_mode: token
+      - value: "ギラギラ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "giragira.visual.glare"
+        label: "強く刺激的な光が反復して照りつける"
+        parameters:
+          modality: "visual"
+          brightness: 5
+          repetition: 4
+          pleasantness: -2
+          intensity: 5
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-002"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-onomatopoeia-giragira"
+
+  - entry_id: "SENSORY-SARASARA-001"
+    feature_type: "sensory_expression"
+    surfaces:
+      - value: "さらさら"
+        match_mode: token
+      - value: "サラサラ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "sarasara.touch.smooth-dry"
+        label: "乾いて滑らかで抵抗が少ない"
+        parameters:
+          modality: "tactile"
+          smoothness: 5
+          roughness: 0
+          dryness: 4
+          continuity: 4
+          intensity: 3
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-003"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-sensory-sarasara"
+
+  - entry_id: "SENSORY-ZARAZARA-001"
+    feature_type: "sensory_expression"
+    surfaces:
+      - value: "ざらざら"
+        match_mode: token
+      - value: "ザラザラ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "zarazara.touch.rough"
+        label: "表面の細かな凹凸が強く感じられる"
+        parameters:
+          modality: "tactile"
+          smoothness: 0
+          roughness: 5
+          dryness: 3
+          continuity: 4
+          intensity: 4
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-004"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-sensory-zarazara"
+
+  - entry_id: "SENSORY-FUWAFUWA-001"
+    feature_type: "sensory_expression"
+    surfaces:
+      - value: "ふわふわ"
+        match_mode: token
+      - value: "フワフワ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "fuwafuwa.touch.light-soft"
+        label: "軽く柔らかく空気を含んだ状態"
+        parameters:
+          modality: "tactile"
+          softness: 5
+          elasticity: 2
+          density: 1
+          weight: 1
+          intensity: 3
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-005"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-sensory-fuwafuwa"
+
+  - entry_id: "SENSORY-MOCHIMOCHI-001"
+    feature_type: "sensory_expression"
+    surfaces:
+      - value: "もちもち"
+        match_mode: token
+      - value: "モチモチ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "mochimochi.touch.elastic-soft"
+        label: "柔らかく弾力と粘りがある状態"
+        parameters:
+          modality: "tactile"
+          softness: 4
+          elasticity: 5
+          stickiness: 3
+          density: 3
+          intensity: 4
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-006"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-sensory-mochimochi"
+
+  - entry_id: "SENSORY-FUKAFUKA-001"
+    feature_type: "sensory_expression"
+    surfaces:
+      - value: "ふかふか"
+        match_mode: token
+      - value: "フカフカ"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "fukafuka.touch.deep-soft"
+        label: "厚みがあり沈み込む柔らかさ"
+        parameters:
+          modality: "tactile"
+          softness: 5
+          thickness: 5
+          elasticity: 3
+          density: 2
+          intensity: 4
+    register:
+      labels: ["general", "colloquial"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SENSORY-007"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-sensory-fukafuka"
+
+  - entry_id: "SLANG-EGUI-001"
+    feature_type: "slang"
+    surfaces:
+      - value: "エグい"
+        match_mode: token
+      - value: "えぐい"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "egui.negative-extreme"
+        label: "負担・困難・不快さが極端である"
+        required_any: ["スケジュール", "仕事", "負荷", "難易度", "金額", "量", "きつ"]
+        parameters:
+          polarity: "negative"
+          intensity: 5
+          target_type: "burden_or_difficulty"
+      - interpretation_id: "egui.positive-extreme"
+        label: "技術・成果・品質が並外れて高い"
+        required_any: ["技術", "完成度", "記録", "性能", "上手", "うま", "すご"]
+        parameters:
+          polarity: "positive"
+          intensity: 5
+          target_type: "skill_or_quality"
+    register:
+      labels: ["slang", "youth", "internet", "colloquial"]
+      formality: "casual"
+    fallback_status: "AMBIGUOUS"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-SLANG-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-slang-egui"
+
+  - entry_id: "MODALITY-REQUEST-LV1-001"
+    feature_type: "modality"
+    surfaces:
+      - value: "できれば"
+        match_mode: substring
+      - value: "可能なら"
+        match_mode: substring
+    interpretations:
+      - interpretation_id: "request.level-1"
+        label: "相手の拒否余地を広く残す控えめな依頼・希望"
+        parameters:
+          speech_act: "request"
+          force_level: 1
+          directness: "indirect"
+          politeness_level: 4
+          deontic_force: "none"
+    register:
+      labels: ["polite", "mitigated"]
+      formality: "neutral_to_formal"
+    fallback_status: "RESOLVED"
+    risk_class: "action"
+    evidence:
+      - evidence_id: "PROJECT-MODALITY-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-modality-request-lv1"
+
+  - entry_id: "MODALITY-REQUEST-LV2-001"
+    feature_type: "modality"
+    surfaces:
+      - value: "てもらえますか"
+        match_mode: sentence_final
+      - value: "ていただけますか"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "request.level-2"
+        label: "疑問形式を用いた丁寧な依頼"
+        parameters:
+          speech_act: "request"
+          force_level: 2
+          directness: "indirect"
+          politeness_level: 5
+          deontic_force: "none"
+    register:
+      labels: ["polite", "request"]
+      formality: "formal"
+    fallback_status: "RESOLVED"
+    risk_class: "action"
+    evidence:
+      - evidence_id: "PROJECT-MODALITY-002"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-modality-request-lv2"
+
+  - entry_id: "MODALITY-REQUEST-LV3-001"
+    feature_type: "modality"
+    surfaces:
+      - value: "してください"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "request.level-3"
+        label: "明示的で丁寧な実行依頼"
+        parameters:
+          speech_act: "request"
+          force_level: 3
+          directness: "direct"
+          politeness_level: 4
+          deontic_force: "obligation"
+    register:
+      labels: ["polite", "directive"]
+      formality: "neutral_to_formal"
+    fallback_status: "RESOLVED"
+    risk_class: "action"
+    evidence:
+      - evidence_id: "PROJECT-MODALITY-003"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-modality-request-lv3"
+
+  - entry_id: "MODALITY-COMMAND-LV4-001"
+    feature_type: "modality"
+    surfaces:
+      - value: "してくれ"
+        match_mode: sentence_final
+      - value: "やってくれ"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "command.level-4"
+        label: "強い直接指示"
+        parameters:
+          speech_act: "command"
+          force_level: 4
+          directness: "direct"
+          politeness_level: 1
+          deontic_force: "obligation"
+    register:
+      labels: ["direct", "strong"]
+      formality: "casual"
+    fallback_status: "RESOLVED"
+    risk_class: "action"
+    evidence:
+      - evidence_id: "PROJECT-MODALITY-004"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-modality-command-lv4"
+
+  - entry_id: "MODALITY-COMMAND-LV5-001"
+    feature_type: "modality"
+    surfaces:
+      - value: "絶対に"
+        match_mode: substring
+      - value: "するな"
+        match_mode: sentence_final
+      - value: "触るな"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "command.level-5"
+        label: "絶対命令・禁止・緊急性の高い指示"
+        parameters:
+          speech_act: "command"
+          force_level: 5
+          directness: "direct"
+          politeness_level: 0
+          deontic_force: "prohibition"
+    register:
+      labels: ["absolute", "strong"]
+      formality: "direct"
+    fallback_status: "RESOLVED"
+    risk_class: "action"
+    evidence:
+      - evidence_id: "PROJECT-MODALITY-005"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-modality-command-lv5"
+
+  - entry_id: "HONORIFIC-OSSHARU-001"
+    feature_type: "honorific"
+    surfaces:
+      - value: "おっしゃ"
+        match_mode: substring
+      - value: "仰っしゃ"
+        match_mode: substring
+    interpretations:
+      - interpretation_id: "honorific.respect.speak"
+        label: "話題人物の発話行為を高める尊敬語"
+        parameters:
+          honorific_classes: ["respectful"]
+          social_relation_status: "referent_elevated"
+    register:
+      labels: ["honorific", "respectful"]
+      formality: "formal"
+    fallback_status: "RESOLVED"
+    risk_class: "social"
+    evidence:
+      - evidence_id: "PROJECT-HONORIFIC-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-honorific-ossharu"
+
+  - entry_id: "HONORIFIC-MOUSU-001"
+    feature_type: "honorific"
+    surfaces:
+      - value: "申して"
+        match_mode: substring
+      - value: "申します"
+        match_mode: substring
+    interpretations:
+      - interpretation_id: "honorific-humble-1.speak"
+        label: "話者側の発話行為を低めて相手側を立てる謙譲語I"
+        required_social:
+          speaker_group_differs_addressee_group: true
+        parameters:
+          honorific_classes: ["humble_1"]
+          social_relation_status: "speaker_side_lowered"
+      - interpretation_id: "honorific-humble-2.speak"
+        label: "聞き手への丁重さを示す謙譲語II"
+        required_social:
+          formality: ["formal", "business"]
+        parameters:
+          honorific_classes: ["humble_2"]
+          social_relation_status: "addressee_respected"
+    register:
+      labels: ["honorific", "humble"]
+      formality: "formal"
+    fallback_status: "AMBIGUOUS"
+    risk_class: "social"
+    evidence:
+      - evidence_id: "PROJECT-HONORIFIC-002"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-honorific-mousu"
+
+  - entry_id: "HONORIFIC-MOUSHIAGERU-001"
+    feature_type: "honorific"
+    surfaces:
+      - value: "申し上げ"
+        match_mode: substring
+    interpretations:
+      - interpretation_id: "honorific-humble-1.moushiageru"
+        label: "行為の向かう相手を高める謙譲語I"
+        parameters:
+          honorific_classes: ["humble_1"]
+          social_relation_status: "target_elevated"
+    register:
+      labels: ["honorific", "humble"]
+      formality: "formal"
+    fallback_status: "RESOLVED"
+    risk_class: "social"
+    evidence:
+      - evidence_id: "PROJECT-HONORIFIC-003"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-honorific-moushiageru"
+
+  - entry_id: "BACKCHANNEL-HAI-001"
+    feature_type: "backchannel"
+    surfaces:
+      - value: "はい"
+        match_mode: exact
+      - value: "ええ"
+        match_mode: exact
+    interpretations:
+      - interpretation_id: "backchannel.acknowledgement"
+        label: "聞き取り・受領を示す相槌"
+        parameters:
+          interaction_functions: ["acknowledgement", "continue_signal"]
+          information_territory: "shared_interaction"
+    register:
+      labels: ["backchannel"]
+      formality: "neutral"
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-DISCOURSE-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-backchannel-hai"
+
+  - entry_id: "BACKCHANNEL-NARUHODO-001"
+    feature_type: "backchannel"
+    surfaces:
+      - value: "なるほど"
+        match_mode: token
+    interpretations:
+      - interpretation_id: "backchannel.understanding"
+        label: "理解・納得の成立を示す相槌"
+        parameters:
+          interaction_functions: ["understanding", "acknowledgement"]
+          information_territory: "newly_shared"
+    register:
+      labels: ["backchannel"]
+      formality: "neutral"
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-DISCOURSE-002"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-backchannel-naruhodo"
+
+  - entry_id: "PARTICLE-YONE-001"
+    feature_type: "sentence_final_particle"
+    surfaces:
+      - value: "よね"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "particle.yone.shared-confirmation"
+        label: "話者の提示と共有確認を同時に行う"
+        parameters:
+          interaction_functions: ["assertion", "alignment_request"]
+          information_territory: "assumed_shared"
+    register:
+      labels: ["sentence_final_particle", "colloquial"]
+      formality: "casual_to_neutral"
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-DISCOURSE-003"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-particle-yone"
+
+  - entry_id: "PARTICLE-YO-001"
+    feature_type: "sentence_final_particle"
+    surfaces:
+      - value: "よ"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "particle.yo-information-offer"
+        label: "聞き手に新情報として提示する"
+        parameters:
+          interaction_functions: ["information_offer", "assertion"]
+          information_territory: "speaker_owned"
+    register:
+      labels: ["sentence_final_particle", "colloquial"]
+      formality: "casual_to_neutral"
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-DISCOURSE-004"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-particle-yo"
+
+  - entry_id: "PARTICLE-NE-001"
+    feature_type: "sentence_final_particle"
+    surfaces:
+      - value: "ね"
+        match_mode: sentence_final
+    interpretations:
+      - interpretation_id: "particle.ne-alignment"
+        label: "共有認識や同意を求める"
+        parameters:
+          interaction_functions: ["alignment_request", "sharedness_check"]
+          information_territory: "shared_or_addressee"
+    register:
+      labels: ["sentence_final_particle", "colloquial"]
+      formality: "casual_to_neutral"
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-DISCOURSE-005"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "core-particle-ne"
