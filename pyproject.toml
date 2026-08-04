@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "wheel", "PyYAML>=6.0.3,<7"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -43,7 +43,10 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/synonyms.d" = ["dictionaries/system/synonyms.d/*.yaml"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/task_templates.d" = ["dictionaries/system/task_templates.d/*.yaml"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/language_features.d" = ["dictionaries/system/language_features.d/*.yaml"]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = ["dictionaries/system/compiled/*.json"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/language_features.d" = [
+  "dictionaries/system/compiled/language_features.d/manifest.json",
+  "dictionaries/system/compiled/language_features.d/*.b64",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/cc0" = [
   "dictionaries/system/lexicon.d/cc0/*.jsonl",
   "dictionaries/system/lexicon.d/cc0/*.jsonl.gz",
