@@ -44,10 +44,11 @@ def test_ambiguous_bare_sense_remains_unselected():
     proposition = next(
         item
         for item in response.meaning_graph.propositions
-        if item.surface_predicate == "落ちた"
+        if item.sense_candidates
     )
     assert proposition.sense_id is None
     assert proposition.sense_confidence == 0.0
+    assert not proposition.executable_candidate
 
 
 def test_ellipsis_inherits_previous_explicit_target():
