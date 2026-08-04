@@ -1,6 +1,6 @@
 VERSION = {
     "schema_version": "2.0.0",
-    "server_version": "0.3.0",
+    "server_version": "0.3.1",
     "dictionary_version": "1.2.0",
     "rule_version": "1.2.0",
     "grammar_kernel_version": "1.0.0",
@@ -9,6 +9,7 @@ VERSION = {
     "parser_dictionary_version": "SudachiDict-core-20260428",
     "metaphor_dictionary_version": "1.2.0",
     "task_definition_version": "2.2.0",
-    "dictionary_supply_schema_version": "1.0.0",
+    "dictionary_supply_schema_version": "1.1.0",
     "proposal_schema_version": "2.0.0",
+    "open_lexicon_accuracy_contract_version": "1.0.0",
 }

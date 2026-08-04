@@ -43,9 +43,9 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 | Gold Corpus | **649** |
 | Open lexical records | **0** |
 
-`Open lexical records`は、無料辞書から取得した全候補数ではなく、Source・License・意味・衝突・Gold・全回帰・性能検証を通過し、`review_status=approved`でRuntime Packへ正式昇格した件数です。
+`Open lexical records`は、Source checkoutに固定収録している外部辞書Record数です。巨大な未審査Dumpはmainへ固定せず、Release Readinessで公式Sourceから加工・照合したSnapshotをWheelへ同梱します。
 
-無料辞書資源のImporterと昇格Pipelineは実装済みですが、このCommitでは外部辞書の全Dumpを無審査でRepositoryへ収録していません。
+検証済みRelease Snapshotは、公式JMdictから加工した**120,000 Record**です。Runtimeは外部辞書へ接続せず、加工済みSnapshotを完全Offlineで読み込みます。
 
 ### 2026年8月の包括辞書拡張
 
@@ -94,7 +94,7 @@ RuntimeでLLMや外部AIを呼び出しません。Sudachiによる形態情報�
 |---|---|---|
 | Japanese Wiktionary | 日本語語釈、品詞、慣用句、類義語、関連語、活用候補 | CC BY-SA / GFDL |
 | Wikidata Lexemes | Lemma、Form、Sense、Lexical Category、構造化関係 | CC0 |
-| JMdict | 表記、読み、品詞、分野、用法、Cross Reference | CC BY-SA |
+| JMdict | 表記、読み、読み制約、品詞、分野、用法、Cross Reference | CC BY-SA |
 | SudachiDict source CSV | 表記、読み、品詞、正規化形 | Apache 2.0 |
 | Masked unresolved logs | 実利用上の不足候補 | Review専用・公開Pack昇格禁止 |
 
@@ -139,13 +139,39 @@ promoter.py --apply --performance
     ├─ Review済みGold
     ├─ Source Manifest
     ├─ README／Manifest／Version同期
-    ├─ 全回帰・Offline・性能検証
+    ├─ 全回帰・Offline・正確性・性能検証
     └─ Failure時の全Rollback
 ```
 
 詳細な実行Command：[`tools/README.md`](tools/README.md)
 
 設計・Review・License・Rollback契約：[`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+
+### 12万語Open Lexiconの正確性検証
+
+旧Snapshotを実データで再検証した結果、読みをCanonical別名へ混ぜたことと、日本語の任意部分文字列を検索したことにより、通常文から無関係な語彙候補が発生する問題を確認しました。旧Snapshotでは`UIは維持する。APIだけ変更しろ。`だけで**73件**の無関係候補が発生していました。
+
+現在は次へ修正しています。
+
+- JMdictの1 Entryを1 Source Recordとして保持
+- 表記と読みを分離し、`re_restr`／`re_nokanji`を保存
+- 読みをCanonical Aliasへ自動昇格しない
+- Open Lexiconを完全一致専用とし、通常文の部分一致検索から分離
+- 意味・用法をReviewしたProject独自Synonymだけを文中検索
+- 別語である短い語と長い包含語を、文字列包含だけで同一視しない
+
+公式JMdictからBuildした120,000 Recordを全件照合し、次を確認しました。
+
+| Accuracy Gate | 結果 |
+|---|---:|
+| Source Fidelity | **120,000 / 120,000** |
+| Exact Surface Lookup | **154,918 / 154,918** |
+| 同形異義Surface | **962件、全候補保持** |
+| 包含語Precision | **20,000 / 20,000** |
+| 文中部分一致汚染 | **20,000 / 20,000、誤一致0** |
+| Accuracy Error | **0** |
+
+詳細：[`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
 
 ### Source別Importer
 
@@ -164,6 +190,13 @@ tools/dictionary_supply/importers/
   "record_id": "...",
   "lemma": "...",
   "readings": [],
+  "reading_mappings": [
+    {
+      "reading": "...",
+      "restricted_to": [],
+      "no_kanji": false
+    }
+  ],
   "surfaces": [],
   "part_of_speech": [],
   "lexical_category": null,
@@ -187,7 +220,7 @@ tools/dictionary_supply/importers/
 }
 ```
 
-同じ語でもReadingやSenseが異なる場合は一つの意味へ潰しません。
+同じJMdict Entryの表記と読みをCross Productへ展開しません。読みはMetadataとして保持し、表記Aliasには自動昇格しません。同じ完全一致Surfaceが複数Canonicalを持つ場合は候補集合として保持します。
 
 ### License別Runtime Pack
 
@@ -208,7 +241,7 @@ MITのProgram Codeと外部辞書DataのLicenseを同一扱いにしません。
 - License不明
 - Source ID欠落
 - 未解決のSurface／Meaning衝突
-- Gold、全回帰、External Action、安全性、性能Gateの未通過
+- Gold、全回帰、External Action、安全性、正確性、性能Gateの未通過
 
 ### Transactional Promotion
 
@@ -226,7 +259,7 @@ python tools/promoter.py \
   --performance
 ```
 
-書込前に対象FileをBackupし、Validator、pytest、compileall、20倍辞書、Astera call-throughのいずれかが失敗した場合は、新規Fileを削除し、変更前のFileをByte単位で復元します。
+書込前に対象FileをBackupし、Validator、pytest、compileall、正確性Gate、20倍辞書、Astera call-throughのいずれかが失敗した場合は、新規Fileを削除し、変更前のFileをByte単位で復元します。
 
 ### Pattern・類義語・Workflow
 
@@ -273,7 +306,7 @@ dictionaries/system/
     └── *.yaml
 ```
 
-Loaderは正本File、Fragment、承認済みLexicon Packを決定論的に読み込みます。Open Lexiconの承認済みSurface／SynonymはCanonicalizerへ統合されます。一つのSurfaceが複数Canonicalを持つ場合は衝突を隠さず候補集合として保持します。
+Loaderは正本File、Fragment、承認済みLexicon Packを決定論的に読み込みます。Open Lexiconの表記は完全一致専用として統合し、読みを別名へ昇格せず、通常文の部分文字列検索へ混ぜません。意味・用法をReviewしたProject独自Synonymだけを文中検索します。一つの完全一致Surfaceが複数Canonicalを持つ場合は衝突を隠さず候補集合として保持します。
 
 ### 設計原則
 
@@ -412,18 +445,19 @@ Asteraの回答処理全体目標は**100ms以内**です。このうち本MCP�
 
 Process起動、辞書読込、Regex Compile、Index構築、Sudachi初期化、Schema CompileはReady前に完了させます。
 
-### 辞書量と速度
+### 辞書量・正確性・速度
 
 辞書を毎回全走査しません。
 
 - Literal Rule／Metaphor：Aho-Corasick型Index
 - 活用・機能表現：事前Compileされた決定表
 - 述語・Domain辞書：Key別Index
-- Lexicon Surface／Synonym：Canonical Index
+- Review済みSynonym：Canonical Trie
+- Open Lexicon：完全一致Index
 - User辞書：System辞書と分離
 - 実行中の辞書：Version固定Snapshot
 
-「辞書が無限に増えても計算量が変わらない」とは保証しません。Releaseでは、非一致大量辞書、同一入力への大量一致、意味衝突、Domain衝突、Context増加、Graph Node増加、Astera call-throughを検証します。
+「辞書が無限に増えても計算量が変わらない」とは保証しません。Releaseでは、Source全件一致、Exact Recall、包含語Precision、文中汚染、非一致大量辞書、同一入力への大量一致、意味衝突、Domain衝突、Context増加、Graph Node増加、Astera call-throughを検証します。
 
 ### Install
 
@@ -497,16 +531,35 @@ python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
 python -m compileall -q src tools scripts tests
 ```
 
+実JMdict Accuracy GateはRelease Readinessで次を実行します。
+
+```bash
+python tools/open_lexicon_accuracy.py \
+  --source downloads/JMdict_e.gz \
+  --lexicon-root dictionaries/system/lexicon.d \
+  --manifest reports/open-lexicon-manifest.json \
+  --minimum-records 100000 \
+  --containment-cases 20000 \
+  --pollution-cases 20000 \
+  --output reports/open-lexicon-accuracy.json
+```
+
 GitHub Actionsでは次を検証します。
 
 - Python 3.10／3.12
 - Japanese Wiktionary／Wikidata Lexemes／JMdict／Sudachi Importer Fixture
 - Common Lexicon Schema Round Trip
+- JMdict Entry／Reading Restriction保持
 - Proposal Source／License Evidence
 - Review GateとConflict Resolution
 - Private Logの公開Pack昇格拒否
 - License別Runtime Pack
 - Runtime Lexicon Provenance
+- 公式JMdictと加工後Packの全Record一致
+- 全Exact Surface Lookup
+- 同形異義候補保持
+- 20,000包含語Precision
+- 20,000文中部分一致汚染
 - MCP stdio E2E
 - 452表現・339 Rule・100 Canonical Group・63 Template・42 Workflow・649 Goldの既存回帰
 - Indexed／Exhaustive意味同値
@@ -527,12 +580,13 @@ GitHub Actionsでは次を検証します。
 - Logの秘密情報・個人情報をMaskする。
 - 辞書Proposalを自動採用しない。
 - Source、License、Checksum、Attributionを失ったRecordを読み込まない。
+- 読みを表記Aliasとして無審査昇格しない。
 
 ### 現在の限界
 
 本MCPは、任意の日本語を人間と同等に理解すると保証するものではありません。現在のMeaning Graphは、Version固定された文法・Rule・辞書で根拠を説明できる範囲を構造化します。皮肉、暗黙の常識、複雑なゼロ代名詞、複数段落の談話解釈、地域差・世代差が大きい俗語など、確定できない内容を推測で埋めません。
 
-Open Dictionary Supply Chainは大量候補の取得・変換・審査・昇格を自動化しますが、辞書の語釈を自動的に実行可能Intentへ変換するものではありません。意味・Scope・安全性を確認したProposalだけを昇格します。
+Open Dictionary Supply Chainは大量候補の取得・変換・審査・昇格を自動化しますが、辞書の語釈を自動的に実行可能Intentへ変換するものではありません。12万語Accuracy Contractは語彙識別情報の正確性を検証するものであり、12万語すべての語義・語用理解を保証するものではありません。意味・Scope・安全性を確認したProposalだけを意味辞書へ昇格します。
 
 ### Contributing
 
@@ -569,7 +623,9 @@ It does not call an LLM or external AI at runtime. It combines Sudachi morpholog
 | Gold Corpus cases | **649** |
 | Open lexical records | **0** |
 
-`Open lexical records` counts only records that have been reviewed, promoted into runtime packs, and passed provenance, regression, action-safety, offline, and performance gates. Importer output and unreviewed proposals are not counted as runtime data.
+`Open lexical records` counts external records committed to the source checkout. Large unreviewed dumps are not pinned to main. Release Readiness builds, transforms, audits, and bundles an offline snapshot from the official source.
+
+The verified release snapshot contains **120,000 JMdict records**. Runtime never connects to the external dictionary.
 
 ### Open dictionary supply chain
 
@@ -593,12 +649,31 @@ Open dump or masked log
   → Gold candidate matrix
   → mandatory human review
   → transactional promotion
-  → full regression, offline and performance gates
+  → accuracy, regression, offline and performance gates
 ```
 
 Detailed commands: [`tools/README.md`](tools/README.md)
 
 Architecture and review contract: [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+
+### Verified accuracy of the 120k open lexicon
+
+A full-data audit found that the previous snapshot mixed readings into canonical aliases and scanned arbitrary Japanese substrings. As a concrete failure, `UIは維持する。APIだけ変更しろ。` produced **73 unrelated lexical candidates**.
+
+The corrected design keeps one source-traceable record per JMdict entry, preserves `re_restr` and `re_nokanji`, never promotes readings as orthographic aliases, and isolates open lexical identities from phrase substring scans. Only project-authored, meaning-reviewed synonym groups remain eligible for phrase scanning.
+
+The release gate independently compared the official JMdict dump with the generated runtime pack:
+
+| Accuracy gate | Result |
+|---|---:|
+| Source fidelity | **120,000 / 120,000** |
+| Exact surface lookup | **154,918 / 154,918** |
+| Ambiguous exact surfaces | **962, all candidates retained** |
+| Containment precision | **20,000 / 20,000** |
+| Sentence substring pollution | **0 errors in 20,000 cases** |
+| Accuracy errors | **0** |
+
+Details: [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
 
 ### Provenance and licensing
 
@@ -618,7 +693,7 @@ Private logs, unknown licenses, unreviewed records, unresolved collisions, and r
 
 ### Transactional promotion
 
-Promotion is dry-run by default. With `--apply --performance`, it writes license-separated packs and dictionary fragments, creates reviewed Gold cases and source manifests, updates public counts and versions, and runs the full validator, test, offline, 20x-scale, and Astera latency contracts.
+Promotion is dry-run by default. With `--apply --performance`, it writes license-separated packs and dictionary fragments, creates reviewed Gold cases and source manifests, updates public counts and versions, and runs the full validator, test, accuracy, offline, 20x-scale, and Astera latency contracts.
 
 Any failure removes new files and restores every changed file byte-for-byte.
 
@@ -635,6 +710,7 @@ Any failure removes new files and restores every changed file byte-for-byte.
 - Return the same Semantic Hash for the same input, context, and version.
 - Never auto-promote generated dictionary proposals.
 - Never download dictionary data at runtime.
+- Never auto-promote readings as orthographic aliases.
 
 ### Architecture
 
@@ -681,11 +757,17 @@ CI validates:
 - Python 3.10 and 3.12
 - all four open-dictionary importer fixtures
 - common lexicon schema round-trip
+- JMdict entry identity and reading restrictions
 - proposal source and license evidence
 - review and conflict-resolution gates
 - rejection of private-log promotion
 - license-separated runtime packs
 - runtime lexicon provenance
+- all 120,000 generated records against the official JMdict source
+- all exact lexical surfaces
+- ambiguous exact-surface candidate retention
+- 20,000 containment precision cases
+- 20,000 sentence substring-pollution cases
 - MCP stdio end-to-end behavior
 - existing totals and Gold regression
 - indexed/exhaustive semantic parity
@@ -744,7 +826,7 @@ python -m compileall -q src tools scripts tests
 
 This project does not claim human-level understanding of arbitrary Japanese. It deterministically structures meaning supported by versioned grammar, rules, dictionaries, and context, and fails closed when quotation, reference, scope, discourse, or pragmatic intent cannot be resolved safely.
 
-The supply chain automates large-scale collection, conversion, review preparation, testing, and promotion. It does not treat every dictionary definition as an executable intent. Only reviewed entries with sufficient meaning, scope, provenance, and safety evidence are promoted.
+The supply chain automates large-scale collection, conversion, review preparation, testing, and promotion. The 120k accuracy contract verifies lexical identity data; it does not claim semantic or pragmatic understanding of every imported word. Only reviewed entries with sufficient meaning, scope, provenance, and safety evidence are promoted into semantic dictionaries.
 
 ### License
 

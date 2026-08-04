@@ -9,7 +9,7 @@ def _compact(text: str) -> str:
 
 
 class Canonicalizer:
-    """Map surfaces to canonical groups with a cached deterministic prefix trie."""
+    """Map reviewed synonyms and exact-only lexical identities deterministically."""
 
     _CACHE: dict[str, tuple[dict, dict, int]] = {}
 
@@ -24,24 +24,28 @@ class Canonicalizer:
             ) = cached
             return
 
+        exact_only = set(synonyms.get("exact_only_groups", []))
         surface_to_ids: dict[str, set[str]] = {}
+        trie: dict = {}
+        maximum = 0
         for canonical, surfaces in synonyms.get("groups", {}).items():
             for surface in [canonical, *(surfaces or [])]:
                 compact = _compact(surface)
-                if compact:
-                    surface_to_ids.setdefault(compact, set()).add(canonical)
+                if not compact:
+                    continue
+                surface_to_ids.setdefault(compact, set()).add(canonical)
+                if canonical in exact_only:
+                    continue
+                maximum = max(maximum, len(compact))
+                node = trie
+                for char in compact:
+                    node = node.setdefault(char, {})
+                node.setdefault(_TERMINAL, set()).add(canonical)
+
         self.surface_to_ids = {
             surface: frozenset(sorted(ids))
             for surface, ids in surface_to_ids.items()
         }
-        trie: dict = {}
-        maximum = 0
-        for surface, ids in self.surface_to_ids.items():
-            maximum = max(maximum, len(surface))
-            node = trie
-            for char in surface:
-                node = node.setdefault(char, {})
-            node[_TERMINAL] = ids
         self.trie = trie
         self.maximum_surface_length = maximum
         if cache_key:
@@ -75,17 +79,27 @@ class Canonicalizer:
         )
         return left_ok and right_ok
 
+    def exact_ids(self, text: str) -> frozenset[str]:
+        compact = _compact(text)
+        if not compact:
+            return frozenset()
+        return self.surface_to_ids.get(compact, frozenset())
+
     def ids(self, text: str) -> frozenset[str]:
         compact = _compact(text)
         if not compact:
             return frozenset()
-        found: set[str] = set()
+        found: set[str] = set(self.exact_ids(compact))
+        if not self.trie:
+            return frozenset(sorted(found))
+
         for start in range(len(compact)):
             node = self.trie
             end_limit = min(
                 len(compact),
                 start + self.maximum_surface_length,
             )
+            longest_ids: frozenset[str] | set[str] | None = None
             for index in range(start, end_limit):
                 node = node.get(compact[index])
                 if node is None:
@@ -100,7 +114,9 @@ class Canonicalizer:
                         end,
                         surface,
                     ):
-                        found.update(terminal)
+                        longest_ids = terminal
+            if longest_ids:
+                found.update(longest_ids)
         return frozenset(sorted(found))
 
     def related(self, left: str, right: str) -> bool:
@@ -108,10 +124,22 @@ class Canonicalizer:
         right_compact = _compact(right)
         if not left_compact or not right_compact:
             return False
+
+        left_exact = self.exact_ids(left_compact)
+        right_exact = self.exact_ids(right_compact)
+        if left_exact and right_exact:
+            return bool(left_exact.intersection(right_exact))
+
         left_ids = self.ids(left_compact)
         right_ids = self.ids(right_compact)
         if left_ids and right_ids and left_ids.intersection(right_ids):
             return True
+
+        # An exact lexical identity must not be equated to a different longer or
+        # shorter lexical identity merely because one string contains the other.
+        if left_exact or right_exact:
+            return False
+
         minimum = min(len(left_compact), len(right_compact))
         return minimum >= 2 and (
             left_compact in right_compact

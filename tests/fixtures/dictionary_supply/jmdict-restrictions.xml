@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE JMdict [
+  <!ENTITY v5k "Godan verb with ku ending">
+  <!ENTITY arch "archaic">
+]>
+<JMdict>
+  <entry>
+    <ent_seq>2000000</ent_seq>
+    <k_ele><keb>開く</keb></k_ele>
+    <k_ele><keb>空く</keb></k_ele>
+    <r_ele>
+      <reb>ひらく</reb>
+      <re_restr>開く</re_restr>
+    </r_ele>
+    <r_ele>
+      <reb>あく</reb>
+      <re_restr>空く</re_restr>
+    </r_ele>
+    <r_ele>
+      <reb>あき</reb>
+      <re_nokanji/>
+    </r_ele>
+    <sense>
+      <pos>&v5k;</pos>
+      <misc>&arch;</misc>
+      <gloss xml:lang="eng">to open</gloss>
+    </sense>
+  </entry>
+</JMdict>

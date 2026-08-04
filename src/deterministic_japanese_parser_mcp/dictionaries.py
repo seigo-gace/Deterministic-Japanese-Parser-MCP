@@ -122,6 +122,7 @@ def _load_lexicon_set(path: Path) -> dict:
         "version": "0",
         "record_count": 0,
         "groups": {},
+        "exact_only_groups": [],
         "source_versions": [],
     }
     if not path.exists():
@@ -168,6 +169,7 @@ def _load_lexicon_set(path: Path) -> dict:
                 version = source.get("version")
                 if version:
                     versions.add(version)
+    output["exact_only_groups"] = sorted(output["groups"])
     output["source_versions"] = sorted(versions)
     if versions:
         output["version"] = "+".join(sorted(versions))
@@ -210,16 +212,22 @@ def merge_templates(system: dict, user: dict) -> dict:
 
 def merge_synonyms(*sources: dict) -> dict:
     groups: dict[str, list[str]] = {}
+    exact_only_groups: set[str] = set()
     version = "0"
     for source in sources:
         if source.get("version"):
             version = source.get("version", version)
+        exact_only_groups.update(source.get("exact_only_groups", []))
         for canonical, values in source.get("groups", {}).items():
             bucket = groups.setdefault(canonical, [])
             for value in [canonical, *(values or [])]:
                 if value and value not in bucket:
                     bucket.append(value)
-    return {"version": version, "groups": groups}
+    return {
+        "version": version,
+        "groups": groups,
+        "exact_only_groups": sorted(exact_only_groups),
+    }
 
 
 def _dictionary_fingerprint(system_dir: Path, user_dir: Path) -> tuple:
@@ -288,8 +296,11 @@ class DictionaryBundle:
         self.lexicon = {
             key_name: value
             for key_name, value in system_lexicon.items()
-            if key_name != "groups"
+            if key_name not in {"groups", "exact_only_groups"}
         }
+        self.lexicon["exact_only_group_count"] = len(
+            system_lexicon["exact_only_groups"]
+        )
         snapshot = (
             self.rules,
             self.metaphors,
