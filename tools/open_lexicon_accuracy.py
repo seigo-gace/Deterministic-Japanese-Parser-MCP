@@ -6,6 +6,7 @@ import argparse
 from collections import defaultdict
 import gzip
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -15,11 +16,23 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = ROOT / "tools"
-for item in (ROOT / "src", TOOLS_ROOT):
-    if str(item) not in sys.path:
-        sys.path.insert(0, str(item))
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
 
-from deterministic_japanese_parser_mcp.canonical import Canonicalizer
+# Load the standalone canonical matcher without importing the package __init__.
+# This keeps the source-fidelity audit independent from runtime dependencies and
+# allows it to run before wheel/dependency installation in Release Readiness.
+_CANONICAL_PATH = ROOT / "src/deterministic_japanese_parser_mcp/canonical.py"
+_CANONICAL_SPEC = importlib.util.spec_from_file_location(
+    "djpmcp_open_lexicon_accuracy_canonical",
+    _CANONICAL_PATH,
+)
+if _CANONICAL_SPEC is None or _CANONICAL_SPEC.loader is None:
+    raise RuntimeError(f"cannot load canonical matcher: {_CANONICAL_PATH}")
+_CANONICAL_MODULE = importlib.util.module_from_spec(_CANONICAL_SPEC)
+_CANONICAL_SPEC.loader.exec_module(_CANONICAL_MODULE)
+Canonicalizer = _CANONICAL_MODULE.Canonicalizer
+
 from dictionary_supply.common import LexiconRecord, read_jsonl, sha256_file
 
 
@@ -129,9 +142,7 @@ def compare_record(
             f"expected={expected['source_id']} actual={record.source.source_id}"
         )
     if record.source.source_sha256 != source_sha256:
-        errors.append(
-            f"{record.record_id}: source SHA mismatch"
-        )
+        errors.append(f"{record.record_id}: source SHA mismatch")
     if record.review_status != "approved":
         errors.append(
             f"{record.record_id}: review_status={record.review_status}"
