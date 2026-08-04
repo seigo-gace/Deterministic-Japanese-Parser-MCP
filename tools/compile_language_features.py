@@ -13,9 +13,7 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-_LITERAL_INDEX_PATH = (
-    ROOT / "src/deterministic_japanese_parser_mcp/literal_index.py"
-)
+_LITERAL_INDEX_PATH = ROOT / "src/deterministic_japanese_parser_mcp/literal_index.py"
 _spec = importlib.util.spec_from_file_location(
     "djpmcp_literal_index_build", _LITERAL_INDEX_PATH
 )
@@ -33,7 +31,7 @@ ALLOWED_FEATURE_TYPES = {
 }
 ALLOWED_MATCH_MODES = {"substring", "token", "sentence_final", "exact"}
 ALLOWED_FALLBACKS = {"RESOLVED", "AMBIGUOUS", "UNSUPPORTED"}
-PART_SIZE = 4096
+PART_SIZE = 12000
 
 
 def load_entries(source_dir: Path) -> list[dict[str, Any]]:
@@ -81,10 +79,7 @@ def load_entries(source_dir: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"interpretations are required: {entry_id}")
             for interpretation in interpretations:
                 interpretation_id = interpretation.get("interpretation_id")
-                if (
-                    not interpretation_id
-                    or interpretation_id in interpretation_ids
-                ):
+                if not interpretation_id or interpretation_id in interpretation_ids:
                     raise ValueError(
                         "missing or duplicate interpretation_id: "
                         f"{interpretation_id}"
@@ -111,9 +106,7 @@ def load_entries(source_dir: Path) -> list[dict[str, Any]]:
                     "evidence_id", "dataset", "version", "license", "source_id"
                 ):
                     if not item.get(key):
-                        raise ValueError(
-                            f"evidence.{key} is required: {entry_id}"
-                        )
+                        raise ValueError(f"evidence.{key} is required: {entry_id}")
             entry["source_fragment"] = path.name
             entries.append(entry)
     return sorted(entries, key=lambda item: item["entry_id"])
@@ -129,10 +122,7 @@ def compile_payload(source_dir: Path) -> dict[str, Any]:
                 "match_mode": surface["match_mode"],
             })
     surface_map = {
-        surface: sorted(
-            values,
-            key=lambda item: (item["entry_id"], item["match_mode"]),
-        )
+        surface: sorted(values, key=lambda item: (item["entry_id"], item["match_mode"]))
         for surface, values in sorted(surface_map.items())
     }
     index = LiteralIndex(surface_map)
@@ -150,10 +140,7 @@ def compile_payload(source_dir: Path) -> dict[str, Any]:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    return {
-        **core,
-        "content_sha256": hashlib.sha256(encoded).hexdigest(),
-    }
+    return {**core, "content_sha256": hashlib.sha256(encoded).hexdigest()}
 
 
 def payload_bytes(payload: dict[str, Any]) -> bytes:
@@ -232,9 +219,7 @@ def check_output(output_dir: Path, files: dict[str, str]) -> None:
             encoding="ascii" if name.endswith(".b64") else "utf-8"
         )
         if actual != expected:
-            raise RuntimeError(
-                f"compiled language feature asset is stale: {name}"
-            )
+            raise RuntimeError(f"compiled language feature asset is stale: {name}")
 
 
 def main() -> int:
@@ -247,9 +232,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=(
-            ROOT / "dictionaries/system/compiled/language_features.d"
-        ),
+        default=ROOT / "dictionaries/system/compiled/language_features.d",
     )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
