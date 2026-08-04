@@ -110,7 +110,7 @@ class LanguageFeatureMatch(BaseModel):
     interpretation_id: str | None = None
     interpretation: str | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
-    register: dict[str, Any] = Field(default_factory=dict)
+    register_profile: dict[str, Any] = Field(default_factory=dict)
     source_span: OriginalSpan
     status: ItemStatus = ItemStatus.RESOLVED
     candidate_ids: list[str] = Field(default_factory=list)
