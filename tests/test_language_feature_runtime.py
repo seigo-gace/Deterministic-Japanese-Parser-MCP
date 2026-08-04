@@ -115,6 +115,8 @@ def test_backchannel_exact_match_allows_terminal_punctuation() -> None:
     engine = ParserEngine()
     response = engine.analyze(AnalyzeRequest(original_text="はい。"))
     assert _feature(response, "BACKCHANNEL-HAI-001").status.value == "RESOLVED"
+    assert response.overall_status.value == "COMPLETE"
+    assert response.unsupported_elements == []
 
 
 def test_sentence_final_particle_does_not_match_inside_verb() -> None:
