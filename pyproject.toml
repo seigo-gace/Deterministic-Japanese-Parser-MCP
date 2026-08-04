@@ -42,6 +42,8 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/rules" = ["dictionaries/system/rules/*.yaml"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/synonyms.d" = ["dictionaries/system/synonyms.d/*.yaml"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/task_templates.d" = ["dictionaries/system/task_templates.d/*.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/language_features.d" = ["dictionaries/system/language_features.d/*.yaml"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = ["dictionaries/system/compiled/*.json"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/cc0" = [
   "dictionaries/system/lexicon.d/cc0/*.jsonl",
   "dictionaries/system/lexicon.d/cc0/*.jsonl.gz",
