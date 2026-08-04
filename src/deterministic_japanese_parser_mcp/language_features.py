@@ -53,6 +53,38 @@ def _token_exact(
     )
 
 
+def _token_sequence_exact(
+    tokens: list[Token],
+    surface: str,
+    start: int,
+    end: int,
+    mapping,
+    original_text: str,
+) -> bool:
+    original_span = span_to_original(start, end, mapping, original_text)
+    selected = [
+        token
+        for token in tokens
+        if token.span.start >= original_span.start
+        and token.span.end <= original_span.end
+    ]
+    if not selected:
+        return False
+    selected.sort(key=lambda item: (item.span.start, item.span.end))
+    if selected[0].span.start != original_span.start:
+        return False
+    if selected[-1].span.end != original_span.end:
+        return False
+    if any(
+        left.span.end != right.span.start
+        for left, right in zip(selected, selected[1:])
+    ):
+        return False
+    surfaces = "".join(token.surface for token in selected)
+    normalized = "".join(token.normalized for token in selected)
+    return surface in {surfaces, normalized}
+
+
 def _exact_utterance(text: str, start: int, end: int) -> bool:
     if text[:start].strip():
         return False
@@ -232,7 +264,7 @@ class LanguageFeatureRuntime:
                     continue
                 if (
                     entry.get("feature_type") == "sentence_final_particle"
-                    and not _token_exact(
+                    and not _token_sequence_exact(
                         tokens,
                         surface,
                         start,
@@ -300,9 +332,7 @@ class LanguageFeatureRuntime:
                     status = ItemStatus.RESOLVED
                 else:
                     status = ItemStatus.AMBIGUOUS
-            original_span = span_to_original(
-                start, end, mapping, original_text
-            )
+            original_span = span_to_original(start, end, mapping, original_text)
             output.append(LanguageFeatureMatch(
                 entry_id=entry["entry_id"],
                 feature_type=entry["feature_type"],
