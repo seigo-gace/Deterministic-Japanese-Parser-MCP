@@ -36,12 +36,28 @@ def _sentence_final(text: str, end: int) -> bool:
     return text[end] in "。！？!?…\n"
 
 
-def _token_exact(tokens: list[Token], surface: str, start: int, end: int) -> bool:
-    del start, end
+def _token_exact(
+    tokens: list[Token],
+    surface: str,
+    start: int,
+    end: int,
+    mapping,
+    original_text: str,
+) -> bool:
+    original_span = span_to_original(start, end, mapping, original_text)
     return any(
-        token.normalized == surface or token.surface == surface
+        token.span.start == original_span.start
+        and token.span.end == original_span.end
+        and (token.normalized == surface or token.surface == surface)
         for token in tokens
     )
+
+
+def _exact_utterance(text: str, start: int, end: int) -> bool:
+    if text[:start].strip():
+        return False
+    trailing = text[end:].strip()
+    return not trailing or not trailing.strip("。！？!?…")
 
 
 def _matches_required_social(
@@ -201,22 +217,40 @@ class LanguageFeatureRuntime:
                     normalized_text, end
                 ):
                     continue
-                if mode == "exact" and not (
-                    start == 0 and end == len(normalized_text)
+                if mode == "exact" and not _exact_utterance(
+                    normalized_text, start, end
                 ):
                     continue
                 if mode == "token" and not _token_exact(
-                    tokens, surface, start, end
+                    tokens,
+                    surface,
+                    start,
+                    end,
+                    mapping,
+                    original_text,
+                ):
+                    continue
+                if (
+                    entry.get("feature_type") == "sentence_final_particle"
+                    and not _token_exact(
+                        tokens,
+                        surface,
+                        start,
+                        end,
+                        mapping,
+                        original_text,
+                    )
                 ):
                     continue
                 candidates.append((entry, surface_ref, surface, start, end))
 
+        # Sentence-final particles commonly overlap (for example よね / ね).
+        # Keep the longest surface ending at the same position so the shorter
+        # component does not become a second, false discourse interpretation.
         longest_final: dict[int, int] = {}
         for _, surface_ref, surface, _, end in candidates:
             if surface_ref.get("match_mode") == "sentence_final":
-                longest_final[end] = max(
-                    longest_final.get(end, 0), len(surface)
-                )
+                longest_final[end] = max(longest_final.get(end, 0), len(surface))
         candidates = [
             item
             for item in candidates
@@ -277,15 +311,17 @@ class LanguageFeatureRuntime:
                     selected.get("interpretation_id") if selected else None
                 ),
                 interpretation=(selected.get("label") if selected else None),
-                parameters=(
-                    selected.get("parameters", {}) if selected else {}
-                ),
-                register=entry.get("register", {}),
+                parameters=(selected.get("parameters", {}) if selected else {}),
+                register_profile=entry.get("register", {}),
                 source_span=original_span,
                 status=status,
-                candidate_ids=[
-                    item["interpretation_id"] for _, item in scored
-                ],
+                candidate_ids=(
+                    [item["interpretation_id"] for _, item in scored]
+                    or [
+                        item["interpretation_id"]
+                        for item in entry.get("interpretations", [])
+                    ]
+                ),
                 evidence_ids=[
                     item.get("evidence_id", "")
                     for item in entry.get("evidence", [])
@@ -350,9 +386,9 @@ class LanguageFeatureRuntime:
                 if feature_type in {"sociolect", "slang"}:
                     labels = [
                         *proposition.register_labels,
-                        *match.register.get("labels", []),
+                        *match.register_profile.get("labels", []),
                     ]
-                    formality = match.register.get("formality")
+                    formality = match.register_profile.get("formality")
                     if formality:
                         labels.append(formality)
                     updates["register_labels"] = _merge_unique([], labels)
