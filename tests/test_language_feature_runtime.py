@@ -123,4 +123,13 @@ def test_sentence_final_particle_does_not_match_inside_verb() -> None:
     engine = ParserEngine()
     response = engine.analyze(AnalyzeRequest(original_text="死ね。"))
     ids = {item.entry_id for item in response.meaning_graph.language_features}
-    assert "PARTICLE-NE-001" not in ids
+    token_debug = [
+        {
+            "surface": token.surface,
+            "normalized": token.normalized,
+            "pos": token.pos,
+            "span": token.span.model_dump(),
+        }
+        for token in response.tokens
+    ]
+    assert "PARTICLE-NE-001" not in ids, token_debug
