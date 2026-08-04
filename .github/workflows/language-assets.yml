@@ -43,7 +43,7 @@ jobs:
           python tools/compile_language_features.py --check
       - name: Record immutable compiled assets
         run: |
-          if git diff --quiet -- dictionaries/system/compiled/language_features.d; then
+          if [ -z "$(git status --porcelain -- dictionaries/system/compiled/language_features.d)" ]; then
             echo "Compiled assets already current."
             exit 0
           fi
