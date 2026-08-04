@@ -1,3 +1,7 @@
+from .semantic_refinement import install_semantic_refinement
+
+install_semantic_refinement()
+
 from .engine import ParserEngine
 from .low_latency_client import LowLatencyClientSession
 from .models import AnalyzeRequest, AnalyzeResponse, MeaningGraph, TaskGraph
