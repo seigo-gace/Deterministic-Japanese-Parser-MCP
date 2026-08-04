@@ -61,6 +61,9 @@ def install_language_feature_runtime() -> None:
         ambiguous = [
             item for item in matches if item.status != ItemStatus.RESOLVED
         ]
+        resolved = [
+            item for item in matches if item.status == ItemStatus.RESOLVED
+        ]
         blocked_reasons = list(response.blocked_reasons)
         execution_allowed = response.execution_allowed
         if request.execution_mode.value == "external_action" and any(
@@ -71,11 +74,36 @@ def install_language_feature_runtime() -> None:
                 *blocked_reasons,
                 "AMBIGUOUS_LANGUAGE_FEATURE",
             ]))
+
+        unsupported = list(response.unsupported_elements)
+        if resolved:
+            unsupported = [
+                item
+                for item in unsupported
+                if not (
+                    item.get("text") == request.original_text
+                    and not item.get("expression")
+                )
+            ]
+
         overall = response.overall_status
-        if matches and overall == OverallStatus.FAILED:
+        if overall == OverallStatus.FAILED and resolved:
+            remaining_incomplete = bool(
+                ambiguous
+                or graph.unresolved
+                or unsupported
+                or response.contradictions
+                or response.timeouts
+                or response.missing_information
+            )
+            overall = (
+                OverallStatus.PARTIAL
+                if remaining_incomplete
+                else OverallStatus.COMPLETE
+            )
+        elif ambiguous and overall == OverallStatus.COMPLETE:
             overall = OverallStatus.PARTIAL
-        if ambiguous and overall == OverallStatus.COMPLETE:
-            overall = OverallStatus.PARTIAL
+
         versions = dict(response.versions)
         versions["language_feature_asset"] = self.language_features.asset_sha256
         return response.model_copy(update={
@@ -83,6 +111,7 @@ def install_language_feature_runtime() -> None:
             "overall_status": overall,
             "execution_allowed": execution_allowed,
             "blocked_reasons": blocked_reasons,
+            "unsupported_elements": unsupported,
             "analysis_path": "DEEP",
             "versions": versions,
             "metrics": metrics,
