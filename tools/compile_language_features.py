@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
-"""Compile approved language-feature YAML fragments into a runtime asset."""
+"""Compile approved language-feature YAML fragments into immutable runtime chunks."""
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from deterministic_japanese_parser_mcp.literal_index import LiteralIndex
+_LITERAL_INDEX_PATH = (
+    ROOT / "src/deterministic_japanese_parser_mcp/literal_index.py"
+)
+_spec = importlib.util.spec_from_file_location(
+    "djpmcp_literal_index_build", _LITERAL_INDEX_PATH
+)
+if _spec is None or _spec.loader is None:
+    raise RuntimeError("cannot load literal_index.py for build")
+_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_module)
+LiteralIndex = _module.LiteralIndex
 
 ALLOWED_FEATURE_TYPES = {
     "onomatopoeia", "sensory_expression", "metaphor", "metonymy",
@@ -26,13 +33,17 @@ ALLOWED_FEATURE_TYPES = {
 }
 ALLOWED_MATCH_MODES = {"substring", "token", "sentence_final", "exact"}
 ALLOWED_FALLBACKS = {"RESOLVED", "AMBIGUOUS", "UNSUPPORTED"}
+PART_SIZE = 4096
 
 
 def load_entries(source_dir: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     ids: set[str] = set()
     interpretation_ids: set[str] = set()
-    for path in sorted(source_dir.glob("*.yaml")):
+    paths = sorted(source_dir.glob("*.yaml"))
+    if not paths:
+        raise ValueError(f"no language feature fragments: {source_dir}")
+    for path in paths:
         document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if document.get("schema_version") != "1.0.0":
             raise ValueError(f"unsupported source schema: {path}")
@@ -145,13 +156,85 @@ def compile_payload(source_dir: Path) -> dict[str, Any]:
     }
 
 
-def encoded_payload(payload: dict[str, Any]) -> str:
+def payload_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(
         payload,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
-    ) + "\n"
+    ).encode("utf-8")
+
+
+def build_chunks(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
+    raw = payload_bytes(payload)
+    encoded = base64.b64encode(raw).decode("ascii")
+    parts = {
+        f"part-{index:04d}.b64": encoded[start : start + PART_SIZE]
+        for index, start in enumerate(range(0, len(encoded), PART_SIZE), 1)
+    }
+    manifest = {
+        "schema_version": "1.0.0",
+        "encoding": "base64-json-utf8",
+        "compiled_sha256": hashlib.sha256(raw).hexdigest(),
+        "payload_content_sha256": payload["content_sha256"],
+        "entry_count": payload["entry_count"],
+        "surface_count": payload["surface_count"],
+        "part_size": PART_SIZE,
+        "parts": [
+            {
+                "path": name,
+                "sha256": hashlib.sha256(content.encode("ascii")).hexdigest(),
+                "characters": len(content),
+            }
+            for name, content in parts.items()
+        ],
+    }
+    return manifest, parts
+
+
+def expected_files(payload: dict[str, Any]) -> dict[str, str]:
+    manifest, parts = build_chunks(payload)
+    return {
+        "manifest.json": json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        **{name: content + "\n" for name, content in parts.items()},
+    }
+
+
+def write_output(output_dir: Path, files: dict[str, str]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    expected = set(files)
+    for path in output_dir.iterdir():
+        if path.is_file() and path.name not in expected:
+            path.unlink()
+    for name, content in files.items():
+        (output_dir / name).write_text(
+            content,
+            encoding="ascii" if name.endswith(".b64") else "utf-8",
+        )
+
+
+def check_output(output_dir: Path, files: dict[str, str]) -> None:
+    actual_names = {
+        path.name for path in output_dir.iterdir() if path.is_file()
+    } if output_dir.exists() else set()
+    if actual_names != set(files):
+        raise RuntimeError(
+            "compiled language feature asset file set is stale: "
+            f"expected={sorted(files)} actual={sorted(actual_names)}"
+        )
+    for name, expected in files.items():
+        actual = (output_dir / name).read_text(
+            encoding="ascii" if name.endswith(".b64") else "utf-8"
+        )
+        if actual != expected:
+            raise RuntimeError(
+                f"compiled language feature asset is stale: {name}"
+            )
 
 
 def main() -> int:
@@ -162,38 +245,34 @@ def main() -> int:
         default=ROOT / "dictionaries/system/language_features.d",
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         type=Path,
-        default=ROOT / "dictionaries/system/compiled/language_features.json",
+        default=(
+            ROOT / "dictionaries/system/compiled/language_features.d"
+        ),
     )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     payload = compile_payload(args.source_dir)
-    encoded = encoded_payload(payload)
+    files = expected_files(payload)
     if args.check:
-        if not args.output.exists():
-            raise FileNotFoundError(args.output)
-        current = args.output.read_text(encoding="utf-8")
-        if current != encoded:
-            raise RuntimeError(
-                "compiled language feature asset is stale; run "
-                "python tools/compile_language_features.py"
-            )
+        check_output(args.output_dir, files)
         print({
             "status": "OK",
             "entries": payload["entry_count"],
             "surfaces": payload["surface_count"],
             "sha256": payload["content_sha256"],
+            "parts": len(files) - 1,
         })
         return 0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(encoded, encoding="utf-8")
+    write_output(args.output_dir, files)
     print({
         "status": "WRITTEN",
         "entries": payload["entry_count"],
         "surfaces": payload["surface_count"],
         "sha256": payload["content_sha256"],
-        "output": str(args.output),
+        "parts": len(files) - 1,
+        "output": str(args.output_dir),
     })
     return 0
 
