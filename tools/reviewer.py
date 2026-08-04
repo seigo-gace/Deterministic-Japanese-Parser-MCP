@@ -65,9 +65,40 @@ def validate_approval(proposal: dict, decision: dict) -> None:
             raise ValueError(
                 f"external_action_reviewed=true is required: {proposal_id}"
             )
+    elif kind == "language_feature":
+        for key in (
+            "entry_id", "feature_type", "surfaces", "interpretations",
+            "fallback_status", "risk_class",
+        ):
+            if not payload.get(key):
+                raise ValueError(
+                    f"language_feature.{key} is required: {proposal_id}"
+                )
+        if not decision.get("positive_examples"):
+            raise ValueError(f"positive_examples are required: {proposal_id}")
+        if not decision.get("negative_examples"):
+            raise ValueError(f"negative_examples are required: {proposal_id}")
+        if not decision.get("boundary_examples"):
+            raise ValueError(f"boundary_examples are required: {proposal_id}")
+        if payload.get("risk_class") in {"action", "social"} and (
+            decision.get("external_action_reviewed") is not True
+        ):
+            raise ValueError(
+                "external_action_reviewed=true is required for action/social "
+                f"language features: {proposal_id}"
+            )
+        if payload.get("fallback_status") == "RESOLVED" and len(
+            payload.get("interpretations", [])
+        ) > 1:
+            raise ValueError(
+                "multi-interpretation language features cannot default to "
+                f"RESOLVED: {proposal_id}"
+            )
     elif kind == "synonym":
         if not payload.get("canonical") or not payload.get("surfaces"):
-            raise ValueError(f"synonym canonical/surfaces are required: {proposal_id}")
+            raise ValueError(
+                f"synonym canonical/surfaces are required: {proposal_id}"
+            )
         if payload.get("ambiguous_surfaces"):
             raise ValueError(
                 f"ambiguous surfaces must be resolved before approval: {proposal_id}"
@@ -117,11 +148,7 @@ def main() -> int:
     for proposal in bundle.get("proposals", []):
         status = proposal.get("status", "needs_review")
         statuses[status] = statuses.get(status, 0) + 1
-    bundle["status"] = (
-        "reviewed"
-        if not undecided
-        else "partially_reviewed"
-    )
+    bundle["status"] = "reviewed" if not undecided else "partially_reviewed"
     bundle["review_counts"] = statuses
     bundle["review_decisions_file"] = str(args.decisions)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +157,8 @@ def main() -> int:
         encoding="utf-8",
     )
     print(
-        f"REVIEW OK: statuses={statuses} undecided={len(undecided)} output={args.out}"
+        f"REVIEW OK: statuses={statuses} undecided={len(undecided)} "
+        f"output={args.out}"
     )
     return 0
 
