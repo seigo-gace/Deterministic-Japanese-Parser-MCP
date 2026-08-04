@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any
 
@@ -18,6 +19,10 @@ if str(TOOLS_ROOT) not in sys.path:
 
 from dictionary_supply.proposals import PROPOSAL_SCHEMA_VERSION
 
+_BLOCKED_LICENSE_MARKERS = {"PRIVATE", "UNKNOWN", "UNLICENSED"}
+_ALLOWED_EVIDENCE_SCOPES = {"runtime_data", "verification_only"}
+_SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
+
 
 def _load(path: Path) -> list[dict[str, Any]]:
     if path.suffix == ".jsonl":
@@ -27,7 +32,43 @@ def _load(path: Path) -> list[dict[str, Any]]:
             if line.strip()
         ]
     value = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return list(value.get("entries", value if isinstance(value, list) else []))
+    if isinstance(value, list):
+        return list(value)
+    if not isinstance(value, dict):
+        raise ValueError(f"unsupported collected data root: {path}")
+    entries = value.get("entries", [])
+    if not isinstance(entries, list):
+        raise ValueError(f"entries must be a list: {path}")
+    return list(entries)
+
+
+def _validate_evidence(entry_id: str, evidence: list[dict[str, Any]]) -> None:
+    if not evidence:
+        raise ValueError(f"evidence is required: {entry_id}")
+    for item in evidence:
+        for key in ("dataset", "version", "license", "source_id"):
+            if not item.get(key):
+                raise ValueError(f"evidence.{key} is required: {entry_id}")
+        license_value = str(item["license"]).upper()
+        if any(marker in license_value for marker in _BLOCKED_LICENSE_MARKERS):
+            raise ValueError(
+                f"blocked evidence license: {entry_id}: {item['license']}"
+            )
+        scope = item.get("evidence_scope")
+        if scope not in _ALLOWED_EVIDENCE_SCOPES:
+            raise ValueError(
+                f"evidence_scope must be runtime_data or verification_only: "
+                f"{entry_id}"
+            )
+        if item.get("dataset") != "project-authored semantic contract":
+            if not item.get("source_url"):
+                raise ValueError(f"evidence.source_url is required: {entry_id}")
+            digest = str(item.get("source_sha256", ""))
+            if not _SHA256.fullmatch(digest):
+                raise ValueError(
+                    f"evidence.source_sha256 must be 64 hex characters: "
+                    f"{entry_id}"
+                )
 
 
 def _proposal(entry: dict[str, Any], source_path: Path) -> dict[str, Any]:
@@ -35,12 +76,7 @@ def _proposal(entry: dict[str, Any], source_path: Path) -> dict[str, Any]:
     if not entry_id:
         raise ValueError(f"entry_id is required: {source_path}")
     evidence = entry.get("evidence", [])
-    if not evidence:
-        raise ValueError(f"evidence is required: {entry_id}")
-    for item in evidence:
-        for key in ("dataset", "version", "license", "source_id"):
-            if not item.get(key):
-                raise ValueError(f"evidence.{key} is required: {entry_id}")
+    _validate_evidence(entry_id, evidence)
     payload = {
         key: value
         for key, value in entry.items()
@@ -86,6 +122,8 @@ def main() -> int:
                 continue
             ids.add(item["proposal_id"])
             proposals.append(item)
+    if not proposals:
+        raise ValueError("no language feature candidates were collected")
     proposals.sort(key=lambda item: (-item["score"], item["proposal_id"]))
     core = {
         "schema_version": PROPOSAL_SCHEMA_VERSION,
