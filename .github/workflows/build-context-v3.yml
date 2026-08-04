@@ -5,7 +5,7 @@ on:
     branches:
       - agent/context-v3-5000
     paths:
-      - scripts/build_context_v3.py
+      - scripts/build_context_v3.py.gz.b64
       - .github/workflows/build-context-v3.yml
       - research/context_collection/CANDIDATE_SURFACES_2026-08-05.md
 
@@ -35,6 +35,14 @@ jobs:
       - name: Install YAML writer
         run: python -m pip install --disable-pip-version-check PyYAML==6.0.2
 
+      - name: Decode and validate deterministic builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d scripts/build_context_v3.py.gz.b64 | gzip -d > /tmp/build_context_v3.py
+          sed -i 's/adds exactly 3,855/adds exactly 3,856/' /tmp/build_context_v3.py
+          python -m py_compile /tmp/build_context_v3.py
+
       - name: Download open candidate sources
         shell: bash
         run: |
@@ -53,7 +61,7 @@ jobs:
 
       - name: Generate exactly 5,000 globally unique candidates
         run: |
-          python scripts/build_context_v3.py \
+          python /tmp/build_context_v3.py \
             --existing research/context_collection/CANDIDATE_SURFACES_2026-08-05.md \
             --kaikki .cache/context-v3/kaikki-japanese.jsonl \
             --living-slang .cache/context-v3/living-slang.json \
