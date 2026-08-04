@@ -61,7 +61,13 @@ def lexical_base_record(record: LexiconRecord) -> LexiconRecord:
         raise ValueError(f"source checksum is required: {record.record_id}")
 
     # Automatic approval is limited to lexical identity information.
-    # Definitions and semantic relations remain available only in proposal/review data.
+    # Readings remain metadata; they are not promoted as orthographic aliases.
+    reading_set = set(record.readings)
+    record.surfaces = [
+        surface
+        for surface in record.surfaces
+        if surface == record.lemma or surface not in reading_set
+    ]
     record.senses = []
     record.synonyms = []
     record.antonyms = []
@@ -71,6 +77,7 @@ def lexical_base_record(record: LexiconRecord) -> LexiconRecord:
     record.notes = [
         *record.notes,
         "Automatically approved as lexical identity data only.",
+        "Readings are metadata and are not canonical aliases.",
         (
             "No intent, task, metaphor, pragmatic meaning, or external action "
             "was auto-promoted."
@@ -88,9 +95,9 @@ def deduplicate(
     for raw in records:
         record = lexical_base_record(raw)
         key = (
+            record.source.dataset,
+            record.source.source_id,
             record.lemma,
-            tuple(sorted(record.readings)),
-            tuple(sorted(record.part_of_speech)),
         )
         current = by_key.get(key)
         if current is None:
@@ -104,17 +111,21 @@ def deduplicate(
         for value in record.surfaces:
             if value not in current.surfaces:
                 current.surfaces.append(value)
+        for value in record.readings:
+            if value not in current.readings:
+                current.readings.append(value)
+        current.reading_mappings.extend(record.reading_mappings)
         current.notes.append(
-            "Merged lexical source record: "
+            "Merged duplicate source record: "
             f"{record.source.dataset}:{record.source.source_id}"
         )
         current.normalized()
     return sorted(
         by_key.values(),
         key=lambda item: (
+            item.source.dataset,
+            item.source.source_id,
             item.lemma,
-            tuple(item.readings),
-            tuple(item.part_of_speech),
             item.record_id,
         ),
     )
@@ -320,7 +331,7 @@ def main() -> int:
         }
     surface_count = sum(len(item.surfaces) for item in records)
     payload = {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "batch_id": args.batch_id,
         "mode": "trusted_lexical_identity_only",
         "record_count": len(records),
@@ -335,6 +346,7 @@ def main() -> int:
             for key in sorted(source_values)
         ],
         "shards": shards,
+        "reading_alias_promotion": False,
         "semantic_auto_promotion": False,
         "external_action_auto_promotion": False,
     }
