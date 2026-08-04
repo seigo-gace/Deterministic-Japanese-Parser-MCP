@@ -22,6 +22,7 @@ from .models import (
 )
 from .normalizer import normalize_with_map
 from .rule_engine import RuleEngine
+from .semantic_enrichment import SemanticEnricher
 from .task_graph import ActionTaskGraphBuilder
 from .tasks import TaskDecomposer
 from .tokenizer import JapaneseTokenizer
@@ -44,12 +45,16 @@ class ParserEngine:
             self.bundle.metaphors,
             timeout_ms=settings.regex_timeout_ms,
         )
-        self.anaphora = AnaphoraResolver()
         self.canonicalizer = Canonicalizer(self.bundle.synonyms)
+        self.anaphora = AnaphoraResolver(self.canonicalizer)
         self.meaning = MeaningGraphBuilder(
             self.canonicalizer,
             max_graph_nodes=settings.max_graph_nodes,
             max_scope_edges=settings.max_scope_edges,
+        )
+        self.enricher = SemanticEnricher(
+            settings.system_dict_dir / "semantic_profiles.yaml",
+            self.canonicalizer,
         )
         self.tasks = TaskDecomposer(self.bundle.templates)
         self.action_tasks = ActionTaskGraphBuilder(self.bundle.templates)
@@ -73,6 +78,29 @@ class ParserEngine:
             )
             unique.setdefault(key, item)
         return list(unique.values())
+
+    @staticmethod
+    def _merge_reference_intents(raw_intents, discovered):
+        unique = {}
+        for item in [*raw_intents, *discovered]:
+            key = (
+                item.type,
+                item.value,
+                item.span.start,
+                item.span.end,
+            )
+            current = unique.get(key)
+            if current is None or item.priority > current.priority:
+                unique[key] = item
+        return sorted(
+            unique.values(),
+            key=lambda item: (
+                item.span.start,
+                item.span.end,
+                -item.priority,
+                item.type,
+            ),
+        )
 
     def analyze(
         self,
@@ -133,6 +161,15 @@ class ParserEngine:
                 deadline_at=deadline_at,
             ),
         )
+        discovered_references = self.anaphora.discover(
+            normalized,
+            mapping,
+            request.original_text,
+        )
+        raw_intents = self._merge_reference_intents(
+            raw_intents,
+            discovered_references,
+        )
         rule_metrics = (
             {
                 "total_rule_count": len(self.rules.compiled),
@@ -166,17 +203,22 @@ class ParserEngine:
 
         references = []
         if deadline_remaining():
+            reference_intents = [
+                item
+                for item in raw_intents
+                if item.type == "reference"
+            ]
+            current_mentions = self.anaphora.mentions_from_intents(
+                raw_intents
+            )
             references = run_phase(
                 "reference_resolution",
                 lambda: self.anaphora.resolve_intents(
-                    [
-                        item
-                        for item in raw_intents
-                        if item.type == "reference"
-                    ],
+                    reference_intents,
                     context,
                     request.known_entities,
                     max_candidates=self.settings.max_candidates,
+                    current_mentions=current_mentions,
                 ),
             )
         else:
@@ -199,6 +241,25 @@ class ParserEngine:
                 known_entities=request.known_entities,
             ),
         )
+        if deadline_remaining():
+            meaning_graph = run_phase(
+                "semantic_enrichment",
+                lambda: self.enricher.enrich(
+                    meaning_graph,
+                    original_text=request.original_text,
+                    tokens=tokens,
+                    metaphors=metaphors,
+                    conversation_context=context,
+                    known_entities=request.known_entities,
+                ),
+            )
+        else:
+            timeouts.append({
+                "phase": "semantic_enrichment",
+                "status": "TIMEOUT",
+            })
+            phase_metrics["semantic_enrichment_ms"] = 0.0
+
         intents = self.meaning.emit_legacy_intents(
             meaning_graph,
             raw_intents,
@@ -251,7 +312,7 @@ class ParserEngine:
             }
         ]
         unsupported = []
-        if not intents and not metaphors:
+        if not meaning_graph.propositions and not metaphors:
             unsupported.append({
                 "text": request.original_text,
                 "status": ItemStatus.UNSUPPORTED.value,
@@ -286,7 +347,11 @@ class ParserEngine:
             or timeouts
         ):
             overall = OverallStatus.PARTIAL
-        if not intents and not metaphors and not references:
+        if (
+            not meaning_graph.propositions
+            and not metaphors
+            and not references
+        ):
             overall = OverallStatus.FAILED
 
         elapsed_before_response = (perf_counter() - started) * 1000
@@ -302,6 +367,7 @@ class ParserEngine:
                 execution_allowed = False
                 blocked = list(dict.fromkeys([*blocked, "TIMEOUT"]))
 
+        quality = meaning_graph.quality_annotations
         deep = (
             request.analysis_depth == AnalysisDepth.DEEP
             or bool(
@@ -311,12 +377,17 @@ class ParserEngine:
                 or meaning_graph.scope_edges
                 or meaning_graph.unresolved
                 or timeouts
+                or quality.get("resolved_senses")
+                or quality.get("inferred_arguments")
+                or quality.get("pragmatic_acts")
+                or quality.get("discourse_edges")
             )
         )
         metrics = {
             **phase_metrics,
             **rule_metrics,
             **self.metaphors.last_metrics,
+            **self.enricher.last_metrics,
             **self.tasks.last_metrics,
             **self.action_tasks.last_metrics,
             "intent_count": len(intents),
