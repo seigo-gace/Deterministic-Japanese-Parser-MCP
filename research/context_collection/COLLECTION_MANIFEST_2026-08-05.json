@@ -1,17 +1,39 @@
 {
-  "collection_version": "2.0.0-audit",
+  "collection_version": "2.0.1-under-collected",
   "generated_at": "2026-08-05T02:13:41+09:00",
+  "corrected_at": "2026-08-05T02:42:00+09:00",
+  "collection_status": "UNDER_COLLECTED",
   "source_count": 115,
   "unique_domain_count": 52,
   "existing_reviewed_seed_count": 328,
   "new_candidate_count": 1145,
+  "minimum_unique_candidate_target": 5000,
+  "internal_discovery_target": 6000,
+  "minimum_target_shortfall": 3855,
+  "internal_target_shortfall": 4855,
   "new_candidate_meanings_asserted": 0,
   "candidate_status": "needs-evidence",
+  "completion_claim_allowed": false,
+  "under_collection_causes": [
+    "candidate discovery was incorrectly mixed with semantic review",
+    "candidates without sufficient meaning evidence were discarded instead of retained as needs-evidence",
+    "pagination and subcategories were not fully traversed",
+    "large public datasets were registered but not expanded into candidate records",
+    "source record count was treated as a proxy for collected candidate count"
+  ],
   "validation": {
     "source_registry_errors": 0,
     "candidate_queue_errors": 0,
     "duplicate_surface_errors": 0,
-    "unknown_source_reference_errors": 0
+    "unknown_source_reference_errors": 0,
+    "scope": "integrity of the existing 1145-record queue only",
+    "does_not_validate": [
+      "collection volume",
+      "semantic accuracy",
+      "web coverage",
+      "current usage",
+      "runtime promotion readiness"
+    ]
   },
   "repository_files": [
     "research/context_collection/README.md",
@@ -26,6 +48,7 @@
   "portable_bundle": {
     "filename": "japanese-mcp-context-collection-v2.zip",
     "sha256": "144974506d56701e533ec86c13e3859b40d445cf6a2e8a4abcf6dad76fae85ed",
+    "status": "superseded-as-completion-claim",
     "contains": [
       "source_registry_v2.csv",
       "source_registry_v2.jsonl",
