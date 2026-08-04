@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -124,7 +125,7 @@ class LanguageFeatureRuntime:
             self.index = LiteralIndex(())
             self.asset_sha256 = ""
         else:
-            payload = json.loads(compiled_path.read_text(encoding="utf-8"))
+            payload = self._load_compiled_payload(compiled_path)
             if payload.get("schema_version") != "1.0.0":
                 raise ValueError("unsupported compiled language feature schema")
             self.entries = {
@@ -143,6 +144,41 @@ class LanguageFeatureRuntime:
             "match_count": 0,
             "asset_sha256": self.asset_sha256,
         }
+
+    @staticmethod
+    def _load_compiled_payload(compiled_path: Path) -> dict[str, Any]:
+        """Load immutable base64 chunks and verify every digest before use."""
+        if compiled_path.is_file():
+            return json.loads(compiled_path.read_text(encoding="utf-8"))
+        manifest_path = compiled_path / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("schema_version") != "1.0.0":
+            raise ValueError("unsupported language feature chunk manifest")
+        if manifest.get("encoding") != "base64-json-utf8":
+            raise ValueError("unsupported language feature chunk encoding")
+        chunks: list[str] = []
+        for part in manifest.get("parts", []):
+            path = compiled_path / part["path"]
+            content = path.read_text(encoding="ascii").strip()
+            digest = hashlib.sha256(content.encode("ascii")).hexdigest()
+            if digest != part.get("sha256"):
+                raise ValueError(f"language feature chunk digest mismatch: {path}")
+            if len(content) != part.get("characters"):
+                raise ValueError(f"language feature chunk length mismatch: {path}")
+            chunks.append(content)
+        raw = base64.b64decode("".join(chunks), validate=True)
+        if hashlib.sha256(raw).hexdigest() != manifest.get("compiled_sha256"):
+            raise ValueError("compiled language feature payload digest mismatch")
+        payload = json.loads(raw.decode("utf-8"))
+        if payload.get("content_sha256") != manifest.get(
+            "payload_content_sha256"
+        ):
+            raise ValueError("language feature content digest mismatch")
+        if payload.get("entry_count") != manifest.get("entry_count"):
+            raise ValueError("language feature entry count mismatch")
+        if payload.get("surface_count") != manifest.get("surface_count"):
+            raise ValueError("language feature surface count mismatch")
+        return payload
 
     def analyze(
         self,
@@ -273,15 +309,35 @@ class LanguageFeatureRuntime:
     ) -> MeaningGraph:
         if not matches:
             return graph
+        clause_ids_by_match: dict[str, set[str]] = {}
+        for match in matches:
+            clause_ids_by_match[
+                match.entry_id + ":" + str(match.source_span.start)
+            ] = {
+                clause.clause_id
+                for clause in graph.clauses
+                if match.source_span.start < clause.source_span.end
+                and clause.source_span.start < match.source_span.end
+            }
         propositions: list[Proposition] = []
         for proposition in graph.propositions:
-            related = [
-                match
-                for match in matches
-                if match.source_span.start < proposition.source_span.end
-                and proposition.source_span.start < match.source_span.end
-                and match.status == ItemStatus.RESOLVED
-            ]
+            related = []
+            for match in matches:
+                if match.status != ItemStatus.RESOLVED:
+                    continue
+                direct = (
+                    match.source_span.start < proposition.source_span.end
+                    and proposition.source_span.start < match.source_span.end
+                )
+                clause_ids = clause_ids_by_match.get(
+                    match.entry_id + ":" + str(match.source_span.start), set()
+                )
+                same_clause = bool(
+                    proposition.clause_id
+                    and proposition.clause_id in clause_ids
+                )
+                if direct or same_clause:
+                    related.append(match)
             updates: dict[str, Any] = {}
             for match in related:
                 params = match.parameters
