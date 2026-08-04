@@ -11,7 +11,8 @@ import re
 import unicodedata
 from typing import Iterable, Iterator, TextIO
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", SCHEMA_VERSION}
 
 
 def normalize_text(value: str) -> str:
@@ -48,6 +49,15 @@ def open_text(path: Path) -> TextIO:
     return io.TextIOWrapper(raw, encoding="utf-8", errors="replace")
 
 
+def _unique(values: Iterable[str]) -> list[str]:
+    output: list[str] = []
+    for value in values:
+        item = normalize_text(value)
+        if item and item not in output:
+            output.append(item)
+    return output
+
+
 @dataclass(frozen=True)
 class SourceInfo:
     dataset: str
@@ -70,6 +80,7 @@ class LexiconRecord:
     lemma: str
     language: str = "ja"
     readings: list[str] = field(default_factory=list)
+    reading_mappings: list[dict] = field(default_factory=list)
     surfaces: list[str] = field(default_factory=list)
     part_of_speech: list[str] = field(default_factory=list)
     lexical_category: str | None = None
@@ -85,24 +96,40 @@ class LexiconRecord:
     notes: list[str] = field(default_factory=list)
 
     def normalized(self) -> "LexiconRecord":
-        def unique(values: Iterable[str]) -> list[str]:
-            output: list[str] = []
-            for value in values:
-                item = normalize_text(value)
-                if item and item not in output:
-                    output.append(item)
-            return output
-
         self.lemma = normalize_text(self.lemma)
-        self.readings = unique(self.readings)
-        self.surfaces = unique([self.lemma, *self.surfaces])
-        self.part_of_speech = unique(self.part_of_speech)
-        self.synonyms = unique(self.synonyms)
-        self.antonyms = unique(self.antonyms)
-        self.related = unique(self.related)
-        self.domains = unique(self.domains)
-        self.usage_labels = unique(self.usage_labels)
-        self.notes = unique(self.notes)
+        self.readings = _unique(self.readings)
+        self.surfaces = _unique([self.lemma, *self.surfaces])
+        self.part_of_speech = _unique(self.part_of_speech)
+        self.synonyms = _unique(self.synonyms)
+        self.antonyms = _unique(self.antonyms)
+        self.related = _unique(self.related)
+        self.domains = _unique(self.domains)
+        self.usage_labels = _unique(self.usage_labels)
+        self.notes = _unique(self.notes)
+
+        normalized_readings: list[dict] = []
+        seen_readings: set[tuple] = set()
+        for raw in self.reading_mappings:
+            reading = normalize_text(str(raw.get("reading", "")))
+            if not reading:
+                continue
+            restricted_to = _unique(raw.get("restricted_to", []))
+            no_kanji = bool(raw.get("no_kanji", False))
+            key = (reading, tuple(restricted_to), no_kanji)
+            if key in seen_readings:
+                continue
+            seen_readings.add(key)
+            normalized_readings.append({
+                "reading": reading,
+                "restricted_to": restricted_to,
+                "no_kanji": no_kanji,
+            })
+        self.reading_mappings = normalized_readings
+        self.readings = _unique([
+            *self.readings,
+            *(item["reading"] for item in self.reading_mappings),
+        ])
+
         normalized_senses: list[dict] = []
         seen_senses: set[str] = set()
         for raw in self.senses:
@@ -113,8 +140,8 @@ class LexiconRecord:
                 {
                     "gloss": gloss,
                     "language": raw.get("language", "ja"),
-                    "labels": sorted(unique(raw.get("labels", []))),
-                    "domains": sorted(unique(raw.get("domains", []))),
+                    "labels": sorted(_unique(raw.get("labels", []))),
+                    "domains": sorted(_unique(raw.get("domains", []))),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -130,27 +157,29 @@ class LexiconRecord:
                 ),
                 "gloss": gloss,
                 "language": raw.get("language", "ja"),
-                "labels": unique(raw.get("labels", [])),
-                "domains": unique(raw.get("domains", [])),
-                "examples": unique(raw.get("examples", [])),
-                "cross_references": unique(raw.get("cross_references", [])),
+                "labels": _unique(raw.get("labels", [])),
+                "domains": _unique(raw.get("domains", [])),
+                "examples": _unique(raw.get("examples", [])),
+                "cross_references": _unique(raw.get("cross_references", [])),
             })
         self.senses = normalized_senses
+
         normalized_forms: list[dict] = []
         seen_forms: set[tuple] = set()
         for raw in self.forms:
             representation = normalize_text(str(raw.get("representation", "")))
             if not representation:
                 continue
-            features = unique(raw.get("grammatical_features", []))
-            key = (representation, tuple(features))
+            features = _unique(raw.get("grammatical_features", []))
+            reading = normalize_text(str(raw.get("reading", ""))) or None
+            key = (representation, tuple(features), reading)
             if key in seen_forms:
                 continue
             seen_forms.add(key)
             normalized_forms.append({
                 "representation": representation,
                 "grammatical_features": features,
-                "reading": normalize_text(str(raw.get("reading", ""))) or None,
+                "reading": reading,
             })
         self.forms = normalized_forms
         return self
@@ -176,6 +205,14 @@ class LexiconRecord:
             raise ValueError(
                 f"{self.record_id}: invalid review_status={self.review_status}"
             )
+        surface_set = set(self.surfaces)
+        for mapping in self.reading_mappings:
+            unknown = set(mapping["restricted_to"]) - surface_set
+            if unknown:
+                raise ValueError(
+                    f"{self.record_id}: reading restriction targets unknown surfaces: "
+                    f"{sorted(unknown)}"
+                )
 
     def to_dict(self) -> dict:
         self.validate()
@@ -185,10 +222,9 @@ class LexiconRecord:
 
     @classmethod
     def from_dict(cls, value: dict) -> "LexiconRecord":
-        if value.get("schema_version", SCHEMA_VERSION) != SCHEMA_VERSION:
-            raise ValueError(
-                f"unsupported schema_version={value.get('schema_version')}"
-            )
+        schema_version = value.get("schema_version", "1.0.0")
+        if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+            raise ValueError(f"unsupported schema_version={schema_version}")
         source_raw = value.get("source")
         source = SourceInfo(**source_raw) if source_raw else None
         record = cls(
@@ -196,6 +232,7 @@ class LexiconRecord:
             lemma=value["lemma"],
             language=value.get("language", "ja"),
             readings=list(value.get("readings", [])),
+            reading_mappings=list(value.get("reading_mappings", [])),
             surfaces=list(value.get("surfaces", [])),
             part_of_speech=list(value.get("part_of_speech", [])),
             lexical_category=value.get("lexical_category"),
@@ -254,6 +291,7 @@ def merge_records(records: Iterable[LexiconRecord]) -> list[LexiconRecord]:
             continue
         current.surfaces.extend(item.surfaces)
         current.part_of_speech.extend(item.part_of_speech)
+        current.reading_mappings.extend(item.reading_mappings)
         current.senses.extend(item.senses)
         current.forms.extend(item.forms)
         current.synonyms.extend(item.synonyms)
