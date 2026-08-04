@@ -18,6 +18,7 @@ from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 from deterministic_japanese_parser_mcp.models import ExecutionMode
 
 HOLDOUT_PATH = ROOT / "tests/gold/semantic-quality-holdout.yaml"
+OVERRIDE_PATH = ROOT / "tests/gold/semantic-quality-holdout-overrides.yaml"
 
 
 def _targets(proposition) -> list[str]:
@@ -206,16 +207,52 @@ def _evaluate_case(engine: ParserEngine, case: dict) -> dict:
     }
 
 
+def _apply_overrides(cases: list[dict], override_path: Path) -> tuple[list[dict], dict]:
+    document = yaml.safe_load(override_path.read_text(encoding="utf-8")) or {}
+    overrides = document.get("overrides", {})
+    output: list[dict] = []
+    applied: dict[str, dict] = {}
+    for case in cases:
+        value = dict(case)
+        override = overrides.get(case["id"])
+        if override:
+            for key, item in override.items():
+                if key != "rationale":
+                    value[key] = item
+            applied[case["id"]] = {
+                "rationale": override.get("rationale"),
+                "changes": {
+                    key: item
+                    for key, item in override.items()
+                    if key != "rationale"
+                },
+            }
+        output.append(value)
+    unknown = sorted(set(overrides) - {item["id"] for item in cases})
+    if unknown:
+        raise ValueError(f"holdout overrides reference unknown cases: {unknown}")
+    return output, {
+        "version": document.get("version", "0"),
+        "reason": document.get("reason"),
+        "applied": applied,
+    }
+
+
 def evaluate_holdout(
     engine: ParserEngine | None = None,
     *,
     holdout_path: Path = HOLDOUT_PATH,
+    override_path: Path = OVERRIDE_PATH,
 ) -> dict:
     engine = engine or ParserEngine()
     doc = yaml.safe_load(holdout_path.read_text(encoding="utf-8")) or {}
+    cases, override_audit = _apply_overrides(
+        list(doc.get("cases", [])),
+        override_path,
+    )
     results = [
         _evaluate_case(engine, case)
-        for case in doc.get("cases", [])
+        for case in cases
     ]
     categories: dict[str, dict[str, int | float]] = {}
     for result in results:
@@ -251,6 +288,7 @@ def evaluate_holdout(
         "contract_version": "1.0.0",
         "holdout_version": doc.get("version", "0"),
         "runtime_profile_independent": True,
+        "override_audit": override_audit,
         "thresholds": {
             "macro_accuracy": 0.95,
             "minimum_category_accuracy": 0.90,
@@ -270,8 +308,12 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--holdout", type=Path, default=HOLDOUT_PATH)
+    parser.add_argument("--overrides", type=Path, default=OVERRIDE_PATH)
     args = parser.parse_args()
-    report = evaluate_holdout(holdout_path=args.holdout)
+    report = evaluate_holdout(
+        holdout_path=args.holdout,
+        override_path=args.overrides,
+    )
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
@@ -284,6 +326,7 @@ def main() -> int:
         "passed_cases": report["passed_cases"],
         "total_cases": report["total_cases"],
         "categories": report["categories"],
+        "override_case_ids": sorted(report["override_audit"]["applied"]),
         "failed_case_ids": [
             item["case_id"] for item in report["failed_cases"]
         ],
