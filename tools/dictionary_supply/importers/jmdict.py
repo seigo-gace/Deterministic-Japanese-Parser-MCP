@@ -30,6 +30,20 @@ def _texts(element: ET.Element, tag: str) -> list[str]:
     return output
 
 
+def _reading_mappings(entry: ET.Element) -> list[dict]:
+    output: list[dict] = []
+    for reading_element in entry.findall("r_ele"):
+        reading = normalize_text(reading_element.findtext("reb") or "")
+        if not reading:
+            continue
+        output.append({
+            "reading": reading,
+            "restricted_to": _texts(reading_element, "re_restr"),
+            "no_kanji": reading_element.find("re_nokanji") is not None,
+        })
+    return output
+
+
 def parse_entry(
     entry: ET.Element,
     *,
@@ -39,11 +53,12 @@ def parse_entry(
 ) -> list[LexiconRecord]:
     sequence = normalize_text(entry.findtext("ent_seq") or "")
     writings = _texts(entry, "k_ele/keb")
-    readings = _texts(entry, "r_ele/reb")
-    lemmas = writings or readings
-    output: list[LexiconRecord] = []
-    if not lemmas:
-        return output
+    reading_mappings = _reading_mappings(entry)
+    readings = [item["reading"] for item in reading_mappings]
+    lemma_candidates = writings or readings
+    if not lemma_candidates:
+        return []
+    lemma = lemma_candidates[0]
 
     senses: list[dict] = []
     all_pos: list[str] = []
@@ -96,43 +111,44 @@ def parse_entry(
                 ],
             })
 
-    for lemma in lemmas:
-        source = SourceInfo(
-            dataset="JMdict",
-            version=source_version,
-            license="CC-BY-SA-4.0",
-            source_id=sequence or lemma,
-            source_url="https://www.edrdg.org/jmdict/j_jmdict.html",
-            source_sha256=source_sha256,
-            attribution=(
-                "Electronic Dictionary Research and Development Group"
-            ),
+    source = SourceInfo(
+        dataset="JMdict",
+        version=source_version,
+        license="CC-BY-SA-4.0",
+        source_id=sequence or lemma,
+        source_url="https://www.edrdg.org/jmdict/j_jmdict.html",
+        source_sha256=source_sha256,
+        attribution=(
+            "Electronic Dictionary Research and Development Group"
+        ),
+    )
+    notes = [
+        (
+            "Imported in lexical-identity-only mode; readings are preserved as "
+            "metadata and are not promoted as orthographic aliases."
         )
-        notes = [
-            "Imported in lexical-identity-only mode; semantic relations require separate review."
-            if lexical_only
-            else (
-                "JMdict glosses are multilingual support evidence; "
-                "Japanese semantic definitions require review or another "
-                "Japanese source."
-            )
-        ]
-        output.append(LexiconRecord(
-            record_id=stable_id("JMD", sequence, lemma),
-            lemma=lemma,
-            readings=readings,
-            surfaces=[*writings, *readings],
-            part_of_speech=all_pos,
-            senses=senses,
-            antonyms=antonyms,
-            related=related,
-            domains=all_domains,
-            usage_labels=all_labels,
-            source=source,
-            review_status="needs_review",
-            notes=notes,
-        ).normalized())
-    return output
+        if lexical_only
+        else (
+            "JMdict glosses are multilingual support evidence; Japanese semantic "
+            "definitions require review or another Japanese source."
+        )
+    ]
+    return [LexiconRecord(
+        record_id=stable_id("JMD", sequence, lemma),
+        lemma=lemma,
+        readings=readings,
+        reading_mappings=reading_mappings,
+        surfaces=writings or [lemma],
+        part_of_speech=all_pos,
+        senses=senses,
+        antonyms=antonyms,
+        related=related,
+        domains=all_domains,
+        usage_labels=all_labels,
+        source=source,
+        review_status="needs_review",
+        notes=notes,
+    ).normalized()]
 
 
 def iter_dump(
@@ -188,8 +204,8 @@ def main() -> int:
         "--lexical-only",
         action="store_true",
         help=(
-            "Import lemma, readings, POS and labels without glosses or semantic "
-            "relations. Intended for the trusted 100k+ base lexicon."
+            "Import lemma, orthographic surfaces, readings, reading restrictions, "
+            "POS and labels without semantic relations."
         ),
     )
     args = parser.parse_args()
