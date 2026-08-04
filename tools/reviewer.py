@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import sys
 
 import yaml
@@ -14,6 +15,10 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from dictionary_supply.proposals import load_bundle
+
+_BLOCKED_LICENSE_MARKERS = {"PRIVATE", "UNKNOWN", "UNLICENSED"}
+_ALLOWED_EVIDENCE_SCOPES = {"runtime_data", "verification_only"}
+_SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def load_decisions(path: Path) -> dict[str, dict]:
@@ -33,6 +38,36 @@ def load_decisions(path: Path) -> dict[str, dict]:
             raise ValueError(f"review notes are required: {proposal_id}")
         decisions[proposal_id] = item
     return decisions
+
+
+def _validate_language_evidence(
+    proposal_id: str,
+    evidence: list[dict],
+) -> None:
+    for item in evidence:
+        license_value = str(item.get("license", "")).upper()
+        if any(marker in license_value for marker in _BLOCKED_LICENSE_MARKERS):
+            raise ValueError(
+                f"blocked evidence license: {proposal_id}: "
+                f"{item.get('license')}"
+            )
+        scope = item.get("evidence_scope")
+        if scope not in _ALLOWED_EVIDENCE_SCOPES:
+            raise ValueError(
+                "language feature evidence_scope must be runtime_data or "
+                f"verification_only: {proposal_id}"
+            )
+        if item.get("dataset") != "project-authored semantic contract":
+            if not item.get("source_url"):
+                raise ValueError(
+                    f"language feature evidence source_url is required: "
+                    f"{proposal_id}"
+                )
+            if not _SHA256.fullmatch(str(item.get("source_sha256", ""))):
+                raise ValueError(
+                    "language feature evidence source_sha256 must be 64 hex "
+                    f"characters: {proposal_id}"
+                )
 
 
 def validate_approval(proposal: dict, decision: dict) -> None:
@@ -66,6 +101,7 @@ def validate_approval(proposal: dict, decision: dict) -> None:
                 f"external_action_reviewed=true is required: {proposal_id}"
             )
     elif kind == "language_feature":
+        _validate_language_evidence(proposal_id, evidence)
         for key in (
             "entry_id", "feature_type", "surfaces", "interpretations",
             "fallback_status", "risk_class",
