@@ -42,6 +42,9 @@ def _collected_entry() -> dict:
                         "version": "1",
                         "license": "CC0-1.0",
                         "source_id": "row-1",
+                        "source_url": "https://example.test/dataset",
+                        "source_sha256": "1" * 64,
+                        "evidence_scope": "verification_only",
                     }
                 ],
             }
@@ -83,6 +86,34 @@ def test_collected_language_data_becomes_review_only_proposal(
     assert proposal["status"] == "needs_review"
     assert proposal["payload"]["entry_id"] == "TEST-SLANG-001"
     assert proposal["evidence"][0]["license"] == "CC0-1.0"
+    assert proposal["evidence"][0]["evidence_scope"] == "verification_only"
+
+
+def test_collector_rejects_untraceable_evidence(tmp_path: Path) -> None:
+    source = tmp_path / "invalid.yaml"
+    data = _collected_entry()
+    del data["entries"][0]["evidence"][0]["source_sha256"]
+    source.write_text(
+        yaml.safe_dump(data, allow_unicode=True),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/language_supply.py",
+            "--input",
+            str(source),
+            "--batch-id",
+            "invalid-language-batch",
+            "--out",
+            str(tmp_path / "invalid-bundle.yaml"),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    assert "source_sha256 must be 64 hex characters" in result.stderr
 
 
 def test_social_language_feature_requires_boundary_and_action_review(
