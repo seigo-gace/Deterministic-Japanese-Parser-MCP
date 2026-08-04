@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,6 +58,9 @@ def main() -> int:
         / f"generated-{args.batch_id}.yaml"
     )
     compiled = ROOT / "dictionaries/system/compiled/language_features.d"
+    approvals_path = (
+        ROOT / "dictionaries/system/language_features.d/approvals.yaml"
+    )
     if output.exists():
         raise FileExistsError(output)
     document = {
@@ -64,16 +68,39 @@ def main() -> int:
         "version": args.batch_id,
         "entries": entries,
     }
+    output_text = yaml.safe_dump(
+        document,
+        allow_unicode=True,
+        sort_keys=False,
+    )
     if not args.apply:
-        print(yaml.safe_dump(document, allow_unicode=True, sort_keys=False))
+        print(output_text)
         return 0
     backup = compiled.parent / "language_features.d.rollback"
+    approvals_backup = approvals_path.with_suffix(".yaml.rollback")
     if compiled.exists():
         shutil.copytree(compiled, backup)
+    if approvals_path.exists():
+        shutil.copy2(approvals_path, approvals_backup)
     try:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(
-            yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        output.write_text(output_text, encoding="utf-8")
+        approvals = yaml.safe_load(
+            approvals_path.read_text(encoding="utf-8")
+        ) or {}
+        approvals.setdefault("schema_version", "1.0.0")
+        fragments = approvals.setdefault("approved_fragments", {})
+        fragments[output.name] = {
+            "status": "approved",
+            "source_sha256": hashlib.sha256(
+                output_text.encode("utf-8")
+            ).hexdigest(),
+            "review_id": (
+                f"review-bundle:{bundle.get('batch_id', args.batch_id)}"
+            ),
+        }
+        approvals_path.write_text(
+            yaml.safe_dump(approvals, allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
         subprocess.run(
@@ -108,10 +135,13 @@ def main() -> int:
             shutil.rmtree(compiled)
         if backup.exists():
             shutil.move(str(backup), str(compiled))
+        if approvals_backup.exists():
+            shutil.move(str(approvals_backup), str(approvals_path))
         raise
     finally:
         if backup.exists():
             shutil.rmtree(backup)
+        approvals_backup.unlink(missing_ok=True)
     print({
         "status": "PROMOTED",
         "entries": len(entries),
