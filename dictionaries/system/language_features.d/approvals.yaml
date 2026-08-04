@@ -1,5 +1,9 @@
 schema_version: "1.0.0"
 approved_fragments:
+  collision-guards-2026-08.yaml:
+    status: approved
+    source_sha256: f69cc3382d633c288ddece887012038256377a5933fec52246961baa73982313
+    review_id: boundary-collision-review-2026-08
   core-2026-08.yaml:
     status: approved
     source_sha256: 771aadad79de1f524de977e990ecc2106e04d561fe16f3d3f5b9d2455ff43485
