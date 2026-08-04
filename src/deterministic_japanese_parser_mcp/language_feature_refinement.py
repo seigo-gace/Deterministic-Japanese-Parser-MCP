@@ -87,20 +87,22 @@ def install_language_feature_runtime() -> None:
             ]
 
         overall = response.overall_status
-        if overall == OverallStatus.FAILED and resolved:
-            remaining_incomplete = bool(
-                ambiguous
-                or graph.unresolved
-                or unsupported
-                or response.contradictions
-                or response.timeouts
-                or response.missing_information
-            )
-            overall = (
-                OverallStatus.PARTIAL
-                if remaining_incomplete
-                else OverallStatus.COMPLETE
-            )
+        if overall == OverallStatus.FAILED and matches:
+            if ambiguous:
+                overall = OverallStatus.PARTIAL
+            else:
+                remaining_incomplete = bool(
+                    graph.unresolved
+                    or unsupported
+                    or response.contradictions
+                    or response.timeouts
+                    or response.missing_information
+                )
+                overall = (
+                    OverallStatus.PARTIAL
+                    if remaining_incomplete
+                    else OverallStatus.COMPLETE
+                )
         elif ambiguous and overall == OverallStatus.COMPLETE:
             overall = OverallStatus.PARTIAL
 
