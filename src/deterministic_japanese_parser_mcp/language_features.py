@@ -53,14 +53,14 @@ def _token_exact(
     )
 
 
-def _token_sequence_exact(
+def _selected_token_sequence(
     tokens: list[Token],
     surface: str,
     start: int,
     end: int,
     mapping,
     original_text: str,
-) -> bool:
+) -> list[Token] | None:
     original_span = span_to_original(start, end, mapping, original_text)
     selected = [
         token
@@ -69,20 +69,50 @@ def _token_sequence_exact(
         and token.span.end <= original_span.end
     ]
     if not selected:
-        return False
+        return None
     selected.sort(key=lambda item: (item.span.start, item.span.end))
     if selected[0].span.start != original_span.start:
-        return False
+        return None
     if selected[-1].span.end != original_span.end:
-        return False
+        return None
     if any(
         left.span.end != right.span.start
         for left, right in zip(selected, selected[1:])
     ):
-        return False
+        return None
     surfaces = "".join(token.surface for token in selected)
     normalized = "".join(token.normalized for token in selected)
-    return surface in {surfaces, normalized}
+    if surface not in {surfaces, normalized}:
+        return None
+    return selected
+
+
+def _particle_sequence_exact(
+    tokens: list[Token],
+    surface: str,
+    start: int,
+    end: int,
+    mapping,
+    original_text: str,
+) -> bool:
+    selected = _selected_token_sequence(
+        tokens,
+        surface,
+        start,
+        end,
+        mapping,
+        original_text,
+    )
+    if not selected:
+        return False
+    return all(
+        token.pos
+        and (
+            token.pos[0] == "助詞"
+            or "終助詞" in token.pos
+        )
+        for token in selected
+    )
 
 
 def _exact_utterance(text: str, start: int, end: int) -> bool:
@@ -264,7 +294,7 @@ class LanguageFeatureRuntime:
                     continue
                 if (
                     entry.get("feature_type") == "sentence_final_particle"
-                    and not _token_sequence_exact(
+                    and not _particle_sequence_exact(
                         tokens,
                         surface,
                         start,
@@ -435,10 +465,24 @@ class LanguageFeatureRuntime:
                         updates["politeness_level"] = int(
                             params["politeness_level"]
                         )
-                    if params.get("speech_act"):
-                        updates["speech_act"] = params["speech_act"]
-                    if params.get("deontic_force"):
-                        updates["deontic_force"] = params["deontic_force"]
+                    feature_speech_act = params.get("speech_act")
+                    current_speech_act = updates.get(
+                        "speech_act", proposition.speech_act
+                    )
+                    if feature_speech_act and current_speech_act in {
+                        "assertion",
+                        feature_speech_act,
+                    }:
+                        updates["speech_act"] = feature_speech_act
+                    feature_deontic = params.get("deontic_force")
+                    current_deontic = updates.get(
+                        "deontic_force", proposition.deontic_force
+                    )
+                    if feature_deontic and (
+                        current_deontic == "none"
+                        or current_deontic == feature_deontic
+                    ):
+                        updates["deontic_force"] = feature_deontic
                 if feature_type in {"honorific", "treatment_expression"}:
                     values = params.get("honorific_classes", [])
                     updates["honorific_classes"] = _merge_unique(
