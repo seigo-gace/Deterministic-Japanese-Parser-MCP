@@ -34,14 +34,39 @@ ALLOWED_FALLBACKS = {"RESOLVED", "AMBIGUOUS", "UNSUPPORTED"}
 PART_SIZE = 12000
 
 
+def _approved_fragments(source_dir: Path) -> dict[str, dict[str, Any]]:
+    path = source_dir / "approvals.yaml"
+    value = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if value.get("schema_version") != "1.0.0":
+        raise ValueError("unsupported language feature approval schema")
+    approved = value.get("approved_fragments", {})
+    if not isinstance(approved, dict):
+        raise ValueError("approved_fragments must be an object")
+    return approved
+
+
 def load_entries(source_dir: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     ids: set[str] = set()
     interpretation_ids: set[str] = set()
-    paths = sorted(source_dir.glob("*.yaml"))
+    approvals = _approved_fragments(source_dir)
+    paths = sorted(
+        path for path in source_dir.glob("*.yaml")
+        if path.name != "approvals.yaml"
+    )
     if not paths:
         raise ValueError(f"no language feature fragments: {source_dir}")
     for path in paths:
+        approval = approvals.get(path.name, {})
+        if approval.get("status") != "approved":
+            raise ValueError(f"unapproved language feature fragment: {path.name}")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != approval.get("source_sha256"):
+            raise ValueError(
+                f"approved fragment digest mismatch: {path.name}: {digest}"
+            )
+        if not approval.get("review_id"):
+            raise ValueError(f"approval review_id is required: {path.name}")
         document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if document.get("schema_version") != "1.0.0":
             raise ValueError(f"unsupported source schema: {path}")
@@ -122,7 +147,10 @@ def compile_payload(source_dir: Path) -> dict[str, Any]:
                 "match_mode": surface["match_mode"],
             })
     surface_map = {
-        surface: sorted(values, key=lambda item: (item["entry_id"], item["match_mode"]))
+        surface: sorted(
+            values,
+            key=lambda item: (item["entry_id"], item["match_mode"]),
+        )
         for surface, values in sorted(surface_map.items())
     }
     index = LiteralIndex(surface_map)
