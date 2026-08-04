@@ -5,10 +5,52 @@ from typing import Callable
 
 from .engine import ParserEngine
 from .language_features import LanguageFeatureRuntime
-from .models import AnalyzeRequest, ItemStatus, OverallStatus
+from .models import (
+    AnalyzeRequest,
+    ItemStatus,
+    LanguageFeatureMatch,
+    OverallStatus,
+)
 from .normalizer import normalize_with_map
 
 _INSTALLED = False
+
+
+def _overlaps(left: LanguageFeatureMatch, right: LanguageFeatureMatch) -> bool:
+    return (
+        left.source_span.start < right.source_span.end
+        and right.source_span.start < left.source_span.end
+    )
+
+
+def _apply_collision_guards(
+    runtime: LanguageFeatureRuntime,
+    matches: list[LanguageFeatureMatch],
+) -> tuple[list[LanguageFeatureMatch], int]:
+    """Remove only candidates explicitly suppressed by reviewed guard entries."""
+    guards: list[tuple[LanguageFeatureMatch, set[str]]] = []
+    for match in matches:
+        entry = runtime.entries.get(match.entry_id, {})
+        suppressed = set(entry.get("suppress_entry_ids", []))
+        if entry.get("emit", True) is False and suppressed:
+            guards.append((match, suppressed))
+
+    output: list[LanguageFeatureMatch] = []
+    suppressed_count = 0
+    for match in matches:
+        entry = runtime.entries.get(match.entry_id, {})
+        if entry.get("emit", True) is False:
+            continue
+        blocked = any(
+            match.entry_id in suppressed_ids
+            and _overlaps(match, guard_match)
+            for guard_match, suppressed_ids in guards
+        )
+        if blocked:
+            suppressed_count += 1
+            continue
+        output.append(match)
+    return output, suppressed_count
 
 
 def install_language_feature_runtime() -> None:
@@ -34,7 +76,7 @@ def install_language_feature_runtime() -> None:
         response = original_analyze(self, request, *args, **kwargs)
         started = perf_counter()
         normalized, mapping = normalize_with_map(request.original_text)
-        matches = self.language_features.analyze(
+        raw_matches = self.language_features.analyze(
             normalized,
             mapping,
             request.original_text,
@@ -42,11 +84,17 @@ def install_language_feature_runtime() -> None:
             social_context=request.social_context,
             discourse_state=request.discourse_state,
         )
+        matches, collision_suppressed = _apply_collision_guards(
+            self.language_features,
+            raw_matches,
+        )
         metrics = dict(response.metrics)
         metrics.update({
             "language_feature_ms": round(
                 (perf_counter() - started) * 1000, 3
             ),
+            "language_feature_emitted_match_count": len(matches),
+            "language_feature_collision_suppressed_count": collision_suppressed,
             **{
                 f"language_feature_{key}": value
                 for key, value in self.language_features.last_metrics.items()
