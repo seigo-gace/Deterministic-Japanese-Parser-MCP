@@ -1,10 +1,13 @@
 {
-  "request_id": "context-v3-5000-2026-08-05T02:51:00+09:00",
+  "request_id": "context-v3-5000-2026-08-05T03:31:00+09:00",
+  "execution_scope": "github-only",
+  "status": "RUN_REQUESTED",
   "target_total": 5000,
   "existing_raw_count": 1145,
   "existing_normalized_unique_count": 1144,
   "required_new_unique_count": 3856,
   "review_status": "needs-evidence",
+  "runtime_promotion": false,
   "category_targets": {
     "slang": 1000,
     "onomatopoeia": 700,
@@ -16,5 +19,13 @@
     "media_community": 500,
     "reference": 300,
     "epistemic": 200
-  }
+  },
+  "required_validation": [
+    "exactly_5000_yaml_files",
+    "exactly_5000_normalized_unique_surfaces",
+    "exact_category_quota_match",
+    "positive_negative_boundary_examples_present",
+    "source_and_license_present",
+    "no_runtime_dictionary_change"
+  ]
 }
