@@ -1,0 +1,26 @@
+{
+  "compiled_sha256": "e1f618694f3846a4ba5a398a1b90be87a90e05b29f0826a5fd472b243b666d41",
+  "encoding": "base64-json-utf8",
+  "entry_count": 21,
+  "part_size": 12000,
+  "parts": [
+    {
+      "characters": 12000,
+      "path": "part-0001.b64",
+      "sha256": "c561eb1b4fdcb9ec36644f4dc81dcfd7ef16b37e8ae2fff6c2b3b4480ee1495e"
+    },
+    {
+      "characters": 12000,
+      "path": "part-0002.b64",
+      "sha256": "a4795b68b67842e909a743cdc2bf7c6885cca461f2b3f51747db9d82d4fbe62d"
+    },
+    {
+      "characters": 5968,
+      "path": "part-0003.b64",
+      "sha256": "843a175f76fba211bc85d1a106d3a38a31ca019a18dd3508010068ced89085b5"
+    }
+  ],
+  "payload_content_sha256": "f4bced047ecd739643678372d691d5ecd2c346231449ab7bf49d8eb33f10e5dc",
+  "schema_version": "1.0.0",
+  "surface_count": 37
+}
