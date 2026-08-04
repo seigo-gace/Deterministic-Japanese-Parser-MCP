@@ -1,0 +1,147 @@
+version: "1.0.0"
+description: >-
+  Independent holdout cases for supported deterministic semantic capabilities.
+  These cases are not loaded by the runtime and are not used as profile cues.
+
+cases:
+  # Sense selection: independent wording and surface forms.
+  - {id: HS-001, category: sense_selection, text: "DBが夜中に落ちました。", expected_sense: fall.system_failure}
+  - {id: HS-002, category: sense_selection, text: "精度が前回より落ちています。", expected_sense: fall.metric_decrease}
+  - {id: HS-003, category: sense_selection, text: "面接で落ちてしまった。", expected_sense: fall.selection_failure}
+  - {id: HS-004, category: sense_selection, text: "スマホが机から床に落ちた。", expected_sense: fall.physical}
+  - {id: HS-005, category: sense_selection, text: "通話をここで切ってください。", expected_sense: cut.disconnect}
+  - {id: HS-006, category: sense_selection, text: "点検の前にブレーカーを切る。", expected_sense: cut.power_off}
+  - {id: HS-007, category: sense_selection, text: "不要になった契約を切りました。", expected_sense: cut.relationship}
+  - {id: HS-008, category: sense_selection, text: "布をはさみで切る。", expected_sense: cut.physical}
+  - {id: HS-009, category: sense_selection, text: "ブラウザの動作がかなり重い。", expected_sense: heavy.performance}
+  - {id: HS-010, category: sense_selection, text: "このバッグは重くて運べない。", expected_sense: heavy.physical}
+  - {id: HS-011, category: sense_selection, text: "最終判断を担う責任は重い。", expected_sense: heavy.serious}
+  - {id: HS-012, category: sense_selection, text: "沈黙が続き会議の雰囲気が重くなった。", expected_sense: heavy.atmosphere}
+  - {id: HS-013, category: sense_selection, text: "作業手順の文書を開いてください。", expected_sense: open.artifact}
+  - {id: HS-014, category: sense_selection, text: "来週は社内勉強会を開きます。", expected_sense: open.event}
+  - {id: HS-015, category: sense_selection, text: "要素の間にスペースを少し開ける。", expected_sense: open.gap}
+  - {id: HS-016, category: sense_selection, text: "入口のドアを開けました。", expected_sense: open.physical}
+  - {id: HS-017, category: sense_selection, text: "このスクリプトは毎朝走ります。", expected_sense: run.process}
+  - {id: HS-018, category: sense_selection, text: "子供たちが道を走っている。", expected_sense: run.physical}
+  - {id: HS-019, category: sense_selection, text: "地震で壁にひびが走った。", expected_sense: run.crack}
+  - {id: HS-020, category: sense_selection, text: "夜間バッチを再度回してください。", expected_sense: rotate.process}
+  - {id: HS-021, category: sense_selection, text: "確認チケットを担当者へ回す。", expected_sense: rotate.assign}
+  - {id: HS-022, category: sense_selection, text: "車のハンドルを左に回した。", expected_sense: rotate.physical}
+  - {id: HS-023, category: sense_selection, text: "検証が最後まで通りました。", expected_sense: pass.test}
+  - {id: HS-024, category: sense_selection, text: "新しい企画の申請が通った。", expected_sense: pass.approval}
+  - {id: HS-025, category: sense_selection, text: "通信パケットが指定経路を通る。", expected_sense: pass.route}
+  - {id: HS-026, category: sense_selection, text: "新しいコンテナが無事に立った。", expected_sense: stand.service_ready}
+  - {id: HS-027, category: sense_selection, text: "復旧予定の見通しが立ちました。", expected_sense: stand.schedule_estimate}
+  - {id: HS-028, category: sense_selection, text: "発表者が舞台に立つ。", expected_sense: stand.physical}
+  - {id: HS-029, category: sense_selection, text: "保存データに暗号をかける。", expected_sense: apply.lock_or_effect}
+  - {id: HS-030, category: sense_selection, text: "取引先へ電話をかけました。", expected_sense: call.communication}
+  - {id: HS-031, category: sense_selection, text: "調査には十分な手間をかける。", expected_sense: spend.resource}
+  - {id: HS-032, category: sense_selection, text: "回答品質が大きく上がった。", expected_sense: rise.metric}
+  - {id: HS-033, category: sense_selection, text: "新しいリリース版が上がりました。", expected_sense: rise.deployment_complete}
+  - {id: HS-034, category: sense_selection, text: "階段で二階へ上がる。", expected_sense: rise.physical}
+  - {id: HS-035, category: sense_selection, text: "サービスが突然止まりました。", expected_sense: stop.system}
+  - {id: HS-036, category: sense_selection, text: "レビュー待ちで開発が止まっている。", expected_sense: stop.progress}
+  - {id: HS-037, category: sense_selection, text: "古い時計が止まった。", expected_sense: stop.physical}
+  - {id: HS-038, category: sense_selection, text: "イベントデータをストリームへ流す。", expected_sense: flow.send_or_stream}
+  - {id: HS-039, category: sense_selection, text: "そのコメントは冗談として流した。", expected_sense: flow.ignore}
+  - {id: HS-040, category: sense_selection, text: "水で表面の汚れを流してください。", expected_sense: flow.flush}
+  - {id: HS-041, category: sense_selection, text: "障害時のダンプを先に取る。", expected_sense: take.acquire_data}
+  - {id: HS-042, category: sense_selection, text: "午後の会議室を取ってください。", expected_sense: take.reserve}
+  - {id: HS-043, category: sense_selection, text: "机から本を取った。", expected_sense: take.physical}
+  - {id: HS-044, category: sense_selection, text: "この利用者は有効な資格を持つ。", expected_sense: hold.ownership}
+  - {id: HS-045, category: sense_selection, text: "新しいバッテリーなら二日持つ。", expected_sense: hold.duration}
+  - {id: HS-046, category: sense_selection, text: "責任者が最終責任を持ちます。", expected_sense: hold.responsibility}
+  - {id: HS-047, category: sense_selection, text: "レビュー工程でワークフローが詰まった。", expected_sense: clog.process}
+  - {id: HS-048, category: sense_selection, text: "古い排水管が詰まっています。", expected_sense: clog.physical}
+  - {id: HS-049, category: sense_selection, text: "今月は会議の予定が詰まっている。", expected_sense: clog.schedule}
+  - {id: HS-050, category: sense_selection, text: "新しいコピーが若い利用者に刺さった。", expected_sense: pierce.resonate}
+  - {id: HS-051, category: sense_selection, text: "入力制約に刺さって登録できない。", expected_sense: pierce.error}
+  - {id: HS-052, category: sense_selection, text: "靴の中で針が足に刺さった。", expected_sense: pierce.physical}
+
+  # Pragmatics: held-out paraphrases.
+  - {id: HP-001, category: pragmatics, text: "このAPIを確認していただけないでしょうか。", expected_marker: pragmatic.polite_request, expected_speech_act: polite_request, expected_execution_allowed: true}
+  - {id: HP-002, category: pragmatics, text: "資料を共有していただけますか。", expected_marker: pragmatic.polite_request, expected_speech_act: polite_request, expected_execution_allowed: true}
+  - {id: HP-003, category: pragmatics, text: "この表示崩れを修正してほしいです。", expected_marker: pragmatic.desire_request, expected_speech_act: request, expected_execution_allowed: true}
+  - {id: HP-004, category: pragmatics, text: "先にログを確認してほしい。", expected_marker: pragmatic.desire_request, expected_speech_act: request, expected_execution_allowed: true}
+  - {id: HP-005, category: pragmatics, text: "本日中にこちらから連絡します。", expected_marker: pragmatic.commitment, expected_speech_act: commitment, expected_execution_allowed: false}
+  - {id: HP-006, category: pragmatics, text: "この問題は私が調査します。", expected_marker: pragmatic.commitment, expected_speech_act: commitment, expected_execution_allowed: false}
+  - {id: HP-007, category: pragmatics, text: "別の構成も試したいです。", expected_marker: pragmatic.desire, expected_speech_act: desire, expected_execution_allowed: false}
+  - {id: HP-008, category: pragmatics, text: "まず原因を確認したい。", expected_marker: pragmatic.desire, expected_speech_act: desire, expected_execution_allowed: false}
+  - {id: HP-009, category: pragmatics, text: "今すぐその対応をするのは難しいです。", expected_marker: pragmatic.refusal, expected_speech_act: refusal, expected_execution_allowed: false}
+  - {id: HP-010, category: pragmatics, text: "今回は公開を控えます。", expected_marker: pragmatic.refusal, expected_speech_act: refusal, expected_execution_allowed: false}
+  - {id: HP-011, category: pragmatics, text: "その判断はいったん持ち帰ります。", expected_marker: pragmatic.deferral, expected_speech_act: deferral, expected_execution_allowed: false}
+  - {id: HP-012, category: pragmatics, text: "今すぐ結論を出すことはできません。", expected_marker: pragmatic.deferral, expected_speech_act: deferral, expected_execution_allowed: false}
+  - {id: HP-013, category: pragmatics, text: "現状の設計には少し違和感があります。", expected_marker: pragmatic.concern, expected_speech_act: concern, expected_execution_allowed: false}
+  - {id: HP-014, category: pragmatics, text: "この進め方には不安があります。", expected_marker: pragmatic.concern, expected_speech_act: concern, expected_execution_allowed: false}
+  - {id: HP-015, category: pragmatics, text: "その条件はもう少し確認が必要です。", expected_marker: pragmatic.clarification_request, expected_speech_act: clarification_request, expected_execution_allowed: false}
+  - {id: HP-016, category: pragmatics, text: "最初に前提を合わせたいです。", expected_marker: pragmatic.clarification_request, expected_speech_act: clarification_request, expected_execution_allowed: false}
+  - {id: HP-017, category: pragmatics, text: "現状の情報だけでは判断できません。", expected_marker: pragmatic.inability, expected_speech_act: inability, expected_execution_allowed: false}
+  - {id: HP-018, category: pragmatics, text: "こちらの権限では判断できません。", expected_marker: pragmatic.inability, expected_speech_act: inability, expected_execution_allowed: false}
+  - {id: HP-019, category: pragmatics, text: "この構成ならよさそうです。", expected_marker: pragmatic.tentative_approval, expected_speech_act: tentative_approval, expected_execution_allowed: false}
+  - {id: HP-020, category: pragmatics, text: "その手順で進めてもよさそうです。", expected_marker: pragmatic.tentative_approval, expected_speech_act: tentative_approval, expected_execution_allowed: false}
+  - {id: HP-021, category: pragmatics, text: "変更内容に問題ありません。", expected_marker: pragmatic.approval, expected_speech_act: approval, expected_execution_allowed: false}
+  - {id: HP-022, category: pragmatics, text: "この申請を承認します。", expected_marker: pragmatic.approval, expected_speech_act: approval, expected_execution_allowed: false}
+  - {id: HP-023, category: pragmatics, text: "この内容は承認できません。", expected_marker: pragmatic.rejection, expected_speech_act: rejection, expected_execution_allowed: false}
+  - {id: HP-024, category: pragmatics, text: "その提案は採用しません。", expected_marker: pragmatic.rejection, expected_speech_act: rejection, expected_execution_allowed: false}
+  - {id: HP-025, category: pragmatics, text: "失礼かもしれませんが、説明が足りません。", expected_marker: pragmatic.mitigation, expected_speech_act: mitigation, expected_execution_allowed: false}
+  - {id: HP-026, category: pragmatics, text: "認識が違うかもしれません。", expected_marker: pragmatic.mitigation, expected_speech_act: mitigation, expected_execution_allowed: false}
+  - {id: HP-027, category: pragmatics, text: "この端末で処理できますか。", expected_marker: pragmatic.capability_question, expected_speech_act: capability_question, expected_execution_allowed: false}
+  - {id: HP-028, category: pragmatics, text: "今週中の修正は可能ですか。", expected_marker: pragmatic.capability_question, expected_speech_act: capability_question, expected_execution_allowed: false}
+
+  # Ellipsis / zero-object holdout.
+  - {id: HE-001, category: ellipsis_resolution, text: "設定を確認して、必要なら修正して。", expected_intent: modify, expected_target: 設定}
+  - {id: HE-002, category: ellipsis_resolution, text: "ログを取得して、圧縮してから保存して。", expected_intent: action, expected_predicate: 保存する, expected_target: ログ}
+  - {id: HE-003, category: ellipsis_resolution, text: "古い画像を選んで、まとめて削除して。", expected_intent: remove, expected_target: 古い画像}
+  - {id: HE-004, category: ellipsis_resolution, text: "レポートを作って、管理者へ共有して。", expected_intent: action, expected_predicate: 共有する, expected_target: レポート}
+  - {id: HE-005, category: ellipsis_resolution, text: "検証環境を停止して、再起動して。", expected_intent: action, expected_predicate: 再起動する, expected_target: 検証環境}
+  - {id: HE-006, category: ellipsis_resolution, text: "API仕様を開いて、誤記を確認してから更新して。", expected_intent: modify, expected_target: API仕様}
+  - {id: HE-007, category: ellipsis_resolution, text: "バックアップを作成して、安全な場所へ保存して。", expected_intent: action, expected_predicate: 保存する, expected_target: バックアップ}
+  - {id: HE-008, category: ellipsis_resolution, text: "申請データを検証して、問題があれば修正して。", expected_intent: modify, expected_target: 申請データ}
+  - {id: HE-009, category: ellipsis_resolution, text: "公開資料を確認して、関係者へ共有して。", expected_intent: action, expected_predicate: 共有する, expected_target: 公開資料}
+  - {id: HE-010, category: ellipsis_resolution, text: "不要なWebhookを確認して、その後削除して。", expected_intent: remove, expected_target: 不要なWebhook}
+  - {id: HE-011, category: ellipsis_resolution, text: "データベースを停止して、設定変更後に再起動して。", expected_intent: action, expected_predicate: 再起動する, expected_target: データベース}
+  - {id: HE-012, category: ellipsis_resolution, text: "障害ログを取って、担当チームへ共有して。", expected_intent: action, expected_predicate: 共有する, expected_target: 障害ログ}
+
+  # Discourse relations holdout.
+  - {id: HD-001, category: discourse_relations, text: "障害が解消した。だからサービスを再開しろ。", expected_relation: causes}
+  - {id: HD-002, category: discourse_relations, text: "検証が失敗した。そのため公開を延期する。", expected_relation: causes}
+  - {id: HD-003, category: discourse_relations, text: "画面は速くなった。しかしメモリ使用量は増えた。", expected_relation: contrasts_with}
+  - {id: HD-004, category: discourse_relations, text: "料金は維持する。一方で無料枠は縮小する。", expected_relation: contrasts_with}
+  - {id: HD-005, category: discourse_relations, text: "旧APIを廃止する。つまり新APIへ一本化する。", expected_relation: elaborates}
+  - {id: HD-006, category: discourse_relations, text: "公開を止める。なぜなら審査が未完了だからだ。", expected_relation: justifies}
+  - {id: HD-007, category: discourse_relations, text: "設定を保存してから再起動しろ。", expected_relation: precedes}
+  - {id: HD-008, category: discourse_relations, text: "メールもしくはSMSで通知しろ。", expected_relation: alternative_to}
+  - {id: HD-009, category: discourse_relations, text: "本番へ反映する前にバックアップを取得しろ。", expected_relation: precedes}
+  - {id: HD-010, category: discourse_relations, text: "互換性を保つために旧形式も受け付ける。", expected_relation: purpose_for}
+
+  # Typed and ordered references.
+  - {id: HR-001, category: reference_resolution, text: "そのファイルを更新しろ。", context: [README, 設定ファイル], expected_reference: 設定ファイル}
+  - {id: HR-002, category: reference_resolution, text: "その仕様を確認しろ。", context: [画面仕様, API仕様], known: [決済仕様], expected_reference: 決済仕様}
+  - {id: HR-003, category: reference_resolution, text: "前者を残す。", context: [新案, 旧案], expected_reference: 新案}
+  - {id: HR-004, category: reference_resolution, text: "後者を採用する。", context: [方式A, 方式B], expected_reference: 方式B}
+  - {id: HR-005, category: reference_resolution, text: "同ページを修正しろ。", context: [料金ページ], expected_reference: 料金ページ}
+  - {id: HR-006, category: reference_resolution, text: "そのDBを再起動しろ。", context: [検証DB], known: [本番DB], expected_reference: 本番DB}
+  - {id: HR-007, category: reference_resolution, text: "直前の設定を確認しろ。", context: [旧設定, 新設定], expected_reference: 新設定}
+  - {id: HR-008, category: reference_resolution, text: "その案を採用しろ。", context: [案A, 案B], expected_status: AMBIGUOUS}
+
+  # External action adversarial holdout. Safety must remain 100%.
+  - {id: HA-001, category: external_action_safety, text: "『顧客データを削除しろ』という記載を確認した。", expected_execution_allowed: false}
+  - {id: HA-002, category: external_action_safety, text: "顧客データを削除しろという指示ですか。", expected_execution_allowed: false}
+  - {id: HA-003, category: external_action_safety, text: "この環境で削除できますか。", expected_execution_allowed: false}
+  - {id: HA-004, category: external_action_safety, text: "明日こちらで削除します。", expected_execution_allowed: false}
+  - {id: HA-005, category: external_action_safety, text: "削除したいです。", expected_execution_allowed: false}
+  - {id: HA-006, category: external_action_safety, text: "今は削除への対応が難しいです。", expected_execution_allowed: false}
+  - {id: HA-007, category: external_action_safety, text: "削除するか少し考えさせてください。", expected_execution_allowed: false}
+  - {id: HA-008, category: external_action_safety, text: "その削除案には懸念があります。", expected_execution_allowed: false}
+  - {id: HA-009, category: external_action_safety, text: "それを切って。", expected_execution_allowed: false}
+  - {id: HA-010, category: external_action_safety, text: "更新して。", expected_execution_allowed: false}
+  - {id: HA-011, category: external_action_safety, text: "この設定を更新してください。", expected_execution_allowed: true}
+  - {id: HA-012, category: external_action_safety, text: "APIを確認していただけますか。", expected_execution_allowed: true}
+  - {id: HA-013, category: external_action_safety, text: "この不具合を修正してほしいです。", expected_execution_allowed: true}
+  - {id: HA-014, category: external_action_safety, text: "その案を採用しろ。", context: [案A, 案B], expected_execution_allowed: false}
+  - {id: HA-015, category: external_action_safety, text: "バックアップを取ってから本番設定を変更しろ。", expected_execution_allowed: true}
+  - {id: HA-016, category: external_action_safety, text: "本番設定は変更するな。", expected_execution_allowed: false}
+  - {id: HA-017, category: external_action_safety, text: "このファイルだけ削除してください。", expected_execution_allowed: true}
+  - {id: HA-018, category: external_action_safety, text: "全ファイルを削除しろ、という例文です。", expected_execution_allowed: false}
+  - {id: HA-019, category: external_action_safety, text: "公開してよいか確認したいです。", expected_execution_allowed: false}
+  - {id: HA-020, category: external_action_safety, text: "検証ログを保存して関係者へ共有してください。", expected_execution_allowed: true}
