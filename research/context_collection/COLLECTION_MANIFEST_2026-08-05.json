@@ -2,6 +2,7 @@
   "collection_version": "2.0.0-audit",
   "generated_at": "2026-08-05T02:13:41+09:00",
   "source_count": 115,
+  "unique_domain_count": 52,
   "existing_reviewed_seed_count": 328,
   "new_candidate_count": 1145,
   "new_candidate_meanings_asserted": 0,
@@ -17,6 +18,8 @@
     "research/context_collection/SOURCE_INVENTORY_2026-08-05.md",
     "research/context_collection/CANDIDATE_SURFACES_2026-08-05.md",
     "research/context_collection/WEB_COLLECTION_AUDIT_2026-08-05.md",
+    "research/context_collection/COLLECTION_MANIFEST_2026-08-05.json",
+    "research/context_collection/SOURCE_COVERAGE_2026-08-05.json",
     "research/context_collection/CANDIDATE_ENTRY_CONTRACT.json",
     "research/context_collection/VALIDATION_2026-08-05.json"
   ],
