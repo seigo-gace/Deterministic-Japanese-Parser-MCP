@@ -1,0 +1,96 @@
+{
+  "collection_version": "3.0.0-candidate-discovery",
+  "generated_at": "2026-08-05T04:13:11+09:00",
+  "status": "CANDIDATE_TARGET_REACHED_STRICT",
+  "total_entries": 5000,
+  "existing_v2_raw_rows": 1145,
+  "existing_v2_unique_surfaces": 1144,
+  "merged_existing_duplicates": 1,
+  "new_entries": 3856,
+  "category_quotas": {
+    "slang": 1000,
+    "onomatopoeia": 700,
+    "modality": 500,
+    "honorific": 500,
+    "discourse": 400,
+    "metaphor": 500,
+    "dialect": 400,
+    "media_community": 500,
+    "reference": 300,
+    "epistemic": 200
+  },
+  "category_counts": {
+    "dialect": 400,
+    "discourse": 400,
+    "epistemic": 200,
+    "honorific": 500,
+    "media_community": 500,
+    "metaphor": 500,
+    "modality": 500,
+    "onomatopoeia": 700,
+    "reference": 300,
+    "slang": 1000
+  },
+  "origin_counts": {
+    "existing-v2-candidate": 1144,
+    "productive-pattern-expansion": 2362,
+    "web-and-productive-pattern": 205,
+    "web-glossary-candidate": 179,
+    "web-category-candidate": 704,
+    "orthographic-variant-candidate": 406
+  },
+  "license_counts": {
+    "確認中": 1144,
+    "CC BY-SA / source-dependent / 確認中": 3856
+  },
+  "global_unique_surface_count": 5000,
+  "all_review_status": "needs-evidence",
+  "semantic_completion_claim_allowed": false,
+  "runtime_promotion_allowed": false,
+  "required_next_stage": [
+    "direct occurrence evidence",
+    "independent meaning/context evidence",
+    "license review",
+    "reading and variant review",
+    "positive/negative/boundary validation",
+    "quotation/negation/question/hypothesis/hearsay tests",
+    "external-action risk review",
+    "human review",
+    "independent holdout"
+  ],
+  "input_policy": {
+    "malformed_pattern_count": 0,
+    "mock_input_used": false,
+    "placeholder_padding_allowed": false,
+    "direct_surface_sources": [
+      "https://en.wiktionary.org/wiki/Category:Japanese_slang",
+      "https://en.wiktionary.org/wiki/Category:Japanese_internet_slang",
+      "https://en.wiktionary.org/wiki/Category:Japanese_onomatopoeias",
+      "https://github.com/1Selxo/living-japanese-slang-dictionary",
+      "https://github.com/ObakeConstructs/j-ono-data",
+      "https://support.google.com/youtube/",
+      "https://help.twitch.tv/"
+    ],
+    "productive_pattern_sources": [
+      "https://www2.ninjal.ac.jp/conversation/cejc.html",
+      "https://clrd.ninjal.ac.jp/bccwj/",
+      "https://www.bunka.go.jp/seisaku/kokugo_nihongo/kokugo_shisaku/keigo/",
+      "https://www.jpf.go.jp/j/project/japanese/teach/tsushin/grammar/"
+    ],
+    "semantic_completion_claim_allowed": false
+  },
+  "candidate_pool_counts_before_fill": {
+    "slang": 1074,
+    "onomatopoeia": 991,
+    "modality": 636,
+    "honorific": 601,
+    "discourse": 371,
+    "metaphor": 644,
+    "dialect": 470,
+    "media_community": 448,
+    "reference": 1782,
+    "epistemic": 210
+  },
+  "placeholder_count": 0,
+  "mock_input_used": false
+}
