@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - feature/import-all-dictionaries
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +16,9 @@ permissions:
 
 jobs:
   import-built-lexicon:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name != 'pull_request' || github.head_ref == 'feature/import-all-dictionaries')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -70,7 +76,7 @@ jobs:
           for path in sorted(root.rglob('*.jsonl.gz')):
               with gzip.open(path, 'rt', encoding='utf-8') as handle:
                   count = 0
-                  for line_number, line in enumerate(handle, 1):
+                  for line in handle:
                       if not line.strip():
                           continue
                       json.loads(line)
