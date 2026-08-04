@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import sys
 
 import yaml
@@ -14,6 +15,10 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from dictionary_supply.proposals import load_bundle
+
+_BLOCKED_LICENSE_MARKERS = {"PRIVATE", "UNKNOWN", "UNLICENSED"}
+_ALLOWED_EVIDENCE_SCOPES = {"runtime_data", "verification_only"}
+_SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def load_decisions(path: Path) -> dict[str, dict]:
@@ -33,6 +38,36 @@ def load_decisions(path: Path) -> dict[str, dict]:
             raise ValueError(f"review notes are required: {proposal_id}")
         decisions[proposal_id] = item
     return decisions
+
+
+def _validate_language_evidence(
+    proposal_id: str,
+    evidence: list[dict],
+) -> None:
+    for item in evidence:
+        license_value = str(item.get("license", "")).upper()
+        if any(marker in license_value for marker in _BLOCKED_LICENSE_MARKERS):
+            raise ValueError(
+                f"blocked evidence license: {proposal_id}: "
+                f"{item.get('license')}"
+            )
+        scope = item.get("evidence_scope")
+        if scope not in _ALLOWED_EVIDENCE_SCOPES:
+            raise ValueError(
+                "language feature evidence_scope must be runtime_data or "
+                f"verification_only: {proposal_id}"
+            )
+        if item.get("dataset") != "project-authored semantic contract":
+            if not item.get("source_url"):
+                raise ValueError(
+                    f"language feature evidence source_url is required: "
+                    f"{proposal_id}"
+                )
+            if not _SHA256.fullmatch(str(item.get("source_sha256", ""))):
+                raise ValueError(
+                    "language feature evidence source_sha256 must be 64 hex "
+                    f"characters: {proposal_id}"
+                )
 
 
 def validate_approval(proposal: dict, decision: dict) -> None:
@@ -65,9 +100,41 @@ def validate_approval(proposal: dict, decision: dict) -> None:
             raise ValueError(
                 f"external_action_reviewed=true is required: {proposal_id}"
             )
+    elif kind == "language_feature":
+        _validate_language_evidence(proposal_id, evidence)
+        for key in (
+            "entry_id", "feature_type", "surfaces", "interpretations",
+            "fallback_status", "risk_class",
+        ):
+            if not payload.get(key):
+                raise ValueError(
+                    f"language_feature.{key} is required: {proposal_id}"
+                )
+        if not decision.get("positive_examples"):
+            raise ValueError(f"positive_examples are required: {proposal_id}")
+        if not decision.get("negative_examples"):
+            raise ValueError(f"negative_examples are required: {proposal_id}")
+        if not decision.get("boundary_examples"):
+            raise ValueError(f"boundary_examples are required: {proposal_id}")
+        if payload.get("risk_class") in {"action", "social"} and (
+            decision.get("external_action_reviewed") is not True
+        ):
+            raise ValueError(
+                "external_action_reviewed=true is required for action/social "
+                f"language features: {proposal_id}"
+            )
+        if payload.get("fallback_status") == "RESOLVED" and len(
+            payload.get("interpretations", [])
+        ) > 1:
+            raise ValueError(
+                "multi-interpretation language features cannot default to "
+                f"RESOLVED: {proposal_id}"
+            )
     elif kind == "synonym":
         if not payload.get("canonical") or not payload.get("surfaces"):
-            raise ValueError(f"synonym canonical/surfaces are required: {proposal_id}")
+            raise ValueError(
+                f"synonym canonical/surfaces are required: {proposal_id}"
+            )
         if payload.get("ambiguous_surfaces"):
             raise ValueError(
                 f"ambiguous surfaces must be resolved before approval: {proposal_id}"
@@ -117,11 +184,7 @@ def main() -> int:
     for proposal in bundle.get("proposals", []):
         status = proposal.get("status", "needs_review")
         statuses[status] = statuses.get(status, 0) + 1
-    bundle["status"] = (
-        "reviewed"
-        if not undecided
-        else "partially_reviewed"
-    )
+    bundle["status"] = "reviewed" if not undecided else "partially_reviewed"
     bundle["review_counts"] = statuses
     bundle["review_decisions_file"] = str(args.decisions)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +193,8 @@ def main() -> int:
         encoding="utf-8",
     )
     print(
-        f"REVIEW OK: statuses={statuses} undecided={len(undecided)} output={args.out}"
+        f"REVIEW OK: statuses={statuses} undecided={len(undecided)} "
+        f"output={args.out}"
     )
     return 0
 

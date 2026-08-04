@@ -34,11 +34,31 @@ class ItemStatus(str, Enum):
     TIMEOUT = "TIMEOUT"
 
 
+class SocialParticipant(BaseModel):
+    entity_id: str
+    groups: list[str] = Field(default_factory=list)
+    role: str | None = None
+    relation_to_speaker: str | None = None
+    relation_to_addressee: str | None = None
+
+
+class SocialContext(BaseModel):
+    speaker: SocialParticipant | None = None
+    addressee: SocialParticipant | None = None
+    mentioned_people: list[SocialParticipant] = Field(default_factory=list)
+    setting: str | None = None
+    formality: str | None = None
+    speaker_group: str | None = None
+    addressee_group: str | None = None
+
+
 class AnalyzeRequest(BaseModel):
     original_text: str
     conversation_context: list[str] = Field(default_factory=list)
     known_entities: list[str] = Field(default_factory=list)
     protected_elements: list[str] = Field(default_factory=list)
+    social_context: SocialContext = Field(default_factory=SocialContext)
+    discourse_state: dict[str, Any] = Field(default_factory=dict)
     execution_mode: ExecutionMode = ExecutionMode.ANALYSIS
     analysis_depth: AnalysisDepth = AnalysisDepth.AUTO
     deadline_ms: int = Field(default=50, ge=1, le=60000)
@@ -81,6 +101,21 @@ class Metaphor(BaseModel):
     context_matches: list[str] = Field(default_factory=list)
     span: OriginalSpan
     status: ItemStatus = ItemStatus.RESOLVED
+
+
+class LanguageFeatureMatch(BaseModel):
+    entry_id: str
+    feature_type: str
+    surface: str
+    interpretation_id: str | None = None
+    interpretation: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    register_profile: dict[str, Any] = Field(default_factory=dict)
+    source_span: OriginalSpan
+    status: ItemStatus = ItemStatus.RESOLVED
+    candidate_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    risk_class: str = "semantic"
 
 
 class ReferenceResolution(BaseModel):
@@ -154,6 +189,15 @@ class Proposition(BaseModel):
         "none", "permission", "obligation", "prohibition"
     ] = "none"
     epistemic_status: str = "asserted"
+    force_level: int | None = Field(default=None, ge=1, le=5)
+    directness: str | None = None
+    politeness_level: int | None = Field(default=None, ge=0, le=5)
+    honorific_classes: list[str] = Field(default_factory=list)
+    social_relation_status: str | None = None
+    interaction_functions: list[str] = Field(default_factory=list)
+    information_territory: str | None = None
+    register_labels: list[str] = Field(default_factory=list)
+    sensory_features: dict[str, Any] = Field(default_factory=dict)
     tense: str | None = None
     aspect: list[str] = Field(default_factory=list)
     voice: list[str] = Field(default_factory=lambda: ["active"])
@@ -192,12 +236,13 @@ class DecisionStateChange(BaseModel):
 
 
 class MeaningGraph(BaseModel):
-    graph_version: str = "2.1.0"
+    graph_version: str = "2.2.0"
     semantic_hash: str = ""
     entities: list[Entity] = Field(default_factory=list)
     clauses: list[Clause] = Field(default_factory=list)
     propositions: list[Proposition] = Field(default_factory=list)
     scope_edges: list[ScopeEdge] = Field(default_factory=list)
+    language_features: list[LanguageFeatureMatch] = Field(default_factory=list)
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     decision_state_changes: list[DecisionStateChange] = Field(
         default_factory=list

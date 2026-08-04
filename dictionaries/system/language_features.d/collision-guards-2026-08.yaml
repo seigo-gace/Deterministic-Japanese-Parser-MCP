@@ -1,0 +1,27 @@
+schema_version: "1.0.0"
+version: "2026-08-collision-guards-1"
+entries:
+  - entry_id: "COLLISION-SHINE-PARTICLE-NE-001"
+    feature_type: "interaction_rule"
+    emit: false
+    suppress_entry_ids:
+      - "PARTICLE-NE-001"
+    surfaces:
+      - value: "死ね"
+        match_mode: exact
+    interpretations:
+      - interpretation_id: "collision.shine.imperative"
+        label: "命令形の動詞を終助詞付き名詞句として扱わない"
+        parameters:
+          collision_type: "morphological_false_positive"
+    register:
+      labels: ["collision_guard"]
+    fallback_status: "RESOLVED"
+    risk_class: "semantic"
+    evidence:
+      - evidence_id: "PROJECT-COLLISION-001"
+        dataset: "project-authored semantic contract"
+        version: "2026-08"
+        license: "MIT"
+        source_id: "boundary-test-shine-particle-ne"
+        evidence_scope: "runtime_data"
