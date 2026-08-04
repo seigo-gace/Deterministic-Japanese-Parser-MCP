@@ -1,0 +1,16 @@
+{
+  "run_at": "2026-08-05T02:13:41+09:00",
+  "collection_version": "2.0.0-audit",
+  "checks": {
+    "source_count": 115,
+    "candidate_count": 1145,
+    "candidate_status_is_needs_evidence": true,
+    "candidate_meaning_is_not_asserted": true,
+    "missing_surface_count": 0,
+    "duplicate_surface_count": 0,
+    "unknown_source_reference_count": 0
+  },
+  "errors": [],
+  "result": "passed",
+  "scope_warning": "This validates registry and queue integrity only. It does not validate meanings, current usage, licenses, source snapshots, or runtime semantic quality for the 1145 new candidates."
+}

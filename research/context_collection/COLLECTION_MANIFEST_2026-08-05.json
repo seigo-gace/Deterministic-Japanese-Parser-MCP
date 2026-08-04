@@ -1,0 +1,53 @@
+{
+  "collection_version": "2.0.0-audit",
+  "generated_at": "2026-08-05T02:13:41+09:00",
+  "source_count": 115,
+  "existing_reviewed_seed_count": 328,
+  "new_candidate_count": 1145,
+  "new_candidate_meanings_asserted": 0,
+  "candidate_status": "needs-evidence",
+  "validation": {
+    "source_registry_errors": 0,
+    "candidate_queue_errors": 0,
+    "duplicate_surface_errors": 0,
+    "unknown_source_reference_errors": 0
+  },
+  "repository_files": [
+    "research/context_collection/README.md",
+    "research/context_collection/SOURCE_INVENTORY_2026-08-05.md",
+    "research/context_collection/CANDIDATE_SURFACES_2026-08-05.md",
+    "research/context_collection/WEB_COLLECTION_AUDIT_2026-08-05.md",
+    "research/context_collection/CANDIDATE_ENTRY_CONTRACT.json",
+    "research/context_collection/VALIDATION_2026-08-05.json"
+  ],
+  "portable_bundle": {
+    "filename": "japanese-mcp-context-collection-v2.zip",
+    "sha256": "144974506d56701e533ec86c13e3859b40d445cf6a2e8a4abcf6dad76fae85ed",
+    "contains": [
+      "source_registry_v2.csv",
+      "source_registry_v2.jsonl",
+      "expansion_queue_v2.csv",
+      "expansion_queue_v2.jsonl",
+      "reviewed_seed_v1.jsonl",
+      "category-split JSONL",
+      "coverage_matrix.csv",
+      "validator",
+      "validation report"
+    ]
+  },
+  "promotion_policy": {
+    "required": [
+      "direct occurrence evidence",
+      "independent meaning or context evidence",
+      "license and redistribution review",
+      "source version and snapshot hash",
+      "positive test",
+      "negative test",
+      "boundary test",
+      "external action risk review",
+      "human review",
+      "independent holdout"
+    ],
+    "external_action_default": "fail-closed"
+  }
+}

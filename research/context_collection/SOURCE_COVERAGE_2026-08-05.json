@@ -1,0 +1,63 @@
+{
+  "source_records": 115,
+  "unique_domains": 52,
+  "confidence": {
+    "A": 84,
+    "B": 22,
+    "C": 9
+  },
+  "audit_status": {
+    "reviewed_metadata": 86,
+    "carried_forward_requires_v2_review": 29
+  },
+  "categories": {
+    "lexical": 22,
+    "slang": 21,
+    "discourse": 12,
+    "modality": 10,
+    "onomatopoeia": 9,
+    "fandom": 6,
+    "streaming": 5,
+    "corpus": 4,
+    "metaphor": 4,
+    "dialect": 4,
+    "honorifics": 3,
+    "game": 3,
+    "reference": 2,
+    "diachronic": 2,
+    "license": 2,
+    "safety": 1,
+    "grammar": 1,
+    "epistemic": 1,
+    "catalog": 1,
+    "evidence": 1
+  },
+  "source_types": {
+    "existing_v1_registry": 29,
+    "research_paper": 12,
+    "official_corpus": 9,
+    "survey": 8,
+    "collection_site": 8,
+    "official_resource": 5,
+    "official_help": 5,
+    "dataset_paper": 4,
+    "official_dataset": 3,
+    "official_doc": 3,
+    "official_government": 2,
+    "publisher": 2,
+    "official_project": 2,
+    "official_repo": 2,
+    "official_package": 2,
+    "official_policy": 2,
+    "official_game": 2,
+    "other_specialist_or_single_source_types": 16
+  },
+  "snapshot_status": {
+    "remote_page_not_snapshotted": 95,
+    "article_not_downloaded": 4,
+    "pdf_not_downloaded": 3,
+    "pypi_wheel_published_hash": 3,
+    "other": 10
+  },
+  "interpretation": "115 is a source-record count, not 115 independent websites. The registry spans 52 unique domains and includes multiple pages, releases, datasets, or policy records from the same publisher when their roles differ."
+}

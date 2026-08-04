@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/research/context_collection/CANDIDATE_ENTRY_CONTRACT.json",
+  "title": "Japanese Context Collection Candidate Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry_id",
+    "surface",
+    "category",
+    "status",
+    "meaning_status",
+    "source_ids_to_verify",
+    "ambiguity_policy",
+    "external_action_risk"
+  ],
+  "properties": {
+    "entry_id": {"type": "string"},
+    "surface": {"type": "string", "minLength": 1},
+    "variants": {"type": "array", "items": {"type": "string"}},
+    "reading": {"type": ["string", "null"]},
+    "part_of_speech": {"type": ["string", "null"]},
+    "category": {
+      "type": "string",
+      "enum": [
+        "slang", "onomatopoeia", "modality", "guard", "honorifics",
+        "discourse", "epistemic", "metaphor", "reference", "dialect",
+        "game", "streaming", "fandom"
+      ]
+    },
+    "meaning_candidates": {"type": "array", "items": {"type": "object"}},
+    "polarity": {"type": ["string", "null"]},
+    "intensity": {"type": ["integer", "null"], "minimum": 0, "maximum": 5},
+    "target_type": {"type": ["string", "null"]},
+    "domain": {"type": "array", "items": {"type": "string"}},
+    "usage_scene": {"type": "array", "items": {"type": "string"}},
+    "politeness": {"type": ["string", "null"]},
+    "generation": {"type": "array", "items": {"type": "string"}},
+    "community": {"type": "array", "items": {"type": "string"}},
+    "usage_period": {"type": ["object", "null"]},
+    "required_context": {"type": "array", "items": {"type": "string"}},
+    "excluded_context": {"type": "array", "items": {"type": "string"}},
+    "ambiguity_policy": {
+      "type": "string",
+      "enum": ["AMBIGUOUS", "NEEDS_EVIDENCE", "BLOCK_EXTERNAL_ACTION"]
+    },
+    "positive_examples": {"type": "array", "items": {"type": "string"}},
+    "negative_examples": {"type": "array", "items": {"type": "string"}},
+    "boundary_examples": {"type": "array", "items": {"type": "string"}},
+    "quotation_examples": {"type": "array", "items": {"type": "string"}},
+    "negation_examples": {"type": "array", "items": {"type": "string"}},
+    "question_examples": {"type": "array", "items": {"type": "string"}},
+    "source_ids_to_verify": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "source_version": {"type": ["string", "null"]},
+    "source_license": {"type": ["string", "null"]},
+    "source_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "review_status": {
+      "type": "string",
+      "enum": ["needs-evidence", "needs-review", "ambiguous", "rejected", "approved"]
+    },
+    "status": {"const": "needs-evidence"},
+    "meaning_status": {"const": "not-asserted"},
+    "external_action_risk": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "block-until-resolved"]
+    }
+  }
+}
