@@ -54,19 +54,36 @@ def texts(element: ET.Element, tag: str) -> list[str]:
     return unique(item.text or "" for item in element.findall(tag))
 
 
-def source_expectation(entry: ET.Element) -> dict | None:
-    source_id = normalize(entry.findtext("ent_seq") or "")
-    writings = texts(entry, "k_ele/keb")
-    reading_mappings: list[dict] = []
+def normalized_reading_mappings(entry: ET.Element) -> tuple[list[dict], int]:
+    """Apply the same lossless duplicate normalization as LexiconRecord."""
+    output: list[dict] = []
+    seen: set[tuple[str, tuple[str, ...], bool]] = set()
+    duplicate_count = 0
     for reading_element in entry.findall("r_ele"):
         reading = normalize(reading_element.findtext("reb") or "")
         if not reading:
             continue
-        reading_mappings.append({
+        restricted_to = texts(reading_element, "re_restr")
+        no_kanji = reading_element.find("re_nokanji") is not None
+        key = (reading, tuple(restricted_to), no_kanji)
+        if key in seen:
+            duplicate_count += 1
+            continue
+        seen.add(key)
+        output.append({
             "reading": reading,
-            "restricted_to": texts(reading_element, "re_restr"),
-            "no_kanji": reading_element.find("re_nokanji") is not None,
+            "restricted_to": restricted_to,
+            "no_kanji": no_kanji,
         })
+    return output, duplicate_count
+
+
+def source_expectation(entry: ET.Element) -> dict | None:
+    source_id = normalize(entry.findtext("ent_seq") or "")
+    writings = texts(entry, "k_ele/keb")
+    reading_mappings, duplicate_reading_elements = (
+        normalized_reading_mappings(entry)
+    )
     readings = unique(item["reading"] for item in reading_mappings)
     candidates = writings or readings
     if not source_id or not candidates:
@@ -90,6 +107,7 @@ def source_expectation(entry: ET.Element) -> dict | None:
         "surfaces": unique([lemma, *writings]),
         "readings": readings,
         "reading_mappings": reading_mappings,
+        "duplicate_reading_elements": duplicate_reading_elements,
         "part_of_speech": part_of_speech,
         "domains": domains,
         "usage_labels": usage_labels,
@@ -254,10 +272,12 @@ def audit(
         )
 
     fidelity_records = 0
+    duplicate_reading_elements = 0
     for source_id, record in by_source_id.items():
         expected = expected_by_source.get(source_id)
         if expected is None:
             continue
+        duplicate_reading_elements += expected["duplicate_reading_elements"]
         record_errors = compare_record(
             record,
             expected,
@@ -337,6 +357,7 @@ def audit(
         "runtime_records": len(records),
         "source_records_found": len(expected_by_source),
         "source_fidelity_records": fidelity_records,
+        "normalized_duplicate_reading_elements": duplicate_reading_elements,
         "exact_surface_checks": exact_surface_checks,
         "ambiguous_surface_checks": ambiguous_surface_checks,
         "containment_precision_checks": len(containment),
