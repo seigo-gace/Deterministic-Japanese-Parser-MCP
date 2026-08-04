@@ -342,8 +342,6 @@ entries:
   - entry_id: "MODALITY-COMMAND-LV5-001"
     feature_type: "modality"
     surfaces:
-      - value: "絶対に"
-        match_mode: substring
       - value: "するな"
         match_mode: sentence_final
       - value: "触るな"
