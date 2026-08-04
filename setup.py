@@ -11,11 +11,15 @@ ROOT = Path(__file__).resolve().parent
 
 
 class build_py(_build_py):
-    """Compile immutable language assets before wheel packaging."""
+    """Reject stale immutable language assets before wheel packaging."""
 
     def run(self):
         subprocess.run(
-            [sys.executable, str(ROOT / "tools/compile_language_features.py")],
+            [
+                sys.executable,
+                str(ROOT / "tools/compile_language_features.py"),
+                "--check",
+            ],
             cwd=ROOT,
             check=True,
         )
