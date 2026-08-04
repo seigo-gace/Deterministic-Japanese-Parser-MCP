@@ -10,7 +10,7 @@ PATTERN = re.compile(
     r"同リポジトリ|同ブランチ|"
     r"(?:この|その|あの)(?:API|UI|DB|ページ|ファイル|案|仕様|内容|"
     r"リポジトリ|ブランチ|設定|資料)|"
-    r"直前の[^、。！？]+|以前の[^、。！？]+"
+    r"直前の[^、。！？をにはがでと]+|以前の[^、。！？をにはがでと]+"
 )
 _HEAD_PREFIX = re.compile(
     r"^(?:直前の|以前の|前の|先ほどの|上記の?|下記の?|この|その|あの|同)"
@@ -56,6 +56,49 @@ class AnaphoraResolver:
                     if cleaned:
                         values.append((intent.span.start, cleaned))
         return list(dict.fromkeys(value for _, value in sorted(values)))
+
+    @staticmethod
+    def _deduplicate_references(
+        intents: list[Intent],
+    ) -> list[Intent]:
+        kept: list[Intent] = []
+        for item in sorted(
+            intents,
+            key=lambda value: (
+                value.span.start,
+                value.span.end - value.span.start,
+                -value.priority,
+                value.value,
+            ),
+        ):
+            overlap = next(
+                (
+                    existing
+                    for existing in kept
+                    if existing.span.start == item.span.start
+                    and existing.span.end <= item.span.end
+                ),
+                None,
+            )
+            if overlap is not None:
+                continue
+            kept = [
+                existing
+                for existing in kept
+                if not (
+                    existing.span.start == item.span.start
+                    and item.span.end <= existing.span.end
+                )
+            ]
+            kept.append(item)
+        return sorted(
+            kept,
+            key=lambda value: (
+                value.span.start,
+                value.span.end,
+                -value.priority,
+            ),
+        )
 
     @staticmethod
     def _head(reference: str) -> str:
@@ -133,10 +176,16 @@ class AnaphoraResolver:
     ) -> list[ReferenceResolution]:
         output: list[ReferenceResolution] = []
         current_mentions = current_mentions or []
-        pool = self._pool(current_mentions, context, known)
+        reference_intents = self._deduplicate_references(reference_intents)
 
         for intent in reference_intents:
             reference = intent.value
+            filtered_mentions = [
+                value
+                for value in current_mentions
+                if reference not in value and value not in reference
+            ]
+            pool = self._pool(filtered_mentions, context, known)
             if reference == "前者":
                 pair = [value for value in context[-2:] if value]
                 selected = pair[0] if len(pair) == 2 else None
