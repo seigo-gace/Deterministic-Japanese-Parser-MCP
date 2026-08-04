@@ -27,7 +27,7 @@ def install_language_feature_runtime() -> None:
     def __init__(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         self.language_features = LanguageFeatureRuntime(
-            self.settings.system_dict_dir / "compiled/language_features.json"
+            self.settings.system_dict_dir / "compiled/language_features.d"
         )
 
     def analyze(self, request: AnalyzeRequest, *args, **kwargs):
@@ -72,6 +72,8 @@ def install_language_feature_runtime() -> None:
                 "AMBIGUOUS_LANGUAGE_FEATURE",
             ]))
         overall = response.overall_status
+        if matches and overall == OverallStatus.FAILED:
+            overall = OverallStatus.PARTIAL
         if ambiguous and overall == OverallStatus.COMPLETE:
             overall = OverallStatus.PARTIAL
         versions = dict(response.versions)
