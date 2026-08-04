@@ -8,21 +8,29 @@ on:
       - "tools/compile_language_features.py"
       - "src/deterministic_japanese_parser_mcp/literal_index.py"
       - ".github/workflows/language-assets.yml"
+  pull_request:
+    paths:
+      - "dictionaries/system/language_features.d/**"
+      - "tools/compile_language_features.py"
+      - "src/deterministic_japanese_parser_mcp/literal_index.py"
+      - ".github/workflows/language-assets.yml"
 
 permissions:
   contents: write
 
 concurrency:
-  group: language-assets-${{ github.ref }}
+  group: language-assets-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
   compile-and-record:
     runs-on: ubuntu-latest
+    env:
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ env.HEAD_BRANCH }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
@@ -43,4 +51,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dictionaries/system/compiled/language_features.d
           git commit -m "build: refresh compiled language assets"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${HEAD_BRANCH}"
