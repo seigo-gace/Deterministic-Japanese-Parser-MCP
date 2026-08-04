@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 
@@ -11,6 +12,12 @@ from semantic_quality_contract import evaluate_contract
 
 def test_semantic_quality_macro_accuracy_is_at_least_95_percent():
     report = evaluate_contract()
+    evidence_path = ROOT / "reports/semantic-quality-pytest.json"
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     assert report["passed"], {
         "macro_accuracy": report["macro_accuracy"],
         "categories": report["categories"],
