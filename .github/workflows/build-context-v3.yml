@@ -14,7 +14,7 @@ on:
   pull_request:
     branches:
       - main
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - scripts/build_context_v3.py.gz.b64
       - .github/workflows/build-context-v3.yml
