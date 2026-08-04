@@ -79,6 +79,7 @@ class GraphGuard:
             if (
                 proposition.sentence_mood == "interrogative"
                 and proposition.intent_type in ACTION_INTENTS
+                and proposition.speech_act != "polite_request"
             ):
                 blocked.append("INTERROGATIVE_ACTION")
 
@@ -99,7 +100,10 @@ class GraphGuard:
                 blocked.append(f"{status}_ACTION_REFERENCE")
             elif unresolved.get("proposition_id") in closure:
                 blocked.append(f"{status}_ACTION_GRAPH")
-            elif unresolved.get("type") in {"graph_node_limit", "scope_edge_limit"}:
+            elif unresolved.get("type") in {
+                "graph_node_limit",
+                "scope_edge_limit",
+            }:
                 blocked.append("TIMEOUT")
 
         return not blocked, list(dict.fromkeys(blocked)), closure
