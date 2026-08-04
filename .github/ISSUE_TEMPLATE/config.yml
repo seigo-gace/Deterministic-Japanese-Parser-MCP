@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability / 脆弱性報告
+    url: https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/security
+    about: Use private vulnerability reporting when available. Do not publish exploit details in a public issue.
