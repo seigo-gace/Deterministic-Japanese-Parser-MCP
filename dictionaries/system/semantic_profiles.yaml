@@ -1,0 +1,757 @@
+version: "1.0.0"
+
+senses:
+  落ちる:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: fall.system_failure
+        label: system_or_connection_failure
+        strong_cues: [サーバー, 接続, 回線, セッション, アプリ, プロセス, API, DB]
+        cues: [障害, タイムアウト, 再接続, 復旧]
+        patterns: ['(?:サーバー|接続|回線|セッション|アプリ|プロセス|API|DB).{0,12}(?:落ち|落ちる|落ちた|落ちて)']
+        examples:
+          - サーバーが落ちた。
+          - 接続が頻繁に落ちています。
+      - id: fall.metric_decrease
+        label: metric_or_quality_decrease
+        strong_cues: [売上, 速度, 温度, 数値, 品質, 精度, 利用率, 単価]
+        cues: [低下, 減少, 下がる]
+        patterns: ['(?:売上|速度|温度|数値|品質|精度|利用率|単価).{0,12}(?:落ち|落ちる|落ちた)']
+        examples:
+          - 売上が落ちた。
+          - 処理速度が急に落ちています。
+      - id: fall.selection_failure
+        label: examination_or_selection_failure
+        strong_cues: [試験, 審査, 選考, 面接, テスト]
+        cues: [不合格, 失敗]
+        patterns: ['(?:試験|審査|選考|面接|テスト).{0,8}(?:に|で)?落ち']
+        examples:
+          - 審査に落ちた。
+          - 最終選考で落ちました。
+      - id: fall.physical
+        label: physical_fall
+        strong_cues: [階段, 地面, 床, 崖, 木, 物, 荷物]
+        cues: [転倒, 落下]
+        patterns: ['(?:階段|地面|床|崖|木|荷物).{0,12}(?:落ち|落ちる|落ちた)']
+        examples:
+          - 荷物が床に落ちた。
+          - 階段から落ちました。
+
+  切る:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: cut.disconnect
+        label: disconnect_communication_or_network
+        strong_cues: [電話, 通話, 接続, 回線, セッション, 通信]
+        cues: [切断, オフライン]
+        patterns: ['(?:電話|通話|接続|回線|セッション|通信).{0,10}(?:切る|切って|切れ)']
+        examples:
+          - 電話を切ってください。
+          - 接続を一度切る。
+      - id: cut.power_off
+        label: power_off
+        strong_cues: [電源, スイッチ, ブレーカー, サーバー電源]
+        cues: [停止, シャットダウン]
+        patterns: ['(?:電源|スイッチ|ブレーカー).{0,8}(?:切る|切って|切れ)']
+        examples:
+          - 電源を切ってください。
+          - 作業前にブレーカーを切る。
+      - id: cut.relationship
+        label: terminate_relationship_or_contract
+        strong_cues: [関係, 契約, 取引, 縁, 連携]
+        cues: [終了, 解約]
+        patterns: ['(?:関係|契約|取引|縁|連携).{0,10}(?:切る|切って|切れ)']
+        examples:
+          - その会社との取引を切る。
+          - 古い連携を切ってください。
+      - id: cut.physical
+        label: physical_cutting
+        strong_cues: [紙, 木, 糸, ケーブル, 野菜, 布]
+        cues: [刃, はさみ, 包丁]
+        patterns: ['(?:紙|木|糸|ケーブル|野菜|布).{0,10}(?:切る|切って|切れ)']
+        examples:
+          - ケーブルを切る。
+          - 紙を半分に切ってください。
+
+  重い:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: heavy.performance
+        label: high_latency_or_computational_load
+        strong_cues: [処理, 画面, アプリ, API, クエリ, ブラウザ, 動作, レスポンス]
+        cues: [遅い, 負荷, CPU, メモリ]
+        patterns: ['(?:処理|画面|アプリ|API|クエリ|ブラウザ|動作|レスポンス).{0,10}(?:重い|重く)']
+        examples:
+          - この画面は重い。
+          - APIの処理が重くなっています。
+      - id: heavy.physical
+        label: physical_weight
+        strong_cues: [荷物, 箱, 鉄, 石, 体重, バッグ]
+        cues: [重量, キロ]
+        patterns: ['(?:荷物|箱|鉄|石|バッグ).{0,10}(?:重い|重く)']
+        examples:
+          - この荷物は重い。
+          - 箱が重くて持てない。
+      - id: heavy.serious
+        label: serious_responsibility_or_consequence
+        strong_cues: [責任, 判断, 決定, 処分, 病気, 罪]
+        cues: [重大, 深刻]
+        patterns: ['(?:責任|判断|決定|処分|病気|罪).{0,10}(?:重い|重く)']
+        examples:
+          - この判断は責任が重い。
+          - 重い処分を受けた。
+      - id: heavy.atmosphere
+        label: oppressive_atmosphere
+        strong_cues: [空気, 雰囲気, 沈黙, 会議]
+        cues: [緊張, 暗い]
+        patterns: ['(?:空気|雰囲気|沈黙|会議).{0,10}(?:重い|重く)']
+        examples:
+          - 会議の空気が重い。
+          - 重い雰囲気が続いた。
+
+  開く:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: open.artifact
+        label: open_file_page_or_application
+        strong_cues: [ファイル, ページ, 画面, アプリ, URL, 文書, フォルダ]
+        cues: [クリック, 表示]
+        patterns: ['(?:ファイル|ページ|画面|アプリ|URL|文書|フォルダ).{0,10}(?:開く|開いて|開け)']
+        examples:
+          - ファイルを開いてください。
+          - このURLを開く。
+      - id: open.event
+        label: hold_event_or_meeting
+        strong_cues: [会議, 説明会, 展示会, イベント, 総会, 勉強会]
+        cues: [開催]
+        patterns: ['(?:会議|説明会|展示会|イベント|総会|勉強会).{0,10}(?:開く|開いて|開いた)']
+        examples:
+          - 明日説明会を開く。
+          - チームで会議を開きました。
+      - id: open.gap
+        label: create_gap_or_distance
+        strong_cues: [間隔, 距離, 差, スペース, 穴]
+        cues: [空白, 隙間]
+        patterns: ['(?:間隔|距離|差|スペース|穴).{0,10}(?:開く|開ける|開いて)']
+        examples:
+          - 行間を少し開ける。
+          - 二つの要素の間隔を開いてください。
+      - id: open.physical
+        label: open_physical_container_or_door
+        strong_cues: [扉, ドア, 窓, 箱, 蓋, 店]
+        cues: [入口, 鍵]
+        patterns: ['(?:扉|ドア|窓|箱|蓋|店).{0,10}(?:開く|開ける|開いて)']
+        examples:
+          - 窓を開けてください。
+          - 箱の蓋を開く。
+
+  走る:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: run.process
+        label: execute_program_or_job
+        strong_cues: [処理, ジョブ, バッチ, コード, テスト, プロセス, スクリプト]
+        cues: [実行, 起動]
+        patterns: ['(?:処理|ジョブ|バッチ|コード|テスト|プロセス|スクリプト).{0,10}(?:走る|走って|走らせ)']
+        examples:
+          - バッチが夜間に走る。
+          - テストを走らせてください。
+      - id: run.physical
+        label: physical_running
+        strong_cues: [人, 選手, 子供, 道, 公園, 校庭]
+        cues: [マラソン, 徒競走]
+        patterns: ['(?:人|選手|子供|道|公園|校庭).{0,10}(?:走る|走って|走った)']
+        examples:
+          - 選手が公園を走る。
+          - 子供が校庭を走った。
+      - id: run.crack
+        label: crack_or_line_spreading
+        strong_cues: [亀裂, ひび, 稲妻, 線]
+        cues: [割れ]
+        patterns: ['(?:亀裂|ひび|稲妻|線).{0,10}(?:走る|走った)']
+        examples:
+          - 壁に亀裂が走った。
+          - ガラスにひびが走る。
+
+  回す:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: rotate.process
+        label: execute_or_cycle_process
+        strong_cues: [処理, ジョブ, バッチ, テスト, PDCA, ループ, ワークフロー]
+        cues: [実行, 反復]
+        patterns: ['(?:処理|ジョブ|バッチ|テスト|PDCA|ループ|ワークフロー).{0,10}(?:回す|回して|回せ)']
+        examples:
+          - テストをもう一度回す。
+          - ワークフローを回してください。
+      - id: rotate.assign
+        label: pass_or_assign_work
+        strong_cues: [担当, チケット, 案件, 仕事, 確認, レビュー]
+        cues: [引継ぎ, 割当]
+        patterns: ['(?:担当|チケット|案件|仕事|確認|レビュー).{0,10}(?:回す|回して|回せ)']
+        examples:
+          - レビューを担当者に回す。
+          - この案件を法務へ回してください。
+      - id: rotate.physical
+        label: physical_rotation
+        strong_cues: [ハンドル, ねじ, 鍵, ダイヤル, 車輪]
+        cues: [回転]
+        patterns: ['(?:ハンドル|ねじ|鍵|ダイヤル|車輪).{0,10}(?:回す|回して|回せ)']
+        examples:
+          - 鍵を右に回す。
+          - ダイヤルをゆっくり回してください。
+
+  通る:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: pass.test
+        label: test_or_validation_pass
+        strong_cues: [テスト, 検証, CI, チェック, 審査]
+        cues: [成功, 合格]
+        patterns: ['(?:テスト|検証|CI|チェック|審査).{0,10}(?:通る|通った|通って)']
+        examples:
+          - テストが通った。
+          - CIが全部通っています。
+      - id: pass.approval
+        label: approval_or_proposal_pass
+        strong_cues: [申請, 稟議, 承認, 企画, 提案, 予算]
+        cues: [可決, 採用]
+        patterns: ['(?:申請|稟議|承認|企画|提案|予算).{0,10}(?:通る|通った|通って)']
+        examples:
+          - 稟議が通った。
+          - 予算申請が通りました。
+      - id: pass.route
+        label: physical_or_network_route
+        strong_cues: [道, 廊下, 経路, 通信, パケット, トンネル]
+        cues: [通過, ルート]
+        patterns: ['(?:道|廊下|経路|通信|パケット|トンネル).{0,10}(?:通る|通った|通って)']
+        examples:
+          - この道をバスが通る。
+          - パケットがトンネルを通ります。
+
+  立つ:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: stand.service_ready
+        label: service_or_server_becomes_ready
+        strong_cues: [サーバー, サービス, 環境, インスタンス, コンテナ]
+        cues: [起動, 稼働, ready]
+        patterns: ['(?:サーバー|サービス|環境|インスタンス|コンテナ).{0,10}(?:立つ|立った|立ち上が)']
+        examples:
+          - 新しいサーバーが立った。
+          - 検証環境が立ち上がりました。
+      - id: stand.schedule_estimate
+        label: schedule_or_estimate_established
+        strong_cues: [予定, 見通し, 目処, 計画, スケジュール]
+        cues: [確定, 予測]
+        patterns: ['(?:予定|見通し|目処|計画|スケジュール).{0,10}(?:立つ|立った|立て)']
+        examples:
+          - 復旧の目処が立った。
+          - 来週の予定が立ちました。
+      - id: stand.physical
+        label: physical_standing
+        strong_cues: [人, 席, 机, 舞台, 入口]
+        cues: [起立]
+        patterns: ['(?:人|席|机|舞台|入口).{0,10}(?:立つ|立った|立って)']
+        examples:
+          - 彼が席を立った。
+          - 入口に人が立っています。
+
+  かける:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: apply.lock_or_effect
+        label: apply_lock_filter_or_processing
+        strong_cues: [鍵, ロック, フィルター, 制限, 暗号, 処理]
+        cues: [適用, 保護]
+        patterns: ['(?:鍵|ロック|フィルター|制限|暗号|処理).{0,10}(?:かける|かけて|かけろ)']
+        examples:
+          - ファイルにロックをかける。
+          - 入力へフィルターをかけてください。
+      - id: call.communication
+        label: make_phone_or_voice_call
+        strong_cues: [電話, 通話, 声, 連絡]
+        cues: [発信]
+        patterns: ['(?:電話|通話|声|連絡).{0,10}(?:かける|かけて|かけた)']
+        examples:
+          - 担当者に電話をかける。
+          - 後で連絡をかけ直します。
+      - id: spend.resource
+        label: spend_time_money_or_effort
+        strong_cues: [時間, 費用, コスト, 手間, 労力]
+        cues: [投入, 消費]
+        patterns: ['(?:時間|費用|コスト|手間|労力).{0,10}(?:かける|かけて|かけた)']
+        examples:
+          - 検証に時間をかける。
+          - 品質確認へ十分なコストをかけました。
+
+  上がる:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: rise.metric
+        label: metric_increase
+        strong_cues: [売上, 速度, 温度, 数値, 品質, 精度, 利用率, 単価]
+        cues: [増加, 向上]
+        patterns: ['(?:売上|速度|温度|数値|品質|精度|利用率|単価).{0,10}(?:上がる|上がった|上がって)']
+        examples:
+          - 精度が上がった。
+          - 利用率が上がっています。
+      - id: rise.deployment_complete
+        label: artifact_or_release_completed
+        strong_cues: [成果物, 原稿, デザイン, ビルド, リリース, 版]
+        cues: [完成, 提出]
+        patterns: ['(?:成果物|原稿|デザイン|ビルド|リリース|版).{0,10}(?:上がる|上がった|上がって)']
+        examples:
+          - ビルドが上がった。
+          - 最終原稿が上がりました。
+      - id: rise.physical
+        label: physical_ascending
+        strong_cues: [階段, 二階, 山, 屋上, 上階]
+        cues: [登る]
+        patterns: ['(?:階段|二階|山|屋上|上階).{0,10}(?:上がる|上がった|上がって)']
+        examples:
+          - 階段を上がる。
+          - 屋上へ上がりました。
+
+  止まる:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: stop.system
+        label: service_or_process_stops
+        strong_cues: [サーバー, サービス, 処理, ジョブ, アプリ, API, DB]
+        cues: [障害, 停止, フリーズ]
+        patterns: ['(?:サーバー|サービス|処理|ジョブ|アプリ|API|DB).{0,10}(?:止まる|止まった|止まって)']
+        examples:
+          - バッチ処理が止まった。
+          - APIが途中で止まっています。
+      - id: stop.progress
+        label: work_or_progress_stalls
+        strong_cues: [作業, 開発, 議論, 審査, 進行, プロジェクト]
+        cues: [停滞, 保留]
+        patterns: ['(?:作業|開発|議論|審査|進行|プロジェクト).{0,10}(?:止まる|止まった|止まって)']
+        examples:
+          - 審査で作業が止まった。
+          - 議論が止まっています。
+      - id: stop.physical
+        label: physical_stop
+        strong_cues: [車, 電車, 時計, 人, 機械]
+        cues: [停止]
+        patterns: ['(?:車|電車|時計|人|機械).{0,10}(?:止まる|止まった|止まって)']
+        examples:
+          - 電車が駅で止まった。
+          - 時計が止まっています。
+
+  流す:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: flow.send_or_stream
+        label: transmit_or_stream_data
+        strong_cues: [データ, ログ, 動画, 音声, 通知, イベント, ストリーム]
+        cues: [送信, 配信]
+        patterns: ['(?:データ|ログ|動画|音声|通知|イベント|ストリーム).{0,10}(?:流す|流して|流せ)']
+        examples:
+          - ログを監視基盤へ流す。
+          - 動画を配信サーバーから流してください。
+      - id: flow.ignore
+        label: ignore_or_let_pass
+        strong_cues: [指摘, 話, ミス, 冗談, コメント]
+        cues: [無視, 聞き流す]
+        patterns: ['(?:指摘|話|ミス|冗談|コメント).{0,10}(?:流す|流して|流した)']
+        examples:
+          - その指摘を軽く流した。
+          - 冗談として流してください。
+      - id: flow.flush
+        label: flush_or_wash_away
+        strong_cues: [水, 汚れ, 排水, トイレ, 血]
+        cues: [洗浄]
+        patterns: ['(?:水|汚れ|排水|トイレ|血).{0,10}(?:流す|流して|流した)']
+        examples:
+          - 水で汚れを流す。
+          - 排水を外へ流してください。
+
+  取る:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: take.acquire_data
+        label: acquire_log_snapshot_or_data
+        strong_cues: [ログ, バックアップ, スナップショット, データ, 証跡, ダンプ]
+        cues: [取得, 保存]
+        patterns: ['(?:ログ|バックアップ|スナップショット|データ|証跡|ダンプ).{0,10}(?:取る|取って|取れ)']
+        examples:
+          - 先にログを取る。
+          - スナップショットを取ってください。
+      - id: take.reserve
+        label: reserve_time_place_or_resource
+        strong_cues: [時間, 予約, 会議室, 席, 枠, 休暇]
+        cues: [確保]
+        patterns: ['(?:時間|予約|会議室|席|枠|休暇).{0,10}(?:取る|取って|取れ)']
+        examples:
+          - 会議室を取る。
+          - 検証時間を二時間取ってください。
+      - id: take.physical
+        label: physically_take_or_remove
+        strong_cues: [荷物, 本, 皿, 手, 棚]
+        cues: [持つ, 外す]
+        patterns: ['(?:荷物|本|皿|手|棚).{0,10}(?:取る|取って|取れ)']
+        examples:
+          - 棚から本を取る。
+          - その皿を取ってください。
+
+  持つ:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: hold.ownership
+        label: own_or_possess
+        strong_cues: [権限, 資格, 株, 所有権, アカウント, 鍵]
+        cues: [所有, 保有]
+        patterns: ['(?:権限|資格|株|所有権|アカウント|鍵).{0,10}(?:持つ|持って|持っている)']
+        examples:
+          - 管理者権限を持っている。
+          - 有効な資格を持つ担当者です。
+      - id: hold.duration
+        label: remain_effective_or_last
+        strong_cues: [バッテリー, 効果, 在庫, 接続, セッション]
+        cues: [継続, 耐久]
+        patterns: ['(?:バッテリー|効果|在庫|接続|セッション).{0,10}(?:持つ|持った|持って)']
+        examples:
+          - バッテリーが一日持つ。
+          - この接続は長く持ちません。
+      - id: hold.responsibility
+        label: bear_responsibility_or_role
+        strong_cues: [責任, 役割, 担当, 決裁権]
+        cues: [負う]
+        patterns: ['(?:責任|役割|担当|決裁権).{0,10}(?:持つ|持って|持て)']
+        examples:
+          - 最終責任を持つ。
+          - 担当者が決裁権を持っています。
+
+  詰まる:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: clog.process
+        label: process_or_workflow_bottleneck
+        strong_cues: [処理, キュー, ワークフロー, 作業, レビュー, 承認]
+        cues: [ボトルネック, 停滞]
+        patterns: ['(?:処理|キュー|ワークフロー|作業|レビュー|承認).{0,10}(?:詰まる|詰まった|詰まって)']
+        examples:
+          - 承認工程で作業が詰まっている。
+          - キューが詰まりました。
+      - id: clog.physical
+        label: physical_blockage
+        strong_cues: [排水口, 管, 鼻, 喉, 道, パイプ]
+        cues: [閉塞]
+        patterns: ['(?:排水口|管|鼻|喉|道|パイプ).{0,10}(?:詰まる|詰まった|詰まって)']
+        examples:
+          - 排水口が詰まった。
+          - 道が車で詰まっています。
+      - id: clog.schedule
+        label: schedule_is_full
+        strong_cues: [予定, 日程, スケジュール, 会議]
+        cues: [満杯, 空きなし]
+        patterns: ['(?:予定|日程|スケジュール|会議).{0,10}(?:詰まる|詰まった|詰まって)']
+        examples:
+          - 今週は予定が詰まっている。
+          - 午後は会議が詰まっています。
+
+  刺さる:
+    minimum_score: 6
+    margin: 2
+    senses:
+      - id: pierce.resonate
+        label: message_or_proposal_resonates
+        strong_cues: [提案, 言葉, コピー, 内容, メッセージ, 機能]
+        cues: [共感, 響く]
+        patterns: ['(?:提案|言葉|コピー|内容|メッセージ|機能).{0,10}(?:刺さる|刺さった|刺さって)']
+        examples:
+          - この提案は利用者に刺さる。
+          - そのメッセージが強く刺さった。
+      - id: pierce.error
+        label: error_or_exception_hits
+        strong_cues: [エラー, 例外, 制約, バリデーション, Gate]
+        cues: [失敗, ブロック]
+        patterns: ['(?:エラー|例外|制約|バリデーション|Gate).{0,10}(?:刺さる|刺さった|刺さって)']
+        examples:
+          - バリデーションエラーが刺さった。
+          - 制約に刺さって処理が止まった。
+      - id: pierce.physical
+        label: physical_piercing
+        strong_cues: [針, とげ, ナイフ, ガラス, 矢]
+        cues: [傷]
+        patterns: ['(?:針|とげ|ナイフ|ガラス|矢).{0,10}(?:刺さる|刺さった|刺さって)']
+        examples:
+          - 指にとげが刺さった。
+          - タイヤに釘が刺さっています。
+
+pragmatics:
+  - id: pragmatic.polite_request
+    intent_type: request
+    speech_act: polite_request
+    predicate: 丁寧に依頼する
+    executable: true
+    patterns:
+      - '(?:して|していただけ|してもらえ)(?:ますか|ませんか|ないでしょうか)'
+      - 'お願い(?:できますか|してもよいでしょうか)'
+    examples:
+      - APIを確認していただけますか。
+      - この資料を共有してもらえませんか。
+  - id: pragmatic.desire_request
+    intent_type: request
+    speech_act: request
+    predicate: 希望として依頼する
+    executable: true
+    patterns: ['(?:して|やって|直して|確認して)ほしい(?:です)?']
+    examples:
+      - APIを確認してほしい。
+      - この不具合を直してほしいです。
+  - id: pragmatic.commitment
+    intent_type: commitment
+    speech_act: commitment
+    predicate: 対応を約束する
+    executable: false
+    patterns: ['(?:対応|確認|修正|共有|連絡|実施|検証|調査)します(?:。|$)']
+    examples:
+      - こちらで確認します。
+      - 明日までに対応します。
+  - id: pragmatic.desire
+    intent_type: desire
+    speech_act: desire
+    predicate: 希望を表明する
+    executable: false
+    patterns: ['(?:したい|進めたい|確認したい|試したい)(?:です)?(?:。|$)']
+    examples:
+      - まず自分で確認したいです。
+      - この案で進めたい。
+  - id: pragmatic.refusal
+    intent_type: refusal
+    speech_act: refusal
+    predicate: 婉曲に拒否する
+    executable: false
+    patterns:
+      - '今(?:は|すぐは).{0,8}(?:難しい|できない|対応できません)'
+      - '今回は(?:見送|控え)'
+      - 'できれば避けたい'
+    examples:
+      - 今は対応が難しいです。
+      - 今回はその案を見送ります。
+  - id: pragmatic.deferral
+    intent_type: deferral
+    speech_act: deferral
+    predicate: 判断を保留する
+    executable: false
+    patterns:
+      - '少し考えさせてください'
+      - 'いったん持ち帰ります'
+      - '今すぐは決められません'
+      - 'この場では結論を出せません'
+    examples:
+      - 少し考えさせてください。
+      - この場では結論を出せません。
+  - id: pragmatic.concern
+    intent_type: concern
+    speech_act: concern
+    predicate: 懸念を表明する
+    executable: false
+    patterns:
+      - '(?:懸念|不安|違和感)が(?:あります|ある)'
+      - 'そこは気になります'
+      - 'そのまま進めるのは不安です'
+    examples:
+      - その案には懸念があります。
+      - このまま公開するのは不安です。
+  - id: pragmatic.clarification_request
+    intent_type: clarification_request
+    speech_act: clarification_request
+    predicate: 追加確認を求める
+    executable: false
+    patterns:
+      - '確認が必要です'
+      - 'もう少し情報が欲しいです'
+      - '前提を合わせたいです'
+    examples:
+      - その点は確認が必要です。
+      - まず前提を合わせたいです。
+  - id: pragmatic.inability
+    intent_type: inability
+    speech_act: inability
+    predicate: 判断不能を表明する
+    executable: false
+    patterns: ['(?:こちら|現状)では判断できません']
+    examples:
+      - こちらでは判断できません。
+      - 現状では判断できません。
+  - id: pragmatic.tentative_approval
+    intent_type: approval
+    speech_act: tentative_approval
+    predicate: 留保付きで承認する
+    executable: false
+    epistemic_status: opinion
+    patterns:
+      - '問題ないと思います'
+      - 'よさそうです'
+      - '進めてもよさそうです'
+    examples:
+      - この内容で問題ないと思います。
+      - その方法で進めてもよさそうです。
+  - id: pragmatic.approval
+    intent_type: approval
+    speech_act: approval
+    predicate: 承認する
+    executable: false
+    patterns:
+      - '問題ありません'
+      - '承認します'
+      - 'その案で進めます'
+    examples:
+      - この内容で問題ありません。
+      - その案を承認します。
+  - id: pragmatic.rejection
+    intent_type: rejection
+    speech_act: rejection
+    predicate: 却下または不承認を示す
+    executable: false
+    patterns:
+      - '承認できません'
+      - '却下します'
+      - 'その案は採用しません'
+    examples:
+      - この申請は承認できません。
+      - その案は採用しません。
+  - id: pragmatic.mitigation
+    intent_type: mitigation
+    speech_act: mitigation
+    predicate: 発言を緩和する
+    executable: false
+    patterns:
+      - '少し言いにくいのですが'
+      - '失礼かもしれませんが'
+      - '認識が違うかもしれません'
+    examples:
+      - 少し言いにくいのですが、説明が不足しています。
+      - 認識が違うかもしれません。
+  - id: pragmatic.capability_question
+    intent_type: question
+    speech_act: capability_question
+    predicate: 実行可能性を質問する
+    executable: false
+    patterns:
+      - '(?:できますか|可能ですか|対応可能でしょうか)(?:。|$)'
+    examples:
+      - この環境で実行できますか。
+      - 今日中の対応は可能ですか。
+
+bare_actions:
+  - intent_type: modify
+    predicate: 変更する
+    patterns: ['(?:修正|変更|更新|書き換え)(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: remove
+    predicate: 削除する
+    patterns: ['(?:削除|消去|消し|外し)(?:て|ろ|してください|てくれ|てほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 確認する
+    patterns: ['確認(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 保存する
+    patterns: ['保存(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 共有する
+    patterns: ['共有(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: テストする
+    patterns: ['(?:テスト|検証)(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 公開する
+    patterns: ['公開(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 送信する
+    patterns: ['送信(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+  - intent_type: action
+    predicate: 再起動する
+    patterns: ['再起動(?:して|しろ|してください|してくれ|してほしい)(?:。|、|$)']
+
+ellipsis_examples:
+  - text: APIを確認して、問題があれば修正して。
+    intent_type: modify
+    target: API
+  - text: ログを取得して、保存してから共有して。
+    intent_type: action
+    predicate: 共有する
+    target: ログ
+  - text: 設定ファイルを開いて、内容を確認してから更新して。
+    intent_type: modify
+    target: 設定ファイル
+  - text: 画像を選択して、削除して。
+    intent_type: remove
+    target: 画像
+  - text: API仕様を修正して、テストしてから公開して。
+    intent_type: action
+    predicate: 公開する
+    target: API仕様
+  - text: バックアップを取って、保存して。
+    intent_type: action
+    predicate: 保存する
+    target: バックアップ
+  - text: レポートを作成して、担当者へ共有して。
+    intent_type: action
+    predicate: 共有する
+    target: レポート
+  - text: サーバーを停止して、再起動して。
+    intent_type: action
+    predicate: 再起動する
+    target: サーバー
+  - text: 古い連携を確認して、不要なら外して。
+    intent_type: remove
+    target: 古い連携
+  - text: 入力値を検証して、エラーなら修正して。
+    intent_type: modify
+    target: 入力値
+
+discourse_examples:
+  - text: テストが通った。そのためAPIを公開しろ。
+    relation: causes
+  - text: サーバーが落ちた。だから再起動して。
+    relation: causes
+  - text: UIは維持する。しかしAPIは変更しろ。
+    relation: contrasts_with
+  - text: 速度は上がった。一方でメモリ使用量は増えた。
+    relation: contrasts_with
+  - text: APIを修正する。つまり互換性問題を解消する。
+    relation: elaborates
+  - text: 公開を延期する。なぜなら審査が終わっていない。
+    relation: justifies
+  - text: 本番を変更する前に、バックアップを取ってから実行しろ。
+    relation: precedes
+  - text: メールまたはWebhookで通知しろ。
+    relation: alternative_to
+
+reference_examples:
+  - text: そのAPIを修正しろ。
+    context: [料金API, 顧客API]
+    known: [決済API]
+    expected: 決済API
+  - text: 前者を採用する。
+    context: [案A, 案B]
+    expected: 案A
+  - text: 後者を採用する。
+    context: [案A, 案B]
+    expected: 案B
+  - text: そのファイルを削除しろ。
+    context: [README, 設定ファイル]
+    expected: 設定ファイル
+  - text: 直前のAPI仕様を確認しろ。
+    context: [UI仕様, API仕様]
+    expected: API仕様

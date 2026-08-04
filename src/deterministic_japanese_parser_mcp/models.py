@@ -87,8 +87,17 @@ class ReferenceResolution(BaseModel):
     expression: str
     candidates: list[str] = Field(default_factory=list)
     selected: str | None = None
+    candidate_scores: dict[str, int] = Field(default_factory=dict)
+    resolution_reason: str | None = None
     span: OriginalSpan
     status: ItemStatus
+
+
+class SenseCandidate(BaseModel):
+    sense_id: str
+    label: str
+    score: int
+    evidence: list[str] = Field(default_factory=list)
 
 
 class Entity(BaseModel):
@@ -120,6 +129,7 @@ class Clause(BaseModel):
     proposition_ids: list[str] = Field(default_factory=list)
     parent_clause_id: str | None = None
     relation: str | None = None
+    discourse_markers: list[str] = Field(default_factory=list)
     topic_entity_ids: list[str] = Field(default_factory=list)
     focus_entity_ids: list[str] = Field(default_factory=list)
     source_span: OriginalSpan
@@ -129,6 +139,7 @@ class Clause(BaseModel):
 class Proposition(BaseModel):
     proposition_id: str
     predicate: str
+    surface_predicate: str | None = None
     intent_type: str
     value: str
     captures: dict[str, str] = Field(default_factory=dict)
@@ -138,6 +149,7 @@ class Proposition(BaseModel):
         "declarative", "interrogative", "imperative"
     ] = "declarative"
     speech_act: str = "assertion"
+    pragmatic_markers: list[str] = Field(default_factory=list)
     deontic_force: Literal[
         "none", "permission", "obligation", "prohibition"
     ] = "none"
@@ -153,6 +165,11 @@ class Proposition(BaseModel):
     source_span: OriginalSpan
     status: ItemStatus = ItemStatus.RESOLVED
     evidence_ids: list[str] = Field(default_factory=list)
+    sense_id: str | None = None
+    sense_label: str | None = None
+    sense_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    sense_candidates: list[SenseCandidate] = Field(default_factory=list)
+    inference_sources: list[str] = Field(default_factory=list)
 
 
 class ScopeEdge(BaseModel):
@@ -160,6 +177,8 @@ class ScopeEdge(BaseModel):
     source_id: str
     target_id: str
     relation: str
+    marker: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: ItemStatus = ItemStatus.RESOLVED
     evidence_ids: list[str] = Field(default_factory=list)
 
@@ -173,7 +192,7 @@ class DecisionStateChange(BaseModel):
 
 
 class MeaningGraph(BaseModel):
-    graph_version: str = "2.0.0"
+    graph_version: str = "2.1.0"
     semantic_hash: str = ""
     entities: list[Entity] = Field(default_factory=list)
     clauses: list[Clause] = Field(default_factory=list)
@@ -185,6 +204,7 @@ class MeaningGraph(BaseModel):
     )
     evidence_rule_ids: list[str] = Field(default_factory=list)
     context_version: str = ""
+    quality_annotations: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskConstraint(BaseModel):

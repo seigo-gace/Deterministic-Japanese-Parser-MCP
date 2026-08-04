@@ -35,6 +35,16 @@ jobs:
         run: |
           set -o pipefail
           python tools/validator.py | tee reports/validator-${{ matrix.python-version }}.txt
+      - name: Supported semantic profile quality contract
+        run: |
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/semantic-quality-${{ matrix.python-version }}.json
+      - name: Independent semantic holdout contract
+        run: |
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/semantic-holdout-${{ matrix.python-version }}.json
       - name: Unit, importer, supply-chain and MCP stdio E2E tests
         run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
       - name: Existing benchmark regression gate

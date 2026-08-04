@@ -179,6 +179,29 @@ jobs:
           . .offline-venv/bin/activate
           python tools/validator.py | tee reports/offline-validator.txt
 
+      - name: Offline semantic profile and independent holdout contracts
+        env:
+          PIP_NO_INDEX: "1"
+          DJPMCP_MIN_LEXICON_RECORDS: "100000"
+        run: |
+          set -euo pipefail
+          . .offline-venv/bin/activate
+          mv src /tmp/djpmcp-source-hidden
+          restore_source() {
+            if [ -d /tmp/djpmcp-source-hidden ]; then
+              mv /tmp/djpmcp-source-hidden src
+            fi
+          }
+          trap restore_source EXIT
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/offline-semantic-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/offline-semantic-holdout.json
+          restore_source
+          trap - EXIT
+
       - name: Offline unit, importer, supply-chain and MCP stdio E2E tests
         env:
           PIP_NO_INDEX: "1"

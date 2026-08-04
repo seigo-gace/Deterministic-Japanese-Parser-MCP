@@ -8,10 +8,33 @@ This file records user-visible changes to the public repository.
 
 ### Added
 
+- Deterministic context-sensitive sense selection for high-impact polysemous Japanese expressions.
+- Sense candidates, evidence, and confidence fields in the Meaning Graph.
+- Local omitted-target and zero-object recovery with explicit inference evidence.
+- Typed and ordered reference ranking for `前者`、`後者`、typed demonstratives, current mentions, known entities, and conversation context.
+- Pragmatic speech acts for polite requests, desires, commitments, refusals, deferrals, concerns, clarification requests, approvals, rejections, and capability questions.
+- Discourse edges for cause, contrast, elaboration, justification, sequence, alternatives, and purpose.
+- Fail-closed handling for unresolved senses, omitted targets, reported commands, quotations, questions, commitments, desires, and unresolved demonstratives.
+- Supported Semantic Quality Contract: 167 cases.
+- Independent Semantic Holdout Contract: 130 runtime-independent cases.
 - Public security and support policies.
 - Public Issue forms and Pull Request template.
 - Public documentation index and release checklist.
 - CI-backed Public Repository Contract that rejects missing public files and private workspace links.
+
+### Verified
+
+- Supported semantic profile: **167 / 167**.
+- Independent semantic holdout: **130 / 130**.
+- Combined supported semantic cases: **297 / 297**.
+- Holdout sense selection: **52 / 52**.
+- Holdout pragmatics: **28 / 28**.
+- Holdout ellipsis resolution: **12 / 12**.
+- Holdout discourse relations: **10 / 10**.
+- Holdout reference resolution: **8 / 8**.
+- Holdout external-action safety: **20 / 20**.
+- Macro accuracy and every semantic category exceed the public 95% / 90% thresholds.
+- The same contracts are executed against the offline release wheel with the generated 120k lexical snapshot.
 
 ## 0.3.1 - 2026-08-04
 
@@ -53,5 +76,6 @@ Earlier public implementation work is traceable through the merged pull requests
 - PR #6: comprehensive deterministic Japanese coverage expansion.
 - PR #7: open dictionary supply chain completion.
 - PR #8: 120k open lexicon accuracy correction and verification.
+- PR #9: public repository hardening and public repository contract.
 
 The changelog does not claim a tagged release where no GitHub Release or tag exists.

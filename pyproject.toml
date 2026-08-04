@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deterministic-japanese-parser-mcp"
-version = "0.3.1"
+version = "0.4.0"
 description = "Non-AI deterministic Japanese Meaning Graph and action-safety MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,6 +36,7 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system" = [
   "dictionaries/system/synonyms.yaml",
   "dictionaries/system/task_templates.yaml",
+  "dictionaries/system/semantic_profiles.yaml",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/metaphors" = ["dictionaries/system/metaphors/*.json"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/rules" = ["dictionaries/system/rules/*.yaml"]

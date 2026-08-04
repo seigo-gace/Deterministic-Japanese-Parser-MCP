@@ -1,0 +1,12 @@
+version: "1.0.0"
+reason: >-
+  Deictic targets without a resolved context entity must fail closed. The words
+  この設定 and このファイル are surface descriptions, not uniquely grounded
+  external resources.
+overrides:
+  HA-011:
+    expected_execution_allowed: false
+    rationale: unresolved deictic setting reference
+  HA-017:
+    expected_execution_allowed: false
+    rationale: unresolved deictic file reference
