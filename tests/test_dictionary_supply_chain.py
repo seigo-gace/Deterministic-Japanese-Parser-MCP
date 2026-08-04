@@ -64,6 +64,12 @@ def test_jmdict_importer_preserves_pos_domain_and_cross_references():
     record = records[0]
     assert record.lemma == "修正"
     assert record.readings == ["しゅうせい"]
+    assert record.reading_mappings == [{
+        "reading": "しゅうせい",
+        "restricted_to": [],
+        "no_kanji": False,
+    }]
+    assert record.surfaces == ["修正"]
     assert "computing" in record.domains
     assert "変更" in record.related
     assert "放置" in record.antonyms
@@ -71,6 +77,39 @@ def test_jmdict_importer_preserves_pos_domain_and_cross_references():
         "correction",
         "modification",
     }
+
+
+def test_jmdict_entry_is_one_record_and_preserves_reading_restrictions():
+    records = import_jmdict(
+        FIXTURES / "jmdict-restrictions.xml",
+        source_version="fixture-1",
+        lexical_only=True,
+    )
+    assert len(records) == 1
+    record = records[0]
+    assert record.source.source_id == "2000000"
+    assert record.lemma == "開く"
+    assert record.surfaces == ["開く", "空く"]
+    assert record.readings == ["ひらく", "あく", "あき"]
+    assert record.reading_mappings == [
+        {
+            "reading": "ひらく",
+            "restricted_to": ["開く"],
+            "no_kanji": False,
+        },
+        {
+            "reading": "あく",
+            "restricted_to": ["空く"],
+            "no_kanji": False,
+        },
+        {
+            "reading": "あき",
+            "restricted_to": [],
+            "no_kanji": True,
+        },
+    ]
+    assert set(record.readings).isdisjoint(record.surfaces)
+    assert record.senses == []
 
 
 def test_sudachi_importer_preserves_reading_pos_and_normalized_form():
