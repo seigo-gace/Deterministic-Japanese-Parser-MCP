@@ -8,9 +8,10 @@
 
 All 5,000 candidates are accounted for in the Stage 3 review queue.
 
-The first review scope, 39 suspected substring artifacts, has also been completed. Thirty-eight entries were excluded from the epistemic candidate set, while `いいかも` was returned to direct-occurrence, meaning, and scope evidence review.
+- Batch 1 reviewed all 39 suspected substring artifacts: 38 rejected and `いいかも` returned to evidence review.
+- Batch 2 reviewed the first 20 name-or-place suspects against their source YAML: 10 modality mismatches rejected and 10 honorific-related entries retained for evidence review.
 
-This is not approval completion. Approved entries remain at zero, and no entry has been promoted into the runtime.
+Approved entries remain at zero. Runtime promotions and automatic reclassification remain at zero.
 
 ## Initial triage result
 
@@ -23,58 +24,50 @@ This is not approval completion. Approved entries remain at zero, and no entry h
 | Suspected substring artifact | **39** |
 | Total | **5,000** |
 
-## After explicit review decisions
+## Current status after explicit decisions
 
 | Review status | Count |
 |---|---:|
 | Blocked on source or license | **1,913** |
 | High-risk external-action review | **250** |
-| Ready for human evidence review | **1,509** |
-| Suspected category mismatch | **1,290** |
-| Reviewed and rejected | **38** |
-| Remaining suspected substring artifacts | **0** |
+| Ready for human evidence review | **1,519** |
+| Suspected category mismatch | **1,270** |
+| Reviewed and rejected | **48** |
 | Runtime promotions | **0** |
 
-### First review batch
+## Review batch 1
 
-- Thirty-eight entries such as `かものはし`, `かもしか`, `さかもと`, `何もかも`, and `しかも` were excluded because an embedded string was incorrectly treated as the epistemic marker `かも`.
-- `いいかも` can contain a real epistemic use of sentence-final `かも`, so it was retained for direct evidence and scope review rather than approved.
-- No decision promotes an entry into Meaning Graph senses, intents, tasks, external actions, or runtime assets.
-- The applicator cannot invent decisions. It applies only the checked-in explicit decision ledger.
+- Thirty-eight lexical false positives were excluded from the epistemic candidate set.
+- `いいかも` was retained for direct occurrence, meaning, and scope review.
 
-Decision evidence:
+## Review batch 2: category name/place batch 001
+
+The original gloss, `source_pos`, and source tags were inspected for each entry.
+
+- **Rejected modality mismatches:** `GHQ/SCAP`, `コモロ`, `京女`, `マスティク島`, `GHQ`, `こどもの日`, `メイ`, `メイヨー`, `ダマスカス`, `ラーマーヤナ`.
+- **Retained for honorific evidence review:** `入道前太政大臣`, `後京極摂政前太政大臣`, `揚子`, `お釈迦さま`, `よびすて`, `仲尼`, `法性寺入道前関白太政大臣`, `儀同三司母`, `後徳大寺左大臣`, `かわらのさだいじん`.
+- The modality entries are organizations, countries, places, a holiday, a personal name, a work title, or a demonym, not modality functions.
+- The honorific entries may encode courtesy titles, courtesy names, honorific morphology, or honorific omission. They remain unapproved pending direct evidence, current-use, scope, and boundary review.
+- No entry was automatically moved to another category or promoted into Meaning Graph, intent, task, external action, or runtime data.
+
+## Decision evidence
 
 - `research/context_collection/stage3_decisions/epistemic-substring-decisions-v1.jsonl`
+- `research/context_collection/stage3_decisions/category-name-place-batch-001.jsonl`
+- `tools/apply_context_v3_stage3_decisions.py`
+- `tools/apply_context_v3_stage3_category_decisions.py`
 - `reports/context-v3-stage3/decision-summary.json`
-- `reports/context-v3-stage3/runtime-boundary-after-decisions.json`
+- `reports/context-v3-stage3/category-batch-001-summary.json`
+- `reports/context-v3-stage3/runtime-boundary-after-category-batch-001.json`
 
 ## Main findings
 
 - Every candidate still requires direct occurrence evidence.
-- 1,913 records have an unresolved license.
+- 1,913 records have unresolved source or license blockers.
 - 1,695 records lack evidence for their assigned category.
-- 500 records have a category and feature-type mismatch.
-- 210 records may be names or places rather than context features.
-- The 39 initially suspected substring artifacts now have no unreviewed remainder.
+- 500 records have category and feature-type mismatch signals.
+- The initial name-or-place suspect set contains 210 entries; 190 remain unreviewed after batch 001.
 - 800 records require external-action safety review.
-
-Examples include `和田` under dialect candidates and `かものはし`, `さかもと`, and `何もかも` under epistemic candidates.
-
-## Review packs and artifacts
-
-The 5,000 records are split into **260 packs** of at most 20 entries.
-
-Each Stage 3 GitHub Actions run generates:
-
-- `review-queue.jsonl`;
-- `review-packs.jsonl`;
-- `review-pack-index.json`;
-- `summary.json`;
-- `runtime-boundary.json`;
-- `applied-decisions.jsonl`;
-- `post-decision-queue.jsonl`;
-- `decision-summary.json`;
-- `runtime-boundary-after-decisions.json`.
 
 ## Fixed digests
 
@@ -84,19 +77,18 @@ Each Stage 3 GitHub Actions run generates:
 | Full review queue | `917de3ef2b391f07dd300f66a9ac1d98ad22f9a0ed9b0a33753e9690f321fce6` |
 | Full review packs | `57c26478b26aef31f39ce1a086b69e481cc955a4cbe711b863c6620b82a973da` |
 | Substring decision ledger | `bc907632f87da3443a4d928972e740a849e8096fb5cd3b2ca5d342e00c982c8e` |
-| Post-decision queue | `233c6dd096f325e2e5ee1c3830fc266bfaffc8fd2826c0dd5b53efff476ed764` |
+| Category batch 001 decision ledger | `117a32a6fa7d09d49d72e33194fe551fdf58f09dbf6d97f66ed3109d8a0a9386` |
 
 ## Next order
 
 ```text
 Substring artifacts: 39 reviewed
-  -> suspected category mismatches: 1,290
+  -> name/place category batch 001: 20 reviewed
+  -> remaining suspected category mismatches: 1,270
   -> high-risk external-action candidates: 250
   -> source or license blockers: 1,913
-  -> meaning and context evidence
-  -> positive, negative, boundary, quotation, question, hypothesis, and hearsay tests
-  -> Gold cases and independent holdout
+  -> meaning/context evidence, scope tests, Gold cases, and independent holdout
   -> Stage 4 for approved entries only
 ```
 
-Incorrect candidates will not be retained merely to preserve the 5,000 count. Only reviewed candidates with complete evidence, tests, holdout coverage, and safety approval may enter Stage 4.
+Incorrect candidates will not be retained merely to preserve the 5,000 count, and candidates will not be automatically reclassified. Only fully reviewed entries may enter Stage 4.
