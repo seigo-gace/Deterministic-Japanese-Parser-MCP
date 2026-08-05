@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.1.0",
+  "dataset": "JMdict",
+  "semantic_source": "JMdict_e.gz",
+  "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
+  "version": "sha256-27429c76cda0",
+  "sha256": "27429c76cda00b407051fecabae8264e6752461284f7d3854406afa449a95a04",
+  "semantic_source_version": "sha256-27429c76cda0",
+  "semantic_source_sha256": "27429c76cda00b407051fecabae8264e6752461284f7d3854406afa449a95a04",
+  "lexical_snapshot_version": "sha256-6de18f9e1bcb",
+  "lexical_snapshot_sha256": "6de18f9e1bcbc498985bb56547607797172640ccb28ca6bad69e9677a126c72c",
+  "captured_on": "2026-08-05",
+  "license": "CC-BY-SA-4.0",
+  "attribution": "Electronic Dictionary Research and Development Group",
+  "record_mapping": "semantic JMdict ent_seq to checked-in lexical source.source_id",
+  "coverage_contract": "All 120000 checked-in lexical source IDs must exist in the semantic source or the workflow fails.",
+  "meaning_policy": "Extract source glosses as review-required meaning candidates; do not auto-approve or invent Japanese definitions."
+}
