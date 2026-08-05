@@ -12,6 +12,7 @@ from collections import Counter
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Iterable
 
 ALLOWED_DECISIONS = {
@@ -22,6 +23,7 @@ TARGET_INPUT_STATUS = "suspected-category-mismatch"
 REJECTED_STATUS = "reviewed-rejected"
 RETAINED_STATUS = "ready-for-human-evidence-review"
 REQUIRED_FLAG = "name-or-place-candidate"
+BATCH_ID_PATTERN = re.compile(r"^category-name-place-batch-(\d{3})$")
 
 
 def _canonical_json(value: Any) -> str:
@@ -70,11 +72,21 @@ def validate_queue(queue: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return by_id
 
 
+def _batch_prefix(batch_id: str) -> str:
+    match = BATCH_ID_PATTERN.fullmatch(batch_id)
+    if not match:
+        raise ValueError(
+            "batch_id must match category-name-place-batch-NNN: "
+            f"{batch_id!r}"
+        )
+    return f"category-batch-{match.group(1)}"
+
+
 def validate_decisions(
     decisions: list[dict[str, Any]],
     queue_by_id: dict[str, dict[str, Any]],
     expected_batch_size: int,
-) -> dict[str, dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], str]:
     if len(decisions) != expected_batch_size:
         raise ValueError(
             "category decision batch size mismatch: "
@@ -140,7 +152,9 @@ def validate_decisions(
 
     if len(batch_ids) != 1 or "" in batch_ids:
         raise ValueError(f"exactly one non-empty batch_id is required: {batch_ids}")
-    return by_id
+    batch_id = next(iter(batch_ids))
+    _batch_prefix(batch_id)
+    return by_id, batch_id
 
 
 def apply_decisions(
@@ -149,9 +163,10 @@ def apply_decisions(
     expected_batch_size: int,
 ) -> dict[str, str]:
     queue_by_id = validate_queue(queue)
-    decisions_by_id = validate_decisions(
+    decisions_by_id, batch_id = validate_decisions(
         decisions, queue_by_id, expected_batch_size
     )
+    output_prefix = _batch_prefix(batch_id)
 
     before_counts = Counter(str(item["primary_status"]) for item in queue)
     decision_counts = Counter(str(item["decision"]) for item in decisions)
@@ -198,7 +213,6 @@ def apply_decisions(
     decision_text = _jsonl(decisions)
     applied_text = _jsonl(applied_rows)
     queue_text = _jsonl(output_rows)
-    batch_id = str(decisions[0]["batch_id"])
     summary = {
         "schema_version": "1.0.0",
         "stage": 3,
@@ -251,13 +265,13 @@ def apply_decisions(
         ),
     }
     return {
-        "category-batch-001-summary.json": json.dumps(
+        f"{output_prefix}-summary.json": json.dumps(
             summary, ensure_ascii=False, indent=2, sort_keys=True
         )
         + "\n",
-        "post-category-batch-001-queue.jsonl": queue_text,
-        "category-batch-001-applied-decisions.jsonl": applied_text,
-        "runtime-boundary-after-category-batch-001.json": json.dumps(
+        f"post-{output_prefix}-queue.jsonl": queue_text,
+        f"{output_prefix}-applied-decisions.jsonl": applied_text,
+        f"runtime-boundary-after-{output_prefix}.json": json.dumps(
             boundary, ensure_ascii=False, indent=2, sort_keys=True
         )
         + "\n",
@@ -287,7 +301,10 @@ def main() -> int:
         args.expected_batch_size,
     )
     write_outputs(args.output_root, reports)
-    print(reports["category-batch-001-summary.json"], end="")
+    summary_name = next(
+        name for name in reports if name.endswith("-summary.json")
+    )
+    print(reports[summary_name], end="")
     return 0
 
 
