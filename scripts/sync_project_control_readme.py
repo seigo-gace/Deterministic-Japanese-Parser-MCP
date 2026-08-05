@@ -12,7 +12,8 @@ EN_END = "<!-- project-control-en:end -->"
 
 TOP_BLOCK = f"""{TOP_START}
 <p align=\"center\">
-  <strong>Created and maintained by <a href=\"https://github.com/seigo-gace\">@seigo-gace</a>.</strong><br>
+  <strong>Created and maintained by Seigo Kato (<a href=\"https://github.com/seigo-gace\">@seigo-gace</a>).</strong><br>
+  <strong>設計・開発・管理：加藤星悟（<a href=\"https://github.com/seigo-gace\">@seigo-gace</a>）</strong><br>
   Official project direction, releases, contribution acceptance, and brand permissions are controlled by the Project Owner.
 </p>
 
@@ -28,7 +29,7 @@ TOP_BLOCK = f"""{TOP_START}
 JA_BLOCK = f"""{JA_START}
 ### Project Owner・Brand・Governance
 
-**本Projectは[`@seigo-gace`](https://github.com/seigo-gace)が作成し、管理しています。** 公式Repository、Roadmap、Architecture、Release、Contribution採択、Project Marksの使用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってProject Ownerが保持します。
+**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。** 公式Repository、Roadmap、Architecture、Release、Contribution採択、Project Marksの使用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってProject Ownerが保持します。
 
 Program CodeはMIT Licenseで無料利用・改変・再配布できます。ただし、MIT Licenseは`Deterministic Japanese Parser MCP`、`DJPMCP`、`Shiori MCP Server`、公式Logo、`Astera`等のBrandを使って、改変Fork・製品・Serviceを公式と表示する権利を与えません。Brand利用は[`TRADEMARK.md`](TRADEMARK.md)に従います。
 
@@ -40,7 +41,7 @@ Program CodeはMIT Licenseで無料利用・改変・再配布できます。た
 EN_BLOCK = f"""{EN_START}
 ### Project ownership, brand, and governance
 
-**This project was created and is maintained by [`@seigo-gace`](https://github.com/seigo-gace).** Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, roadmap, architecture, releases, contribution acceptance, and permissions to use Project Marks.
+**This project was created and is maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).** Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, roadmap, architecture, releases, contribution acceptance, and permissions to use Project Marks.
 
 Program code is free to use, modify, and redistribute under the MIT License. The MIT License does not authorize a modified fork, product, service, package, account, or organization to present itself as official by using `Deterministic Japanese Parser MCP`, `DJPMCP`, `Shiori MCP Server`, official logos, `Astera`, or other Project Marks. Brand use is governed by [`TRADEMARK.md`](TRADEMARK.md).
 
@@ -56,20 +57,32 @@ def _insert_once(text: str, marker: str, block: str) -> str:
     return text.replace(marker, block + marker, 1)
 
 
+def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
+    start_count = text.count(start)
+    end_count = text.count(end)
+    if start_count != 1 or end_count != 1:
+        raise ValueError(
+            f"README marker count invalid: {start}={start_count} / {end}={end_count}"
+        )
+    prefix, remainder = text.split(start, 1)
+    _, suffix = remainder.split(end, 1)
+    return prefix + block + suffix
+
+
 def synchronize(text: str) -> str:
     updated = text
 
-    if TOP_START not in updated:
+    if TOP_START not in updated and TOP_END not in updated:
         badge_boundary = "</p>\n\n---\n\n<a id=\"日本語\"></a>"
         replacement = f"</p>\n\n{TOP_BLOCK}\n\n---\n\n<a id=\"日本語\"></a>"
         if badge_boundary not in updated:
             raise ValueError("README badge boundary not found")
         updated = updated.replace(badge_boundary, replacement, 1)
 
-    if JA_START not in updated:
+    if JA_START not in updated and JA_END not in updated:
         updated = _insert_once(updated, "### License\n\n", JA_BLOCK)
 
-    if EN_START not in updated:
+    if EN_START not in updated and EN_END not in updated:
         english_anchor = "\n### License\n\nProgram code is MIT licensed."
         if english_anchor not in updated:
             raise ValueError("English License anchor not found")
@@ -79,14 +92,9 @@ def synchronize(text: str) -> str:
             1,
         )
 
-    for start, end in (
-        (TOP_START, TOP_END),
-        (JA_START, JA_END),
-        (EN_START, EN_END),
-    ):
-        if updated.count(start) != 1 or updated.count(end) != 1:
-            raise ValueError(f"README marker count invalid: {start} / {end}")
-
+    updated = _replace_marked_block(updated, TOP_START, TOP_END, TOP_BLOCK)
+    updated = _replace_marked_block(updated, JA_START, JA_END, JA_BLOCK)
+    updated = _replace_marked_block(updated, EN_START, EN_END, EN_BLOCK)
     return updated
 
 
