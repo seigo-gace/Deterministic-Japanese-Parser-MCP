@@ -1,0 +1,100 @@
+name: Compile 120k Open Lexicon
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/import-all-dictionaries
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "tools/compile_open_lexicon_runtime.py"
+      - "tools/validate_compiled_open_lexicon.py"
+      - "tests/test_compiled_open_lexicon.py"
+      - ".github/workflows/compile-open-lexicon.yml"
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "tools/compile_open_lexicon_runtime.py"
+      - "tools/validate_compiled_open_lexicon.py"
+      - "tests/test_compiled_open_lexicon.py"
+      - ".github/workflows/compile-open-lexicon.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compile-open-lexicon-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-runtime-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Compile the actual 120,000 records
+        run: |
+          set -euo pipefail
+          rm -rf work/open-lexicon-compiled reports/open-lexicon-runtime
+          mkdir -p work reports/open-lexicon-runtime
+          python tools/compile_open_lexicon_runtime.py \
+            --input-root dictionaries/system/lexicon.d \
+            --output-root work/open-lexicon-compiled \
+            --expected-records 120000 \
+            --record-shard-size 10000 \
+            --report reports/open-lexicon-runtime/compile-report.json
+
+      - name: Validate compiled indexes and safety boundaries
+        run: |
+          set -euo pipefail
+          python tools/validate_compiled_open_lexicon.py \
+            --root work/open-lexicon-compiled \
+            --expected-records 120000 \
+            --output reports/open-lexicon-runtime/validation.json
+          pytest -q tests/test_compiled_open_lexicon.py
+
+      - name: Install compiled runtime data
+        run: |
+          set -euo pipefail
+          rm -rf dictionaries/system/compiled/open_lexicon
+          mkdir -p dictionaries/system/compiled
+          mv work/open-lexicon-compiled dictionaries/system/compiled/open_lexicon
+
+      - name: Commit deterministic compiled assets
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dictionaries/system/compiled/open_lexicon reports/open-lexicon-runtime
+          if git diff --cached --quiet; then
+            echo "Compiled assets are already current."
+            exit 0
+          fi
+          git commit -m "data: compile 120k lexicon runtime indexes"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Upload compile evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lexicon-runtime-evidence
+          path: |
+            reports/open-lexicon-runtime
+            dictionaries/system/compiled/open_lexicon/manifest.json
+          if-no-files-found: error
