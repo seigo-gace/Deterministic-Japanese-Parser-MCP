@@ -18,6 +18,7 @@ def _katakana_to_hiragana(value: str) -> str:
         for char in value
     )
 
+
 _DEFAULT_RUNTIME: "OpenLexiconRuntime | None" = None
 
 
@@ -40,6 +41,8 @@ class OpenLexiconRuntime:
 
     The runtime never infers senses, intents, tasks, pragmatic meanings, or
     executable actions. It exposes lexical candidates and preserves ambiguity.
+    All record shards are preloaded before readiness so request-time lookup does
+    not perform disk I/O or gzip expansion.
     """
 
     _UNAVAILABLE: "OpenLexiconRuntime | None" = None
@@ -47,6 +50,7 @@ class OpenLexiconRuntime:
     def __init__(self, root: Path, *, shard_cache_size: int = 4):
         self.root = Path(root)
         self.available = False
+        self.records_preloaded = False
         self.manifest: dict[str, Any] = {}
         self.surface_index: dict[str, list[str]] = {}
         self.reading_index: dict[str, list[dict[str, Any]]] = {}
@@ -97,6 +101,7 @@ class OpenLexiconRuntime:
             instance = cls.__new__(cls)
             instance.root = Path(".")
             instance.available = False
+            instance.records_preloaded = False
             instance.manifest = {}
             instance.surface_index = {}
             instance.reading_index = {}
@@ -114,6 +119,24 @@ class OpenLexiconRuntime:
     def version(self) -> str:
         versions = self.manifest.get("source_versions", [])
         return "+".join(versions) if versions else "0"
+
+    def preload_records(self) -> None:
+        """Expand every compact record shard before the server becomes ready."""
+        if not self.available or self.records_preloaded:
+            return
+        shard_count = int(self.manifest.get("record_shards", 0))
+        if shard_count < 1:
+            raise ValueError("compiled open lexicon record_shards is missing")
+        self.shard_cache_size = max(self.shard_cache_size, shard_count)
+        loaded_records = 0
+        for number in range(shard_count):
+            loaded_records += len(self._load_shard(number))
+        if loaded_records != self.record_count:
+            raise ValueError(
+                "compiled open lexicon preload count mismatch: "
+                f"expected={self.record_count} actual={loaded_records}"
+            )
+        self.records_preloaded = True
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
         cached = self._shard_cache.get(number)
