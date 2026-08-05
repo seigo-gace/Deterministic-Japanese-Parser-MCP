@@ -3,6 +3,8 @@
   "dataset": "JMdict",
   "semantic_source": "JMdict_e.gz",
   "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
+  "version": "sha256-27429c76cda0",
+  "sha256": "27429c76cda00b407051fecabae8264e6752461284f7d3854406afa449a95a04",
   "semantic_source_version": "sha256-27429c76cda0",
   "semantic_source_sha256": "27429c76cda00b407051fecabae8264e6752461284f7d3854406afa449a95a04",
   "lexical_snapshot_version": "sha256-6de18f9e1bcb",
