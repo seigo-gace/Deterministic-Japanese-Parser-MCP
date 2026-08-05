@@ -1,2 +1,21 @@
-# Public repository ownership
+# Project-wide ownership and final review routing
 * @seigo-gace
+
+# Legal, governance, brand, release, security, and contribution controls
+/LICENSE @seigo-gace
+/NOTICE.md @seigo-gace
+/TRADEMARK.md @seigo-gace
+/GOVERNANCE.md @seigo-gace
+/CONTRIBUTING.md @seigo-gace
+/CONTRIBUTOR_LICENSE_AGREEMENT.md @seigo-gace
+/DEVELOPER_CERTIFICATE_OF_ORIGIN.md @seigo-gace
+/SECURITY.md @seigo-gace
+/.github/ @seigo-gace
+
+# Runtime semantics, dictionaries, Gold data, packaging, and release gates
+/src/ @seigo-gace
+/dictionaries/ @seigo-gace
+/tests/ @seigo-gace
+/tools/ @seigo-gace
+/scripts/ @seigo-gace
+/pyproject.toml @seigo-gace

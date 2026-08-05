@@ -1,0 +1,46 @@
+name: Project Control Documentation
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - MAINTAINERS.md
+      - GOVERNANCE.md
+      - TRADEMARK.md
+      - CONTRIBUTING.md
+      - CONTRIBUTOR_LICENSE_AGREEMENT.md
+      - DEVELOPER_CERTIFICATE_OF_ORIGIN.md
+      - scripts/sync_project_control_readme.py
+      - .github/workflows/sync-project-control-readme.yml
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - MAINTAINERS.md
+      - GOVERNANCE.md
+      - TRADEMARK.md
+      - CONTRIBUTING.md
+      - CONTRIBUTOR_LICENSE_AGREEMENT.md
+      - DEVELOPER_CERTIFICATE_OF_ORIGIN.md
+      - scripts/sync_project_control_readme.py
+      - .github/workflows/sync-project-control-readme.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-control-docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  project-control-docs:
+    name: README governance consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify README project-control sections
+        run: python scripts/sync_project_control_readme.py --check
