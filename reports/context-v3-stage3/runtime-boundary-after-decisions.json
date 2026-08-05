@@ -1,0 +1,13 @@
+{
+  "automatic_approval": false,
+  "automatic_rejection": false,
+  "explicit_decisions": 39,
+  "input_entries": 5000,
+  "name": "manual substring-artifact review",
+  "next_transition": "category mismatch review, then source/license and evidence review",
+  "retained_for_evidence_review": 1,
+  "reviewed_rejected_entries": 38,
+  "runtime_promoted_entries": 0,
+  "runtime_promotion_allowed": false,
+  "stage": 3
+}
