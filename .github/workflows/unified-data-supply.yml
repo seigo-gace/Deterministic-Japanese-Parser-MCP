@@ -1,0 +1,223 @@
+name: Unified Data Supply Pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "research/semantic_sources/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/build_context_semantic_collection.py"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "src/deterministic_japanese_parser_mcp/server.py"
+      - "src/deterministic_japanese_parser_mcp/__init__.py"
+      - "tests/test_context_semantic_collection.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "pyproject.toml"
+      - ".github/workflows/unified-data-supply.yml"
+  push:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "research/semantic_sources/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/build_context_semantic_collection.py"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "src/deterministic_japanese_parser_mcp/server.py"
+      - "src/deterministic_japanese_parser_mcp/__init__.py"
+      - "tests/test_context_semantic_collection.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "pyproject.toml"
+      - ".github/workflows/unified-data-supply.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  process-review-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+      - name: Download checksum-locked JMdict source
+        run: |
+          mkdir -p work reports
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, urllib.request
+          lock = json.loads(Path("research/semantic_sources/jmdict/source-lock.json").read_text(encoding="utf-8"))
+          target = Path("work/JMdict_e.gz")
+          urllib.request.urlretrieve(lock["url"], target)
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          if digest != lock["sha256"]:
+              raise SystemExit(f"JMdict checksum mismatch: expected={lock['sha256']} actual={digest}")
+          print({"version": lock["version"], "sha256": digest, "bytes": target.stat().st_size})
+          PY
+      - name: Add source-backed meaning candidates to all 120000 lexical records
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, subprocess, sys
+          lock = json.loads(Path("research/semantic_sources/jmdict/source-lock.json").read_text(encoding="utf-8"))
+          subprocess.run([
+              sys.executable, "tools/build_jmdict_semantic_lexicon.py",
+              "--input", "work/JMdict_e.gz",
+              "--lexicon-root", "dictionaries/system/lexicon.d",
+              "--output-root", "work/jmdict-semantic-lexicon",
+              "--report", "reports/jmdict-semantic-lexicon.json",
+              "--source-version", lock["version"],
+              "--expected-sha256", lock["sha256"],
+              "--expected-records", "120000",
+          ], check=True)
+          PY
+      - name: Normalize all 5000 Context candidates
+        run: |
+          python tools/build_context_semantic_collection.py \
+            --input-root research/context_collection/expansion_v3 \
+            --output-root work/context-semantic-collection \
+            --report reports/context-semantic-collection.json \
+            --expected-records 5000
+      - name: Build review assets and approved-only Runtime pack
+        run: |
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/jmdict-semantic-lexicon \
+            --context-root work/context-semantic-collection \
+            --output-root reports/unified-semantic-data \
+            --compiled-root dictionaries/system/compiled/semantic_data \
+            --compile-approved \
+            | tee reports/unified-semantic-data-run.json
+      - name: Prove byte-deterministic rebuild
+        run: |
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/jmdict-semantic-lexicon \
+            --context-root work/context-semantic-collection \
+            --check \
+            | tee reports/unified-semantic-data-determinism.json
+      - name: Verify processing and Meaning Graph integration
+        run: |
+          pytest \
+            tests/test_context_semantic_collection.py \
+            tests/test_jmdict_semantic_lexicon.py \
+            tests/test_unified_semantic_data_pipeline.py \
+            tests/test_semantic_data_runtime.py \
+            --junitxml=reports/unified-semantic-data-pytest.xml
+      - name: Preserve existing dictionary, Gold and safety contracts
+        run: |
+          python tools/lexicon_validator.py | tee reports/lexicon-validator.txt
+          python tools/validator.py | tee reports/validator.txt
+          python scripts/semantic_quality_contract.py --check --output reports/semantic-quality.json
+          python scripts/semantic_holdout_contract.py --check --output reports/semantic-holdout.json
+      - name: Upload approved Runtime for clean-runner validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-semantic-runtime
+          path: dictionaries/system/compiled/semantic_data/**
+          if-no-files-found: error
+          retention-days: 7
+      - name: Archive processing and review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          path: |
+            reports/unified-semantic-data/**
+            reports/*.json
+            reports/*.txt
+            reports/*.xml
+          if-no-files-found: warn
+
+  runtime-performance-wheel:
+    needs: process-review-compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+      - name: Restore approved Runtime generated from the full dataset
+        run: rm -rf dictionaries/system/compiled/semantic_data
+      - uses: actions/download-artifact@v4
+        with:
+          name: approved-semantic-runtime
+          path: dictionaries/system/compiled/semantic_data
+      - name: Verify restored Runtime manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          manifest = json.loads(Path("dictionaries/system/compiled/semantic_data/manifest.json").read_text(encoding="utf-8"))
+          assert manifest["approved_only"] is True
+          assert manifest["automatic_external_action"] is False
+          assert manifest["preserve_ambiguity"] is True
+          print({
+              "record_count": manifest["record_count"],
+              "record_shards": manifest["record_shards"],
+              "approved_only": manifest["approved_only"],
+          })
+          PY
+      - name: Performance regression gates on a clean runner
+        run: |
+          mkdir -p reports
+          python scripts/benchmark.py --check --rounds 30 | tee reports/benchmark.json
+          python scripts/performance_contract.py \
+            --check --rounds 30 --stdio-rounds 20 --scale 20 \
+            --max-ready-ms 10 --output reports/performance.json
+          python scripts/astera_latency_contract.py \
+            --check --rounds 30 --stdio-rounds 20 \
+            --target-ms 10 --hard-ms 50 --output reports/astera-latency.json
+      - name: Build Wheel and verify outside repository
+        run: |
+          python -m build --wheel
+          python -m venv --system-site-packages /tmp/djpmcp-wheel
+          /tmp/djpmcp-wheel/bin/pip install --no-index --no-deps --force-reinstall dist/*.whl
+          cd /tmp
+          /tmp/djpmcp-wheel/bin/python - <<'PY'
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          response = ParserEngine().analyze(AnalyzeRequest(original_text="日本を確認する。", deadline_ms=5000))
+          assert response.meaning_graph.propositions
+          assert response.meaning_graph.lexical_nodes
+          assert response.meaning_graph.semantic_hash
+          print({
+              "lexical_nodes": len(response.meaning_graph.lexical_nodes),
+              "semantic_pack_available": response.metrics.get("semantic_pack_available", 0),
+              "execution_allowed": response.execution_allowed,
+          })
+          PY
+      - name: Archive performance and Wheel evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-data-supply-runtime-evidence
+          path: |
+            reports/*.json
+            dist/*.whl
+          if-no-files-found: warn
