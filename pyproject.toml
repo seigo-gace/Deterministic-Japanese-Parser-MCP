@@ -58,6 +58,15 @@ where = ["src"]
   "dictionaries/system/lexicon.d/copyleft-other/*.jsonl",
   "dictionaries/system/lexicon.d/copyleft-other/*.jsonl.gz",
 ]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon" = [
+  "dictionaries/system/compiled/open_lexicon/manifest.json",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon/indexes" = [
+  "dictionaries/system/compiled/open_lexicon/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon/records" = [
+  "dictionaries/system/compiled/open_lexicon/records/*.jsonl.gz",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
   "dictionaries/sources/*.json",
 ]
