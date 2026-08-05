@@ -1,0 +1,88 @@
+name: Review Context v3 Stage 3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "research/context_collection/expansion_v3/**"
+      - "reports/context-v3-stage3/**"
+      - "tools/review_context_v3_stage3.py"
+      - "tools/compact_context_v3_review_packs.py"
+      - "tests/test_context_v3_stage3_review.py"
+      - "tests/test_workflow_safety_contract.py"
+      - ".github/workflows/review-context-v3-stage3.yml"
+  pull_request:
+    paths:
+      - "research/context_collection/expansion_v3/**"
+      - "reports/context-v3-stage3/**"
+      - "tools/review_context_v3_stage3.py"
+      - "tools/compact_context_v3_review_packs.py"
+      - "tests/test_context_v3_stage3_review.py"
+      - "tests/test_workflow_safety_contract.py"
+      - ".github/workflows/review-context-v3-stage3.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: context-v3-stage3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install review dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "PyYAML>=6.0.3,<7" "pytest>=8.3,<10"
+
+      - name: Build deterministic Stage 3 review queue
+        run: |
+          rm -rf work/context-v3-stage3
+          python tools/review_context_v3_stage3.py \
+            --input-root research/context_collection/expansion_v3 \
+            --output-root work/context-v3-stage3 \
+            --pack-size 20
+
+      - name: Create compact public review-pack index
+        run: |
+          python tools/compact_context_v3_review_packs.py \
+            --input work/context-v3-stage3/review-packs.jsonl \
+            --summary work/context-v3-stage3/summary.json \
+            --output work/context-v3-stage3/review-pack-index.json
+
+      - name: Prove checked-in Stage 3 evidence is current
+        run: |
+          diff -u \
+            reports/context-v3-stage3/summary.json \
+            work/context-v3-stage3/summary.json
+          diff -u \
+            reports/context-v3-stage3/runtime-boundary.json \
+            work/context-v3-stage3/runtime-boundary.json
+
+      - name: Validate all 5,000 candidates and safety boundaries
+        run: |
+          pytest -q \
+            tests/test_context_v3_stage3_review.py \
+            tests/test_workflow_safety_contract.py
+
+      - name: Upload Stage 3 review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-v3-stage3-review
+          path: work/context-v3-stage3
+          if-no-files-found: error
+          retention-days: 30

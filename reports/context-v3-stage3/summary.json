@@ -1,0 +1,96 @@
+{
+  "category_status_counts": {
+    "dialect": {
+      "blocked-source-or-license": 68,
+      "ready-for-human-evidence-review": 113,
+      "suspected-category-mismatch": 219
+    },
+    "discourse": {
+      "blocked-source-or-license": 56,
+      "ready-for-human-evidence-review": 37,
+      "suspected-category-mismatch": 307
+    },
+    "epistemic": {
+      "blocked-source-or-license": 38,
+      "ready-for-human-evidence-review": 100,
+      "suspected-category-mismatch": 23,
+      "suspected-substring-artifact": 39
+    },
+    "honorific": {
+      "blocked-source-or-license": 54,
+      "ready-for-human-evidence-review": 303,
+      "suspected-category-mismatch": 143
+    },
+    "media_community": {
+      "blocked-source-or-license": 321,
+      "suspected-category-mismatch": 179
+    },
+    "metaphor": {
+      "blocked-source-or-license": 79,
+      "ready-for-human-evidence-review": 390,
+      "suspected-category-mismatch": 31
+    },
+    "modality": {
+      "blocked-source-or-license": 110,
+      "high-risk-action-review": 30,
+      "suspected-category-mismatch": 360
+    },
+    "onomatopoeia": {
+      "blocked-source-or-license": 135,
+      "ready-for-human-evidence-review": 565
+    },
+    "reference": {
+      "blocked-source-or-license": 52,
+      "high-risk-action-review": 220,
+      "suspected-category-mismatch": 28
+    },
+    "slang": {
+      "blocked-source-or-license": 1000
+    }
+  },
+  "flag_counts": {
+    "category-evidence-missing": 1695,
+    "direct-occurrence-evidence-required": 5000,
+    "external-action-review-required": 800,
+    "feature-type-mismatch": 500,
+    "license-review-required": 1913,
+    "name-or-place-candidate": 210,
+    "source-metadata-noise": 2282,
+    "substring-artifact": 39
+  },
+  "license_counts": {
+    "CC BY-SA 4.0 / GFDL": 2522,
+    "MIT": 565,
+    "確認中": 1913
+  },
+  "origin_counts": {
+    "existing-v2-candidate": 1144,
+    "j-ono-data": 565,
+    "kaikki-wiktionary": 2522,
+    "living-japanese-slang-dictionary": 769
+  },
+  "pack_count": 260,
+  "pack_size": 20,
+  "review_packs_sha256": "57c26478b26aef31f39ce1a086b69e481cc955a4cbe711b863c6620b82a973da",
+  "review_queue_sha256": "917de3ef2b391f07dd300f66a9ac1d98ad22f9a0ed9b0a33753e9690f321fce6",
+  "reviewed_or_approved_entries": 0,
+  "runtime_promoted_entries": 0,
+  "schema_version": "1.0.0",
+  "source_collection_version": "3.0.0-candidate-discovery",
+  "source_manifest_sha256": "c212ecfe662cb76bc5a40061b351af49b75876c4d4aad5036f3e0b41c5c8b04c",
+  "stage3_boundary": {
+    "automatic_approval": false,
+    "automatic_rejection": false,
+    "human_review_required": true,
+    "runtime_promotion": false,
+    "semantic_completion_claim": false
+  },
+  "status_counts": {
+    "blocked-source-or-license": 1913,
+    "high-risk-action-review": 250,
+    "ready-for-human-evidence-review": 1508,
+    "suspected-category-mismatch": 1290,
+    "suspected-substring-artifact": 39
+  },
+  "total_entries": 5000
+}

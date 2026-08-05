@@ -3,52 +3,77 @@ name: Compile Language Assets
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - "dictionaries/system/language_features.d/**"
+      - "dictionaries/system/compiled/language_features.d/**"
       - "tools/compile_language_features.py"
       - "src/deterministic_japanese_parser_mcp/literal_index.py"
+      - "tests/test_compiled_language_assets.py"
+      - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/language-assets.yml"
   pull_request:
     paths:
       - "dictionaries/system/language_features.d/**"
+      - "dictionaries/system/compiled/language_features.d/**"
       - "tools/compile_language_features.py"
       - "src/deterministic_japanese_parser_mcp/literal_index.py"
+      - "tests/test_compiled_language_assets.py"
+      - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/language-assets.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: language-assets-${{ github.event.pull_request.head.ref || github.ref }}
+  group: language-assets-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  compile-and-record:
+  verify-compiled-assets:
     runs-on: ubuntu-latest
-    env:
-      HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.HEAD_BRANCH }}
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install build-only parser dependency
-        run: python -m pip install "PyYAML>=6.0.3,<7"
-      - name: Compile deterministic language assets
+          cache: pip
+
+      - name: Install project and test dependencies
         run: |
-          python tools/compile_language_features.py
-          python tools/compile_language_features.py --check
-      - name: Record immutable compiled assets
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Rebuild language assets in a temporary directory
         run: |
-          if [ -z "$(git status --porcelain -- dictionaries/system/compiled/language_features.d)" ]; then
-            echo "Compiled assets already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dictionaries/system/compiled/language_features.d
-          git commit -m "build: refresh compiled language assets"
-          git push origin "HEAD:${HEAD_BRANCH}"
+          rm -rf work/language-features-compiled
+          python tools/compile_language_features.py \
+            --output-dir work/language-features-compiled
+
+      - name: Prove checked-in assets match the complete rebuild
+        run: |
+          diff -qr \
+            dictionaries/system/compiled/language_features.d \
+            work/language-features-compiled \
+            | tee work/language-features-diff.txt
+
+      - name: Validate runtime and workflow safety
+        run: |
+          pytest -q \
+            tests/test_compiled_language_assets.py \
+            tests/test_workflow_safety_contract.py
+
+      - name: Upload compiled-language verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: language-assets-verification
+          path: |
+            work/language-features-compiled
+            work/language-features-diff.txt
+          if-no-files-found: error
+          retention-days: 30
