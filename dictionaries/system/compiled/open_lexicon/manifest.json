@@ -1,0 +1,279 @@
+{
+  "schema_version": "1.0.0",
+  "mode": "compiled_lexical_identity_only",
+  "record_count": 120000,
+  "expected_record_count": 120000,
+  "input_shard_count": 16,
+  "input_shards": [
+    {
+      "path": "dictionaries/system/lexicon.d/apache-2.0/placeholder.jsonl",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "record_count": 0
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/placeholder.jsonl",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "record_count": 0
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0001.jsonl.gz",
+      "sha256": "bf6d74fbb397fe6947a1d85a06cf7d7467692cd8e772561188abf826d792d0c3",
+      "bytes": 527498,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0002.jsonl.gz",
+      "sha256": "29d3796fcd091df7b49a5971bd5acaee872960c4718f3c534f33b465fedb254e",
+      "bytes": 501395,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0003.jsonl.gz",
+      "sha256": "0e87999f7dd7ee9923b0d3b437d15b7d9454444cdeb127928c05fe114d793a8d",
+      "bytes": 491498,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0004.jsonl.gz",
+      "sha256": "1e1a1d362996ea0c55c58dedc8d0d4e19ef50257f7019a0c712e155ee8c2f70f",
+      "bytes": 495616,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0005.jsonl.gz",
+      "sha256": "5d860002197f2330ba134a1a874065fba2e6cf01e971c13f7aab9308b5636a5b",
+      "bytes": 493349,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0006.jsonl.gz",
+      "sha256": "78f6cdd2f3f9e78488fb06f6615e8ab3971ab7c429303a4e8ab8b2ca6f8ff0f5",
+      "bytes": 560158,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0007.jsonl.gz",
+      "sha256": "1cfc7e292967ecbc4df825755504253428c6a9d64899b4806445de7c13785366",
+      "bytes": 519567,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0008.jsonl.gz",
+      "sha256": "c00ba4f9de86fbaa2337f5fcc23743ae115e86dd6fe26a5e30e23cdb9e21458c",
+      "bytes": 519198,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0009.jsonl.gz",
+      "sha256": "2dd5b7f0352ad8c1b23a518dfacd1be55b586eaa43063d92266e181a85fa1fee",
+      "bytes": 554107,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0010.jsonl.gz",
+      "sha256": "9deefe03110a2035e6926d68d4300591e2364248eefe077480d33d9232d9ab88",
+      "bytes": 596275,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0011.jsonl.gz",
+      "sha256": "d521962acf4e056fe6090cd8da2657682c65cf8d490711f1033f3e3be2bbc037",
+      "bytes": 616825,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc-by-sa/release-jmdict-28d8dcbdc5a8-0012.jsonl.gz",
+      "sha256": "34fb69269e6857a72b6677aaf4183a7079bb04fa92769ce773ee2711ea31b28b",
+      "bytes": 592663,
+      "record_count": 10000
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/cc0/placeholder.jsonl",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "record_count": 0
+    },
+    {
+      "path": "dictionaries/system/lexicon.d/copyleft-other/placeholder.jsonl",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "record_count": 0
+    }
+  ],
+  "source_versions": [
+    "sha256-6de18f9e1bcb"
+  ],
+  "source_licenses": [
+    "CC-BY-SA-4.0"
+  ],
+  "unique_lemmas": 119092,
+  "unique_surfaces": 154921,
+  "unique_readings": 126936,
+  "homograph_surfaces": 1711,
+  "part_of_speech_keys": 70,
+  "domain_keys": 93,
+  "usage_keys": 46,
+  "record_shard_size": 10000,
+  "record_shards": 12,
+  "exact_lookup_only": true,
+  "reading_alias_promotion": false,
+  "semantic_auto_promotion": false,
+  "intent_auto_promotion": false,
+  "external_action_auto_promotion": false,
+  "outputs": [
+    {
+      "path": "indexes/canonical-groups.json.gz",
+      "sha256": "5b5481c86b96993997067fc29ddfc35f51d243987cdbea38624bccd5a23bda90",
+      "bytes": 970756,
+      "uncompressed_sha256": "ac0333701fada33d4a5cef42fff130400ed64f98e48ac082a65094c75f426ace",
+      "uncompressed_bytes": 4073478
+    },
+    {
+      "path": "indexes/surface-index.json.gz",
+      "sha256": "8f3db45d5a2e8aa4bebb6976f0bf684c91e20b11fed0875d21c0002c00782f75",
+      "bytes": 2631167,
+      "uncompressed_sha256": "d6062bba0212c2f399ef925178f4e3fbbf48d96d01e7953aab5daa80ccbf218f",
+      "uncompressed_bytes": 6703296
+    },
+    {
+      "path": "indexes/reading-index.json.gz",
+      "sha256": "4a10cd948fcdd5dd09fc157c0f99321e58125f581cf063e619d624d2519a2d83",
+      "bytes": 2501081,
+      "uncompressed_sha256": "4c313d302f304986d803531d23e77a05d1fccc00027df7928e8a4a3a3dc3c9ee",
+      "uncompressed_bytes": 14043801
+    },
+    {
+      "path": "indexes/homograph-index.json.gz",
+      "sha256": "6e17c5c3675a8be390b93733da07df0e692d848cd2ff5610df52fc9749e0b59c",
+      "bytes": 53901,
+      "uncompressed_sha256": "b45fc1ca41ecb9e2e84acb97e022f33ac16000fe94194124993d4d5fe28683ee",
+      "uncompressed_bytes": 117684
+    },
+    {
+      "path": "indexes/pos-index.json.gz",
+      "sha256": "fa81b46275dfe4ef270b43e9e89e8321a8ae0ebe962f389b821cf09591885040",
+      "bytes": 1957781,
+      "uncompressed_sha256": "3651d1d0ac304bc33fbb976fa2640b8e0b9f18f71d07a15b0f46d5c1c594b868",
+      "uncompressed_bytes": 4400459
+    },
+    {
+      "path": "indexes/domain-index.json.gz",
+      "sha256": "5f90cfc6f487245e03eda051e93b9437eff757799b18320a272501a0d535fc40",
+      "bytes": 165477,
+      "uncompressed_sha256": "84e5056b14e36a87f9128eaad276f749cbab83be78c8676f2c32aa4ddfc88458",
+      "uncompressed_bytes": 351702
+    },
+    {
+      "path": "indexes/usage-index.json.gz",
+      "sha256": "2e18729ce12659ae10f1fd333306dcd03dcb94028d0d42df2bdcd11256822d9b",
+      "bytes": 241446,
+      "uncompressed_sha256": "6b51384497bf143e06c7459869a95c754f12e37f87e140cc0567789f114336aa",
+      "uncompressed_bytes": 518726
+    },
+    {
+      "path": "indexes/record-locator.json.gz",
+      "sha256": "95631f83cce42ca09f6a5e6d094163546df90d7d1776dc1356e404075d561d25",
+      "bytes": 1780779,
+      "uncompressed_sha256": "85e867bc02a5a45065392ca0e1c6a887e48a63a88cea2459b1f3cc6a0f7b2131",
+      "uncompressed_bytes": 6126730
+    },
+    {
+      "path": "records/records-0000.jsonl.gz",
+      "sha256": "bf2657458099e29fb36e7c1c4d48b76e7d39d42a93b5a279a2a1fb821b61359e",
+      "bytes": 566828,
+      "uncompressed_sha256": "4921829ad5471ab6a1b872639fdc5e353393504ef498f6474d98a4d96e3ee2a0",
+      "uncompressed_bytes": 7016934,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0001.jsonl.gz",
+      "sha256": "4eeb8bbc520ab1ffd0eea2be99bec2f27de4af02aef3648c31c471ec599aa740",
+      "bytes": 567409,
+      "uncompressed_sha256": "7568b7a49fd30bee57b73ed4e023ae44f56e94a705cb4654d46dcc112a701461",
+      "uncompressed_bytes": 7017512,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0002.jsonl.gz",
+      "sha256": "a3aeb905de8b4490b1ec9fba283f0be92fba0a29cd03f0fc379574f4f166b712",
+      "bytes": 570831,
+      "uncompressed_sha256": "0c49b070d9cd8434020fc70e5d4d5883a705db3dfa3b51c29df3f38a515fd079",
+      "uncompressed_bytes": 7030645,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0003.jsonl.gz",
+      "sha256": "720b04281eb5a9273c9a739b56e831dec96445ce7d9102599131d927789e95cd",
+      "bytes": 569544,
+      "uncompressed_sha256": "c39fa392ffa3eb3e2d348e6a95736ef5612865a0c84c2d00bae667885b130ba1",
+      "uncompressed_bytes": 7034859,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0004.jsonl.gz",
+      "sha256": "15aef66d3059a64c5238e25291fc0335b4fae01ea18723898eca0b397dd630c5",
+      "bytes": 568126,
+      "uncompressed_sha256": "a9fb0d200f2f26b3fef77157ca3d5c3d561242908cf0977c4c998275bbd0e355",
+      "uncompressed_bytes": 7019028,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0005.jsonl.gz",
+      "sha256": "dc0f18dbea54ca99fced2fe30526929b151f33148509567888cdf898a4335cf4",
+      "bytes": 569424,
+      "uncompressed_sha256": "b61036e9c3896a5ed1490b0e1162a6644383e7a37ca2297f251d8cae0e29d368",
+      "uncompressed_bytes": 7031131,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0006.jsonl.gz",
+      "sha256": "4817f9f3bd7bd5f73a79ae08d73b3d2d384f778eabfc002c10ea66536a8167bb",
+      "bytes": 569470,
+      "uncompressed_sha256": "88b08e5687ed22394a0b7279d20d2564ca3654fb3b6b6e6c613b2758dada73dd",
+      "uncompressed_bytes": 7026112,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0007.jsonl.gz",
+      "sha256": "107a262e81bc4ab04a3ca8e59b96b9b9bf1509df9ef33aecf175d1628f5dcba5",
+      "bytes": 568157,
+      "uncompressed_sha256": "d178eaf6f6d282929d3836db9c2e13986fc09faecd3bc3bd44cd7bc06859e1a8",
+      "uncompressed_bytes": 7023757,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0008.jsonl.gz",
+      "sha256": "828799a9be7f754e3262ba44c1330e3ee4fdf04d3dee9d10041547d8c087952d",
+      "bytes": 566150,
+      "uncompressed_sha256": "50be4340e433f71c7d7b983b129a30a38614733ff1bec58431d2abee92599e2e",
+      "uncompressed_bytes": 7021169,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0009.jsonl.gz",
+      "sha256": "dfda85a5e3a22ca946b4f77a93811b0dc1ab8188fa014771ef0c3b59b2d0ae22",
+      "bytes": 566947,
+      "uncompressed_sha256": "7a900be1d7d7bd1f75c363e00457b30416cba08979cb0720ea9db391e589ab45",
+      "uncompressed_bytes": 7015344,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0010.jsonl.gz",
+      "sha256": "4016d07fc3c30f37ec2c54e652323e0e667adf681c82b33cb2a9049d6655efec",
+      "bytes": 570370,
+      "uncompressed_sha256": "5d6b701859fa0a4585f110adcbb59ddde7a5e6dd56f1a62a5b62c0174c19432f",
+      "uncompressed_bytes": 7028682,
+      "record_count": 10000
+    },
+    {
+      "path": "records/records-0011.jsonl.gz",
+      "sha256": "34375079eb965fcb8b1e654619ce0213ff5853f787c7258b185c0b7838fa7490",
+      "bytes": 569594,
+      "uncompressed_sha256": "241d2e5bd3ee3e6debf39981542f0ca15c816da7a499dd4ee8003ad80d49d72b",
+      "uncompressed_bytes": 7022450,
+      "record_count": 10000
+    }
+  ]
+}
