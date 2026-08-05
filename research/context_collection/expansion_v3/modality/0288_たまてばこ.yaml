@@ -1,0 +1,49 @@
+entry_id: MODALITY-d52676c9c2f0
+surface: たまてばこ
+reading: tamatebako
+variants:
+- たまてばこ ^
+- tamatebako
+- 玉手箱
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: object
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「たまてばこ」が実際に使われた文脈をSourceと照合する。
+  meaning: thing that must be handled with care; Pandora's box
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%81%9F%E3%81%BE%E3%81%A6%E3%81%B0%E3%81%93
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「たまてばこ」が候補表現として現れる。
+negative_examples:
+- 「たまてばこ」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「たまてばこ」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - figuratively
+  source_pos: noun
+  pattern_family: null

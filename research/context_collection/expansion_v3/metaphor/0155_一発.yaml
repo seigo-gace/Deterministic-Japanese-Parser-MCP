@@ -1,0 +1,73 @@
+entry_id: METAPHOR-07f3d701eeac
+surface: 一発
+reading: ippatsu
+variants:
+- ippatsu
+- 一發
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「一発」が実際に使われた文脈をSourceと照合する。
+  meaning: 'Used other than figuratively or idiomatically: see 一, 発.'
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E4%B8%80%E7%99%BA
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「一発」が候補表現として現れる。
+negative_examples:
+- 「一発」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「一発」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - informal
+  - ball-games
+  - baseball
+  - games
+  - hobbies
+  - lifestyle
+  - sports
+  - '{''name'': ''baseball'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:baseball'', ''langcode'':
+    ''ja''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''5 5 91''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''8 11 82''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''18 20 63''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''31 13 56''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''30 14 56''}'
+  - '{''name'': ''japanese terms with odaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''12 16 72''}'
+  - '{''name'': ''japanese terms with odaka pitch accent not deaccented before の (tōkyō)'', ''kind'': ''other'', ''parents'':
+    [], ''source'': ''w+disamb'', ''_dis'': ''15 31 55''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''26 21 53''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''19 11 70''}'
+  source_pos: noun
+  pattern_family: null

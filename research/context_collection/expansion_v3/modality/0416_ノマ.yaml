@@ -1,0 +1,57 @@
+entry_id: MODALITY-19c7bb1f5dce
+surface: ノマ
+reading: noma
+variants:
+- noma
+- のま
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「ノマ」が実際に使われた文脈をSourceと照合する。
+  meaning: The iteration mark 々, which indicates that the previous kanji ought to be repeated.
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%83%8E%E3%83%9E
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「ノマ」が候補表現として現れる。
+negative_examples:
+- 「ノマ」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「ノマ」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - informal
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese katakana'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms making reference to character shapes'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: noun
+  pattern_family: null

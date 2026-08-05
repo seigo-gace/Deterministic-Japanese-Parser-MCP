@@ -1,0 +1,59 @@
+entry_id: METAPHOR-e8c3a8036844
+surface: 藪をつついて蛇を出す
+reading: yabu o tsutsuite hebi o dasu
+variants:
+- yabu o tsutsuite hebi o dasu
+- 薮をつついて蛇を出す
+- 薮を突いて蛇を出す
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「藪をつついて蛇を出す」が実際に使われた文脈をSourceと照合する。
+  meaning: to stir up trouble for oneself, to stir up a hornets' nest
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E8%97%AA%E3%82%92%E3%81%A4%E3%81%A4%E3%81%84%E3%81%A6%E8%9B%87%E3%82%92%E5%87%BA%E3%81%99
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「藪をつついて蛇を出す」が候補表現として現れる。
+negative_examples:
+- 「藪をつついて蛇を出す」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「藪をつついて蛇を出す」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - idiomatic
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese proverbs'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with 3 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: proverb
+  pattern_family: null

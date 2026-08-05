@@ -1,0 +1,69 @@
+entry_id: DIALECT-bed3c368624a
+surface: 北京
+reading: Hokkyō
+variants:
+- 北京 ^
+- Hokkyō
+- Fokukyau
+- ほくきやう
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「北京」が実際に使われた文脈をSourceと照合する。
+  meaning: Kyoto the "Northern Capital", as opposed to Nara the "Southern Capital"
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E5%8C%97%E4%BA%AC
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「北京」が候補表現として現れる。
+negative_examples:
+- 「北京」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「北京」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - history
+  - human-sciences
+  - sciences
+  - '{''name'': ''history'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:history'', ''langcode'':
+    ''ja''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''36 64''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''36 64''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''42 58''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''45 55''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''48 52''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 72''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''47 53''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''53 47''}'
+  - '{''name'': ''japanese words with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''47 53''}'
+  source_pos: name
+  pattern_family: null

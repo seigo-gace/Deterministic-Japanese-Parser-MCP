@@ -1,0 +1,56 @@
+entry_id: HONORIFIC-18ec75fd98fb
+surface: 丁重
+reading: teichō
+variants:
+- 丁重 ^-na
+- teichō
+- teityou
+- 丁重な
+- 丁重に
+- no-table-tags
+- l
+- 丁重だろ
+- ていちょうだろ
+- teichō daro
+- 丁重で
+- ていちょうで
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「丁重」が実際に使われた文脈をSourceと照合する。
+  meaning: courteous, respectful, polite
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E4%B8%81%E9%87%8D
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「丁重」が候補表現として現れる。
+negative_examples:
+- 「丁重」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「丁重」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags: []
+  source_pos: adj
+  pattern_family: null

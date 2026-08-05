@@ -1,0 +1,51 @@
+entry_id: DIALECT-6c152f5594ad
+surface: 月
+reading: gachi
+variants:
+- 月 ^
+- gachi
+- gwati
+- ぐわち
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「月」が実際に使われた文脈をSourceと照合する。
+  meaning: during the Edo period, a low rank of low-end prostitute
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E6%9C%88
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「月」が候補表現として現れる。
+negative_examples:
+- 「月」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「月」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - kansai
+  - historical
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''kansai japanese'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: noun
+  pattern_family: null

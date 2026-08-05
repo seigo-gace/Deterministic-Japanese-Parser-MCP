@@ -1,0 +1,45 @@
+entry_id: SLANG-c3d14dda03e0
+surface: ほぼ確
+reading: null
+variants: []
+feature_type: slang
+category: slang
+meaning_candidates:
+- polarity: contextual
+  intensity: 0.65
+  target_type: state
+  context: 収集Source上の用法を確認し、前後文脈と話者関係を付与する
+  examples:
+  - 「ほぼ確」が実際に使われた文脈をSourceと照合する。
+  meaning: 意味・機能はEvidence確認待ち
+domain:
+- sns
+- casual
+politeness: casual
+generation:
+- 10代
+- 20代
+- all
+community:
+- ネット
+- 若者
+source:
+- research/context_collection/CANDIDATE_SURFACES_2026-08-05.md
+source_version: v2-2026-08-05
+license: 確認中
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「ほぼ確」が候補表現として現れる。
+negative_examples:
+- 「ほぼ確」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「ほぼ確」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: existing-v2-candidate
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags: []
+  source_pos: null
+  pattern_family: null

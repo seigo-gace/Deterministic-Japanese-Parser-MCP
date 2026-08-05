@@ -1,0 +1,55 @@
+entry_id: DIALECT-70edda0a2c39
+surface: 弁当
+reading: bento
+variants:
+- bento
+- 辨當
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「弁当」が実際に使われた文脈をSourceと照合する。
+  meaning: bento (takeaway lunch served in a box)
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E5%BC%81%E5%BD%93
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「弁当」が候補表現として現れる。
+negative_examples:
+- 「弁当」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「弁当」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - kagoshima
+  - dialectal
+  - '{''name'': ''kagoshima japanese'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''25 17 21 19 17''}'
+  - '{''name'': ''japanese terms read with goon'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''34 13 28 12 13''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''33 14 27 12 14''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''32 11 26 21 11''}'
+  source_pos: noun
+  pattern_family: null

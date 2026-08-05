@@ -1,0 +1,49 @@
+entry_id: MODALITY-d0af82364213
+surface: 良いお年をお迎えください
+reading: null
+variants: []
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: contextual
+  intensity: 0.65
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「良いお年をお迎えください」が実際に使われた文脈をSourceと照合する。
+  meaning: Meaning candidate from Wiktionary-derived data; review required
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E8%89%AF%E3%81%84%E3%81%8A%E5%B9%B4%E3%82%92%E3%81%8A%E8%BF%8E%E3%81%88%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「良いお年をお迎えください」が候補表現として現れる。
+negative_examples:
+- 「良いお年をお迎えください」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「良いお年をお迎えください」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - no-gloss
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  source_pos: soft-redirect
+  pattern_family: null

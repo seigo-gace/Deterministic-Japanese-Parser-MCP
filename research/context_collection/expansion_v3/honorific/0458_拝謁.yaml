@@ -1,0 +1,76 @@
+entry_id: HONORIFIC-f7199d2d10fb
+surface: 拝謁
+reading: haietsu suru
+variants:
+- 拝謁する suru
+- haietsu suru
+- 拝謁し
+- 拝謁した
+- no-table-tags
+- ja-verbconj-row
+- はいえつし
+- haietsu shi
+- 拝謁する
+- はいえつする
+- 拝謁すれ
+- はいえつすれ
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: person
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「拝謁」が実際に使われた文脈をSourceと照合する。
+  meaning: audience with someone of high rank, e.g. emperor
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E6%8B%9D%E8%AC%81
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「拝謁」が候補表現として現れる。
+negative_examples:
+- 「拝謁」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「拝謁」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - honorific
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''17 83''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''20 80''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''26 74''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''22 78''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''26 74''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 72''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''25 75''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''26 74''}'
+  - '{''name'': ''japanese verbs without transitivity'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''13 87''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''22 78''}'
+  source_pos: verb
+  pattern_family: null

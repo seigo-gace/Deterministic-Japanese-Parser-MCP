@@ -1,0 +1,52 @@
+entry_id: ONOMATOPOEIA-75080e5ffa90
+surface: ぱく
+reading: ぱく
+variants:
+- ぱくっ
+- ぱくぱく
+- ぱくっぱくっ
+- パク
+- パクッ
+- パクパク
+- パクッパクッ
+- paku
+- paku paku
+feature_type: onomatopoeia
+category: onomatopoeia
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.7
+  target_type: state
+  context: J-Ono分類・用法を確認し、感覚Channelと強度を追加Reviewする
+  examples:
+  - 「ぱく」が実際に使われた文脈をSourceと照合する。
+  meaning: closing one's mouth or biting
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+source:
+- https://github.com/ObakeConstructs/j-ono-data
+- https://github.com/ObakeConstructs/j-ono-data/blob/main/json/j-ono-data.json
+source_version: accessed-2026-08
+license: MIT
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「ぱく」が候補表現として現れる。
+negative_examples:
+- 「ぱく」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「ぱく」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: j-ono-data
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - 擬容語
+  source_pos: null
+  pattern_family: null

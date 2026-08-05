@@ -1,0 +1,62 @@
+entry_id: EPISTEMIC-db9fb386230c
+surface: はかもり
+reading: hakamori
+variants:
+- はかもり ^
+- hakamori
+- fakamori
+- 墓守り
+- 墓守
+feature_type: modality
+category: epistemic
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからepistemic候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「はかもり」が実際に使われた文脈をSourceと照合する。
+  meaning: gravekeeper
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%81%AF%E3%81%8B%E3%82%82%E3%82%8A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「はかもり」が候補表現として現れる。
+negative_examples:
+- 「はかもり」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「はかもり」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with nakadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''burial'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:burial'', ''langcode'':
+    ''ja''}'
+  source_pos: noun
+  pattern_family: null

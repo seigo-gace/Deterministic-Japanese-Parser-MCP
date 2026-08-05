@@ -1,0 +1,61 @@
+entry_id: METAPHOR-0641fa243793
+surface: 一日の計は朝にあり、一年の計は元旦にあり
+reading: ichinichi no kei wa ashita ni ari, ichinen no kei wa gantan ni ari
+variants:
+- ichinichi no kei wa ashita ni ari, ichinen no kei wa gantan ni ari
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「一日の計は朝にあり、一年の計は元旦にあり」が実際に使われた文脈をSourceと照合する。
+  meaning: plan your day during the morning, plan your year during New Year's
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E4%B8%80%E6%97%A5%E3%81%AE%E8%A8%88%E3%81%AF%E6%9C%9D%E3%81%AB%E3%81%82%E3%82%8A%E3%80%81%E4%B8%80%E5%B9%B4%E3%81%AE%E8%A8%88%E3%81%AF%E5%85%83%E6%97%A6%E3%81%AB%E3%81%82%E3%82%8A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「一日の計は朝にあり、一年の計は元旦にあり」が候補表現として現れる。
+negative_examples:
+- 「一日の計は朝にあり、一年の計は元旦にあり」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「一日の計は朝にあり、一年の計は元旦にあり」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - literally
+  - '{''name'': ''japanese terms with 9 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''36 64''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''38 62''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''88 12''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''92 8''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''33 67''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''34 66''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''37 63''}'
+  - '{''name'': ''japanese proverbs'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''38 62''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''37 63''}'
+  source_pos: proverb
+  pattern_family: null

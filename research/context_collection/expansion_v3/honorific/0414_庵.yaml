@@ -1,0 +1,73 @@
+entry_id: HONORIFIC-fbe31365edaf
+surface: 庵
+reading: iori
+variants:
+- 庵 ^
+- iori
+- ifori
+- いほり
+- 廬
+- 菴
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「庵」が実際に使われた文脈をSourceと照合する。
+  meaning: a coarse hut made of bamboo and reeds, especially one made by a monk or hermit
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E5%BA%B5
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「庵」が候補表現として現れる。
+negative_examples:
+- 「庵」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「庵」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - humble
+  - abbreviation
+  - alt-of
+  - '{''name'': ''pages with 5 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''6 3
+    1 0 3 3 1 5 5 3 3 12 1 1 2 1 6 12 13 13 1 1 5 0''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''7 1 0
+    0 2 1 0 6 3 2 2 14 0 0 1 1 6 15 16 14 1 1 7 0''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''5 0 6 4 2 2 14 0 0 7 1 6 12 14 16 3 1 7 0''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''5 1 8 8 3 3 11 1 1 7 2 5 8 10 13 5 2 9 0''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 1 7 8 3 3 14 1 1 3 2 4 12 14 14 2 2 5 0''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''2 1 7 6 2 2 14 1 1 2 4 4 14 16 14 2 1 5 0''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 1 6 8 3 3 15 1 1 3 2 4 12 15 14 1 2 5 0''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''3 1 7 11 2 4 12 1 3 3 2 3 11 12 12 1 2 11 0''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''9 3 22 2 2 4 6 8 21 24''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''12 5 23 2 2 5 3 8 19 23''}'
+  source_pos: noun
+  pattern_family: null

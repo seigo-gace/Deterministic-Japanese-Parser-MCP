@@ -13,14 +13,5 @@
     "onomatopoeia": 700,
     "reference": 300,
     "slang": 1000
-  },
-  "strict_real_candidate_checks": {
-    "placeholder_pattern_count": 0,
-    "missing_source_count": 0,
-    "review_status_non_needs_evidence_count": 0,
-    "malformed_pattern_count": 0,
-    "mock_input_used": false,
-    "kaikki_mock_used": false,
-    "errors": []
   }
 }

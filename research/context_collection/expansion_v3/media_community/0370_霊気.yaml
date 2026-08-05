@@ -1,0 +1,71 @@
+entry_id: MEDIA_COMMUNITY-2fbe7ed37934
+surface: 霊気
+reading: reiki
+variants:
+- 霊気 ^
+- reiki
+- reigi
+- ryōge
+- ryauge
+- りやうげ
+- 靈氣
+feature_type: slang
+category: media_community
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmedia_community候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「霊気」が実際に使われた文脈をSourceと照合する。
+  meaning: a mystic atmosphere; aura
+domain:
+- gaming
+- fandom
+- sns
+politeness: casual
+generation:
+- 10代
+- 20代
+- all
+community:
+- ネット
+- 若者
+source:
+- https://en.wiktionary.org/wiki/%E9%9C%8A%E6%B0%97
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「霊気」が候補表現として現れる。
+negative_examples:
+- 「霊気」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「霊気」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - anime
+  - broadcasting
+  - comics
+  - film
+  - literature
+  - manga
+  - media
+  - publishing
+  - television
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''9 1 45
+    28 17''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''18 1 32
+    19 29''}'
+  - '{''name'': ''magic: the gathering'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:magic:
+    the gathering'', ''langcode'': ''ja'', ''_dis'': ''19 10 27 21 24''}'
+  - '{''name'': ''japanese fiction'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:japanese fiction'',
+    ''langcode'': ''ja''}'
+  source_pos: noun
+  pattern_family: null

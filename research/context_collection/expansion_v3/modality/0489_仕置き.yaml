@@ -1,0 +1,65 @@
+entry_id: MODALITY-fe7afcd87822
+surface: 仕置き
+reading: shioki
+variants:
+- shioki
+- 仕置
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: object
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「仕置き」が実際に使われた文脈をSourceと照合する。
+  meaning: a means of dealing with or disposing of something
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E4%BB%95%E7%BD%AE%E3%81%8D
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「仕置き」が候補表現として現れる。
+negative_examples:
+- 「仕置き」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「仕置き」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''26 4 1 4 7 11 12 4 3 6 10 11''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''18 5 1 9 9 7 17 6 5 4 12 8''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''27 2 2 6 2 12 16 7 5 4 5 12''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''12 3 3 11 3 7 13 12 10 8 9 9''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 3 2 5 4 13 14 8 3 2 5 12''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''25 2 2 10 2 11 17 6 6 4 5 11''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''27 2 2 7 2 12 12 7 6 5 5 13''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''40 1 1
+    3 1 17 7 5 3 3 3 17''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''38 1 1
+    2 1 16 12 4 3 2 3 16''}'
+  source_pos: noun
+  pattern_family: null

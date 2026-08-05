@@ -1,0 +1,49 @@
+entry_id: HONORIFIC-1c8ebd90e2da
+surface: 正
+reading: sei
+variants:
+- sei
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: person
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「正」が実際に使われた文脈をSourceと照合する。
+  meaning: '生: (humble) I or me, the first person singular (used by males)'
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E6%AD%A3
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「正」が候補表現として現れる。
+negative_examples:
+- 「正」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「正」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese numeral symbols'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''0
+    0 1 2 1 0 1 3 4 8 8 8 2 1 1 2 1 11 14 5 1 15 2 10''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''0 0 1 1 1 0 1 1 2 4 4 4 1 4 1 1 11 11 15 16 4 7 1 11''}'
+  source_pos: pron
+  pattern_family: null

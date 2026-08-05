@@ -1,0 +1,52 @@
+entry_id: METAPHOR-665aabc0ca35
+surface: さかずき
+reading: '[sa̠ka̠zɨkʲi]'
+variants:
+- 盃
+- 杯
+- 巵
+- 盞
+- 坏
+- 酒坏
+- 酒盃
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「さかずき」が実際に使われた文脈をSourceと照合する。
+  meaning: 杯(さかずき)をする (sakazuki o suru)
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%81%95%E3%81%8B%E3%81%9A%E3%81%8D
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「さかずき」が候補表現として現れる。
+negative_examples:
+- 「さかずき」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「さかずき」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - idiomatic
+  source_pos: phrase
+  pattern_family: null

@@ -1,0 +1,63 @@
+entry_id: DIALECT-00ba206d13c7
+surface: 上越
+reading: Jōetsu
+variants:
+- 上越 ^
+- Jōetsu
+- Zyauwetu
+- じやうゑつ
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「上越」が実際に使われた文脈をSourceと照合する。
+  meaning: the Kōzuke Province and the Echigo Province in feudal system in Japan.
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E4%B8%8A%E8%B6%8A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「上越」が候補表現として現れる。
+negative_examples:
+- 「上越」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「上越」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - history
+  - human-sciences
+  - sciences
+  - '{''name'': ''history'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:history'', ''langcode'':
+    ''ja''}'
+  - '{''name'': ''pages with 2 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''33 14
+    9 2 2 36 4''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''17 26 9 9 25 13''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''16 25 9 9 27 13''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''42 41 8 9''}'
+  - '{''name'': ''geographic and cultural areas of japan'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'':
+    ''ja:geographic and cultural areas of japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in japan'', ''langcode'': ''ja''}'
+  source_pos: name
+  pattern_family: null

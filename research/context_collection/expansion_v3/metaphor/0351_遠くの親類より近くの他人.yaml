@@ -1,0 +1,56 @@
+entry_id: METAPHOR-d098573164ac
+surface: 遠くの親類より近くの他人
+reading: tōku no shinrui yori chikaku no tanin
+variants:
+- tōku no shinrui yori chikaku no tanin
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: negative
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「遠くの親類より近くの他人」が実際に使われた文脈をSourceと照合する。
+  meaning: strangers nearby over family far away; better is a neighbour that is near than a brother far off
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E9%81%A0%E3%81%8F%E3%81%AE%E8%A6%AA%E9%A1%9E%E3%82%88%E3%82%8A%E8%BF%91%E3%81%8F%E3%81%AE%E4%BB%96%E4%BA%BA
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「遠くの親類より近くの他人」が候補表現として現れる。
+negative_examples:
+- 「遠くの親類より近くの他人」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「遠くの親類より近くの他人」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese proverbs'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with 6 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with missing yomi'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: proverb
+  pattern_family: null

@@ -1,0 +1,61 @@
+entry_id: HONORIFIC-793cd7bb6c16
+surface: 大坐します
+reading: ōmashimasu
+variants:
+- 大坐します ^godan
+- ōmashimasu
+- ofomasimasu
+- 大坐しまし
+- 大坐しました
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「大坐します」が実際に使われた文脈をSourceと照合する。
+  meaning: to be
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E5%A4%A7%E5%9D%90%E3%81%97%E3%81%BE%E3%81%99
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「大坐します」が候補表現として現れる。
+negative_examples:
+- 「大坐します」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「大坐します」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - honorific
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese godan verbs ending with -su'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with manual fragments'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms read with irregular kanji readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese verbs without transitivity'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: verb
+  pattern_family: null

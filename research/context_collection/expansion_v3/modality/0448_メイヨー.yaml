@@ -1,0 +1,64 @@
+entry_id: MODALITY-a17426bb3612
+surface: メイヨー
+reading: Meiyō
+variants:
+- Meiyō
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「メイヨー」が実際に使われた文脈をSourceと照合する。
+  meaning: Mayo (a county of Ireland)
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%83%A1%E3%82%A4%E3%83%A8%E3%83%BC
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「メイヨー」が候補表現として現れる。
+negative_examples:
+- 「メイヨー」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「メイヨー」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''counties of ireland'', ''kind'': ''place'', ''parents'': [''counties'', ''places''], ''source'': ''w'',
+    ''orig'': ''ja:counties of ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''county mayo, ireland'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:county mayo,
+    ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in ireland'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in county mayo, ireland'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'':
+    ''ja:places in county mayo, ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''villages in county mayo, ireland'', ''kind'': ''place'', ''parents'': [''villages'', ''places''], ''source'':
+    ''w'', ''orig'': ''ja:villages in county mayo, ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''villages in ireland'', ''kind'': ''place'', ''parents'': [''villages'', ''places''], ''source'': ''w'',
+    ''orig'': ''ja:villages in ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''japanese katakana'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''10 10 4
+    9 8 12 13 13 13 9''}'
+  - '{''name'': ''places in county down, northern ireland'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'',
+    ''orig'': ''ja:places in county down, northern ireland'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in northern ireland'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'':
+    ''ja:places in northern ireland'', ''langcode'': ''ja''}'
+  source_pos: name
+  pattern_family: null

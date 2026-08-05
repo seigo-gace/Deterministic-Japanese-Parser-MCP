@@ -1,0 +1,65 @@
+entry_id: DIALECT-1156c61fafac
+surface: 鮎掛
+reading: aikake
+variants:
+- aikake
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「鮎掛」が実際に使われた文脈をSourceと照合する。
+  meaning: a sculpin, any of several fish of the family Cottidae
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E9%AE%8E%E6%8E%9B
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「鮎掛」が候補表現として現れる。
+negative_examples:
+- 「鮎掛」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「鮎掛」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - regional
+  - kagoshima
+  - prefectures
+  - '{''name'': ''regional japanese'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''15 26 10 8 17 25''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''21 18 11 10 22 18''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''19 21 11 9 20 20''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''34 4 12 13 33 4''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''33 5 12 13 32 5''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''19 21 11 9 20 20''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''18 21 13 9 19 20''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''47 53''}'
+  - '{''name'': ''scorpaeniform fish'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:scorpaeniform
+    fish'', ''langcode'': ''ja'', ''_dis'': ''13 30 6 1 21 29''}'
+  source_pos: noun
+  pattern_family: null

@@ -1,0 +1,66 @@
+entry_id: MODALITY-005d6ad857f0
+surface: ファンサービス
+reading: fansābisu
+variants:
+- fansābisu
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: object
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「ファンサービス」が実際に使われた文脈をSourceと照合する。
+  meaning: Something done by a celebrity (especially an idol, performer, or athlete) to please their fans.
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%83%95%E3%82%A1%E3%83%B3%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「ファンサービス」が候補表現として現れる。
+negative_examples:
+- 「ファンサービス」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「ファンサービス」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - slang
+  - broadly
+  - lifestyle
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''82 18''}'
+  - '{''name'': ''japanese katakana'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''61 39''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''72 28''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''87 12''}'
+  - '{''name'': ''japanese pseudo-loans from english'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''75 25''}'
+  - '{''name'': ''japanese terms with nakadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''88 12''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''87 12''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''94 6''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''95 5''}'
+  - '{''name'': ''fandom'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:fandom'', ''langcode'':
+    ''ja'', ''_dis'': ''47 53''}'
+  source_pos: noun
+  pattern_family: null

@@ -1,0 +1,63 @@
+entry_id: REFERENCE-1d5b6f8d8569
+surface: 誰々
+reading: daredare
+variants:
+- daredare
+feature_type: reference
+category: reference
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.3
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからreference候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「誰々」が実際に使われた文脈をSourceと照合する。
+  meaning: so-and-so (placeholder for a name)
+domain:
+- business
+- casual
+- formal
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E8%AA%B0%E3%80%85
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「誰々」が候補表現として現れる。
+negative_examples:
+- 「誰々」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「誰々」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''62 38''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''67 33''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''42 58''}'
+  - '{''name'': ''japanese pronouns'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''48 52''}'
+  - '{''name'': ''japanese reduplications'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''42
+    58''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''47 53''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''47 53''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''42 58''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''42 58''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''56 44''}'
+  source_pos: pron
+  pattern_family: null

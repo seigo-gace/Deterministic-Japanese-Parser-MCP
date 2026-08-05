@@ -1,0 +1,65 @@
+entry_id: DIALECT-04665cd1523c
+surface: 入來
+reading: Iriki
+variants:
+- Iriki
+- Iriku
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「入來」が実際に使われた文脈をSourceと照合する。
+  meaning: Iriki (a former town in Satsuma district, Kagoshima Prefecture, Japan, merged into the city of Satsumasendai in
+    2004)
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E5%85%A5%E4%BE%86
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「入來」が候補表現として現れる。
+negative_examples:
+- 「入來」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「入來」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''former settlements'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:former settlements'',
+    ''langcode'': ''ja''}'
+  - '{''name'': ''places in japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in kagoshima prefecture, japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'',
+    ''orig'': ''ja:places in kagoshima prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''83 17''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''75 25''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''74 26''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''59 41''}'
+  - '{''name'': ''japanese terms with missing yomi'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''61 39''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''74 26''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''78 22''}'
+  source_pos: name
+  pattern_family: null

@@ -1,0 +1,72 @@
+entry_id: METAPHOR-7fde7f1fc113
+surface: 玉の緒
+reading: tama no o
+variants:
+- 玉の緒 ^
+- tama no o
+- tama no wo
+- たまのを
+- 玉の緖
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「玉の緒」が実際に使われた文脈をSourceと照合する。
+  meaning: a beaded string, especially a jewelled necklace
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E7%8E%89%E3%81%AE%E7%B7%92
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「玉の緒」が候補表現として現れる。
+negative_examples:
+- 「玉の緒」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「玉の緒」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - broadly
+  - idiomatic
+  - figuratively
+  - historical
+  - buddhism
+  - lifestyle
+  - religion
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 12 21 27 12''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''28 11 21 28 11''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''27 12 21 27 12''}'
+  - '{''name'': ''japanese terms with nakadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''23 15 20 26 15''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 12 21 27 12''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''30 10 21 28 10''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 12 21 27 12''}'
+  - '{''name'': ''jewelry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:jewelry'', ''langcode'':
+    ''ja'', ''_dis'': ''60 6 12 16 6''}'
+  source_pos: noun
+  pattern_family: null
