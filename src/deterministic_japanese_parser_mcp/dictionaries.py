@@ -197,6 +197,7 @@ def _load_compiled_lexicon_set(runtime: OpenLexiconRuntime) -> dict:
         "unique_reading_count": int(manifest.get("unique_readings", 0)),
         "homograph_surface_count": int(manifest.get("homograph_surfaces", 0)),
         "lookup_backend": "compiled-index",
+        "records_preloaded": runtime.records_preloaded,
         "compiled_root": str(runtime.root),
     }
 
@@ -290,6 +291,8 @@ class DictionaryBundle:
 
         compiled_root = system_dir / "compiled" / "open_lexicon"
         self.open_lexicon = OpenLexiconRuntime(compiled_root)
+        if self.open_lexicon.available:
+            self.open_lexicon.preload_records()
         compiled_lexicon = _load_compiled_lexicon_set(self.open_lexicon)
         system_lexicon = (
             compiled_lexicon
