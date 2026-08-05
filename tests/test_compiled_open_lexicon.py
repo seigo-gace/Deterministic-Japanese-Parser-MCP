@@ -4,10 +4,14 @@ import gzip
 import importlib.util
 import json
 from pathlib import Path
-
-from tools.dictionary_supply.common import LexiconRecord, SourceInfo
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = ROOT / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+from dictionary_supply.common import LexiconRecord, SourceInfo
 
 
 def _load_script(name: str, path: Path):
