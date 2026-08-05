@@ -3,54 +3,35 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-TOP_START = "<!-- project-control-top:start -->"
-TOP_END = "<!-- project-control-top:end -->"
+
 JA_START = "<!-- project-control-ja:start -->"
 JA_END = "<!-- project-control-ja:end -->"
 EN_START = "<!-- project-control-en:start -->"
 EN_END = "<!-- project-control-en:end -->"
 
-TOP_BLOCK = f"""{TOP_START}
-<p align=\"center\">
-  <strong>Created and maintained by Seigo Kato (<a href=\"https://github.com/seigo-gace\">@seigo-gace</a>).</strong><br>
-  <strong>設計・開発・管理：加藤星悟（<a href=\"https://github.com/seigo-gace\">@seigo-gace</a>）</strong><br>
-  Official project direction, releases, contribution acceptance, and brand permissions are controlled by the Project Owner.
-</p>
-
-<p align=\"center\">
-  <a href=\"MAINTAINERS.md\">Owner &amp; Maintainers</a> ｜
-  <a href=\"GOVERNANCE.md\">Governance</a> ｜
-  <a href=\"TRADEMARK.md\">Trademark Policy</a> ｜
-  <a href=\"CONTRIBUTING.md\">Contributing</a> ｜
-  <a href=\"CONTRIBUTOR_LICENSE_AGREEMENT.md\">CLA</a>
-</p>
-{TOP_END}"""
-
 JA_BLOCK = f"""{JA_START}
-### Project Owner・Brand・Governance
+## 所有・管理・ブランド
 
-**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。** 公式Repository、Roadmap、Architecture、Release、Contribution採択、Project Marksの使用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってProject Ownerが保持します。
+**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。**
 
-Program CodeはMIT Licenseで無料利用・改変・再配布できます。ただし、MIT Licenseは`Deterministic Japanese Parser MCP`、`DJPMCP`、`Shiori MCP Server`、公式Logo、`Astera`等のBrandを使って、改変Fork・製品・Serviceを公式と表示する権利を与えません。Brand利用は[`TRADEMARK.md`](TRADEMARK.md)に従います。
+公式リポジトリ、設計方針、公開版、外部提供物の採用、名称・ロゴなどの利用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってプロジェクト所有者が保持します。
 
-外部ContributionはDCOが必須です。実質的なCode、辞書、Gold、設計、Release、Security、Governance変更は、Merge前にProject Ownerが受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)を必要とします。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
+プログラムはMITライセンスで利用・改変・再配布できます。ただし、MITライセンスは、改変版や派生サービスを公式版として表示するための名称・ロゴ・ブランド利用権を与えません。詳細は[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
+
+外部提供には開発者証明への署名が必要です。実質的なコード、辞書、正解検証データ、設計、公開、安全性、管理規程の変更には、統合前にプロジェクト所有者が受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)が必要です。
 {JA_END}"""
 
 EN_BLOCK = f"""{EN_START}
-### Project ownership, brand, and governance
+## Ownership, governance, and brand
 
-**This project was created and is maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).** Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, roadmap, architecture, releases, contribution acceptance, and permissions to use Project Marks.
+**Created, designed, developed, and maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).**
 
-Program code is free to use, modify, and redistribute under the MIT License. The MIT License does not authorize a modified fork, product, service, package, account, or organization to present itself as official by using `Deterministic Japanese Parser MCP`, `DJPMCP`, `Shiori MCP Server`, official logos, `Astera`, or other Project Marks. Brand use is governed by [`TRADEMARK.md`](TRADEMARK.md).
+Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, architecture, releases, contribution acceptance, and permission to use names, logos, and other Project Marks.
 
-External contributions require DCO sign-off. Substantive code, dictionary, Gold, design, release, security, or governance contributions require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Program code may be used, modified, and redistributed under the MIT License. The MIT License does not authorize modified forks, products, or services to present themselves as official through project names, logos, or branding. See [`TRADEMARK.md`](TRADEMARK.md).
+
+External contributions require DCO sign-off. Substantive code, dictionary, Gold data, design, release, security, or governance changes require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge.
 {EN_END}"""
-
-
-def _insert_once(text: str, marker: str, block: str) -> str:
-    if marker not in text:
-        raise ValueError(f"README anchor not found: {marker!r}")
-    return text.replace(marker, block + "\n\n" + marker, 1)
 
 
 def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
@@ -65,60 +46,61 @@ def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
     return prefix + block + "\n\n" + suffix.lstrip("\n")
 
 
-def synchronize(text: str) -> str:
-    updated = text
+def synchronize_japanese(text: str) -> str:
+    return _replace_marked_block(text, JA_START, JA_END, JA_BLOCK)
 
-    if TOP_START not in updated and TOP_END not in updated:
-        badge_boundary = "</p>\n\n---\n\n<a id=\"日本語\"></a>"
-        replacement = f"</p>\n\n{TOP_BLOCK}\n\n---\n\n<a id=\"日本語\"></a>"
-        if badge_boundary not in updated:
-            raise ValueError("README badge boundary not found")
-        updated = updated.replace(badge_boundary, replacement, 1)
 
-    if JA_START not in updated and JA_END not in updated:
-        updated = _insert_once(updated, "### License\n\n", JA_BLOCK)
+def synchronize_english(text: str) -> str:
+    return _replace_marked_block(text, EN_START, EN_END, EN_BLOCK)
 
-    if EN_START not in updated and EN_END not in updated:
-        english_anchor = "\n### License\n\nProgram code is MIT licensed."
-        if english_anchor not in updated:
-            raise ValueError("English License anchor not found")
-        updated = updated.replace(
-            english_anchor,
-            "\n" + EN_BLOCK + "\n\n### License\n\nProgram code is MIT licensed.",
-            1,
-        )
 
-    updated = _replace_marked_block(updated, TOP_START, TOP_END, TOP_BLOCK)
-    updated = _replace_marked_block(updated, JA_START, JA_END, JA_BLOCK)
-    updated = _replace_marked_block(updated, EN_START, EN_END, EN_BLOCK)
-    return updated
+def _synchronize_path(path: Path, synchronize, *, check: bool) -> bool:
+    original = path.read_text(encoding="utf-8")
+    updated = synchronize(original)
+
+    if check:
+        if updated != original:
+            raise SystemExit(
+                f"{path} project-control section is missing or stale. "
+                "Run: python scripts/sync_project_control_readme.py"
+            )
+        return False
+
+    if updated == original:
+        return False
+
+    path.write_text(updated, encoding="utf-8", newline="\n")
+    return True
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", default="README.md")
+    parser.add_argument("--ja-path", default="README.md")
+    parser.add_argument("--en-path", default="README_EN.md")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
 
-    path = Path(args.path)
-    original = path.read_text(encoding="utf-8")
-    updated = synchronize(original)
+    changed_ja = _synchronize_path(
+        Path(args.ja_path), synchronize_japanese, check=args.check
+    )
+    changed_en = _synchronize_path(
+        Path(args.en_path), synchronize_english, check=args.check
+    )
 
     if args.check:
-        if updated != original:
-            raise SystemExit(
-                "README project-control section is missing or stale. "
-                "Run: python scripts/sync_project_control_readme.py"
-            )
-        print("README PROJECT CONTROL OK")
+        print("README PROJECT CONTROL OK: Japanese and English")
         return 0
 
-    if updated == original:
-        print("README PROJECT CONTROL ALREADY CURRENT")
+    if not changed_ja and not changed_en:
+        print("README PROJECT CONTROL ALREADY CURRENT: Japanese and English")
         return 0
 
-    path.write_text(updated, encoding="utf-8", newline="\n")
-    print("README PROJECT CONTROL UPDATED")
+    changed = []
+    if changed_ja:
+        changed.append(args.ja_path)
+    if changed_en:
+        changed.append(args.en_path)
+    print("README PROJECT CONTROL UPDATED: " + ", ".join(changed))
     return 0
 
 
