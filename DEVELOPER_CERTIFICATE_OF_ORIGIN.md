@@ -1,8 +1,12 @@
 # Developer Certificate of Origin / DCO
 
-All commits submitted for inclusion in this project must include a `Signed-off-by` line certifying the Developer Certificate of Origin 1.1 below.
+Every commit submitted by an external contributor for inclusion in this project must include a `Signed-off-by` line certifying the Developer Certificate of Origin 1.1 below.
 
-本Projectへの収録を目的として提出するすべてのCommitには、以下のDeveloper Certificate of Origin 1.1へ同意したことを示す`Signed-off-by` Lineが必要です。
+外部Contributorが本Projectへの収録を目的として提出するすべてのCommitには、以下のDeveloper Certificate of Origin 1.1へ同意したことを示す`Signed-off-by` Lineが必要です。
+
+Commits authored and submitted directly by the Project Owner identified in [`GOVERNANCE.md`](GOVERNANCE.md) are not inbound third-party contributions and are exempt from this DCO gate. A collaborator, delegated maintainer, employee, bot, or contractor is not treated as the Project Owner merely because it has repository access.
+
+[`GOVERNANCE.md`](GOVERNANCE.md)に定めるProject Owner本人が直接作成・提出するCommitは、第三者からのInbound Contributionではないため、本DCO Gateの対象外です。Repository Accessを持つCollaborator、委任Maintainer、Employee、Bot、Contractorは、その事実だけでProject Ownerとして扱われません。
 
 Use:
 
