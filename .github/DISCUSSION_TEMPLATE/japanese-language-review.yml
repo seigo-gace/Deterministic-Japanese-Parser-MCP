@@ -1,0 +1,74 @@
+title: "[Japanese Review] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        日本語表現の自然さ、意味、曖昧性、方言、俗語、比喩、語用、世代・地域・Community差を確認するカテゴリです。
+        InstallやCodeは不要です。意見が分かれる場合は、一つへ潰さず複数解釈として記録します。
+
+  - type: textarea
+    id: expression
+    attributes:
+      label: Expression or input / 表現・入力文
+      description: Use a short self-created example whenever possible.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: review_target
+    attributes:
+      label: Review target / 確認対象
+      options:
+        - Meaning or intent / 意味・意図
+        - Naturalness / 自然さ
+        - Ambiguity or multiple meanings / 曖昧性・多義
+        - Dialect or region / 方言・地域
+        - Generation or community / 世代・Community
+        - Politeness or relationship / 敬語・関係性
+        - Metaphor, idiom, or pragmatics / 比喩・慣用・語用
+        - Reading or variant / 読み・表記揺れ
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What should be reviewed? / 何を判断してほしいか
+      description: Explain the exact uncertainty. Do not ask for an undefined claim of complete human-level understanding.
+    validations:
+      required: true
+
+  - type: textarea
+    id: own_interpretation
+    attributes:
+      label: Your interpretation / 投稿者の解釈
+      description: State what the expression means to you and what context changes that meaning.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context, region, generation, or community / 文脈・地域・世代・Community
+      description: Optional, but strongly recommended for dialect, slang, and community-specific expressions.
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public source or evidence / 公開Source・Evidence
+      description: Add public links and license information when proposing data use. Do not paste proprietary dictionary definitions or copied corpus sentences.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission confirmation / 投稿確認
+      options:
+        - label: I removed secrets, personal data, credentials, and private URLs. / 秘密情報・個人情報・認証情報・非公開URLを除外しました。
+          required: true
+        - label: The example is self-created or the public source and license are identified. / 例文は自作、または公開SourceとLicenseを明示しました。
+          required: true
+        - label: I understand that community agreement alone does not automatically promote data into the runtime dictionary. / Communityの合意だけではRuntime辞書へ自動昇格しないことを理解しています。
+          required: true
