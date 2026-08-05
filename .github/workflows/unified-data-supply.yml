@@ -49,7 +49,7 @@ permissions:
   contents: read
 
 jobs:
-  process-review-compile-runtime:
+  process-review-compile:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -130,8 +130,63 @@ jobs:
           python tools/validator.py | tee reports/validator.txt
           python scripts/semantic_quality_contract.py --check --output reports/semantic-quality.json
           python scripts/semantic_holdout_contract.py --check --output reports/semantic-holdout.json
-      - name: Performance regression gates
+      - name: Upload approved Runtime for clean-runner validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-semantic-runtime
+          path: dictionaries/system/compiled/semantic_data/**
+          if-no-files-found: error
+          retention-days: 7
+      - name: Archive processing and review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          path: |
+            reports/unified-semantic-data/**
+            reports/*.json
+            reports/*.txt
+            reports/*.xml
+          if-no-files-found: warn
+
+  runtime-performance-wheel:
+    needs: process-review-compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and build tools
         run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+      - name: Restore approved Runtime generated from the full dataset
+        run: rm -rf dictionaries/system/compiled/semantic_data
+      - uses: actions/download-artifact@v4
+        with:
+          name: approved-semantic-runtime
+          path: dictionaries/system/compiled/semantic_data
+      - name: Verify restored Runtime manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          manifest = json.loads(Path("dictionaries/system/compiled/semantic_data/manifest.json").read_text(encoding="utf-8"))
+          assert manifest["approved_only"] is True
+          assert manifest["automatic_external_action"] is False
+          assert manifest["preserve_ambiguity"] is True
+          print({
+              "record_count": manifest["record_count"],
+              "record_shards": manifest["record_shards"],
+              "approved_only": manifest["approved_only"],
+          })
+          PY
+      - name: Performance regression gates on a clean runner
+        run: |
+          mkdir -p reports
           python scripts/benchmark.py --check --rounds 30 | tee reports/benchmark.json
           python scripts/performance_contract.py \
             --check --rounds 30 --stdio-rounds 20 --scale 20 \
@@ -157,14 +212,12 @@ jobs:
               "execution_allowed": response.execution_allowed,
           })
           PY
-      - name: Archive full processing evidence
+      - name: Archive performance and Wheel evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unified-data-supply-evidence
+          name: unified-data-supply-runtime-evidence
           path: |
-            reports/unified-semantic-data/**
             reports/*.json
-            reports/*.txt
-            reports/*.xml
+            dist/*.whl
           if-no-files-found: warn
