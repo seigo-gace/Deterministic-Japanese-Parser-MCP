@@ -1,0 +1,3 @@
+GitHub-only context collection run trigger
+requested_at: 2026-08-05T03:40:00+09:00
+target_unique_candidates: 5000
