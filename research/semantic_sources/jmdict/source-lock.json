@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "dataset": "JMdict",
   "semantic_source": "JMdict_e.gz",
-  "url": "https://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+  "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
   "version": "sha256-6de18f9e1bcb",
   "sha256": "6de18f9e1bcbc498985bb56547607797172640ccb28ca6bad69e9677a126c72c",
   "license": "CC-BY-SA-4.0",
