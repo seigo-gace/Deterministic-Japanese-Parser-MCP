@@ -11,8 +11,10 @@ on:
       - "tools/review_context_v3_stage3.py"
       - "tools/compact_context_v3_review_packs.py"
       - "tools/apply_context_v3_stage3_decisions.py"
+      - "tools/apply_context_v3_stage3_category_decisions.py"
       - "tests/test_context_v3_stage3_review.py"
       - "tests/test_context_v3_stage3_decisions.py"
+      - "tests/test_context_v3_stage3_category_decisions.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
   pull_request:
@@ -23,8 +25,10 @@ on:
       - "tools/review_context_v3_stage3.py"
       - "tools/compact_context_v3_review_packs.py"
       - "tools/apply_context_v3_stage3_decisions.py"
+      - "tools/apply_context_v3_stage3_category_decisions.py"
       - "tests/test_context_v3_stage3_review.py"
       - "tests/test_context_v3_stage3_decisions.py"
+      - "tests/test_context_v3_stage3_category_decisions.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
 
@@ -76,6 +80,14 @@ jobs:
             --decisions research/context_collection/stage3_decisions/epistemic-substring-decisions-v1.jsonl \
             --output-root work/context-v3-stage3
 
+      - name: Apply explicit category review batch 001
+        run: |
+          python tools/apply_context_v3_stage3_category_decisions.py \
+            --queue work/context-v3-stage3/post-decision-queue.jsonl \
+            --decisions research/context_collection/stage3_decisions/category-name-place-batch-001.jsonl \
+            --output-root work/context-v3-stage3 \
+            --expected-batch-size 20
+
       - name: Prove checked-in Stage 3 evidence is current
         run: |
           diff -u \
@@ -90,12 +102,19 @@ jobs:
           diff -u \
             reports/context-v3-stage3/runtime-boundary-after-decisions.json \
             work/context-v3-stage3/runtime-boundary-after-decisions.json
+          diff -u \
+            reports/context-v3-stage3/category-batch-001-summary.json \
+            work/context-v3-stage3/category-batch-001-summary.json
+          diff -u \
+            reports/context-v3-stage3/runtime-boundary-after-category-batch-001.json \
+            work/context-v3-stage3/runtime-boundary-after-category-batch-001.json
 
       - name: Validate all 5,000 candidates and safety boundaries
         run: |
           pytest -q \
             tests/test_context_v3_stage3_review.py \
             tests/test_context_v3_stage3_decisions.py \
+            tests/test_context_v3_stage3_category_decisions.py \
             tests/test_workflow_safety_contract.py
 
       - name: Upload Stage 3 review evidence
