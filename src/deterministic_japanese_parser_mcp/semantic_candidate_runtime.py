@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections import OrderedDict
-import gzip
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
 import re
+import sqlite3
 from typing import Any
 import unicodedata
 
@@ -17,9 +17,12 @@ def _normalize(value: str) -> str:
     return re.sub(r"\s+", "", value).casefold()
 
 
-def _load_json_gzip(path: Path) -> Any:
-    with gzip.open(path, "rt", encoding="utf-8") as handle:
-        return json.load(handle)
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def _overlap(left: OriginalSpan, right: OriginalSpan) -> bool:
@@ -39,17 +42,14 @@ def _stable_hash(graph: MeaningGraph) -> str:
 
 
 class SemanticCandidateRuntime:
-    """Expose source-validated review-pending meanings without selecting them."""
+    """Expose source-validated meanings without selecting or applying them."""
 
     def __init__(self, root: Path, *, shard_cache_size: int = 4):
+        del shard_cache_size  # retained for backwards-compatible construction
         self.root = Path(root)
         self.available = False
         self.manifest: dict[str, Any] = {}
-        self.surface_index: dict[str, list[str]] = {}
-        self.reading_index: dict[str, list[str]] = {}
-        self.record_locator: dict[str, dict[str, int]] = {}
-        self.shard_cache_size = max(1, shard_cache_size)
-        self._shards: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
+        self._connection: sqlite3.Connection | None = None
         self.last_metrics: dict[str, int | float] = {
             "semantic_candidate_pack_available": 0,
             "semantic_candidate_pack_record_count": 0,
@@ -74,30 +74,36 @@ class SemanticCandidateRuntime:
                 raise ValueError(
                     f"semantic candidate pack safety flag mismatch: {name}"
                 )
-        index_root = self.root / "indexes"
-        paths = {
-            "surface": index_root / "surface-index.json.gz",
-            "reading": index_root / "reading-index.json.gz",
-            "locator": index_root / "record-locator.json.gz",
-        }
-        missing = [str(path) for path in paths.values() if not path.exists()]
-        if missing:
-            raise FileNotFoundError(
-                "compiled semantic candidate indexes are incomplete: "
-                + ", ".join(missing)
-            )
+        if manifest.get("storage") != "sqlite3-read-only-index":
+            raise ValueError("semantic candidate pack storage is not indexed SQLite")
+        database = manifest.get("database") or {}
+        database_path = self.root / str(database.get("path", ""))
+        if not database_path.is_file():
+            raise FileNotFoundError(database_path)
+        if _sha256_file(database_path) != database.get("sha256"):
+            raise ValueError("semantic candidate SQLite digest mismatch")
+
+        uri = f"file:{database_path.resolve().as_posix()}?mode=ro&immutable=1"
+        connection = sqlite3.connect(
+            uri,
+            uri=True,
+            check_same_thread=False,
+            isolation_level=None,
+        )
+        connection.execute("PRAGMA query_only=ON")
+        connection.execute("PRAGMA temp_store=MEMORY")
+        actual_records = int(
+            connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+        )
+        if actual_records != int(manifest.get("record_count", 0)):
+            connection.close()
+            raise ValueError("semantic candidate SQLite record count mismatch")
+        self._connection = connection
         self.manifest = manifest
-        self.surface_index = _load_json_gzip(paths["surface"])
-        self.reading_index = _load_json_gzip(paths["reading"])
-        self.record_locator = _load_json_gzip(paths["locator"])
-        if len(self.record_locator) != int(manifest.get("record_count", 0)):
-            raise ValueError("semantic candidate locator count mismatch")
         self.available = True
         self.last_metrics = {
             "semantic_candidate_pack_available": 1,
-            "semantic_candidate_pack_record_count": int(
-                manifest.get("record_count", 0)
-            ),
+            "semantic_candidate_pack_record_count": actual_records,
             "semantic_candidate_pack_match_count": 0,
             "semantic_candidate_pack_sense_count": 0,
         }
@@ -106,48 +112,64 @@ class SemanticCandidateRuntime:
     def record_count(self) -> int:
         return int(self.manifest.get("record_count", 0))
 
-    def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
-        cached = self._shards.get(number)
-        if cached is not None:
-            self._shards.move_to_end(number)
-            return cached
-        path = self.root / "records" / f"records-{number:04d}.jsonl.gz"
-        if not path.exists():
-            raise FileNotFoundError(path)
-        records: dict[str, dict[str, Any]] = {}
-        with gzip.open(path, "rt", encoding="utf-8") as handle:
-            for line_number, line in enumerate(handle, 1):
-                if not line.strip():
-                    continue
-                item = json.loads(line)
-                record_id = item.get("record_id")
-                if not record_id:
-                    raise ValueError(
-                        f"candidate record_id missing: {path}:{line_number}"
-                    )
-                if item.get("runtime_mode") != "candidate-only":
-                    raise ValueError(
-                        f"non-candidate record in candidate pack: {record_id}"
-                    )
-                if item.get("automatic_sense_selection_allowed") is not False:
-                    raise ValueError(
-                        f"candidate sense selection boundary missing: {record_id}"
-                    )
-                records[record_id] = item
-        self._shards[number] = records
-        self._shards.move_to_end(number)
-        while len(self._shards) > self.shard_cache_size:
-            self._shards.popitem(last=False)
-        return records
+    def close(self) -> None:
+        connection = self._connection
+        self._connection = None
+        self._lookup.cache_clear()
+        if connection is not None:
+            connection.close()
 
-    def _record(self, record_id: str) -> dict[str, Any]:
-        location = self.record_locator.get(record_id)
-        if location is None:
-            raise KeyError(record_id)
-        record = self._load_shard(int(location["shard"])).get(record_id)
-        if record is None:
-            raise KeyError(record_id)
-        return record
+    def __del__(self):  # pragma: no cover - best effort at interpreter shutdown
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    @lru_cache(maxsize=4096)
+    def _lookup(
+        self,
+        table: str,
+        key: str,
+        max_records: int,
+    ) -> tuple[dict[str, Any], ...]:
+        if table not in {"surfaces", "readings"}:
+            raise ValueError(f"unsupported candidate index: {table}")
+        connection = self._connection
+        if connection is None:
+            return ()
+        column = "surface" if table == "surfaces" else "reading"
+        rows = connection.execute(
+            f"""
+            SELECT
+                r.record_id,
+                r.source_kind,
+                r.lemma,
+                r.part_of_speech_json,
+                r.domains_json,
+                r.candidates_json
+            FROM {table} AS i
+            JOIN records AS r ON r.record_id = i.record_id
+            WHERE i.{column} = ?
+            ORDER BY r.record_id
+            LIMIT ?
+            """,
+            (key, max(1, max_records)),
+        ).fetchall()
+        return tuple(
+            {
+                "record_id": row[0],
+                "source_kind": row[1],
+                "lemma": row[2],
+                "part_of_speech": json.loads(row[3]),
+                "domains": json.loads(row[4]),
+                "meaning_candidates": json.loads(row[5]),
+                "runtime_mode": "candidate-only",
+                "automatic_sense_selection_allowed": False,
+                "automatic_parameter_application_allowed": False,
+                "automatic_external_action_allowed": False,
+            }
+            for row in rows
+        )
 
     def lookup_token(
         self,
@@ -157,18 +179,27 @@ class SemanticCandidateRuntime:
     ) -> list[dict[str, Any]]:
         if not self.available:
             return []
-        record_ids: list[str] = []
+        records: list[dict[str, Any]] = []
+        seen: set[str] = set()
         for value in (token.surface, token.normalized):
-            for record_id in self.surface_index.get(_normalize(value), []):
-                if record_id not in record_ids:
-                    record_ids.append(record_id)
-        if not record_ids and token.reading:
-            for record_id in self.reading_index.get(
-                _normalize(token.reading), []
-            ):
-                if record_id not in record_ids:
-                    record_ids.append(record_id)
-        return [self._record(record_id) for record_id in record_ids[:max_records]]
+            key = _normalize(value)
+            if not key:
+                continue
+            for record in self._lookup("surfaces", key, max_records):
+                if record["record_id"] not in seen:
+                    seen.add(record["record_id"])
+                    records.append(record)
+                    if len(records) >= max_records:
+                        return records
+        if not records and token.reading:
+            key = _normalize(token.reading)
+            for record in self._lookup("readings", key, max_records):
+                if record["record_id"] not in seen:
+                    seen.add(record["record_id"])
+                    records.append(record)
+                    if len(records) >= max_records:
+                        break
+        return records
 
     @staticmethod
     def _score(
@@ -187,7 +218,8 @@ class SemanticCandidateRuntime:
         record_pos = " ".join(record.get("part_of_speech", [])).casefold()
         if token_pos and record_pos:
             token_families = {
-                value for value in re.split(r"[^\w一-龥ぁ-んァ-ヶ]+", token_pos)
+                value
+                for value in re.split(r"[^\w一-龥ぁ-んァ-ヶ]+", token_pos)
                 if len(value) >= 2
             }
             if any(value in record_pos for value in token_families):
