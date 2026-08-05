@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - README.md
+      - README_EN.md
       - MAINTAINERS.md
       - GOVERNANCE.md
       - TRADEMARK.md
@@ -17,6 +18,7 @@ on:
       - main
     paths:
       - README.md
+      - README_EN.md
       - MAINTAINERS.md
       - GOVERNANCE.md
       - TRADEMARK.md
@@ -35,12 +37,12 @@ concurrency:
 
 jobs:
   project-control-docs:
-    name: README governance consistency
+    name: Japanese and English README governance consistency
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Verify README project-control sections
+      - name: Verify Japanese and English README project-control sections
         run: python scripts/sync_project_control_readme.py --check

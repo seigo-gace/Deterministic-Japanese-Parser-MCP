@@ -6,7 +6,8 @@ This directory contains the public documentation required to use, validate, and 
 
 ## Start here / 最初に読む
 
-- [`../README.md`](../README.md) — 概要、Install、MCP設定、Python API、性能・安全性・検証契約
+- [`../README.md`](../README.md) — 日本語の概要、導入、使い方、性能、安全性、検証
+- [`../README_EN.md`](../README_EN.md) — English overview, installation, usage, performance, safety, and validation
 - [`../VALIDATION.md`](../VALIDATION.md) — 第三者検証への参加方法、Discussion Category、Issue化条件
 - [`../SUPPORT.md`](../SUPPORT.md) — Discussions、確認済みBug Issue、Security報告の使い分け
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — Code・Data Contribution要件と検証手順

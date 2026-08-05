@@ -8,6 +8,7 @@ This file records user-visible changes to the public repository.
 
 ### Added
 
+- Separate English entrypoint in `README_EN.md`, linked from the Japanese `README.md`.
 - Public community validation contract in `VALIDATION.md`.
 - GitHub Discussion category forms for validation campaigns, validation results, Japanese-language review, environment validation, and evidence review.
 - Deterministic context-sensitive sense selection for high-impact polysemous Japanese expressions.
@@ -26,9 +27,12 @@ This file records user-visible changes to the public repository.
 
 ### Changed
 
+- The root `README.md` is now Japanese-only and `README_EN.md` is English-only; both provide an explicit language switch at the top.
+- External Shields.io status images were removed. Only the repository-native CI badge remains; Python, MCP, runtime model, and license are displayed as text so GitHub mobile clients do not show blank badge areas.
 - GitHub Discussions are the public entrypoint for independent validation, uncertain findings, Japanese-language review, environment checks, candidate evidence, questions, and early ideas.
 - GitHub Issues are restricted to confirmed, reproducible bugs and regressions that require a fix.
 - The public feature-request and usage-question Issue forms were removed; the Issue chooser now routes those users to Discussions.
+- Project-control synchronization and CI now validate the Japanese and English READMEs independently.
 
 ### Verified
 

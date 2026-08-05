@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_PUBLIC_FILES = (
     "README.md",
+    "README_EN.md",
     "LICENSE",
     "NOTICE.md",
     "CONTRIBUTING.md",
@@ -25,6 +26,7 @@ REQUIRED_PUBLIC_FILES = (
     ".github/DISCUSSION_TEMPLATE/japanese-language-review.yml",
     ".github/DISCUSSION_TEMPLATE/environment-validation.yml",
     ".github/DISCUSSION_TEMPLATE/evidence-review.yml",
+    "scripts/sync_project_control_readme.py",
 )
 
 REMOVED_PUBLIC_ISSUE_FORMS = (
@@ -48,22 +50,59 @@ def test_required_public_repository_files_exist() -> None:
     assert not missing, f"missing required public repository files: {missing}"
 
 
-def test_readme_has_bilingual_public_entrypoints() -> None:
-    readme = _read("README.md")
-    required_markers = (
-        "## 日本語",
-        "## English",
-        "### Install",
-        "### 検証",
-        "### Scope and limitations",
-        "### License",
+def test_language_specific_readmes_are_separate_and_linked() -> None:
+    japanese = _read("README.md")
+    english = _read("README_EN.md")
+
+    japanese_markers = (
+        "<strong>日本語</strong>",
+        'href="README_EN.md"',
+        "## これは何か",
+        "## 導入",
+        "## 使い方",
+        "## 検証",
+        "## 公開検証への参加",
+        "## 限界",
         "非AI",
+        "意味グラフ",
+        "外部操作",
+        "<!-- project-control-ja:start -->",
+    )
+    english_markers = (
+        "<strong>English</strong>",
+        'href="README.md"',
+        "## Overview",
+        "## Installation",
+        "## Usage",
+        "## Validation",
+        "## Community validation",
+        "## Scope and limitations",
         "Non-AI",
         "Meaning Graph",
         "External Action Guard",
+        "<!-- project-control-en:start -->",
     )
-    missing = [marker for marker in required_markers if marker not in readme]
-    assert not missing, f"README is missing public entrypoints: {missing}"
+
+    missing_ja = [marker for marker in japanese_markers if marker not in japanese]
+    missing_en = [marker for marker in english_markers if marker not in english]
+    assert not missing_ja, f"Japanese README is missing entrypoints: {missing_ja}"
+    assert not missing_en, f"English README is missing entrypoints: {missing_en}"
+
+    assert "## English" not in japanese
+    assert "## 日本語" not in english
+    assert "<!-- project-control-en:start -->" not in japanese
+    assert "<!-- project-control-ja:start -->" not in english
+
+
+def test_readme_status_ui_uses_only_the_native_ci_badge() -> None:
+    for relative_path in ("README.md", "README_EN.md"):
+        readme = _read(relative_path)
+        assert readme.count("<img ") == 1, f"unexpected image badge count: {relative_path}"
+        assert "actions/workflows/ci.yml/badge.svg" in readme
+        assert "shields.io" not in readme
+        assert "Python 3.10" in readme
+        assert "MIT" in readme
+        assert "MCP" in readme
 
 
 def test_public_documents_do_not_reference_private_workspaces_or_local_paths() -> None:
@@ -155,6 +194,7 @@ def test_public_documentation_index_links_core_contracts() -> None:
     index = _read("docs/README.md")
     required_links = (
         "../README.md",
+        "../README_EN.md",
         "../VALIDATION.md",
         "../SUPPORT.md",
         "../CONTRIBUTING.md",
