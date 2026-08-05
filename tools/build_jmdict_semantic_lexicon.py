@@ -118,7 +118,7 @@ def build_candidate(
             "version": source_version,
             "license": "CC-BY-SA-4.0",
             "source_id": sequence,
-            "source_url": "https://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+            "source_url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
             "source_sha256": source_sha256,
             "evidence_scope": "semantic_candidate",
             "attribution": "Electronic Dictionary Research and Development Group",
