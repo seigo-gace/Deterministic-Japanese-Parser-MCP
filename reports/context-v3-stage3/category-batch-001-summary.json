@@ -1,0 +1,36 @@
+{
+  "applied_decisions_sha256": "5e22ff04050ba46e37ec81e8e997a2d3af4b2da13b871f8d160484154d3dca9b",
+  "automatic_decision": false,
+  "automatic_reclassification": false,
+  "batch_id": "category-name-place-batch-001",
+  "decision_counts": {
+    "reject-category-mismatch": 10,
+    "retain-category-for-evidence-review": 10
+  },
+  "decision_ledger_sha256": "117a32a6fa7d09d49d72e33194fe551fdf58f09dbf6d97f66ed3109d8a0a9386",
+  "explicit_decisions": 20,
+  "input_entries": 5000,
+  "manual_decision_ledger_required": true,
+  "rejected_category_mismatches_in_batch": 10,
+  "remaining_suspected_category_mismatches": 1270,
+  "retained_for_evidence_review_in_batch": 10,
+  "review_scope": "name-or-place suspected category mismatch",
+  "reviewed_rejected_entries_total": 48,
+  "runtime_promoted_entries": 0,
+  "schema_version": "1.0.0",
+  "stage": 3,
+  "status_counts_after": {
+    "blocked-source-or-license": 1913,
+    "high-risk-action-review": 250,
+    "ready-for-human-evidence-review": 1519,
+    "reviewed-rejected": 48,
+    "suspected-category-mismatch": 1270
+  },
+  "status_counts_before": {
+    "blocked-source-or-license": 1913,
+    "high-risk-action-review": 250,
+    "ready-for-human-evidence-review": 1509,
+    "reviewed-rejected": 38,
+    "suspected-category-mismatch": 1290
+  }
+}
