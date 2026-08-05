@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 
-from scripts.check_contribution_rights import (
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from scripts.check_contribution_rights import (  # noqa: E402
     RightsDecision,
     commit_has_valid_signoff,
     find_owner_rights_decision,
