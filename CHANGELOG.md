@@ -24,6 +24,8 @@ This file records user-visible changes to the public repository.
 - Public Issue form and Pull Request template.
 - Public documentation index and release checklist.
 - CI-backed Public Repository Contract that rejects missing public files and private workspace links.
+- Repository-level integration test proving that all twelve Open Lexicon runtime shards are preloaded and connected as one 120,000-record dictionary.
+- Workflow safety contract preventing the Open Lexicon workflow from committing or pushing generated files back into branches.
 
 ### Changed
 
@@ -33,6 +35,10 @@ This file records user-visible changes to the public repository.
 - GitHub Issues are restricted to confirmed, reproducible bugs and regressions that require a fix.
 - The public feature-request and usage-question Issue forms were removed; the Issue chooser now routes those users to Discussions.
 - Project-control synchronization and CI now validate the Japanese and English READMEs independently.
+- The `Compile 120k Open Lexicon` workflow is now read-only: it rebuilds in a temporary directory, compares deterministic output, uploads evidence, and never changes a branch.
+- The obsolete `feature/import-all-dictionaries` branch trigger and pending-patch application step were removed.
+- Release wheels now contain the compiled Open Lexicon runtime once, instead of packaging both the auditable source snapshot and the compiled runtime copy.
+- Public documentation now distinguishes the current 154,921 exact surfaces and 1,711 ambiguous surfaces from historical snapshot values.
 
 ### Verified
 
@@ -47,6 +53,8 @@ This file records user-visible changes to the public repository.
 - Holdout external-action safety: **20 / 20**.
 - Macro accuracy and every semantic category exceed the public 95% / 90% thresholds.
 - The same contracts are executed against the offline release wheel with the generated 120k lexical snapshot.
+- Current Open Lexicon manifest: **120,000 records**, **12 runtime shards**, **154,921 exact surfaces**, **126,936 readings**, and **1,711 ambiguous surfaces**.
+- Full record-locator coverage: **120,000 / 120,000**.
 
 ## 0.3.1 - 2026-08-04
 
