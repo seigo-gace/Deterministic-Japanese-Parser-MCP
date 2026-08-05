@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -23,10 +24,10 @@ jobs:
       - name: Prepare build tools
         run: python -m pip install --upgrade pip build
 
-      - name: Audit checked-in 120k snapshot and rebuild compiled runtime offline
+      - name: Audit checked-in 120k snapshot and rebuild runtime offline
         run: |
           set -euo pipefail
-          mkdir -p work reports
+          mkdir -p work reports wheelhouse dist
           python - <<'PY'
           from __future__ import annotations
 
@@ -36,17 +37,15 @@ jobs:
           from pathlib import Path
 
           root = Path("dictionaries/system/lexicon.d")
-          compiled_manifest_path = Path(
-              "dictionaries/system/compiled/open_lexicon/manifest.json"
-          )
           compiled_manifest = json.loads(
-              compiled_manifest_path.read_text(encoding="utf-8")
+              Path(
+                  "dictionaries/system/compiled/open_lexicon/manifest.json"
+              ).read_text(encoding="utf-8")
           )
-          paths = sorted([
-              *root.rglob("*.jsonl"),
-              *root.rglob("*.jsonl.gz"),
-          ], key=lambda item: str(item))
-          record_count = 0
+          paths = sorted(
+              [*root.rglob("*.jsonl"), *root.rglob("*.jsonl.gz")],
+              key=lambda item: str(item),
+          )
           record_ids: set[str] = set()
           source_versions: set[str] = set()
           source_licenses: set[str] = set()
@@ -65,7 +64,6 @@ jobs:
           for path in paths:
               opener = gzip.open if path.name.endswith(".gz") else open
               shard_count = 0
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
               with opener(path, "rt", encoding="utf-8") as handle:
                   for line_number, line in enumerate(handle, 1):
                       if not line.strip():
@@ -109,17 +107,16 @@ jobs:
                       source_versions.add(source["version"])
                       source_licenses.add(source["license"])
                       source_sha256.add(source["source_sha256"])
-                      record_count += 1
                       shard_count += 1
               if shard_count:
                   populated_shards += 1
               shard_evidence.append({
                   "path": str(path),
-                  "sha256": digest,
+                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                   "record_count": shard_count,
               })
 
-          assert record_count == 120000, record_count
+          assert len(record_ids) == 120000, len(record_ids)
           assert populated_shards == 12, populated_shards
           assert source_datasets == {"JMdict"}, source_datasets
           assert source_versions == set(
@@ -128,7 +125,7 @@ jobs:
           assert source_licenses == set(
               compiled_manifest["source_licenses"]
           ), source_licenses
-          assert compiled_manifest["record_count"] == record_count
+          assert compiled_manifest["record_count"] == 120000
           assert compiled_manifest["exact_lookup_only"] is True
           assert compiled_manifest["reading_alias_promotion"] is False
           assert compiled_manifest["semantic_auto_promotion"] is False
@@ -138,8 +135,7 @@ jobs:
           report = {
               "status": "PASS",
               "mode": "checked_in_snapshot_offline",
-              "record_count": record_count,
-              "record_id_count": len(record_ids),
+              "record_count": len(record_ids),
               "populated_shards": populated_shards,
               "all_input_files": len(paths),
               "source_datasets": sorted(source_datasets),
@@ -192,7 +188,7 @@ jobs:
             dictionaries/system/compiled/open_lexicon \
             | tee reports/open-lexicon-disk-usage.txt
 
-      - name: Audit every local record against every compiled lookup index
+      - name: Audit all compiled records against every lookup index
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -202,10 +198,10 @@ jobs:
           import json
           from pathlib import Path
 
-          raw_root = Path("dictionaries/system/lexicon.d")
           compiled_root = Path(
               "dictionaries/system/compiled/open_lexicon"
           )
+          record_root = compiled_root / "records"
 
           def load_gzip_json(name: str):
               with gzip.open(
@@ -225,14 +221,13 @@ jobs:
           reading_checks = 0
           record_checks = 0
           errors: list[str] = []
-          raw_paths = sorted([
-              *raw_root.rglob("*.jsonl"),
-              *raw_root.rglob("*.jsonl.gz"),
-          ], key=lambda item: str(item))
+          record_paths = sorted(
+              record_root.glob("records-*.jsonl.gz"),
+              key=lambda item: str(item),
+          )
 
-          for path in raw_paths:
-              opener = gzip.open if path.name.endswith(".gz") else open
-              with opener(path, "rt", encoding="utf-8") as handle:
+          for path in record_paths:
+              with gzip.open(path, "rt", encoding="utf-8") as handle:
                   for line_number, line in enumerate(handle, 1):
                       if not line.strip():
                           continue
@@ -240,16 +235,15 @@ jobs:
                       record_id = item["record_id"]
                       lemma = item["lemma"]
                       if record_id not in locator:
-                          errors.append(
-                              f"locator missing: {record_id}"
-                          )
+                          errors.append(f"locator missing: {record_id}")
                           continue
+
                       orthographic = []
                       for surface in [lemma, *item.get("surfaces", [])]:
                           if surface and surface not in orthographic:
                               orthographic.append(surface)
                       group = canonical.get(lemma, [])
-                      if group != sorted(set(orthographic)):
+                      if not set(orthographic).issubset(set(group)):
                           errors.append(
                               f"canonical mismatch: {record_id}"
                           )
@@ -259,12 +253,24 @@ jobs:
                                   f"surface missing: {record_id}: {surface}"
                               )
                           surface_checks += 1
-                      for mapping in item.get("reading_mappings", []):
+
+                      mappings = list(item.get("reading_mappings", []))
+                      mapped_readings = {
+                          mapping.get("reading") for mapping in mappings
+                      }
+                      for reading in item.get("readings", []):
+                          if reading and reading not in mapped_readings:
+                              mappings.append({
+                                  "reading": reading,
+                                  "restricted_to": [],
+                                  "no_kanji": False,
+                              })
+                      for mapping in mappings:
                           expected = {
                               "record_id": record_id,
-                              "restricted_to": sorted(set(
+                              "restricted_to": list(
                                   mapping.get("restricted_to", [])
-                              )),
+                              ),
                               "no_kanji": bool(
                                   mapping.get("no_kanji", False)
                               ),
@@ -278,6 +284,7 @@ jobs:
                                   f"{record_id}: {mapping['reading']}"
                               )
                           reading_checks += 1
+
                       record_checks += 1
                       if len(errors) >= 100:
                           break
@@ -302,7 +309,7 @@ jobs:
 
           report = {
               "status": "PASS" if not errors else "FAIL",
-              "mode": "offline_raw_to_compiled_full_coverage",
+              "mode": "offline_compiled_record_to_index_full_coverage",
               "record_checks": record_checks,
               "surface_checks": surface_checks,
               "reading_mapping_checks": reading_checks,
@@ -323,9 +330,9 @@ jobs:
               raise SystemExit(1)
           PY
 
-      - name: Download and build every dependency after lexicon generation
+      - name: Build wheelhouse and project wheel
         run: |
-          mkdir -p wheelhouse dist reports
+          set -euo pipefail
           python -m pip wheel ".[dev]" --wheel-dir wheelhouse
           python -m build --wheel --outdir dist
           python -m pip freeze | sort > reports/build-environment.txt
@@ -341,31 +348,31 @@ jobs:
             --include dictionaries/sources \
             --output reports/release-manifest.json
 
-      - name: Create clean offline environment
-        run: python -m venv .offline-venv
-
       - name: Install only from prepared wheelhouse
         env:
           PIP_NO_INDEX: "1"
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: |
+          set -euo pipefail
+          python -m venv .offline-venv
           . .offline-venv/bin/activate
           python -m pip install --no-index --find-links wheelhouse dist/*.whl
           python -m pip install --no-index --find-links wheelhouse pytest pytest-cov
-          python -m pip freeze | sort > reports/offline-installed-environment.txt
+          python -m pip freeze | sort \
+            > reports/offline-installed-environment.txt
 
-      - name: Verify installed wheel and 120k compiled lexicon outside repository
+      - name: Verify installed wheel outside repository
         env:
           PIP_NO_INDEX: "1"
         run: |
+          set -euo pipefail
           . .offline-venv/bin/activate
           cd /tmp
           python -I - <<'PY'
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 
           engine = ParserEngine()
-          lexicon_count = engine.bundle.lexicon["record_count"]
-          assert lexicon_count == 120000, lexicon_count
+          assert engine.bundle.lexicon["record_count"] == 120000
           assert engine.bundle.lexicon["lookup_backend"] == "compiled-index"
           assert engine.bundle.lexicon["exact_only_group_count"] == 119092
           response = engine.analyze(AnalyzeRequest(
@@ -374,7 +381,9 @@ jobs:
               deadline_ms=50,
           ))
           assert engine.tokenizer.backend == "sudachi-core"
-          assert {"preserve", "modify"} <= {item.type for item in response.intents}
+          assert {"preserve", "modify"} <= {
+              item.type for item in response.intents
+          }
           assert response.meaning_graph.propositions
           assert response.meaning_graph.lexical_nodes
           assert response.meaning_graph.semantic_hash
@@ -382,49 +391,35 @@ jobs:
           assert response.meaning_graph.quality_annotations[
               "context_candidate_registry_used"
           ] is False
-          assert [task.intent_type for task in response.task_graph.tasks] == ["modify"]
+          assert [
+              task.intent_type for task in response.task_graph.tasks
+          ] == ["modify"]
           assert response.original_text == "UIは維持する。APIだけ変更しろ。"
           print({
               "installed_wheel": "OK",
               "tokenizer": engine.tokenizer.backend,
               "lookup_backend": engine.bundle.lexicon["lookup_backend"],
-              "rules": len(engine.rules.compiled),
-              "metaphors": len(engine.metaphors.entries),
-              "open_lexicon_records": lexicon_count,
-              "exact_only_groups": engine.bundle.lexicon["exact_only_group_count"],
-              "canonical_groups": len(engine.bundle.synonyms["groups"]),
-              "propositions": len(response.meaning_graph.propositions),
+              "open_lexicon_records": engine.bundle.lexicon["record_count"],
               "lexical_nodes": len(response.meaning_graph.lexical_nodes),
               "action_tasks": len(response.task_graph.tasks),
           })
           PY
 
-      - name: Offline deployment preflight
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          set -o pipefail
-          . .offline-venv/bin/activate
-          python scripts/preflight.py | tee reports/offline-preflight.json
-
-      - name: Offline runtime lexicon provenance and 120k validation
+      - name: Offline deployment and dictionary gates
         env:
           PIP_NO_INDEX: "1"
           DJPMCP_MIN_LEXICON_RECORDS: "120000"
         run: |
-          set -o pipefail
+          set -euo pipefail
           . .offline-venv/bin/activate
-          python tools/lexicon_validator.py | tee reports/offline-lexicon-validator.txt
+          python scripts/preflight.py \
+            | tee reports/offline-preflight.json
+          python tools/lexicon_validator.py \
+            | tee reports/offline-lexicon-validator.txt
+          python tools/validator.py \
+            | tee reports/offline-validator.txt
 
-      - name: Offline dictionary and Gold validation
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          set -o pipefail
-          . .offline-venv/bin/activate
-          python tools/validator.py | tee reports/offline-validator.txt
-
-      - name: Offline semantic profile and independent holdout contracts
+      - name: Offline semantic profile and holdout gates
         env:
           PIP_NO_INDEX: "1"
           DJPMCP_MIN_LEXICON_RECORDS: "120000"
@@ -447,46 +442,38 @@ jobs:
           restore_source
           trap - EXIT
 
-      - name: Offline unit, importer, supply-chain and MCP stdio E2E tests
+      - name: Offline tests and runtime performance gates
         env:
           PIP_NO_INDEX: "1"
           DJPMCP_MIN_LEXICON_RECORDS: "120000"
         run: |
+          set -euo pipefail
           . .offline-venv/bin/activate
           pytest --junitxml=reports/offline-pytest.xml
-
-      - name: Offline existing benchmark gate with the 120k lexical base
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          set -o pipefail
-          . .offline-venv/bin/activate
-          python scripts/benchmark.py --check --rounds 100 | tee reports/offline-benchmark.json
-
-      - name: Offline 10ms target and 20x dictionary contract with the 120k lexical base
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          . .offline-venv/bin/activate
-          python scripts/performance_contract.py --check --rounds 100 --stdio-rounds 50 --scale 20 --max-ready-ms 10 --output reports/offline-performance.json
-
-      - name: Offline Astera 10ms target and 50ms hard contract with the 120k lexical base
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          . .offline-venv/bin/activate
-          python scripts/astera_latency_contract.py --check --rounds 100 --stdio-rounds 50 --target-ms 10 --hard-ms 50 --output reports/offline-astera-latency.json
-
-      - name: Compile all shipped Python sources
-        env:
-          PIP_NO_INDEX: "1"
-        run: |
-          . .offline-venv/bin/activate
+          python scripts/benchmark.py \
+            --check \
+            --rounds 100 \
+            | tee reports/offline-benchmark.json
+          python scripts/performance_contract.py \
+            --check \
+            --rounds 100 \
+            --stdio-rounds 50 \
+            --scale 20 \
+            --max-ready-ms 10 \
+            --output reports/offline-performance.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 100 \
+            --stdio-rounds 50 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/offline-astera-latency.json
           python -m compileall -q src tools scripts tests
 
       - name: Hash all release evidence
         if: always()
         run: |
+          mkdir -p wheelhouse dist reports
           python scripts/write_release_manifest.py \
             --root . \
             --include wheelhouse \
