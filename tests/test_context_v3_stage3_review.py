@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools/review_context_v3_stage3.py"
 COMPACT_TOOL_PATH = ROOT / "tools/compact_context_v3_review_packs.py"
 INPUT_ROOT = ROOT / "research/context_collection/expansion_v3"
+EVIDENCE_ROOT = ROOT / "reports/context-v3-stage3"
 
 
 def _load_tool():
@@ -126,12 +127,19 @@ def test_known_merge_era_candidate_errors_are_flagged() -> None:
     assert "license-review-required" in real_modal["flags"]
 
 
-def test_stage3_reports_are_byte_deterministic() -> None:
+def test_stage3_reports_are_byte_deterministic_and_published() -> None:
     manifest, entries = _inventory()
     first = TOOL.build_reports(manifest, entries, pack_size=20)
     second = TOOL.build_reports(manifest, entries, pack_size=20)
 
     assert first == second
+    assert (EVIDENCE_ROOT / "summary.json").read_text(encoding="utf-8") == first[
+        "summary.json"
+    ]
+    assert (EVIDENCE_ROOT / "runtime-boundary.json").read_text(
+        encoding="utf-8"
+    ) == first["runtime-boundary.json"]
+
     summary = json.loads(first["summary.json"])
     assert summary["stage3_boundary"] == {
         "automatic_approval": False,
@@ -140,6 +148,8 @@ def test_stage3_reports_are_byte_deterministic() -> None:
         "runtime_promotion": False,
         "semantic_completion_claim": False,
     }
+    assert (EVIDENCE_ROOT / "README.md").is_file()
+    assert (EVIDENCE_ROOT / "README_EN.md").is_file()
 
 
 def test_aggregate_mirrors_are_not_stage3_inputs() -> None:

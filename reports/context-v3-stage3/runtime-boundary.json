@@ -1,0 +1,14 @@
+{
+  "approved_entries": 0,
+  "forbidden_transitions": [
+    "candidate to semantic sense without evidence",
+    "candidate to intent or task automatically",
+    "candidate to external action automatically",
+    "community vote to runtime promotion"
+  ],
+  "input_entries": 5000,
+  "name": "evidence, category, collision, and safety review",
+  "next_transition": "human-reviewed entries with source, license, meaning, context, positive/negative/boundary tests, holdout, and safety approval",
+  "runtime_promoted_entries": 0,
+  "stage": 3
+}
