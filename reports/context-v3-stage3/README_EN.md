@@ -8,21 +8,11 @@
 
 All 5,000 candidates are accounted for in the Stage 3 review queue.
 
-- Batch 1 reviewed all 39 suspected substring artifacts: 38 rejected and `いいかも` returned to evidence review.
-- Batch 2 reviewed the first 20 name-or-place suspects against their source YAML: 10 modality mismatches rejected and 10 honorific-related entries retained for evidence review.
+- Substring batch: 39 reviewed, 38 rejected, and `いいかも` returned to evidence review.
+- Category batch 001: 20 reviewed, 10 modality mismatches rejected, and 10 honorific-related entries retained for evidence review.
+- Category batch 002: 20 reviewed, 18 place/entity mismatches rejected, and `世尊` plus the regional lexeme `鮎掛` retained for evidence review.
 
-Approved entries remain at zero. Runtime promotions and automatic reclassification remain at zero.
-
-## Initial triage result
-
-| Review status | Count |
-|---|---:|
-| Blocked on source or license | **1,913** |
-| High-risk external-action review | **250** |
-| Ready for human evidence review | **1,508** |
-| Suspected category mismatch | **1,290** |
-| Suspected substring artifact | **39** |
-| Total | **5,000** |
+Approved entries, runtime promotions, and automatic reclassification remain at zero.
 
 ## Current status after explicit decisions
 
@@ -30,44 +20,40 @@ Approved entries remain at zero. Runtime promotions and automatic reclassificati
 |---|---:|
 | Blocked on source or license | **1,913** |
 | High-risk external-action review | **250** |
-| Ready for human evidence review | **1,519** |
-| Suspected category mismatch | **1,270** |
-| Reviewed and rejected | **48** |
+| Ready for human evidence review | **1,521** |
+| Suspected category mismatch | **1,250** |
+| Reviewed and rejected | **66** |
 | Runtime promotions | **0** |
 
-## Review batch 1
+## Category batch 002
 
-- Thirty-eight lexical false positives were excluded from the epistemic candidate set.
-- `いいかも` was retained for direct occurrence, meaning, and scope review.
+The original gloss, `source_pos`, and source tags were inspected for every entry.
 
-## Review batch 2: category name/place batch 001
-
-The original gloss, `source_pos`, and source tags were inspected for each entry.
-
-- **Rejected modality mismatches:** `GHQ/SCAP`, `コモロ`, `京女`, `マスティク島`, `GHQ`, `こどもの日`, `メイ`, `メイヨー`, `ダマスカス`, `ラーマーヤナ`.
-- **Retained for honorific evidence review:** `入道前太政大臣`, `後京極摂政前太政大臣`, `揚子`, `お釈迦さま`, `よびすて`, `仲尼`, `法性寺入道前関白太政大臣`, `儀同三司母`, `後徳大寺左大臣`, `かわらのさだいじん`.
-- The modality entries are organizations, countries, places, a holiday, a personal name, a work title, or a demonym, not modality functions.
-- The honorific entries may encode courtesy titles, courtesy names, honorific morphology, or honorific omission. They remain unapproved pending direct evidence, current-use, scope, and boundary review.
+- **Rejected:** `奥田`, `上越`, `宮崎県`, `鹿児島県`, `茨木`, `入來`, `永野`, `山陰`, `薩摩川内`, `出水`, `秋津`, `佐賀`, `徳島県`, `名古屋`, `福岡県`, `昭和`, `筑紫`, and `高市`.
+- **Retained for evidence review:** `世尊` and `鮎掛`.
+- `世尊` is explicitly defined as an honorific name for Gautama Buddha.
+- `鮎掛` carries regional, Kagoshima, and regional-Japanese source tags, so it may be a genuine regional lexeme.
+- The rejected entries are cities, prefectures, former towns, regions, stations, an era name, or surnames. A location name may modify a dialect label, but the standalone surface is not itself a dialect expression.
 - No entry was automatically moved to another category or promoted into Meaning Graph, intent, task, external action, or runtime data.
+
+## Count correction
+
+- The total number of entries carrying the `name-or-place-candidate` flag is **210**.
+- **206** of them were initially in the suspected-category-mismatch queue.
+- The other four are blocked under different primary statuses such as source or license review.
+- After category batches 001 and 002, **166** name-or-place flagged entries remain unreviewed in the category-mismatch queue.
 
 ## Decision evidence
 
 - `research/context_collection/stage3_decisions/epistemic-substring-decisions-v1.jsonl`
 - `research/context_collection/stage3_decisions/category-name-place-batch-001.jsonl`
-- `tools/apply_context_v3_stage3_decisions.py`
+- `research/context_collection/stage3_decisions/category-name-place-batch-002.jsonl`
 - `tools/apply_context_v3_stage3_category_decisions.py`
-- `reports/context-v3-stage3/decision-summary.json`
 - `reports/context-v3-stage3/category-batch-001-summary.json`
-- `reports/context-v3-stage3/runtime-boundary-after-category-batch-001.json`
+- `reports/context-v3-stage3/category-batch-002-summary.json`
+- `reports/context-v3-stage3/runtime-boundary-after-category-batch-002.json`
 
-## Main findings
-
-- Every candidate still requires direct occurrence evidence.
-- 1,913 records have unresolved source or license blockers.
-- 1,695 records lack evidence for their assigned category.
-- 500 records have category and feature-type mismatch signals.
-- The initial name-or-place suspect set contains 210 entries; 190 remain unreviewed after batch 001.
-- 800 records require external-action safety review.
+The category applicator now derives output filenames from the checked-in batch ID. New batches add decision ledgers and run sequentially without duplicating the tool.
 
 ## Fixed digests
 
@@ -78,13 +64,15 @@ The original gloss, `source_pos`, and source tags were inspected for each entry.
 | Full review packs | `57c26478b26aef31f39ce1a086b69e481cc955a4cbe711b863c6620b82a973da` |
 | Substring decision ledger | `bc907632f87da3443a4d928972e740a849e8096fb5cd3b2ca5d342e00c982c8e` |
 | Category batch 001 decision ledger | `117a32a6fa7d09d49d72e33194fe551fdf58f09dbf6d97f66ed3109d8a0a9386` |
+| Category batch 002 decision ledger | `9b91327b4ff3a882b5ae5d1ec97a9f91cfb10277fbafc10b88ef76b41a23f671` |
 
 ## Next order
 
 ```text
 Substring artifacts: 39 reviewed
   -> name/place category batch 001: 20 reviewed
-  -> remaining suspected category mismatches: 1,270
+  -> name/place category batch 002: 20 reviewed
+  -> remaining suspected category mismatches: 1,250
   -> high-risk external-action candidates: 250
   -> source or license blockers: 1,913
   -> meaning/context evidence, scope tests, Gold cases, and independent holdout
