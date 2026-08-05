@@ -18,7 +18,8 @@
 
 <!-- project-control-top:start -->
 <p align="center">
-  <strong>Created and maintained by <a href="https://github.com/seigo-gace">@seigo-gace</a>.</strong><br>
+  <strong>Created and maintained by Seigo Kato (<a href="https://github.com/seigo-gace">@seigo-gace</a>).</strong><br>
+  <strong>設計・開発・管理：加藤星悟（<a href="https://github.com/seigo-gace">@seigo-gace</a>）</strong><br>
   Official project direction, releases, contribution acceptance, and brand permissions are controlled by the Project Owner.
 </p>
 
@@ -610,12 +611,14 @@ Open Dictionary Supply Chainは大量候補の取得・変換・審査・昇格�
 <!-- project-control-ja:start -->
 ### Project Owner・Brand・Governance
 
-**本Projectは[`@seigo-gace`](https://github.com/seigo-gace)が作成し、管理しています。** 公式Repository、Roadmap、Architecture、Release、Contribution採択、Project Marksの使用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってProject Ownerが保持します。
+**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。** 公式Repository、Roadmap、Architecture、Release、Contribution採択、Project Marksの使用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってProject Ownerが保持します。
 
 Program CodeはMIT Licenseで無料利用・改変・再配布できます。ただし、MIT Licenseは`Deterministic Japanese Parser MCP`、`DJPMCP`、`Shiori MCP Server`、公式Logo、`Astera`等のBrandを使って、改変Fork・製品・Serviceを公式と表示する権利を与えません。Brand利用は[`TRADEMARK.md`](TRADEMARK.md)に従います。
 
 外部ContributionはDCOが必須です。実質的なCode、辞書、Gold、設計、Release、Security、Governance変更は、Merge前にProject Ownerが受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)を必要とします。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
 <!-- project-control-ja:end -->
+
+
 
 ### License
 
@@ -856,12 +859,14 @@ The supply chain automates large-scale collection, conversion, review preparatio
 <!-- project-control-en:start -->
 ### Project ownership, brand, and governance
 
-**This project was created and is maintained by [`@seigo-gace`](https://github.com/seigo-gace).** Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, roadmap, architecture, releases, contribution acceptance, and permissions to use Project Marks.
+**This project was created and is maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).** Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, roadmap, architecture, releases, contribution acceptance, and permissions to use Project Marks.
 
 Program code is free to use, modify, and redistribute under the MIT License. The MIT License does not authorize a modified fork, product, service, package, account, or organization to present itself as official by using `Deterministic Japanese Parser MCP`, `DJPMCP`, `Shiori MCP Server`, official logos, `Astera`, or other Project Marks. Brand use is governed by [`TRADEMARK.md`](TRADEMARK.md).
 
 External contributions require DCO sign-off. Substantive code, dictionary, Gold, design, release, security, or governance contributions require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 <!-- project-control-en:end -->
+
+
 
 ### License
 
