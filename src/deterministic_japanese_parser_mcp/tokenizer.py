@@ -1,7 +1,9 @@
 import re
 
+from .config import SETTINGS
 from .models import Token
 from .normalizer import span_to_original
+from .open_lexicon_runtime import get_default_open_lexicon
 
 try:
     from sudachipy import dictionary, tokenizer as sudachi_tokenizer
@@ -11,14 +13,21 @@ except ImportError:  # development fallback; production package installs Sudachi
 
 
 class JapaneseTokenizer:
-    def __init__(self):
+    def __init__(self, open_lexicon=None):
         self.backend = "fallback"
         self._tok = None
         self._mode = None
+        self.open_lexicon = open_lexicon or get_default_open_lexicon()
         if dictionary is not None:
             self._tok = dictionary.Dictionary(dict="core").create()
             self._mode = sudachi_tokenizer.Tokenizer.SplitMode.C
             self.backend = "sudachi-core"
+
+    def _annotate(self, tokens: list[Token]) -> list[Token]:
+        return self.open_lexicon.annotate_tokens(
+            tokens,
+            max_candidates=SETTINGS.max_candidates,
+        )
 
     def tokenize(self, normalized: str, mapping, original: str) -> list[Token]:
         result: list[Token] = []
@@ -35,13 +44,15 @@ class JapaneseTokenizer:
                         start = cursor
                     end = start + len(surface)
                 cursor = end
+                reading = morpheme.reading_form()
                 result.append(Token(
                     surface=surface,
                     normalized=morpheme.normalized_form(),
+                    reading=reading or None,
                     pos=list(morpheme.part_of_speech()),
                     span=span_to_original(start, end, mapping, original),
                 ))
-            return result
+            return self._annotate(result)
 
         # Deterministic fallback for environments where the optional native
         # tokenizer is not installed. It does not claim morphological accuracy.
@@ -49,7 +60,8 @@ class JapaneseTokenizer:
             result.append(Token(
                 surface=match.group(0),
                 normalized=match.group(0),
+                reading=None,
                 pos=["unknown"],
                 span=span_to_original(match.start(), match.end(), mapping, original),
             ))
-        return result
+        return self._annotate(result)
