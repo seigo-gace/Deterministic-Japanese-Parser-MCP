@@ -1,0 +1,15 @@
+{
+  "automatic_approval": false,
+  "automatic_reclassification": false,
+  "automatic_rejection": false,
+  "batch_id": "category-name-place-batch-001",
+  "explicit_decisions": 20,
+  "input_entries": 5000,
+  "name": "manual category mismatch review",
+  "next_transition": "continue remaining category mismatches, then external-action, source/license, and direct evidence review",
+  "rejected_category_mismatches_in_batch": 10,
+  "retained_for_evidence_review_in_batch": 10,
+  "runtime_promoted_entries": 0,
+  "runtime_promotion_allowed": false,
+  "stage": 3
+}
