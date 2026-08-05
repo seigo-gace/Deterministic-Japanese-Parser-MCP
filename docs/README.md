@@ -33,6 +33,9 @@ Discussion Category Form：
 - [`SEMANTIC_QUALITY_CONTRACT.md`](SEMANTIC_QUALITY_CONTRACT.md) — Sense、Pragmatics、省略、談話、Reference、安全性の95%品質契約と独立Holdout
 - [`OPEN_LEXICON_ACCURACY.md`](OPEN_LEXICON_ACCURACY.md) — 12万語JMdict SnapshotのSource Fidelity、Recall、Precision契約
 - [`OPEN_DICTIONARY_SUPPLY_CHAIN.md`](OPEN_DICTIONARY_SUPPLY_CHAIN.md) — Open Dictionary取得、変換、Review、Promotion、Rollback
+- [`LANGUAGE_DATA_RUNTIME.md`](LANGUAGE_DATA_RUNTIME.md) — 高度言語FeatureのReview・Promotion・Compile・Runtime反映契約
+- [`CONTEXT_V3_STAGE3_REVIEW.md`](CONTEXT_V3_STAGE3_REVIEW.md) — Context v3 5,000件の第3段階Evidence Review（日本語）
+- [`CONTEXT_V3_STAGE3_REVIEW_EN.md`](CONTEXT_V3_STAGE3_REVIEW_EN.md) — Context v3 Stage 3 evidence review (English)
 - [`PUBLIC_RELEASE_CHECKLIST.md`](PUBLIC_RELEASE_CHECKLIST.md) — Public Releaseの必須Gate
 
 ## Dictionary expansion / 辞書拡張
@@ -56,6 +59,7 @@ GitHub Actionsの`CI`と`Release Readiness`が実装検証Evidenceの正本で�
 - Open lexicon provenance and source fidelity
 - Exact lookup and ambiguity retention
 - Containment and substring-pollution precision
+- Context v3 Stage 3 full-accounting and deterministic review packs
 - Offline wheel installation outside the repository
 - 20x dictionary scale
 - Astera persistent local stdio latency contract

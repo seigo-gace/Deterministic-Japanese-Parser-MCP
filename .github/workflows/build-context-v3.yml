@@ -1,52 +1,30 @@
-name: Build Context Data v3 5000
+name: Rebuild Context Data v3 Candidates
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - agent/context-v3-5000
-      - agent/context-v3-5000-data
-    paths:
-      - scripts/build_context_v3.py.gz.b64
-      - .github/workflows/build-context-v3.yml
-      - research/context_collection/CANDIDATE_SURFACES_2026-08-05.md
-      - research/context_collection/expansion_v3/BUILD_REQUEST.json
-  pull_request:
-    branches:
-      - main
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - scripts/build_context_v3.py.gz.b64
-      - .github/workflows/build-context-v3.yml
-      - research/context_collection/CANDIDATE_SURFACES_2026-08-05.md
-      - research/context_collection/expansion_v3/BUILD_REQUEST.json
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: context-v3-5000-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  group: context-v3-candidate-rebuild-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    if: github.actor != 'github-actions[bot]' && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/context-v3-5000'))
+  rebuild:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout exact revision
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install YAML writer
-        run: python -m pip install --disable-pip-version-check PyYAML==6.0.2
+        run: python -m pip install --disable-pip-version-check "PyYAML>=6.0.3,<7"
 
       - name: Decode and validate deterministic builder
         shell: bash
@@ -56,7 +34,7 @@ jobs:
           sed -i 's/adds exactly 3,855/adds exactly 3,856/' /tmp/build_context_v3.py
           python -m py_compile /tmp/build_context_v3.py
 
-      - name: Download open candidate sources
+      - name: Download pinned candidate sources for manual comparison
         shell: bash
         run: |
           set -euo pipefail
@@ -72,67 +50,51 @@ jobs:
             https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/json/j-ono-data.json
           sha256sum .cache/context-v3/* | tee .cache/context-v3/source_checksums.sha256
 
-      - name: Generate exactly 5,000 globally unique candidates
+      - name: Rebuild candidates outside the repository tree
         run: |
+          rm -rf work/context-v3-rebuild
           python /tmp/build_context_v3.py \
             --existing research/context_collection/CANDIDATE_SURFACES_2026-08-05.md \
             --kaikki .cache/context-v3/kaikki-japanese.jsonl \
             --living-slang .cache/context-v3/living-slang.json \
             --j-ono .cache/context-v3/j-ono-data.json \
-            --output research/context_collection/expansion_v3
+            --output work/context-v3-rebuild
           cp .cache/context-v3/source_checksums.sha256 \
-            research/context_collection/expansion_v3/source_checksums.sha256
+            work/context-v3-rebuild/source_checksums.sha256
 
-      - name: Validate generated collection
+      - name: Validate manual rebuild
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path('research/context_collection/expansion_v3')
-          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
-          validation = json.loads((root / 'validation.json').read_text(encoding='utf-8'))
-          assert validation['ok'] is True, validation
-          assert manifest['total_entries'] == 5000, manifest
-          assert manifest['global_unique_surface_count'] == 5000, manifest
-          assert sum(1 for _ in root.glob('*/*.yaml')) == 5000
+          root = Path("work/context-v3-rebuild")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          validation = json.loads((root / "validation.json").read_text(encoding="utf-8"))
+          assert validation["ok"] is True, validation
+          assert manifest["total_entries"] == 5000, manifest
+          assert manifest["global_unique_surface_count"] == 5000, manifest
+          assert sum(1 for _ in root.glob("*/*.yaml")) == 5000
           print(json.dumps(manifest, ensure_ascii=False, indent=2))
           PY
 
-      - name: Create portable archive
+      - name: Create portable comparison archive
         run: |
-          tar -C research/context_collection \
-            -czf research/context_collection/context-expansion-v3-5000.tar.gz \
-            expansion_v3
-          sha256sum research/context_collection/context-expansion-v3-5000.tar.gz \
-            > research/context_collection/context-expansion-v3-5000.tar.gz.sha256
+          tar -C work \
+            -czf work/context-expansion-v3-5000-rebuild.tar.gz \
+            context-v3-rebuild
+          sha256sum work/context-expansion-v3-5000-rebuild.tar.gz \
+            > work/context-expansion-v3-5000-rebuild.tar.gz.sha256
 
-      - name: Commit generated candidate data to the branch
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            research/context_collection/expansion_v3 \
-            research/context_collection/context-expansion-v3-5000.tar.gz \
-            research/context_collection/context-expansion-v3-5000.tar.gz.sha256
-          if git diff --cached --quiet; then
-            echo 'No generated changes to commit.'
-            exit 0
-          fi
-          git commit -m 'data: build 5000 context candidates [skip ci]'
-          git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
-
-      - name: Upload build artifact
+      - name: Upload manual rebuild evidence
         uses: actions/upload-artifact@v4
         with:
-          name: context-expansion-v3-5000
+          name: context-expansion-v3-5000-manual-rebuild
           path: |
-            research/context_collection/context-expansion-v3-5000.tar.gz
-            research/context_collection/context-expansion-v3-5000.tar.gz.sha256
-            research/context_collection/expansion_v3/manifest.json
-            research/context_collection/expansion_v3/validation.json
+            work/context-expansion-v3-5000-rebuild.tar.gz
+            work/context-expansion-v3-5000-rebuild.tar.gz.sha256
+            work/context-v3-rebuild/manifest.json
+            work/context-v3-rebuild/validation.json
+            work/context-v3-rebuild/source_checksums.sha256
           retention-days: 30
