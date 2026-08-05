@@ -1,9 +1,20 @@
-name: Sync Project Control README
+name: Project Control Documentation
 
 on:
+  pull_request:
+    paths:
+      - README.md
+      - MAINTAINERS.md
+      - GOVERNANCE.md
+      - TRADEMARK.md
+      - CONTRIBUTING.md
+      - CONTRIBUTOR_LICENSE_AGREEMENT.md
+      - DEVELOPER_CERTIFICATE_OF_ORIGIN.md
+      - scripts/sync_project_control_readme.py
+      - .github/workflows/sync-project-control-readme.yml
   push:
     branches:
-      - agent/brand-governance-2026-08
+      - main
     paths:
       - README.md
       - MAINTAINERS.md
@@ -16,32 +27,18 @@ on:
       - .github/workflows/sync-project-control-readme.yml
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: sync-project-control-readme-${{ github.ref }}
+  group: project-control-docs-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  sync-readme:
+  project-control-docs:
+    name: README governance consistency
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 0
 
-      - name: Synchronize project-control sections
-        run: python scripts/sync_project_control_readme.py
-
-      - name: Commit synchronized README
-        run: |
-          if git diff --quiet -- README.md; then
-            echo "README already current"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git commit -m "docs: identify Seigo Kato as project author"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Verify README project-control sections
+        run: python scripts/sync_project_control_readme.py --check
