@@ -1,0 +1,144 @@
+name: Unified Semantic Data Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "dictionaries/system/metaphors/**"
+      - "dictionaries/system/synonyms.yaml"
+      - "dictionaries/system/synonyms.d/**"
+      - "dictionaries/system/language_features.d/**"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - "tests/test_semantic_data_runtime.py"
+      - ".github/workflows/unified-semantic-data.yml"
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "dictionaries/system/metaphors/**"
+      - "dictionaries/system/synonyms.yaml"
+      - "dictionaries/system/synonyms.d/**"
+      - "dictionaries/system/language_features.d/**"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - "tests/test_semantic_data_runtime.py"
+      - ".github/workflows/unified-semantic-data.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-review-compile-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+      - name: Build review assets and approved-only runtime pack
+        run: |
+          python tools/unified_semantic_data_pipeline.py \
+            --compile-approved \
+            --output-root reports/unified-semantic-data \
+            --compiled-root dictionaries/system/compiled/semantic_data \
+            | tee reports/unified-semantic-data-run.json
+      - name: Verify byte deterministic rebuild
+        run: |
+          python tools/unified_semantic_data_pipeline.py --check \
+            | tee reports/unified-semantic-data-determinism.json
+      - name: Verify pipeline and MeaningGraph integration
+        run: |
+          pytest \
+            tests/test_unified_semantic_data_pipeline.py \
+            tests/test_semantic_data_runtime.py \
+            --junitxml=reports/unified-semantic-data-pytest.xml
+      - name: Preserve existing dictionary and safety contracts
+        run: |
+          python tools/lexicon_validator.py \
+            | tee reports/unified-semantic-data-lexicon-validator.txt
+          python tools/validator.py \
+            | tee reports/unified-semantic-data-validator.txt
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/unified-semantic-data-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/unified-semantic-data-holdout.json
+      - name: Performance regression gates
+        run: |
+          python scripts/benchmark.py --check --rounds 30 \
+            | tee reports/unified-semantic-data-benchmark.json
+          python scripts/performance_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --scale 20 \
+            --max-ready-ms 10 \
+            --output reports/unified-semantic-data-performance.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/unified-semantic-data-astera-latency.json
+      - name: Build distribution with compiled semantic pack
+        run: python -m build
+      - name: Verify wheel outside repository and offline at runtime
+        run: |
+          python -m venv /tmp/djpmcp-wheel
+          /tmp/djpmcp-wheel/bin/pip install --no-index --find-links dist \
+            deterministic-japanese-parser-mcp
+          cd /tmp
+          /tmp/djpmcp-wheel/bin/python - <<'PY'
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          response = ParserEngine().analyze(
+              AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
+          )
+          assert response.meaning_graph.propositions
+          assert response.meaning_graph.semantic_hash
+          assert "semantic_pack_available" in response.metrics
+          print({
+              "propositions": len(response.meaning_graph.propositions),
+              "semantic_pack_available": response.metrics["semantic_pack_available"],
+              "execution_allowed": response.execution_allowed,
+          })
+          PY
+      - name: Archive review and runtime evidence
+        if: always()
+        run: |
+          tar -czf reports/unified-semantic-data-evidence.tar.gz \
+            reports/unified-semantic-data \
+            dictionaries/system/compiled/semantic_data \
+            2>/dev/null || true
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-semantic-data-evidence
+          path: |
+            reports/unified-semantic-data-*.json
+            reports/unified-semantic-data-*.txt
+            reports/unified-semantic-data-*.xml
+            reports/unified-semantic-data-evidence.tar.gz
+          if-no-files-found: warn
+          retention-days: 30
