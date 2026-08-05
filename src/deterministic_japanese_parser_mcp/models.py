@@ -57,11 +57,31 @@ class OriginalSpan(BaseModel):
     source_text: str
 
 
+class LexicalCandidate(BaseModel):
+    record_id: str
+    lemma: str
+    matched_text: str
+    match_type: Literal["surface", "normalized", "reading"]
+    readings: list[str] = Field(default_factory=list)
+    restricted_to: list[str] = Field(default_factory=list)
+    no_kanji: bool = False
+    part_of_speech: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
+    usage_labels: list[str] = Field(default_factory=list)
+    source_dataset: str | None = None
+    source_version: str | None = None
+    source_license: str | None = None
+
+
 class Token(BaseModel):
     surface: str
     normalized: str
+    reading: str | None = None
     pos: list[str]
     span: OriginalSpan
+    lexical_candidates: list[LexicalCandidate] = Field(default_factory=list)
+    lexical_candidate_total: int = 0
+    lexical_status: Literal["MATCHED", "AMBIGUOUS", "NO_MATCH"] = "NO_MATCH"
 
 
 class Intent(BaseModel):
