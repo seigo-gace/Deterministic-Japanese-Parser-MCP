@@ -50,6 +50,7 @@ research/context_collection/expansion_v3/
 summary.json
 review-queue.jsonl
 review-packs.jsonl
+review-pack-index.json
 runtime-boundary.json
 ```
 

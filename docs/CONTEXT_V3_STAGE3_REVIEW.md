@@ -80,6 +80,7 @@ Manifestが保証する現在の境界：
 summary.json
 review-queue.jsonl
 review-packs.jsonl
+review-pack-index.json
 runtime-boundary.json
 ```
 

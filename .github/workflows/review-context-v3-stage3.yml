@@ -7,6 +7,7 @@ on:
     paths:
       - "research/context_collection/expansion_v3/**"
       - "tools/review_context_v3_stage3.py"
+      - "tools/compact_context_v3_review_packs.py"
       - "tests/test_context_v3_stage3_review.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
@@ -14,6 +15,7 @@ on:
     paths:
       - "research/context_collection/expansion_v3/**"
       - "tools/review_context_v3_stage3.py"
+      - "tools/compact_context_v3_review_packs.py"
       - "tests/test_context_v3_stage3_review.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
@@ -51,6 +53,13 @@ jobs:
             --input-root research/context_collection/expansion_v3 \
             --output-root work/context-v3-stage3 \
             --pack-size 20
+
+      - name: Create compact public review-pack index
+        run: |
+          python tools/compact_context_v3_review_packs.py \
+            --input work/context-v3-stage3/review-packs.jsonl \
+            --summary work/context-v3-stage3/summary.json \
+            --output work/context-v3-stage3/review-pack-index.json
 
       - name: Validate all 5,000 candidates and safety boundaries
         run: |

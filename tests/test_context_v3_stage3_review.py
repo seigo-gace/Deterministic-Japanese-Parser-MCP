@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools/review_context_v3_stage3.py"
+COMPACT_TOOL_PATH = ROOT / "tools/compact_context_v3_review_packs.py"
 INPUT_ROOT = ROOT / "research/context_collection/expansion_v3"
 
 
@@ -20,6 +21,19 @@ def _load_tool():
 
 
 TOOL = _load_tool()
+
+
+def _load_compact_tool():
+    spec = importlib.util.spec_from_file_location(
+        "compact_context_v3_review_packs", COMPACT_TOOL_PATH
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+COMPACT_TOOL = _load_compact_tool()
 
 
 @lru_cache(maxsize=1)
@@ -72,6 +86,20 @@ def test_stage3_accounts_for_every_candidate_without_promotion() -> None:
     assert len(set(packed_ids)) == 5000
     assert all(1 <= pack["entry_count"] <= 20 for pack in packs)
     assert all(pack["runtime_promotion_allowed"] is False for pack in packs)
+
+    compact = COMPACT_TOOL.compact_pack_index(
+        reports["review-packs.jsonl"],
+        expected_sha256=summary["review_packs_sha256"],
+    )
+    compact_ids = [
+        entry[0]
+        for pack in compact["packs"]
+        for entry in pack[3]
+    ]
+    assert compact["pack_count"] == len(packs)
+    assert compact["entry_count"] == 5000
+    assert compact_ids == packed_ids
+    assert compact["runtime_promotion_allowed"] is False
 
 
 def test_known_merge_era_candidate_errors_are_flagged() -> None:
