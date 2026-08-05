@@ -1,0 +1,46 @@
+entry_id: DISCOURSE-5e9423f881a6
+surface: 達磨さんが転んだ
+reading: daruma-san ga koronda
+variants:
+- daruma-san ga koronda
+- 達磨さんが轉んだ
+- だるまさんが転んだ
+feature_type: discourse
+category: discourse
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.35
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdiscourse候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「達磨さんが転んだ」が実際に使われた文脈をSourceと照合する。
+  meaning: The 10-syllable interjection used to count down, syllable by syllable, in daruma-san ga koronda
+domain:
+- casual
+- formal
+politeness: casual
+generation:
+- all
+community:
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E9%81%94%E7%A3%A8%E3%81%95%E3%82%93%E3%81%8C%E8%BB%A2%E3%82%93%E3%81%A0
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「達磨さんが転んだ」が候補表現として現れる。
+negative_examples:
+- 「達磨さんが転んだ」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「達磨さんが転んだ」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags: []
+  source_pos: intj
+  pattern_family: null

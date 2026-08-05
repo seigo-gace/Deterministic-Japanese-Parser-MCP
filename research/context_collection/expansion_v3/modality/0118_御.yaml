@@ -1,0 +1,66 @@
+entry_id: MODALITY-2c860197a8f9
+surface: 御
+reading: o-
+variants:
+- o-
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: person
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「御」が実際に使われた文脈をSourceと照合する。
+  meaning: used to respectfully refer to something that belongs to or is related to the listener or a third party
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E5%BE%A1
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「御」が候補表現として現れる。
+negative_examples:
+- 「御」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「御」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - honorific
+  - morpheme
+  - often
+  - polite
+  - humble
+  - usually
+  - dated
+  - abbreviation
+  - alt-of
+  - '{''name'': "japanese terms read with kan''on", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''0 3 3 2 2 1 0 3 3 0 2 0 1 2 5 5 2 4 5 4 3 3 3 2 3 4 4 4 3 3 2 5 4 3 2 3 2 2''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''8 8 4 6 8 6 6 6 5 4 5 7 6 6 4 5 4''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 1 1 2 1 0 0 1 2 9 2 0 0 1 2 11 2 6 8 1 6 6 8 2 1 2 2 2 1 1 1 2 1 6 2 2 1 1''}'
+  - '{''name'': ''pages with 6 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''0 1
+    1 0 0 1 0 1 1 2 2 0 0 1 1 0 7 0 0 1 3 1 1 2 9 1 1 3 7 1 3 3 4 4 3 4 2 3 1 1 1 2 4 2 3 4 3''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''0 1 2
+    0 0 0 0 1 1 2 3 0 0 1 1 0 9 0 0 0 3 1 1 1 11 1 1 3 8 1 3 3 4 4 4 4 2 3 1 1 1 2 5 2 3 4 4''}'
+  source_pos: prefix
+  pattern_family: null

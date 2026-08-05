@@ -1,0 +1,58 @@
+entry_id: METAPHOR-b5fd8530a21e
+surface: 将を射んと欲すればまず馬を射よ
+reading: shō o in to hossureba mazu uma o iyo
+variants:
+- shō o in to hossureba mazu uma o iyo
+- 將を射んと欲すればまず馬を射よ
+- 将を射んと欲すれば先ず馬を射よ
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: object
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「将を射んと欲すればまず馬を射よ」が実際に使われた文脈をSourceと照合する。
+  meaning: begin with the lesser things to obtain the greater; he who would the daughter win, must with the mother first begin
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E5%B0%86%E3%82%92%E5%B0%84%E3%82%93%E3%81%A8%E6%AC%B2%E3%81%99%E3%82%8C%E3%81%B0%E3%81%BE%E3%81%9A%E9%A6%AC%E3%82%92%E5%B0%84%E3%82%88
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「将を射んと欲すればまず馬を射よ」が候補表現として現れる。
+negative_examples:
+- 「将を射んと欲すればまず馬を射よ」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「将を射んと欲すればまず馬を射よ」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese proverbs'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with 5 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  source_pos: proverb
+  pattern_family: null

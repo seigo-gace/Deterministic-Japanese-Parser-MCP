@@ -1,0 +1,65 @@
+entry_id: DIALECT-debcb6569c8d
+surface: 春日
+reading: Kasuga
+variants:
+- Kasuga
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「春日」が実際に使われた文脈をSourceと照合する。
+  meaning: 'a placename, especially:'
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E6%98%A5%E6%97%A5
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「春日」が候補表現として現れる。
+negative_examples:
+- 「春日」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「春日」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - abbreviation
+  - alt-of
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''cities in fukuoka prefecture, japan'', ''kind'': ''place'', ''parents'': [''cities'', ''places''], ''source'':
+    ''w'', ''orig'': ''ja:cities in fukuoka prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''cities in japan'', ''kind'': ''place'', ''parents'': [''cities'', ''places''], ''source'': ''w'', ''orig'':
+    ''ja:cities in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in fukuoka prefecture, japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'',
+    ''orig'': ''ja:places in fukuoka prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''old japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''9 3 3 3 10 2 4 14 7 4 4 4 3 4 4 4 4 3 3 5 0 3''}'
+  - '{''name'': ''old japanese makurakotoba'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''9
+    3 3 3 10 2 4 14 7 4 4 4 3 4 4 4 4 3 3 5 0 3''}'
+  - '{''name'': ''old japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''8 3 3 3 9 3 5 14 7 4 5 4 3 4 4 4 4 3 3 5 0 3''}'
+  - '{''name'': ''pages with 3 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''8 3
+    3 1 10 3 7 13 7 4 7 4 1 4 7 4 4 2 2 5 1 1''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''13 2 2
+    1 8 2 5 19 9 3 5 3 1 3 5 3 3 1 1 7 0 1''}'
+  source_pos: name
+  pattern_family: null

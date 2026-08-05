@@ -1,0 +1,64 @@
+entry_id: DIALECT-b57ca9d95f51
+surface: 長谷
+reading: Nagatani
+variants:
+- Nagatani
+- Nagaya
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「長谷」が実際に使われた文脈をSourceと照合する。
+  meaning: Nagatani (a district of the town of Aga, Niigata Prefecture, Japan)
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E9%95%B7%E8%B0%B7
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「長谷」が候補表現として現れる。
+negative_examples:
+- 「長谷」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「長谷」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''neighborhoods in niigata prefecture, japan'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'':
+    ''ja:neighborhoods in niigata prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in niigata prefecture, japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'',
+    ''orig'': ''ja:places in niigata prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''32 6 6 34 4 6 6 6''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''27 8 8 30 5 8 8 8''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 9 9 27 6 7 9 7''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''18 13 13 17 8 10 13 10''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''18 13 13 16 9 10 13 10''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''28 8 8 27 6 7 8 7''}'
+  source_pos: name
+  pattern_family: null

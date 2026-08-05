@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "errors": [],
+  "total_entries": 5000,
+  "category_counts": {
+    "dialect": 400,
+    "discourse": 400,
+    "epistemic": 200,
+    "honorific": 500,
+    "media_community": 500,
+    "metaphor": 500,
+    "modality": 500,
+    "onomatopoeia": 700,
+    "reference": 300,
+    "slang": 1000
+  }
+}

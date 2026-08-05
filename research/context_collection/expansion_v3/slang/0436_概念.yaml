@@ -1,0 +1,48 @@
+entry_id: SLANG-faa317ebf408
+surface: 概念
+reading: がいねん
+variants: []
+feature_type: slang
+category: slang
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: object
+  context: 現代Slang Collection上の用法。年代・Community・現役性は追加確認する
+  examples:
+  - 「概念」が実際に使われた文脈をSourceと照合する。
+  meaning: An object that you feel is connected somehow to your bias or favorite character, usually through some kind of faint
+    visual or color-based similarity
+domain:
+- sns
+- casual
+politeness: casual
+generation:
+- 10代
+- 20代
+- all
+community:
+- ネット
+- 若者
+source:
+- https://wesleycrobertson.wordpress.com/?p=10151#Gainen
+- https://github.com/1Selxo/living-japanese-slang-dictionary
+source_version: accessed-2026-08
+license: 確認中
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「概念」が候補表現として現れる。
+negative_examples:
+- 「概念」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「概念」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: living-japanese-slang-dictionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - Noun
+  source_pos: null
+  pattern_family: null

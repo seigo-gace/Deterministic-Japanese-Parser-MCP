@@ -1,0 +1,65 @@
+entry_id: METAPHOR-455863feae4a
+surface: 彼を知り己を知れば百戦殆からず
+reading: kare o shiri onore o shireba hyakusen ayaukarazu
+variants:
+- kare o shiri onore o shireba hyakusen ayaukarazu
+- 彼を知り己を知れば百戰殆からず
+feature_type: metaphor
+category: metaphor
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmetaphor候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「彼を知り己を知れば百戦殆からず」が実際に使われた文脈をSourceと照合する。
+  meaning: know the other side and yourself, a hundred battles will not be perilous
+domain:
+- business
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E5%BD%BC%E3%82%92%E7%9F%A5%E3%82%8A%E5%B7%B1%E3%82%92%E7%9F%A5%E3%82%8C%E3%81%B0%E7%99%BE%E6%88%A6%E6%AE%86%E3%81%8B%E3%82%89%E3%81%9A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「彼を知り己を知れば百戦殆からず」が候補表現として現れる。
+negative_examples:
+- 「彼を知り己を知れば百戦殆からず」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「彼を知り己を知れば百戦殆からず」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - figuratively
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''59 41''}'
+  - '{''name'': ''japanese terms with 7 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''52 48''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''51 49''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''51 49''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''58 42''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''80 20''}'
+  - '{''name'': ''hundred'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:hundred'', ''langcode'':
+    ''ja'', ''_dis'': ''98 2''}'
+  - '{''name'': ''war'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:war'', ''langcode'':
+    ''ja'', ''_dis'': ''42 58''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''43 57''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''43 57''}'
+  source_pos: phrase
+  pattern_family: null

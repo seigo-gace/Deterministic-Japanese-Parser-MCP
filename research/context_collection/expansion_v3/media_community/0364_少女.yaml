@@ -1,0 +1,80 @@
+entry_id: MEDIA_COMMUNITY-65772be12071
+surface: 少女
+reading: shōjo
+variants:
+- 少女 ^
+- shōjo
+- seudyo
+- せうぢよ
+feature_type: slang
+category: media_community
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmedia_community候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「少女」が実際に使われた文脈をSourceと照合する。
+  meaning: a (young, little) girl
+domain:
+- gaming
+- fandom
+- sns
+politeness: casual
+generation:
+- 10代
+- 20代
+- all
+community:
+- ネット
+- 若者
+source:
+- https://en.wiktionary.org/wiki/%E5%B0%91%E5%A5%B3
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「少女」が候補表現として現れる。
+negative_examples:
+- 「少女」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「少女」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - anime
+  - broadcasting
+  - comics
+  - film
+  - literature
+  - manga
+  - media
+  - publishing
+  - television
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese fiction'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:japanese fiction'',
+    ''langcode'': ''ja''}'
+  - '{''name'': ''pages with 4 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''4 5
+    4 58 4 4 4 7 12''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''2 3 2
+    72 2 2 2 4 8''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''2 59 3 2 11 8 14''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 45 4 4 12 13 17''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''5 61 5 5 5 11 10''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''8 37 8 8 8 15 17''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''17 83''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''8 34 8 8 8 15 17''}'
+  source_pos: noun
+  pattern_family: null

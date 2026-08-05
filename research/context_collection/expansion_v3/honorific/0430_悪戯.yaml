@@ -1,0 +1,71 @@
+entry_id: HONORIFIC-5da5e50fae16
+surface: 悪戯
+reading: itazura
+variants:
+- 悪戯 ^
+- itazura
+- itadura
+- いたづら
+- 惡戲
+feature_type: honorific
+category: honorific
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからhonorific候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「悪戯」が実際に使われた文脈をSourceと照合する。
+  meaning: tease, prank, trick, practical joke, mischief
+domain:
+- business
+- formal
+politeness: formal
+generation:
+- all
+community:
+- ビジネス
+- 一般
+source:
+- https://en.wiktionary.org/wiki/%E6%82%AA%E6%88%AF
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「悪戯」が候補表現として現れる。
+negative_examples:
+- 「悪戯」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「悪戯」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - humble
+  - euphemistic
+  - '{''name'': ''japanese verbs without transitivity'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''2 10 16 12 8 2 12 14 13 10''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''2 5 38 8 4 16 7 5 7 8 1''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''3 7 25 9 5 12 12 7 10 8 2''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''2 7 34 7 5 12 7 7 10 7 2''}'
+  - '{''name'': ''japanese terms read with jukujikun'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''2 7 29 7 6 18 8 9 8 6''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''3 9 14 10 8 6 13 11 13 11 3''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''3 9 14 10 8 6 12 11 12 10 3''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''2 4 32 4 4 35 5 4 4 4 2''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''3 4 33 4 4 37 4 4 4 2''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''2 6 33 7 5 14 8 7 8 7 2''}'
+  source_pos: noun
+  pattern_family: null

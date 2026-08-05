@@ -1,0 +1,70 @@
+entry_id: DIALECT-244a18aec858
+surface: 夷
+reading: ebisu
+variants:
+- ebisu
+- 戎
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「夷」が実際に使われた文脈をSourceと照合する。
+  meaning: 'synonym of 蝦夷 (Ezo): an ancient ethnic group attested in the Nihon Shoki that once lived on what is now the Kantō,
+    Hokuriku and Tōhoku regions, likely as far as Hokkaido, possibly related to the Ainu people; dubbed "barbarians" or "savages"
+    by the Yamato.'
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E5%A4%B7
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「夷」が候補表現として現れる。
+negative_examples:
+- 「夷」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「夷」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - historical
+  - derogatory
+  - regional
+  - broadly
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''pages with 5 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''6 7
+    1 0 1 1 0 12 4 1 1 1 1 1 1 1 4 1 1 0 1 0 2 0 1 8 0 5 0 7 3 11 3 2 2 2 2 1 0 0''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''7 9 1
+    0 0 1 0 15 6 1 1 1 1 0 1 1 2 1 1 0 1 0 1 0 1 10 0 7 0 9 2 12 4 1 1 1 1 0 0 0''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''14 0 17 4 28 12 5 2 10 7 1''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''15 0 12 6 28 8 8 2 6 14 2''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''12 0 17 7 31 8 7 2 7 7 2''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''5 0 10 13 18 6 14 3 10 17 3''}'
+  - '{''name'': "japanese terms read with on''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''5 0 10 13 18 6 14 3 10 17 3''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''13 0 15 4 37 9 5 2 5 9 2''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''12 0 16 6 32 8 7 2 6 8 2''}'
+  source_pos: noun
+  pattern_family: null

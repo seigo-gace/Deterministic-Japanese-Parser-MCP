@@ -1,0 +1,67 @@
+entry_id: REFERENCE-e55c3e12bb2b
+surface: 敵
+reading: teki
+variants:
+- teki
+- 的
+feature_type: reference
+category: reference
+meaning_candidates:
+- polarity: negative
+  intensity: 0.3
+  target_type: person
+  context: Kaikki/WiktionaryのTag・Category・Glossからreference候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「敵」が実際に使われた文脈をSourceと照合する。
+  meaning: '的: (historical, chiefly Kansai, somewhat derogatory) (by extension from the red-light district usage) term of
+    third-person reference: that guy, that one, he, she, it'
+domain:
+- business
+- casual
+- formal
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E6%95%B5
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「敵」が候補表現として現れる。
+negative_examples:
+- 「敵」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「敵」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''kansai japanese'', ''kind'': ''other'', ''parents'': [], ''source'': ''w''}'
+  - '{''name'': ''pages with 5 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''6 2
+    5 5 0 6 2 5 12 6 6 4 2 20 20''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''4 2 3
+    3 0 4 1 3 15 4 4 2 1 26 27''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 7 3 4 17 7 5 4 1 27 27''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 7 3 5 16 7 6 4 2 25 25''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 7 2 5 18 7 7 4 2 24 24''}'
+  - '{''name'': ''japanese terms with odaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 3 2 3 26 3 3 2 2 29 28''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 6 2 5 20 6 6 3 2 25 25''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''0 8 2 5 17 5 9 3 1 25 24''}'
+  source_pos: pron
+  pattern_family: null

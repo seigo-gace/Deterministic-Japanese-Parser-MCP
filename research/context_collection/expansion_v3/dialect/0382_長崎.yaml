@@ -1,0 +1,63 @@
+entry_id: DIALECT-ee906a1f2e6c
+surface: 長崎
+reading: Nagasaki
+variants:
+- Nagasaki
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「長崎」が実際に使われた文脈をSourceと照合する。
+  meaning: Nagasaki (the capital city of Nagasaki Prefecture, Japan)
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E9%95%B7%E5%B4%8E
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「長崎」が候補表現として現れる。
+negative_examples:
+- 「長崎」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「長崎」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''cities in japan'', ''kind'': ''place'', ''parents'': [''cities'', ''places''], ''source'': ''w'', ''orig'':
+    ''ja:cities in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''cities in nagasaki prefecture, japan'', ''kind'': ''place'', ''parents'': [''cities'', ''places''], ''source'':
+    ''w'', ''orig'': ''ja:cities in nagasaki prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'', ''orig'': ''ja:places
+    in japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''places in nagasaki prefecture, japan'', ''kind'': ''place'', ''parents'': [''places''], ''source'': ''w'',
+    ''orig'': ''ja:places in nagasaki prefecture, japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''prefectural capitals of japan'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:prefectural
+    capitals of japan'', ''langcode'': ''ja''}'
+  - '{''name'': ''pages with 2 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''19 16
+    28 13 24''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''19 16
+    29 13 24''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''42 28 30''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''43 28 29''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''43 28 29''}'
+  source_pos: name
+  pattern_family: null

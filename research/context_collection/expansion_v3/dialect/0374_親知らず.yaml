@@ -1,0 +1,71 @@
+entry_id: DIALECT-37d4ff91ba23
+surface: 親知らず
+reading: oyashirazu
+variants:
+- oyashirazu
+- 親不知
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「親知らず」が実際に使われた文脈をSourceと照合する。
+  meaning: short for 親不知歯 (oyashirazu-ba, literally “parents not-knowing tooth”) a wisdom tooth (from the likelihood that
+    the wisdom teeth do not erupt until after no longer in daily contact with one's parents, due to moving or death)
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E8%A6%AA%E7%9F%A5%E3%82%89%E3%81%9A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「親知らず」が候補表現として現れる。
+negative_examples:
+- 「親知らず」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「親知らず」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - abbreviation
+  - alt-of
+  - historical
+  - archaic
+  - possibly
+  - regional
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''19 4 24 5 27 21''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''20 9 21 4 24 21''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''22 7 23 4 22 23''}'
+  - '{''name'': ''japanese terms with 2 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''27 22 11 10 13 18''}'
+  - '{''name'': ''japanese terms with nakadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''25 4 22 3 24 21''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''21 8 24 3 23 21''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''22 8 22 4 22 22''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''20 4 24
+    2 26 24''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''22 3 24
+    1 26 23''}'
+  - '{''name'': ''teeth'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:teeth'', ''langcode'':
+    ''ja'', ''_dis'': ''7 7 65 5 6 9''}'
+  source_pos: noun
+  pattern_family: null

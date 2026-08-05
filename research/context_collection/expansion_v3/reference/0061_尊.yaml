@@ -1,0 +1,66 @@
+entry_id: REFERENCE-d39f51b99dfd
+surface: 尊
+reading: mikoto
+variants:
+- mikoto
+feature_type: reference
+category: reference
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.3
+  target_type: person
+  context: Kaikki/WiktionaryのTag・Category・Glossからreference候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「尊」が実際に使われた文脈をSourceと照合する。
+  meaning: 'second person personal pronoun: you'
+domain:
+- business
+- casual
+- formal
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E5%B0%8A
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「尊」が候補表現として現れる。
+negative_examples:
+- 「尊」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「尊」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - archaic
+  - derogatory
+  - pronoun
+  - third-person
+  - '{''name'': ''japanese terms read with irregular kanji readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''11 10 9 5 4 4 3 4 4 4 4 4 1 0 5 13 15''}'
+  - '{''name'': ''monarchy'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:monarchy'', ''langcode'':
+    ''ja'', ''_dis'': ''2 2 1 2 11 11 9 11 11 9 2 2 2 0 1 11 13''}'
+  - '{''name'': ''japanese terms prefixed with 御'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''26 26 11 5 8 12 13''}'
+  - '{''name'': "japanese terms read with kun''yomi", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''23 23 10 4 7 8 11 13''}'
+  - '{''name'': ''japanese terms with heiban pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''7 7 10 6 7 30 34''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''18 18 15 12 15 10 12''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''5 3 4 9 7 7 6 7 7 8 4 5 2 0 9 6 9''}'
+  - '{''name'': ''japanese pronouns'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''7 7 8 13
+    15 19 30''}'
+  source_pos: pron
+  pattern_family: null

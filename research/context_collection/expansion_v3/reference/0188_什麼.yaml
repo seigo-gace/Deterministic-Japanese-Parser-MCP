@@ -1,0 +1,57 @@
+entry_id: REFERENCE-d36a8e824dd7
+surface: 什麼
+reading: inmo
+variants:
+- inmo
+- 恁麼
+- 甚麼
+- 恁麽
+feature_type: reference
+category: reference
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.3
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからreference候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「什麼」が実際に使われた文脈をSourceと照合する。
+  meaning: what
+domain:
+- business
+- casual
+- formal
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E4%BB%80%E9%BA%BC
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「什麼」が候補表現として現れる。
+negative_examples:
+- 「什麼」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「什麼」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - rare
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w''}'
+  - '{''name'': ''japanese pronouns'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb''}'
+  - '{''name'': ''japanese terms read with irregular kanji readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb''}'
+  source_pos: pron
+  pattern_family: null

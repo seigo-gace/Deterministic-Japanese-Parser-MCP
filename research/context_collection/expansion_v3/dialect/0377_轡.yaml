@@ -1,0 +1,77 @@
+entry_id: DIALECT-0ae3163a9038
+surface: 轡
+reading: kutsuwa
+variants:
+- 轡 ^
+- kutsuwa
+- kutuwa
+- くつわ
+- 銜
+- 鑣
+- 勒
+- 鞚
+- 鞿
+feature_type: dialect
+category: dialect
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.45
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからdialect候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「轡」が実際に使われた文脈をSourceと照合する。
+  meaning: a bit, the piece of horse tack that is an assembly of components that contacts and controls the horse's mouth,
+    and includes the shanks, rings, cheekpads, and mouthpiece
+domain:
+- casual
+politeness: casual
+generation:
+- all
+community:
+- 地域
+source:
+- https://en.wiktionary.org/wiki/%E8%BD%A1
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「轡」が候補表現として現れる。
+negative_examples:
+- 「轡」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「轡」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - uncommon
+  - historical
+  - government
+  - heraldry
+  - hobbies
+  - lifestyle
+  - monarchy
+  - nobility
+  - politics
+  - '{''name'': ''pages with 5 entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''2 4
+    17 2 12 2 15 15 14 16''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''1 2 18
+    1 13 1 17 15 15 18''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 0 16 4 12 3 17 20 12 15''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''0 0 16 4 14 3 16 19 14 15''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''0 0 18 2 12 2 18 18 13 17''}'
+  - '{''name'': ''horse tack'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''orig'': ''ja:horse tack'',
+    ''langcode'': ''ja'', ''_dis'': ''7 0 39 5 3 0 0 4 4 37''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''18 5 12 2 16 16 14 18''}'
+  - '{''name'': ''japanese terms with multiple readings'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''16 3 13 3 17 19 14 15''}'
+  source_pos: noun
+  pattern_family: null

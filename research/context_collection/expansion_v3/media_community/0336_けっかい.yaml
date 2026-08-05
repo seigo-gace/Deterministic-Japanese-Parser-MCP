@@ -1,0 +1,69 @@
+entry_id: MEDIA_COMMUNITY-3fe6e8b94f05
+surface: けっかい
+reading: kekkai
+variants:
+- kekkai
+feature_type: slang
+category: media_community
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.55
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmedia_community候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「けっかい」が実際に使われた文脈をSourceと照合する。
+  meaning: an old name for the loris, more specifically as presented in curiosity shows
+domain:
+- gaming
+- fandom
+- sns
+politeness: casual
+generation:
+- 10代
+- 20代
+- all
+community:
+- ネット
+- 若者
+source:
+- https://en.wiktionary.org/wiki/%E3%81%91%E3%81%A3%E3%81%8B%E3%81%84
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: false
+positive_examples:
+- 対象文脈で「けっかい」が候補表現として現れる。
+negative_examples:
+- 「けっかい」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「けっかい」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - archaic
+  - buddhism
+  - lifestyle
+  - religion
+  - anime
+  - broadcasting
+  - comics
+  - film
+  - literature
+  - manga
+  - media
+  - publishing
+  - television
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''10 10 10 10 16 1 5 4 4 1 19 2 5 1 2''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''12 12
+    12 12 16 0 1 5 5 1 18 2 2 1 2''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''14 12
+    12 12 16 0 1 5 5 1 18 1 1 1 1''}'
+  - '{''name'': ''buddhism'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:buddhism'', ''langcode'':
+    ''ja''}'
+  source_pos: noun
+  pattern_family: null

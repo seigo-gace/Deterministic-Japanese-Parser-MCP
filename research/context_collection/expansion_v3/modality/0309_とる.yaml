@@ -1,0 +1,77 @@
+entry_id: MODALITY-180a551edac1
+surface: とる
+reading: toru
+variants:
+- とる transitive godan
+- toru
+- とり
+- とった
+- no-table-tags
+- ja-verbconj-row
+- とら
+- tora
+- tori
+- とれ
+- tore
+- とられる
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「とる」が実際に使われた文脈をSourceと照合する。
+  meaning: '取る: to take'
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E3%81%A8%E3%82%8B
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「とる」が候補表現として現れる。
+negative_examples:
+- 「とる」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「とる」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - '{''name'': ''board games'', ''kind'': ''other'', ''parents'': [], ''source'': ''w'', ''orig'': ''ja:board games'', ''langcode'':
+    ''ja''}'
+  - '{''name'': ''japanese godan verbs ending with -ru'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 5 9 8 4 7 4 5 4 5 4 5 4 4 6 5 5 5 4 4''}'
+  - '{''name'': ''japanese links with manual fragments'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 4 5 10 7 4 7 4 5 4 4 4 4 4 4 6 4 6 5 4 4''}'
+  - '{''name'': ''japanese entries with incorrect language header'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''3 1 12 12 21 1 7 1 2 1 6 1 4 1 1 7 2 4 9 2 1''}'
+  - '{''name'': ''japanese links with redundant alt parameters'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 2 9 8 14 2 7 2 3 2 6 2 4 2 2 7 4 8 7 3 2''}'
+  - '{''name'': ''japanese links with redundant wikilinks'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 2 12 6 16 3 7 2 3 2 5 2 4 2 2 6 3 5 10 2 2''}'
+  - '{''name'': ''japanese terms with redundant sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''4 2 12 6 16 3 7 2 3 2 5 2 4 2 2 6 3 5 10 2 2''}'
+  - '{''name'': ''pages with 1 entry'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''2 1 17
+    4 23 2 8 1 2 1 3 1 5 1 1 4 2 5 14 1 1''}'
+  - '{''name'': ''pages with entries'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''4 1 16
+    3 22 1 7 1 1 1 5 1 5 1 1 8 1 4 13 1 1''}'
+  - '{''name'': ''japanese terms with atamadaka pitch accent (tōkyō)'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''1 13 4 17 2 7 1 1 1 4 1 6 1 1 6 2 4 26 1 2''}'
+  source_pos: verb
+  pattern_family: null

@@ -1,0 +1,60 @@
+{
+  "collection_version": "3.0.0-candidate-discovery",
+  "generated_at": "2026-08-05T14:19:03+09:00",
+  "status": "CANDIDATE_TARGET_REACHED",
+  "total_entries": 5000,
+  "existing_v2_raw_rows": 1145,
+  "existing_v2_unique_surfaces": 1144,
+  "merged_existing_duplicates": 1,
+  "new_entries": 3856,
+  "category_quotas": {
+    "slang": 1000,
+    "onomatopoeia": 700,
+    "modality": 500,
+    "honorific": 500,
+    "discourse": 400,
+    "metaphor": 500,
+    "dialect": 400,
+    "media_community": 500,
+    "reference": 300,
+    "epistemic": 200
+  },
+  "category_counts": {
+    "dialect": 400,
+    "discourse": 400,
+    "epistemic": 200,
+    "honorific": 500,
+    "media_community": 500,
+    "metaphor": 500,
+    "modality": 500,
+    "onomatopoeia": 700,
+    "reference": 300,
+    "slang": 1000
+  },
+  "origin_counts": {
+    "kaikki-wiktionary": 2522,
+    "existing-v2-candidate": 1144,
+    "j-ono-data": 565,
+    "living-japanese-slang-dictionary": 769
+  },
+  "license_counts": {
+    "CC BY-SA 4.0 / GFDL": 2522,
+    "確認中": 1913,
+    "MIT": 565
+  },
+  "global_unique_surface_count": 5000,
+  "all_review_status": "needs-evidence",
+  "semantic_completion_claim_allowed": false,
+  "runtime_promotion_allowed": false,
+  "required_next_stage": [
+    "direct occurrence evidence",
+    "independent meaning/context evidence",
+    "license review",
+    "reading and variant review",
+    "positive/negative/boundary validation",
+    "quotation/negation/question/hypothesis/hearsay tests",
+    "external-action risk review",
+    "human review",
+    "independent holdout"
+  ]
+}

@@ -1,0 +1,63 @@
+entry_id: MODALITY-586cdcbfa8aa
+surface: 乾
+reading: Jōyō kanji
+variants:
+- Jōyō kanji
+feature_type: modality
+category: modality
+meaning_candidates:
+- polarity: neutral
+  intensity: 0.65
+  target_type: state
+  context: Kaikki/WiktionaryのTag・Category・Glossからmodality候補として抽出。機能・現役性・日本語意味はReviewする
+  examples:
+  - 「乾」が実際に使われた文脈をSourceと照合する。
+  meaning: northwest
+domain:
+- business
+- formal
+- casual
+politeness: polite
+generation:
+- all
+community:
+- 一般
+- ビジネス
+source:
+- https://en.wiktionary.org/wiki/%E4%B9%BE
+- https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl
+source_version: Kaikki 2026-08-02 / enwiktionary dump 2026-07-06
+license: CC BY-SA 4.0 / GFDL
+review_status: needs-evidence
+external_action_risk: true
+positive_examples:
+- 対象文脈で「乾」が候補表現として現れる。
+negative_examples:
+- 「乾」という文字列を引用しているだけなら、話者自身の意図として確定しない。
+boundary_examples:
+- 否定・疑問・仮定・伝聞のScope内にある「乾」は機能を確定しない。
+provenance:
+  collected_at: '2026-08-05T14:19:03+09:00'
+  origin: kaikki-wiktionary
+  constructed_examples: true
+  meaning_promotion_allowed: false
+  source_tags:
+  - kanji
+  - '{''name'': ''japanese jōyō kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''26 12
+    12 13 12 13 11''}'
+  - '{''name'': ''japanese kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''26 12 12 13
+    12 13 11''}'
+  - '{''name'': ''japanese terms with 1 kanji'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''0 0 22 13 10 11 12 12 9 2 1 5 5''}'
+  - '{''name'': ''japanese terms with non-redundant manual transliterations'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''38 21 3 5 12 16 4''}'
+  - '{''name'': ''japanese terms with non-redundant non-automated sortkeys'', ''kind'': ''other'', ''parents'': [], ''source'':
+    ''w+disamb'', ''_dis'': ''0 0 12 7 1 1 3 4 1 4 12 28 28''}'
+  - '{''name'': "japanese terms read with kan''on", ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'':
+    ''0 0 5 12 0 2 7 10 2 8 5 25 25''}'
+  - '{''name'': ''japanese terms with redundant transliterations'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'',
+    ''_dis'': ''14 31 0 7 17 24 6''}'
+  - '{''name'': ''japanese affixes'', ''kind'': ''other'', ''parents'': [], ''source'': ''w+disamb'', ''_dis'': ''0 0 6 8
+    0 3 8 11 11 9 6 19 19''}'
+  source_pos: character
+  pattern_family: null
