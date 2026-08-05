@@ -56,6 +56,7 @@ jobs:
           pip install -e ".[dev]" build
       - name: Build review assets and approved-only runtime pack
         run: |
+          mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
             --compile-approved \
             --output-root reports/unified-semantic-data \
@@ -105,9 +106,12 @@ jobs:
         run: python -m build
       - name: Verify wheel outside repository and offline at runtime
         run: |
-          python -m venv /tmp/djpmcp-wheel
-          /tmp/djpmcp-wheel/bin/pip install --no-index --find-links dist \
-            deterministic-japanese-parser-mcp
+          python -m venv --system-site-packages /tmp/djpmcp-wheel
+          /tmp/djpmcp-wheel/bin/pip install \
+            --no-index \
+            --no-deps \
+            --force-reinstall \
+            dist/*.whl
           cd /tmp
           /tmp/djpmcp-wheel/bin/python - <<'PY'
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
