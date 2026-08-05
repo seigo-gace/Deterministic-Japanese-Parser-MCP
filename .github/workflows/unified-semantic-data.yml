@@ -15,12 +15,15 @@ on:
       - "dictionaries/system/language_features.d/**"
       - "tools/build_context_semantic_collection.py"
       - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/compile_semantic_candidate_pack.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_candidate_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
       - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
+      - "tests/test_semantic_candidate_runtime.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
       - ".github/workflows/unified-semantic-data.yml"
@@ -37,12 +40,15 @@ on:
       - "dictionaries/system/language_features.d/**"
       - "tools/build_context_semantic_collection.py"
       - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/compile_semantic_candidate_pack.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_candidate_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
       - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
+      - "tests/test_semantic_candidate_runtime.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
       - ".github/workflows/unified-semantic-data.yml"
@@ -133,6 +139,12 @@ jobs:
             --output-root reports/unified-semantic-data \
             --compiled-root dictionaries/system/compiled/semantic_data \
             | tee reports/unified-semantic-data-run.json
+      - name: Compile source-validated candidate-only runtime pack
+        run: |
+          python tools/compile_semantic_candidate_pack.py \
+            --review-root reports/unified-semantic-data \
+            --compiled-root dictionaries/system/compiled/semantic_candidates \
+            | tee reports/semantic-candidate-pack.json
       - name: Verify byte deterministic rebuild
         run: |
           python tools/unified_semantic_data_pipeline.py \
@@ -140,11 +152,17 @@ jobs:
             --context-root work/context-semantic-collection \
             --check \
             | tee reports/unified-semantic-data-determinism.json
+          python tools/compile_semantic_candidate_pack.py \
+            --review-root reports/unified-semantic-data \
+            --compiled-root work/semantic-candidate-check \
+            --check \
+            | tee reports/semantic-candidate-pack-determinism.json
       - name: Verify source enrichment, pipeline and MeaningGraph integration
         run: |
           pytest \
             tests/test_context_semantic_collection.py \
             tests/test_jmdict_semantic_lexicon.py \
+            tests/test_semantic_candidate_runtime.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
             --junitxml=reports/unified-semantic-data-pytest.xml
@@ -178,7 +196,7 @@ jobs:
             --target-ms 10 \
             --hard-ms 50 \
             --output reports/unified-semantic-data-astera-latency.json
-      - name: Build wheel with compiled semantic pack
+      - name: Build wheel with compiled semantic packs
         run: python -m build --wheel
       - name: Verify wheel outside repository and offline at runtime
         run: |
@@ -196,9 +214,13 @@ jobs:
           )
           assert response.meaning_graph.propositions
           assert response.meaning_graph.semantic_hash
+          assert response.metrics["semantic_candidate_pack_available"] == 1
           assert "semantic_pack_available" in response.metrics
           print({
               "propositions": len(response.meaning_graph.propositions),
+              "semantic_candidate_pack_records": response.metrics[
+                  "semantic_candidate_pack_record_count"
+              ],
               "semantic_pack_available": response.metrics["semantic_pack_available"],
               "execution_allowed": response.execution_allowed,
           })
@@ -210,6 +232,7 @@ jobs:
             reports/jmdict-semantic-lexicon.json \
             reports/context-semantic-collection.json \
             reports/unified-semantic-data \
+            dictionaries/system/compiled/semantic_candidates \
             dictionaries/system/compiled/semantic_data \
             2>/dev/null || true
       - name: Upload evidence
@@ -220,6 +243,7 @@ jobs:
           path: |
             reports/jmdict-semantic-lexicon.json
             reports/context-semantic-collection.json
+            reports/semantic-candidate-pack*.json
             reports/unified-semantic-data-*.json
             reports/unified-semantic-data-*.txt
             reports/unified-semantic-data-*.xml
