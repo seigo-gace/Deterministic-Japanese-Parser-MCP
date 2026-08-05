@@ -1,0 +1,26 @@
+{
+  "approved_only": true,
+  "automatic_external_action": false,
+  "outputs": [
+    {
+      "bytes": 23,
+      "path": "indexes/surface-index.json.gz",
+      "sha256": "8b0b8749aba12de93f3cf5d86f9fac9d6de7cac400a17473718f182a34ebb7e9"
+    },
+    {
+      "bytes": 23,
+      "path": "indexes/reading-index.json.gz",
+      "sha256": "8b0b8749aba12de93f3cf5d86f9fac9d6de7cac400a17473718f182a34ebb7e9"
+    },
+    {
+      "bytes": 23,
+      "path": "indexes/record-locator.json.gz",
+      "sha256": "8b0b8749aba12de93f3cf5d86f9fac9d6de7cac400a17473718f182a34ebb7e9"
+    }
+  ],
+  "preserve_ambiguity": true,
+  "record_count": 0,
+  "record_shard_size": 10000,
+  "record_shards": 0,
+  "schema_version": "1.0.0"
+}
