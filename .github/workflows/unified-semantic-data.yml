@@ -13,11 +13,13 @@ on:
       - "dictionaries/system/synonyms.yaml"
       - "dictionaries/system/synonyms.d/**"
       - "dictionaries/system/language_features.d/**"
+      - "tools/build_context_semantic_collection.py"
       - "tools/build_jmdict_semantic_lexicon.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
@@ -33,11 +35,13 @@ on:
       - "dictionaries/system/synonyms.yaml"
       - "dictionaries/system/synonyms.d/**"
       - "dictionaries/system/language_features.d/**"
+      - "tools/build_context_semantic_collection.py"
       - "tools/build_jmdict_semantic_lexicon.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
@@ -113,10 +117,18 @@ jobs:
               "--expected-records", "120000",
           ], check=True)
           PY
+      - name: Normalize and checksum 5000 context candidates
+        run: |
+          python tools/build_context_semantic_collection.py \
+            --input-root research/context_collection/expansion_v3 \
+            --output-root work/context-semantic-collection \
+            --report reports/context-semantic-collection.json \
+            --expected-records 5000
       - name: Build review assets and approved-only runtime pack
         run: |
           python tools/unified_semantic_data_pipeline.py \
             --open-lexicon-root work/jmdict-semantic-lexicon \
+            --context-root work/context-semantic-collection \
             --compile-approved \
             --output-root reports/unified-semantic-data \
             --compiled-root dictionaries/system/compiled/semantic_data \
@@ -125,11 +137,13 @@ jobs:
         run: |
           python tools/unified_semantic_data_pipeline.py \
             --open-lexicon-root work/jmdict-semantic-lexicon \
+            --context-root work/context-semantic-collection \
             --check \
             | tee reports/unified-semantic-data-determinism.json
       - name: Verify source enrichment, pipeline and MeaningGraph integration
         run: |
           pytest \
+            tests/test_context_semantic_collection.py \
             tests/test_jmdict_semantic_lexicon.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
@@ -194,6 +208,7 @@ jobs:
         run: |
           tar -czf reports/unified-semantic-data-evidence.tar.gz \
             reports/jmdict-semantic-lexicon.json \
+            reports/context-semantic-collection.json \
             reports/unified-semantic-data \
             dictionaries/system/compiled/semantic_data \
             2>/dev/null || true
@@ -204,6 +219,7 @@ jobs:
           name: unified-semantic-data-evidence
           path: |
             reports/jmdict-semantic-lexicon.json
+            reports/context-semantic-collection.json
             reports/unified-semantic-data-*.json
             reports/unified-semantic-data-*.txt
             reports/unified-semantic-data-*.xml
