@@ -31,7 +31,7 @@ manifest.json
 10Category配下の5,000 YAML
 ```
 
-空だった`all_entries.jsonl`と`all_entries.csv`は削除し、正本として扱いません。
+`all_entries.jsonl`と`all_entries.csv`は集約Mirrorとして残します。第3段階はこれらへ依存せず、Manifestと5,000 YAMLを直接照合します。
 
 ## 第3段階の処理
 

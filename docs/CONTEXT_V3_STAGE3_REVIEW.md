@@ -51,7 +51,7 @@ research/context_collection/expansion_v3/
 └── 10Category配下の5,000 YAML
 ```
 
-空だった`all_entries.jsonl`と`all_entries.csv`は正本として扱わず削除します。
+`all_entries.jsonl`と`all_entries.csv`は集約Mirrorとして残しますが、第3段階の入力正本には使用しません。第3段階はManifestと5,000 YAMLを直接照合します。
 
 Manifestが保証する現在の境界：
 

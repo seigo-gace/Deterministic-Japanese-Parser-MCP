@@ -114,6 +114,9 @@ def test_stage3_reports_are_byte_deterministic() -> None:
     }
 
 
-def test_empty_legacy_aggregate_files_are_not_canonical_inputs() -> None:
-    assert not (INPUT_ROOT / "all_entries.jsonl").exists()
-    assert not (INPUT_ROOT / "all_entries.csv").exists()
+def test_aggregate_mirrors_are_not_stage3_inputs() -> None:
+    tool_source = TOOL_PATH.read_text(encoding="utf-8")
+    assert "all_entries.jsonl" not in tool_source
+    assert "all_entries.csv" not in tool_source
+    manifest, entries = _inventory()
+    assert manifest["total_entries"] == len(entries) == 5000

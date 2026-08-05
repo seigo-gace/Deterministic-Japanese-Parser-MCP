@@ -40,7 +40,7 @@ research/context_collection/expansion_v3/
 └── 5,000 YAML records under ten category directories
 ```
 
-The empty legacy `all_entries.jsonl` and `all_entries.csv` files are removed and are not canonical inputs.
+`all_entries.jsonl` and `all_entries.csv` remain convenience mirrors. Stage 3 does not use them as canonical inputs; it validates the manifest and all 5,000 YAML records directly.
 
 ## Deterministic triage
 
