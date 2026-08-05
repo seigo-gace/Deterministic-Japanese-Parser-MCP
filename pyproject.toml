@@ -56,6 +56,15 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon/records" = [
   "dictionaries/system/compiled/open_lexicon/records/*.jsonl.gz",
 ]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_candidates" = [
+  "dictionaries/system/compiled/semantic_candidates/*.json",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_candidates/indexes" = [
+  "dictionaries/system/compiled/semantic_candidates/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_candidates/records" = [
+  "dictionaries/system/compiled/semantic_candidates/records/*.jsonl.gz",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data" = [
   "dictionaries/system/compiled/semantic_data/*.json",
 ]
