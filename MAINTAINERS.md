@@ -2,26 +2,26 @@
 
 ## Original author and Project Owner
 
-**Created and maintained by [`@seigo-gace`](https://github.com/seigo-gace).**
+**Created and maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).**
 
-Deterministic Japanese Parser MCP, DJPMCP, and Shiori MCP Server were initiated and are officially directed by the Project Owner identified in [`LICENSE`](LICENSE) and [`GOVERNANCE.md`](GOVERNANCE.md).
+Deterministic Japanese Parser MCP, DJPMCP, and Shiori MCP Server were initiated and are officially directed by Seigo Kato, acting as the Project Owner identified through [`LICENSE`](LICENSE) and [`GOVERNANCE.md`](GOVERNANCE.md).
 
-**本Projectは[`@seigo-gace`](https://github.com/seigo-gace)が作成し、管理しています。**
+**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。**
 
-Deterministic Japanese Parser MCP、DJPMCP、Shiori MCP Serverは、[`LICENSE`](LICENSE)および[`GOVERNANCE.md`](GOVERNANCE.md)に定めるProject Ownerが立ち上げ、公式な方向性を決定しています。
+Deterministic Japanese Parser MCP、DJPMCP、Shiori MCP Serverは、加藤星悟が立ち上げ、[`LICENSE`](LICENSE)および[`GOVERNANCE.md`](GOVERNANCE.md)に定めるProject Ownerとして公式な方向性を決定しています。
 
 ## Current official authority
 
 | Responsibility | Current authority |
 |---|---|
-| Final project decisions | `@seigo-gace` |
-| Official repository and branches | `@seigo-gace` |
-| Roadmap and architecture | `@seigo-gace` |
-| Official releases and packages | `@seigo-gace` |
-| Dictionary and semantic acceptance | `@seigo-gace` |
-| Security and external-action policy | `@seigo-gace` |
-| Project Marks and brand permissions | `@seigo-gace` |
-| CLA acceptance and licensing decisions | `@seigo-gace` |
+| Final project decisions | Seigo Kato / `@seigo-gace` |
+| Official repository and branches | Seigo Kato / `@seigo-gace` |
+| Roadmap and architecture | Seigo Kato / `@seigo-gace` |
+| Official releases and packages | Seigo Kato / `@seigo-gace` |
+| Dictionary and semantic acceptance | Seigo Kato / `@seigo-gace` |
+| Security and external-action policy | Seigo Kato / `@seigo-gace` |
+| Project Marks and brand permissions | Seigo Kato / `@seigo-gace` |
+| CLA acceptance and licensing decisions | Seigo Kato / `@seigo-gace` |
 
 No other maintainer currently has independent authority to publish an official release, change governance, accept a contributor agreement, license Project Marks, or represent the Project Owner.
 
