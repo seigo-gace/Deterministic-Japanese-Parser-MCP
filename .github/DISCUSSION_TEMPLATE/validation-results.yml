@@ -7,6 +7,7 @@ body:
         Codeを書かなくても検証に参加できます。
         ここでは、Campaign結果、怪しい解析、自然な日本語とのズレ、安全性、性能、候補Dataの発見を受け付けます。
 
+        Use this Discussion for validation findings that still need maintainer reproduction and classification.
         A suspicious result is not automatically a confirmed bug. Maintainers will reproduce and classify it before creating an Issue.
 
   - type: input
