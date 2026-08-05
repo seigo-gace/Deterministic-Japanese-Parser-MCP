@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile source-validated, review-pending meanings as candidate-only runtime data.
+"""Compile review-pending meanings into a read-only SQLite candidate index.
 
 Candidate-only records may be searched and exposed as MeaningGraph sense
 candidates. They cannot select a sense, apply pragmatic parameters, create a
@@ -8,12 +8,12 @@ task, or authorize an external action.
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
-import gzip
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
 import shutil
+import sqlite3
 import tempfile
 from typing import Any
 
@@ -32,9 +32,10 @@ PLACEHOLDER_MARKERS = (
     "source確認待ち",
     "meaning candidate from wiktionary-derived data; review required",
 )
+DB_NAME = "semantic-candidates.sqlite3"
 
 
-def json_line(value: Any) -> str:
+def json_text(value: Any) -> str:
     return json.dumps(
         value,
         ensure_ascii=False,
@@ -74,9 +75,30 @@ def meaningful_candidate(candidate: dict[str, Any]) -> bool:
         for key in ("label", "meaning", "interpretation", "gloss")
     ).casefold()
     if not text.strip():
-        glosses = candidate.get("glosses") or []
-        text = " ".join(str(value) for value in glosses).casefold()
-    return bool(text.strip()) and not any(marker in text for marker in PLACEHOLDER_MARKERS)
+        text = " ".join(
+            str(value) for value in candidate.get("glosses") or []
+        ).casefold()
+    return bool(text.strip()) and not any(
+        marker in text for marker in PLACEHOLDER_MARKERS
+    )
+
+
+def compact_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "candidate_id": candidate["candidate_id"],
+        "label": (
+            candidate.get("label")
+            or candidate.get("meaning")
+            or candidate.get("interpretation")
+            or candidate.get("gloss")
+            or next(iter(candidate.get("glosses") or []), candidate["candidate_id"])
+        ),
+        "glosses": list(candidate.get("glosses") or []),
+        "part_of_speech": list(candidate.get("part_of_speech") or []),
+        "domains": list(candidate.get("domains") or []),
+        "evidence_ids": list(candidate.get("evidence_ids") or []),
+        "review_status": candidate.get("review_status", "needs-evidence"),
+    }
 
 
 def candidate_record(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -86,54 +108,91 @@ def candidate_record(record: dict[str, Any]) -> dict[str, Any] | None:
     if blockers.intersection(STRUCTURAL_BLOCKERS):
         return None
     candidates = [
-        dict(candidate)
+        compact_candidate(candidate)
         for candidate in record.get("meaning_candidates", [])
         if isinstance(candidate, dict) and meaningful_candidate(candidate)
     ]
     if not candidates:
         return None
-    selected = dict(record)
-    selected["meaning_candidates"] = candidates
-    selected["semantic_targets"] = ["lexicon"]
-    selected["runtime_mode"] = "candidate-only"
-    selected["candidate_runtime_eligible"] = True
-    selected["runtime_eligible"] = False
-    selected["automatic_sense_selection_allowed"] = False
-    selected["automatic_parameter_application_allowed"] = False
-    selected["automatic_external_action_allowed"] = False
-    return selected
-
-
-def write_gzip(path: Path, payload: bytes) -> dict[str, Any]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("wb") as raw:
-        with gzip.GzipFile(
-            filename="",
-            mode="wb",
-            fileobj=raw,
-            compresslevel=9,
-            mtime=0,
-        ) as handle:
-            handle.write(payload)
     return {
-        "path": str(path),
-        "sha256": sha256_file(path),
-        "bytes": path.stat().st_size,
-        "uncompressed_sha256": hashlib.sha256(payload).hexdigest(),
-        "uncompressed_bytes": len(payload),
+        "record_id": record["record_id"],
+        "source_kind": record.get("source_kind", "unknown"),
+        "lemma": record.get("lemma", ""),
+        "normalized_surfaces": sorted({
+            normalize_key(value)
+            for value in record.get("normalized_surfaces", [])
+            if normalize_key(value)
+        }),
+        "readings": sorted({
+            normalize_key(value)
+            for value in record.get("readings", [])
+            if normalize_key(value)
+        }),
+        "part_of_speech": list(record.get("part_of_speech") or []),
+        "domains": list(record.get("domains") or []),
+        "meaning_candidates": candidates,
+        "runtime_mode": "candidate-only",
+        "automatic_sense_selection_allowed": False,
+        "automatic_parameter_application_allowed": False,
+        "automatic_external_action_allowed": False,
     }
+
+
+def _configure_database(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        PRAGMA page_size=4096;
+        PRAGMA journal_mode=OFF;
+        PRAGMA synchronous=OFF;
+        PRAGMA locking_mode=EXCLUSIVE;
+        PRAGMA temp_store=MEMORY;
+        PRAGMA auto_vacuum=NONE;
+        PRAGMA application_id=1146314064;
+        PRAGMA user_version=1;
+        """
+    )
+
+
+def _create_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE records (
+            record_id TEXT PRIMARY KEY,
+            source_kind TEXT NOT NULL,
+            lemma TEXT NOT NULL,
+            part_of_speech_json TEXT NOT NULL,
+            domains_json TEXT NOT NULL,
+            candidates_json TEXT NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE surfaces (
+            surface TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            PRIMARY KEY (surface, record_id)
+        ) WITHOUT ROWID;
+        CREATE TABLE readings (
+            reading TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            PRIMARY KEY (reading, record_id)
+        ) WITHOUT ROWID;
+        CREATE TABLE meanings (
+            candidate_id TEXT PRIMARY KEY,
+            record_id TEXT NOT NULL
+        ) WITHOUT ROWID;
+        """
+    )
 
 
 def compile_candidates(
     *,
     review_root: Path,
     compiled_root: Path,
-    shard_size: int,
+    shard_size: int = 10000,
 ) -> dict[str, Any]:
+    del shard_size  # retained only for CLI compatibility with the prior format
     source_path = review_root / "review-records.jsonl"
     if not source_path.exists():
         raise FileNotFoundError(source_path)
-    records = []
+    records: list[dict[str, Any]] = []
     excluded = Counter()
     for record in iter_jsonl(source_path):
         selected = candidate_record(record)
@@ -151,80 +210,78 @@ def compile_candidates(
     if compiled_root.exists():
         shutil.rmtree(compiled_root)
     compiled_root.mkdir(parents=True, exist_ok=True)
+    database_path = compiled_root / DB_NAME
+    connection = sqlite3.connect(database_path)
+    try:
+        _configure_database(connection)
+        _create_schema(connection)
+        source_counts = Counter()
+        meaning_candidate_count = 0
+        surface_rows: list[tuple[str, str]] = []
+        reading_rows: list[tuple[str, str]] = []
+        meaning_rows: list[tuple[str, str]] = []
+        record_rows: list[tuple[str, str, str, str, str, str]] = []
 
-    surface_index: dict[str, set[str]] = defaultdict(set)
-    reading_index: dict[str, set[str]] = defaultdict(set)
-    lemma_index: dict[str, set[str]] = defaultdict(set)
-    pos_index: dict[str, set[str]] = defaultdict(set)
-    domain_index: dict[str, set[str]] = defaultdict(set)
-    meaning_index: dict[str, set[str]] = defaultdict(set)
-    locator: dict[str, dict[str, int]] = {}
-    source_counts = Counter()
-    meaning_candidate_count = 0
+        for record in records:
+            record_id = record["record_id"]
+            source_counts[record["source_kind"]] += 1
+            record_rows.append((
+                record_id,
+                record["source_kind"],
+                record["lemma"],
+                json_text(record["part_of_speech"]),
+                json_text(record["domains"]),
+                json_text(record["meaning_candidates"]),
+            ))
+            surface_rows.extend(
+                (surface, record_id)
+                for surface in record["normalized_surfaces"]
+            )
+            reading_rows.extend(
+                (reading, record_id)
+                for reading in record["readings"]
+            )
+            for candidate in record["meaning_candidates"]:
+                meaning_rows.append((candidate["candidate_id"], record_id))
+                meaning_candidate_count += 1
 
-    for number, record in enumerate(records):
-        record_id = record["record_id"]
-        locator[record_id] = {
-            "shard": number // shard_size,
-            "line": number % shard_size + 1,
-        }
-        source_counts[record.get("source_kind", "unknown")] += 1
-        lemma_index[normalize_key(record.get("lemma"))].add(record_id)
-        for surface in record.get("normalized_surfaces", []):
-            surface_index[normalize_key(surface)].add(record_id)
-        for reading in record.get("readings", []):
-            reading_index[normalize_key(reading)].add(record_id)
-        for value in record.get("part_of_speech", []):
-            pos_index[str(value)].add(record_id)
-        for value in record.get("domains", []):
-            domain_index[str(value)].add(record_id)
-        for candidate in record.get("meaning_candidates", []):
-            meaning_index[candidate["candidate_id"]].add(record_id)
-            meaning_candidate_count += 1
-
-    outputs: list[dict[str, Any]] = []
-    indexes = {
-        "surface-index.json.gz": surface_index,
-        "reading-index.json.gz": reading_index,
-        "lemma-index.json.gz": lemma_index,
-        "pos-index.json.gz": pos_index,
-        "domain-index.json.gz": domain_index,
-        "meaning-index.json.gz": meaning_index,
-        "record-locator.json.gz": locator,
-    }
-    for filename, mapping in indexes.items():
-        serializable = {
-            key: sorted(value) if isinstance(value, set) else value
-            for key, value in sorted(mapping.items())
-        }
-        payload = (json_line(serializable) + "\n").encode("utf-8")
-        metadata = write_gzip(compiled_root / "indexes" / filename, payload)
-        metadata["path"] = f"indexes/{filename}"
-        outputs.append(metadata)
-
-    for start in range(0, len(records), shard_size):
-        selected = records[start : start + shard_size]
-        payload = b"".join(
-            (json_line(record) + "\n").encode("utf-8")
-            for record in selected
+        connection.executemany(
+            "INSERT INTO records VALUES (?, ?, ?, ?, ?, ?)",
+            record_rows,
         )
-        relative = f"records/records-{start // shard_size:04d}.jsonl.gz"
-        metadata = write_gzip(compiled_root / relative, payload)
-        metadata["path"] = relative
-        metadata["record_count"] = len(selected)
-        outputs.append(metadata)
+        connection.executemany(
+            "INSERT INTO surfaces VALUES (?, ?)",
+            sorted(set(surface_rows)),
+        )
+        connection.executemany(
+            "INSERT INTO readings VALUES (?, ?)",
+            sorted(set(reading_rows)),
+        )
+        connection.executemany(
+            "INSERT INTO meanings VALUES (?, ?)",
+            sorted(set(meaning_rows)),
+        )
+        connection.commit()
+        connection.execute("VACUUM")
+        connection.execute("PRAGMA optimize")
+        connection.commit()
+    finally:
+        connection.close()
 
+    database_sha = sha256_file(database_path)
     manifest = {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "mode": "source-validated-semantic-candidates",
+        "storage": "sqlite3-read-only-index",
+        "database": {
+            "path": DB_NAME,
+            "sha256": database_sha,
+            "bytes": database_path.stat().st_size,
+        },
         "record_count": len(records),
         "meaning_candidate_count": meaning_candidate_count,
         "source_counts": dict(sorted(source_counts.items())),
         "excluded_counts": dict(sorted(excluded.items())),
-        "record_shard_size": shard_size,
-        "record_shards": (
-            (len(records) + shard_size - 1) // shard_size if records else 0
-        ),
         "candidate_only": True,
         "approved_semantic_effects": False,
         "automatic_sense_selection": False,
@@ -234,7 +291,6 @@ def compile_candidates(
         "source_review_manifest_sha256": sha256_file(
             review_root / "manifest.json"
         ),
-        "outputs": outputs,
     }
     (compiled_root / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -280,7 +336,9 @@ def main() -> int:
             left_digest = directory_digest(first)
             right_digest = directory_digest(second)
             if left_digest != right_digest or left != right:
-                raise RuntimeError("semantic candidate pack is not byte deterministic")
+                raise RuntimeError(
+                    "semantic candidate SQLite pack is not byte deterministic"
+                )
             result = {
                 "status": "CHECKED",
                 "digest": left_digest,
