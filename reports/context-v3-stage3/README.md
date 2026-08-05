@@ -9,7 +9,8 @@
 5,000件すべてを、第3段階の確認待ちQueueへ欠落なく整理しました。
 
 - 第1Review Batch：部分文字列誤抽出疑い39件を全件確認し、38件を除外、`いいかも`1件をEvidence Reviewへ戻した。
-- 第2Review Batch：人名・地名疑いの先頭20件を元YAMLと照合し、modality誤分類10件を除外、honorificとして成立し得る10件をEvidence Reviewへ戻した。
+- Category Batch 001：人名・地名疑い20件を確認し、modality誤分類10件を除外、honorific候補10件をEvidence Reviewへ戻した。
+- Category Batch 002：次の20件を確認し、地名・行政区・駅名・元号18件を除外、`世尊`と地域語`鮎掛`をEvidence Reviewへ戻した。
 
 承認済み0件、Runtime昇格0件、自動Category付替え0件を維持しています。
 
@@ -30,36 +31,48 @@
 |---|---:|
 | Source・License確認待ち | **1,913** |
 | 外部操作Risk確認 | **250** |
-| 人によるEvidence確認へ進める | **1,519** |
-| Category不一致の疑い | **1,270** |
-| Review済み除外 | **48** |
+| 人によるEvidence確認へ進める | **1,521** |
+| Category不一致の疑い | **1,250** |
+| Review済み除外 | **66** |
 | 部分文字列誤抽出の未確認残 | **0** |
 | Runtime昇格 | **0** |
 
-### 第1Review Batch
+### 第1Review Batch｜部分文字列誤抽出
 
 - `かものはし`、`かもしか`、`さかもと`、`何もかも`、`しかも`など38件をepistemic候補から除外。
 - `いいかも`は実際の推量用法を持ち得るためEvidence Reviewへ戻した。
 
-### 第2Review Batch｜Category人名・地名疑い 001
-
-元YAMLのGloss、`source_pos`、source tagsを個別確認した。
+### Category Batch 001｜人名・地名疑い
 
 - **除外10件**：`GHQ/SCAP`、`コモロ`、`京女`、`マスティク島`、`GHQ`、`こどもの日`、`メイ`、`メイヨー`、`ダマスカス`、`ラーマーヤナ`
 - **Evidence Review継続10件**：`入道前太政大臣`、`後京極摂政前太政大臣`、`揚子`、`お釈迦さま`、`よびすて`、`仲尼`、`法性寺入道前関白太政大臣`、`儀同三司母`、`後徳大寺左大臣`、`かわらのさだいじん`
-- modality側10件は組織名・国名・地名・祝日名・人名・作品名・住民呼称であり、modality機能を支持しない。
-- honorific側10件はcourtesy title、courtesy name、敬称形態、敬称省略運用を示すため、Categoryは維持する。ただし現役性・使用範囲・直接用例は未確認なので承認しない。
-- Categoryの自動付替え、Meaning Graph昇格、Intent／Task／External Action／Runtime接続は行っていない。
+
+### Category Batch 002｜人名・地名疑い
+
+- **除外18件**：`奥田`、`上越`、`宮崎県`、`鹿児島県`、`茨木`、`入來`、`永野`、`山陰`、`薩摩川内`、`出水`、`秋津`、`佐賀`、`徳島県`、`名古屋`、`福岡県`、`昭和`、`筑紫`、`高市`
+- **Evidence Review継続2件**：`世尊`、`鮎掛`
+- `世尊`は釈迦を指す敬称名として元Glossがhonorific機能を直接示す。
+- `鮎掛`はsource tagsに`regional`、`kagoshima`、`regional Japanese`があり、地域語としてdialectとの関係が成立し得る。
+- 除外18件は市・県・旧町・地域・駅・元号等のEntityであり、表層単独をdialect表現として扱う根拠がない。
 
 ## Decision Evidence
 
 - `research/context_collection/stage3_decisions/epistemic-substring-decisions-v1.jsonl`
 - `research/context_collection/stage3_decisions/category-name-place-batch-001.jsonl`
+- `research/context_collection/stage3_decisions/category-name-place-batch-002.jsonl`
 - `tools/apply_context_v3_stage3_decisions.py`
 - `tools/apply_context_v3_stage3_category_decisions.py`
 - `reports/context-v3-stage3/decision-summary.json`
 - `reports/context-v3-stage3/category-batch-001-summary.json`
-- `reports/context-v3-stage3/runtime-boundary-after-category-batch-001.json`
+- `reports/context-v3-stage3/category-batch-002-summary.json`
+- `reports/context-v3-stage3/runtime-boundary-after-category-batch-002.json`
+
+## 集計補正
+
+- `name-or-place-candidate`フラグ総数は**210件**。
+- そのうち初期のCategory不一致Queueにいたのは**206件**。
+- 残る4件はSource・License等の別停止区分にいる。
+- Category Batch 001・002で40件を処理したため、同Queueの人名・地名フラグ未確認残は**166件**。
 
 ## 発見した主な問題
 
@@ -67,12 +80,13 @@
 - 1,913件はLicenseが`確認中`で、そのまま採用できない。
 - 1,695件は、割り当てられたCategoryを支持する根拠が不足している。
 - 500件はCategoryとFeature Typeが一致していない。
-- 人名・地名疑いは初期210件で、第2Review Batch後の未確認残は190件。
 - 800件は外部操作への影響確認が必要である。
 
 ## Review PackとArtifact
 
-5,000件を最大20件ずつ、**260 Pack**へ分割しています。GitHub Actionsでは初期Queue、各Decision Ledger適用後Queue、集計、Runtime境界を毎回再生成し、チェックイン済みEvidenceとの差分を検証します。
+5,000件を最大20件ずつ、**260 Pack**へ分割しています。GitHub Actionsでは初期Queue、部分文字列Decision、Category Batch 001、Category Batch 002を順序適用し、各集計・Runtime境界を毎回再生成してチェックイン済みEvidenceとの差分を検証します。
+
+Category ApplicatorはBatch IDから出力名を決定するため、BatchごとにToolを複製せず、明示Decision Ledgerを追加して順序適用します。
 
 ## 固定Digest
 
@@ -83,6 +97,7 @@
 | 全Review Pack | `57c26478b26aef31f39ce1a086b69e481cc955a4cbe711b863c6620b82a973da` |
 | Substring Decision Ledger | `bc907632f87da3443a4d928972e740a849e8096fb5cd3b2ca5d342e00c982c8e` |
 | Category Batch 001 Decision Ledger | `117a32a6fa7d09d49d72e33194fe551fdf58f09dbf6d97f66ed3109d8a0a9386` |
+| Category Batch 002 Decision Ledger | `9b91327b4ff3a882b5ae5d1ec97a9f91cfb10277fbafc10b88ef76b41a23f671` |
 
 ## 次に行うこと
 
@@ -91,7 +106,9 @@
   ↓
 Category人名・地名疑い Batch 001：20件Review完了
   ↓
-Category不一致疑い残：1,270件
+Category人名・地名疑い Batch 002：20件Review完了
+  ↓
+Category不一致疑い残：1,250件
   ↓
 外部操作Risk候補：250件
   ↓
