@@ -15,6 +15,11 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - scripts/build_context_v3.py.gz.b64
+      - .github/workflows/build-context-v3.yml
+      - research/context_collection/CANDIDATE_SURFACES_2026-08-05.md
+      - research/context_collection/expansion_v3/BUILD_REQUEST.json
 
 permissions:
   contents: write
