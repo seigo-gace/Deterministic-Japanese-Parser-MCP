@@ -1,0 +1,47 @@
+name: Sync Project Control README
+
+on:
+  push:
+    branches:
+      - agent/brand-governance-2026-08
+    paths:
+      - README.md
+      - MAINTAINERS.md
+      - GOVERNANCE.md
+      - TRADEMARK.md
+      - CONTRIBUTING.md
+      - CONTRIBUTOR_LICENSE_AGREEMENT.md
+      - DEVELOPER_CERTIFICATE_OF_ORIGIN.md
+      - scripts/sync_project_control_readme.py
+      - .github/workflows/sync-project-control-readme.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-project-control-readme-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Synchronize project-control sections
+        run: python scripts/sync_project_control_readme.py
+
+      - name: Commit synchronized README
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: surface project ownership and governance"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
