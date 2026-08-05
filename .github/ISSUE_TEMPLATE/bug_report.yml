@@ -1,20 +1,28 @@
-name: Bug report / 不具合報告
-description: Report a reproducible parser, dictionary, MCP, validation, or packaging defect.
+name: Confirmed bug or regression / 確認済み不具合・回帰
+description: Report a reproducible parser, dictionary, MCP, validation, packaging, performance, or documentation defect. Validation observations, questions, and ideas belong in Discussions.
 title: "[Bug] "
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        再現可能な不具合を報告してください。秘密情報、個人情報、非公開URLは記載しないでください。
-        Report a reproducible defect. Do not include secrets, personal data, or private URLs.
+        このIssueは、再現できる不具合・回帰の修正追跡専用です。
+        検証への参加、判断に迷う結果、質問、改善アイデアはDiscussionsへ投稿してください。
+
+        This issue form is only for reproducible defects and regressions that require a fix.
+        Use Discussions for validation participation, uncertain findings, questions, and ideas.
+
+        秘密情報、個人情報、認証情報、非公開URL、脆弱性の詳細は記載しないでください。
+        Do not include secrets, personal data, credentials, private URLs, or vulnerability details.
+
   - type: input
     id: version
     attributes:
       label: Version or commit SHA / VersionまたはCommit SHA
-      placeholder: "0.3.1 or fd90b083..."
+      placeholder: "0.4.0 or e86c97ea..."
     validations:
       required: true
+
   - type: dropdown
     id: component
     attributes:
@@ -23,44 +31,76 @@ body:
         - Parser / Meaning Graph
         - Task Graph / External Action Guard
         - Rule / Metaphor / Synonym dictionary
+        - Open Lexicon / Context candidate data
         - Open Dictionary Supply Chain
         - MCP server / stdio
         - Packaging / Offline install
-        - Validation / Performance
-        - Documentation
+        - Validation / Performance contract
+        - Documentation / Public instructions
         - Other
     validations:
       required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact / 影響
+      options:
+        - Incorrect interpretation / 誤解析
+        - Unsafe external-action decision / 外部Action安全性
+        - Crash or startup failure / Crash・起動失敗
+        - Installation or MCP connection failure / Install・接続失敗
+        - Data, source, or license inconsistency / Data・Source・License不整合
+        - Regression from a previous version / 以前のVersionからの回帰
+        - Performance contract failure / 性能契約違反
+        - Documentation defect / 文書の誤り
+        - Other
+    validations:
+      required: true
+
   - type: textarea
     id: input
     attributes:
-      label: Input / 入力
-      description: Provide the smallest input that reproduces the defect. Mask sensitive content.
+      label: Smallest reproducing input or command / 最小再現入力・Command
+      description: Provide the smallest input, command, or file reference that reproduces the defect. Mask sensitive content.
       render: text
     validations:
       required: true
+
   - type: textarea
     id: expected
     attributes:
       label: Expected result / 期待結果
+      description: Describe the deterministic result that should have been returned.
     validations:
       required: true
+
   - type: textarea
     id: actual
     attributes:
       label: Actual result / 実際の結果
+      description: Paste the relevant sanitized output or describe the observed behavior.
     validations:
       required: true
+
   - type: textarea
     id: steps
     attributes:
       label: Reproduction steps / 再現手順
       placeholder: |
-        1. Install ...
+        1. Install or checkout ...
         2. Run ...
         3. Observe ...
     validations:
       required: true
+
+  - type: input
+    id: last_known_good
+    attributes:
+      label: Last known good version / 最後に正常だったVersion
+      description: Optional. Use "unknown" when this is not known.
+      placeholder: "0.3.1, commit SHA, or unknown"
+
   - type: textarea
     id: environment
     attributes:
@@ -68,19 +108,25 @@ body:
       placeholder: "OS, Python version, installation method, MCP client"
     validations:
       required: true
+
   - type: textarea
     id: evidence
     attributes:
-      label: Logs or evidence / Log・Evidence
-      description: Remove secrets and personal data before attaching logs.
+      label: Logs, test result, or evidence / Log・Test結果・Evidence
+      description: Remove secrets, credentials, personal data, and private URLs before attaching evidence.
+
   - type: checkboxes
     id: checks
     attributes:
       label: Confirmation / 確認
       options:
+        - label: I reproduced this defect and provided enough information to reproduce it. / 再現できる不具合であり、再現に必要な情報を記載しました。
+          required: true
         - label: I searched existing issues for the same defect. / 同じ不具合が既に報告されていないか確認しました。
+          required: true
+        - label: This is a bug or regression, not a question, validation observation, or feature idea. / 質問・未確定の検証結果・改善アイデアではなく、不具合または回帰です。
           required: true
         - label: I removed secrets, credentials, personal data, and private URLs. / 秘密情報・認証情報・個人情報・非公開URLを除外しました。
           required: true
-        - label: This is not a vulnerability report. / 脆弱性の詳細報告ではありません。
+        - label: This is not a vulnerability disclosure. / 脆弱性の詳細報告ではありません。
           required: true

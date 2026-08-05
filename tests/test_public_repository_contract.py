@@ -12,6 +12,7 @@ REQUIRED_PUBLIC_FILES = (
     "CONTRIBUTING.md",
     "SECURITY.md",
     "SUPPORT.md",
+    "VALIDATION.md",
     "CHANGELOG.md",
     "docs/README.md",
     "docs/PUBLIC_RELEASE_CHECKLIST.md",
@@ -19,6 +20,14 @@ REQUIRED_PUBLIC_FILES = (
     ".github/pull_request_template.md",
     ".github/ISSUE_TEMPLATE/config.yml",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/DISCUSSION_TEMPLATE/validation-campaigns.yml",
+    ".github/DISCUSSION_TEMPLATE/validation-results.yml",
+    ".github/DISCUSSION_TEMPLATE/japanese-language-review.yml",
+    ".github/DISCUSSION_TEMPLATE/environment-validation.yml",
+    ".github/DISCUSSION_TEMPLATE/evidence-review.yml",
+)
+
+REMOVED_PUBLIC_ISSUE_FORMS = (
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/ISSUE_TEMPLATE/question.yml",
 )
@@ -79,13 +88,25 @@ def test_public_documents_do_not_reference_private_workspaces_or_local_paths() -
     assert not violations, "public repository leakage detected: " + "; ".join(violations)
 
 
-def test_issue_forms_and_pull_request_template_cover_public_safety() -> None:
+def test_issue_entrypoint_is_reserved_for_confirmed_bugs() -> None:
+    config = _read(".github/ISSUE_TEMPLATE/config.yml")
+    bug_form = _read(".github/ISSUE_TEMPLATE/bug_report.yml")
+
+    assert "blank_issues_enabled: false" in config
+    assert "/discussions" in config
+    assert "confirmed" in bug_form.lower()
+    assert "reproducible" in bug_form.lower()
+    assert "not a question" in bug_form.lower()
+
+    unexpected = [path for path in REMOVED_PUBLIC_ISSUE_FORMS if (ROOT / path).exists()]
+    assert not unexpected, f"non-bug public issue forms must be removed: {unexpected}"
+
+
+def test_bug_form_and_pull_request_template_cover_public_safety() -> None:
     combined = "\n".join(
         _read(path)
         for path in (
             ".github/ISSUE_TEMPLATE/bug_report.yml",
-            ".github/ISSUE_TEMPLATE/feature_request.yml",
-            ".github/ISSUE_TEMPLATE/question.yml",
             ".github/pull_request_template.md",
         )
     )
@@ -98,13 +119,43 @@ def test_issue_forms_and_pull_request_template_cover_public_safety() -> None:
         "license",
     )
     missing = [term for term in required_terms if term.lower() not in combined.lower()]
-    assert not missing, f"public contribution forms are missing safeguards: {missing}"
+    assert not missing, f"public bug and pull request forms are missing safeguards: {missing}"
+
+
+def test_discussion_forms_cover_validation_boundaries() -> None:
+    discussion_paths = (
+        ".github/DISCUSSION_TEMPLATE/validation-campaigns.yml",
+        ".github/DISCUSSION_TEMPLATE/validation-results.yml",
+        ".github/DISCUSSION_TEMPLATE/japanese-language-review.yml",
+        ".github/DISCUSSION_TEMPLATE/environment-validation.yml",
+        ".github/DISCUSSION_TEMPLATE/evidence-review.yml",
+    )
+    combined = "\n".join(_read(path) for path in discussion_paths)
+
+    required_terms = (
+        "validation",
+        "reproduce",
+        "secret",
+        "license",
+        "External Action",
+        "runtime",
+        "Discussion",
+        "Bug Issue",
+    )
+    missing = [term for term in required_terms if term.lower() not in combined.lower()]
+    assert not missing, f"discussion validation forms are missing boundaries: {missing}"
+
+    for path in discussion_paths:
+        content = _read(path)
+        assert "body:" in content, f"discussion form missing body: {path}"
+        assert "validations:" in content, f"discussion form missing required fields: {path}"
 
 
 def test_public_documentation_index_links_core_contracts() -> None:
     index = _read("docs/README.md")
     required_links = (
         "../README.md",
+        "../VALIDATION.md",
         "../SUPPORT.md",
         "../CONTRIBUTING.md",
         "../SECURITY.md",

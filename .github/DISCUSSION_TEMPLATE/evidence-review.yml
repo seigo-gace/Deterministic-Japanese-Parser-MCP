@@ -1,0 +1,105 @@
+title: "[Evidence Review] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Context v3の5,000件候補、Open Lexicon、方言・俗語・比喩・慣用・語用表現のEvidence確認用です。
+        候補は未承認です。Source、意味、Reading、Variant、地域・世代・Community、License、安全性を確認するまでRuntimeへ昇格しません。
+
+  - type: input
+    id: pack_entry
+    attributes:
+      label: Pack or entry ID / Pack・Entry ID
+      placeholder: "DIALECT-003 or DIALECT-e976130480e3"
+    validations:
+      required: true
+
+  - type: input
+    id: surface
+    attributes:
+      label: Surface / 表現
+    validations:
+      required: true
+
+  - type: dropdown
+    id: review_area
+    attributes:
+      label: Review area / 確認領域
+      options:
+        - Existence or actual usage / 実在・使用実態
+        - Meaning and context / 意味・文脈
+        - Reading or variant / 読み・表記揺れ
+        - Category classification / 分類
+        - Region, generation, or community / 地域・世代・Community
+        - Source provenance / Source Provenance
+        - License or attribution / License・Attribution
+        - Positive, negative, or boundary examples / 肯定・否定・境界例
+        - Collision or external-action risk / 衝突・外部Action Risk
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: judgment
+    attributes:
+      label: Judgment / 判定
+      options:
+        - Supported by evidence / Evidenceで支持
+        - Partly supported; needs more review / 一部支持・追加確認
+        - Incorrect candidate or metadata / 候補・Metadataが誤り
+        - Duplicate or collision / 重複・衝突
+        - Unable to judge / 判断できない
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_interpretation
+    attributes:
+      label: Meaning, reading, category, and constraints / 意味・読み・分類・制約
+      description: State only what the available evidence supports. Preserve multiple meanings when applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context_scope
+    attributes:
+      label: Region, generation, community, domain, and scope / 地域・世代・Community・Domain・Scope
+      description: Use "unknown" for fields that are not supported by evidence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: source_license
+    attributes:
+      label: Public source, version, license, and attribution / 公開Source・Version・License・Attribution
+      description: Provide links and identify the applicable license. Do not paste proprietary definitions or corpus sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Self-created positive, negative, ambiguous, or collision examples / 自作の肯定・否定・曖昧・衝突例
+      description: Keep examples short and original.
+      render: text
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: Runtime and External Action risk / Runtime・外部Action Risk
+      description: Explain whether an incorrect interpretation could affect commands, deletion, publication, permission, or other external actions.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission confirmation / 投稿確認
+      options:
+        - label: I did not copy proprietary dictionary definitions or third-party corpus sentences. / Proprietary辞書定義や第三者Corpus文を転載していません。
+          required: true
+        - label: I identified public source and license information for external material. / 外部Materialの公開SourceとLicense情報を明示しました。
+          required: true
+        - label: I removed secrets, credentials, personal data, and private URLs. / 秘密情報・認証情報・個人情報・非公開URLを除外しました。
+          required: true
+        - label: I understand that this review does not automatically approve runtime promotion. / このReviewだけではRuntime昇格を自動承認しないことを理解しています。
+          required: true

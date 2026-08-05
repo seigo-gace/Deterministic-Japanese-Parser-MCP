@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Validation participation and results / 検証参加・検証結果
+    url: https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions
+    about: Join validation campaigns, report suspicious results, review Japanese interpretation, or help verify candidate data in Discussions.
+  - name: Questions and setup help / 質問・導入支援
+    url: https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions
+    about: Ask about installation, MCP configuration, Python API usage, outputs, and validation commands in Discussions.
+  - name: Ideas and design discussion / 改善案・設計検討
+    url: https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions
+    about: Discuss ideas before they become confirmed implementation work. Do not open an Issue for an unverified idea.
   - name: Security vulnerability / 脆弱性報告
     url: https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/security
-    about: Use private vulnerability reporting when available. Do not publish exploit details in a public issue.
+    about: Use private vulnerability reporting when available. Do not publish exploit details in a public Issue or Discussion.

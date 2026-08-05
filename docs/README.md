@@ -7,10 +7,25 @@ This directory contains the public documentation required to use, validate, and 
 ## Start here / 最初に読む
 
 - [`../README.md`](../README.md) — 概要、Install、MCP設定、Python API、性能・安全性・検証契約
-- [`../SUPPORT.md`](../SUPPORT.md) — Bug、質問、改善提案の提出方法
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — Contribution要件と検証手順
+- [`../VALIDATION.md`](../VALIDATION.md) — 第三者検証への参加方法、Discussion Category、Issue化条件
+- [`../SUPPORT.md`](../SUPPORT.md) — Discussions、確認済みBug Issue、Security報告の使い分け
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — Code・Data Contribution要件と検証手順
 - [`../SECURITY.md`](../SECURITY.md) — 脆弱性の非公開報告手順
 - [`../CHANGELOG.md`](../CHANGELOG.md) — Public変更履歴
+
+## Community validation / 公開検証
+
+GitHub Discussionsは、第三者検証、判断に迷う結果、日本語表現の確認、導入環境検証、候補DataのEvidence Review、質問、初期アイデアを扱います。
+
+GitHub Issuesは、Maintainerが確認した再現可能な不具合・回帰の修正追跡に限定します。Discussionの投稿は、自動的にBug、採用仕様、Runtime辞書Entry、実装Taskにはなりません。
+
+Discussion Category Form：
+
+- `.github/DISCUSSION_TEMPLATE/validation-campaigns.yml`
+- `.github/DISCUSSION_TEMPLATE/validation-results.yml`
+- `.github/DISCUSSION_TEMPLATE/japanese-language-review.yml`
+- `.github/DISCUSSION_TEMPLATE/environment-validation.yml`
+- `.github/DISCUSSION_TEMPLATE/evidence-review.yml`
 
 ## Architecture and contracts / 設計・契約
 
@@ -28,7 +43,7 @@ This directory contains the public documentation required to use, validate, and 
 
 ## Validation evidence / 検証Evidence
 
-GitHub Actionsの`CI`と`Release Readiness`が公開Evidenceの正本です。
+GitHub Actionsの`CI`と`Release Readiness`が実装検証Evidenceの正本です。第三者のCommunity Validationは、対応するDiscussion、確認済みBug Issue、修正Pull Requestを相互Linkして保持します。
 
 - Python 3.10 / 3.12
 - Source-tree pytest
@@ -44,6 +59,6 @@ GitHub Actionsの`CI`と`Release Readiness`が公開Evidenceの正本です。
 - 20x dictionary scale
 - Astera persistent local stdio latency contract
 
-実測値を文書へ掲載する場合は、対応するGitHub Actions Run、Commit SHA、Artifact DigestをPRへ記録します。検証前の数値をPublic実績として扱いません。
+実測値を文書へ掲載する場合は、対応するGitHub Actions Run、Commit SHA、Artifact DigestをPull Requestへ記録します。検証前の数値をPublic実績として扱いません。
 
 When publishing measured results, record the matching GitHub Actions run, commit SHA, and artifact digest in the pull request. Unverified measurements are not treated as public results.
