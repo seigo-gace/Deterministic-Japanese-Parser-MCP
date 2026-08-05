@@ -84,6 +84,25 @@ class Token(BaseModel):
     lexical_status: Literal["MATCHED", "AMBIGUOUS", "NO_MATCH"] = "NO_MATCH"
 
 
+class LexicalNode(BaseModel):
+    lexical_node_id: str
+    surface: str
+    normalized: str
+    reading: str | None = None
+    pos: list[str] = Field(default_factory=list)
+    source_span: OriginalSpan
+    candidates: list[LexicalCandidate] = Field(default_factory=list)
+    candidate_scores: dict[str, int] = Field(default_factory=dict)
+    candidate_evidence: dict[str, list[str]] = Field(default_factory=dict)
+    selected_record_id: str | None = None
+    resolution_reason: str = "no_candidates"
+    resolution_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    related_proposition_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    related_sense_ids: list[str] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.AMBIGUOUS
+
+
 class Intent(BaseModel):
     type: str
     value: str
@@ -212,11 +231,12 @@ class DecisionStateChange(BaseModel):
 
 
 class MeaningGraph(BaseModel):
-    graph_version: str = "2.1.0"
+    graph_version: str = "2.2.0"
     semantic_hash: str = ""
     entities: list[Entity] = Field(default_factory=list)
     clauses: list[Clause] = Field(default_factory=list)
     propositions: list[Proposition] = Field(default_factory=list)
+    lexical_nodes: list[LexicalNode] = Field(default_factory=list)
     scope_edges: list[ScopeEdge] = Field(default_factory=list)
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     decision_state_changes: list[DecisionStateChange] = Field(
