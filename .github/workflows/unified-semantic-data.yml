@@ -6,16 +6,19 @@ on:
     paths:
       - "dictionaries/system/lexicon.d/**"
       - "research/context_collection/expansion_v3/**"
+      - "research/semantic_sources/**"
       - "dictionaries/domain_packs/**"
       - "dictionaries/user_packs/**"
       - "dictionaries/system/metaphors/**"
       - "dictionaries/system/synonyms.yaml"
       - "dictionaries/system/synonyms.d/**"
       - "dictionaries/system/language_features.d/**"
+      - "tools/build_jmdict_semantic_lexicon.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
       - ".github/workflows/unified-semantic-data.yml"
@@ -23,16 +26,19 @@ on:
     paths:
       - "dictionaries/system/lexicon.d/**"
       - "research/context_collection/expansion_v3/**"
+      - "research/semantic_sources/**"
       - "dictionaries/domain_packs/**"
       - "dictionaries/user_packs/**"
       - "dictionaries/system/metaphors/**"
       - "dictionaries/system/synonyms.yaml"
       - "dictionaries/system/synonyms.d/**"
       - "dictionaries/system/language_features.d/**"
+      - "tools/build_jmdict_semantic_lexicon.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "src/deterministic_japanese_parser_mcp/semantic_engine.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - "tests/test_semantic_data_runtime.py"
       - ".github/workflows/unified-semantic-data.yml"
@@ -54,21 +60,76 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]" build
+      - name: Download checksum-locked JMdict semantic source
+        run: |
+          mkdir -p work reports
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import urllib.request
+
+          lock = json.loads(
+              Path("research/semantic_sources/jmdict/source-lock.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          target = Path("work/JMdict_e.gz")
+          urllib.request.urlretrieve(lock["url"], target)
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          if digest != lock["sha256"]:
+              raise SystemExit(
+                  f"JMdict source checksum mismatch: expected={lock['sha256']} actual={digest}"
+              )
+          print(json.dumps({
+              "dataset": lock["dataset"],
+              "version": lock["version"],
+              "sha256": digest,
+              "bytes": target.stat().st_size,
+          }, ensure_ascii=False, sort_keys=True))
+          PY
+      - name: Restore 120k JMdict meaning candidates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import subprocess
+          import sys
+
+          lock = json.loads(
+              Path("research/semantic_sources/jmdict/source-lock.json").read_text(
+                  encoding="utf-8"
+              )
+          subprocess.run([
+              sys.executable,
+              "tools/build_jmdict_semantic_lexicon.py",
+              "--input", "work/JMdict_e.gz",
+              "--lexicon-root", "dictionaries/system/lexicon.d",
+              "--output-root", "work/jmdict-semantic-lexicon",
+              "--report", "reports/jmdict-semantic-lexicon.json",
+              "--source-version", lock["version"],
+              "--expected-sha256", lock["sha256"],
+              "--expected-records", "120000",
+          ], check=True)
+          PY
       - name: Build review assets and approved-only runtime pack
         run: |
-          mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/jmdict-semantic-lexicon \
             --compile-approved \
             --output-root reports/unified-semantic-data \
             --compiled-root dictionaries/system/compiled/semantic_data \
             | tee reports/unified-semantic-data-run.json
       - name: Verify byte deterministic rebuild
         run: |
-          python tools/unified_semantic_data_pipeline.py --check \
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/jmdict-semantic-lexicon \
+            --check \
             | tee reports/unified-semantic-data-determinism.json
-      - name: Verify pipeline and MeaningGraph integration
+      - name: Verify source enrichment, pipeline and MeaningGraph integration
         run: |
           pytest \
+            tests/test_jmdict_semantic_lexicon.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
             --junitxml=reports/unified-semantic-data-pytest.xml
@@ -102,8 +163,8 @@ jobs:
             --target-ms 10 \
             --hard-ms 50 \
             --output reports/unified-semantic-data-astera-latency.json
-      - name: Build distribution with compiled semantic pack
-        run: python -m build
+      - name: Build wheel with compiled semantic pack
+        run: python -m build --wheel
       - name: Verify wheel outside repository and offline at runtime
         run: |
           python -m venv --system-site-packages /tmp/djpmcp-wheel
@@ -131,6 +192,7 @@ jobs:
         if: always()
         run: |
           tar -czf reports/unified-semantic-data-evidence.tar.gz \
+            reports/jmdict-semantic-lexicon.json \
             reports/unified-semantic-data \
             dictionaries/system/compiled/semantic_data \
             2>/dev/null || true
@@ -140,6 +202,7 @@ jobs:
         with:
           name: unified-semantic-data-evidence
           path: |
+            reports/jmdict-semantic-lexicon.json
             reports/unified-semantic-data-*.json
             reports/unified-semantic-data-*.txt
             reports/unified-semantic-data-*.xml
