@@ -618,8 +618,6 @@ Program CodeはMIT Licenseで無料利用・改変・再配布できます。た
 外部ContributionはDCOが必須です。実質的なCode、辞書、Gold、設計、Release、Security、Governance変更は、Merge前にProject Ownerが受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)を必要とします。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
 <!-- project-control-ja:end -->
 
-
-
 ### License
 
 Program CodeはMIT Licenseです。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照してください。
@@ -865,8 +863,6 @@ Program code is free to use, modify, and redistribute under the MIT License. The
 
 External contributions require DCO sign-off. Substantive code, dictionary, Gold, design, release, security, or governance contributions require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 <!-- project-control-en:end -->
-
-
 
 ### License
 
