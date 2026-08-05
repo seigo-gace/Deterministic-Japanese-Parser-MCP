@@ -1,33 +1,34 @@
 # Dictionaries
 
-`system/` contains the versioned defaults distributed by the project. `user/` contains local overrides and starts empty.
+`system/` contains versioned project defaults. `user/` contains local overrides.
+
+## Structure
 
 ```text
 dictionaries/
 ├── system/
-│   ├── metaphors/
-│   │   ├── 01_operations_security.json
-│   │   ├── 02_development_change.json
-│   │   ├── 03_quality_validation.json
-│   │   ├── 04_project_execution.json
-│   │   ├── 05_scope_governance.json
-│   │   ├── 06_risk_decision.json
-│   │   ├── 07_analysis_problem_solving.json
-│   │   ├── 08_communication_organization.json
-│   │   ├── 09_system_information.json
-│   │   ├── 10_process_workflow.json
-│   │   ├── 11_control_reversibility.json
-│   │   ├── 12_general.json
-│   │   ├── 13_everyday_instruction.json
-│   │   ├── 14_business_communication.json
-│   │   ├── 15_development_operations.json
-│   │   ├── 16_document_analysis.json
-│   │   └── manifest.json
-│   ├── rules/
-│   │   ├── one YAML file per original intent type
-│   │   └── common_usage_expansion.yaml
+│   ├── metaphors/                     # Project-reviewed metaphor and pragmatic entries
+│   ├── rules/                         # Deterministic intent and constraint rules
 │   ├── synonyms.yaml
-│   └── task_templates.yaml
+│   ├── synonyms.d/
+│   ├── task_templates.yaml
+│   ├── task_templates.d/
+│   ├── language_features.d/
+│   ├── lexicon.d/                     # Auditable 120,000-record source snapshot
+│   │   └── cc-by-sa/
+│   │       ├── release-...-0001.jsonl.gz
+│   │       ├── ...
+│   │       └── release-...-0012.jsonl.gz
+│   └── compiled/
+│       ├── language_features.d/
+│       └── open_lexicon/              # Runtime form generated from the source snapshot
+│           ├── manifest.json
+│           ├── indexes/
+│           └── records/
+│               ├── records-0000.jsonl.gz
+│               ├── ...
+│               └── records-0011.jsonl.gz
+├── sources/                            # Provenance ledger
 └── user/
     ├── metaphor.json
     ├── rules.yaml
@@ -35,48 +36,56 @@ dictionaries/
     └── task_templates.yaml
 ```
 
+## Why the 120,000 records are split
+
+The records are split only as files. They are not separate dictionaries.
+
+- The repository source snapshot is divided into **12 files of 10,000 records** so it can be audited, rebuilt, and compared deterministically.
+- The runtime copy is also divided into **12 compact record files**, with indexes that map every surface, reading, and record ID to the correct record.
+- Before the server reports ready, the runtime loads all 12 compact files and verifies that the total is exactly **120,000**.
+- Requests use the complete index and the complete preloaded record set. No shard operates independently.
+
+In other words, this is one dictionary stored in manageable volumes, similar to one reference work divided into several books with a shared index.
+
+The source snapshot remains in the repository for provenance and reproducible rebuilding. Release wheels contain only the compiled runtime copy, so users do not receive two duplicate copies of the same 120,000 records.
+
 ## Current volume
 
-- Metaphor / idiomatic expressions: **200**
-- Deterministic intent patterns: **213**
-- Intent types: **21**
-- Canonical synonym groups: **40**
-- Task / workflow templates: **39**
-- Workflows: **18**
-- Gold Corpus cases: **271**
+| Data | Count |
+|---|---:|
+| Metaphor, idiom, and pragmatic expressions | **452** |
+| Deterministic intent rules | **339** |
+| Intent types | **21** |
+| Canonical synonym groups | **100** |
+| Task and workflow templates | **63** |
+| Workflows | **42** |
+| Gold validation cases | **649** |
+| Open lexical records | **120,000** |
+| Unique lemmas | **119,092** |
+| Exact surfaces | **154,921** |
+| Readings | **126,936** |
+| Ambiguous same-surface entries | **1,711** |
 
-## Research and adoption policy
+## Promotion and safety rules
 
-Dictionary expansion starts with a broad candidate list. Candidates are reviewed for actual or likely use, meaning, speech intent, domain, literal-use collision, existing-entry overlap, and ability to create a natural Gold case.
-
-Usage review may refer to:
-
-- NINJAL BCCWJ frequency and usage resources
-- NINJAL CEJC everyday-conversation vocabulary and discourse resources
-- NINJAL corpus portal and Japanese web-corpus resources
-- official GitHub, Digital Agency, and Microsoft technical documentation
-
-External dictionary definitions and corpus passages are not copied. `interpretation` values are project-authored descriptions derived from the intended runtime behavior.
-
-The full August 2026 candidate review, accepted entries, held entries, rejected entries, and reasons are recorded in [`docs/DICTIONARY_EXPANSION_2026-08.md`](../docs/DICTIONARY_EXPANSION_2026-08.md).
-
-## Mandatory rules
-
-- System entries are project-authored and versioned.
 - Generated proposals never merge automatically.
-- A metaphor surface or alias may belong to only one canonical metaphor entry.
-- Short or highly polysemous metaphor surfaces require `context_policy: required_any` unless a specific reason is documented.
-- Synonym surfaces may belong to multiple canonical groups; the Canonicalizer preserves the candidate set instead of hiding the collision.
-- Every new metaphor expression requires an interpretation, context, domain, version, and Gold Corpus case.
-- Every new intent rule must compile, contain an indexable mandatory literal, and fire in at least one Gold Corpus case.
-- Every workflow must use contiguous ordered steps and include preparation, execution, verification, and recording where applicable.
-- Manifest counts, dictionary counts, Gold coverage, indexed/exhaustive parity, latency, and offline installation must pass before merge.
+- Every promoted record keeps its source dataset, version, license, source ID, and source hash.
+- Open lexical records provide lexical identity candidates only.
+- Readings are not promoted into orthographic aliases.
+- Imported entries are not automatically promoted into reviewed synonyms, semantic senses, intents, tasks, pragmatic meanings, or external actions.
+- Same-surface ambiguity is preserved instead of being collapsed.
+- Unresolved candidates remain unresolved.
+- System dictionaries and user overrides remain separate.
+- Manifest counts, full index coverage, deterministic rebuilds, offline installation, regression tests, and performance gates must pass before merge.
 
 ## Validation
 
 ```bash
+python tools/lexicon_validator.py
 python tools/validator.py
 pytest
 python scripts/performance_contract.py --check --max-ready-ms 10
 python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
 ```
+
+The dedicated `Compile 120k Open Lexicon` workflow rebuilds all 120,000 records in a temporary directory, compares the result with the checked-in runtime assets, proves that all 12 runtime shards are loaded as one dictionary, and never writes back to a branch.

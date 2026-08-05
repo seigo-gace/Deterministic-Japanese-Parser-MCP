@@ -47,22 +47,6 @@ where = ["src"]
   "dictionaries/system/compiled/language_features.d/manifest.json",
   "dictionaries/system/compiled/language_features.d/*.b64",
 ]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/cc0" = [
-  "dictionaries/system/lexicon.d/cc0/*.jsonl",
-  "dictionaries/system/lexicon.d/cc0/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/apache-2.0" = [
-  "dictionaries/system/lexicon.d/apache-2.0/*.jsonl",
-  "dictionaries/system/lexicon.d/apache-2.0/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/cc-by-sa" = [
-  "dictionaries/system/lexicon.d/cc-by-sa/*.jsonl",
-  "dictionaries/system/lexicon.d/cc-by-sa/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/lexicon.d/copyleft-other" = [
-  "dictionaries/system/lexicon.d/copyleft-other/*.jsonl",
-  "dictionaries/system/lexicon.d/copyleft-other/*.jsonl.gz",
-]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon" = [
   "dictionaries/system/compiled/open_lexicon/manifest.json",
 ]

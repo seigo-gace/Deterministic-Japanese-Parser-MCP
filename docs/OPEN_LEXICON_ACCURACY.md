@@ -2,134 +2,157 @@
 
 ## 1. 目的
 
-このContractは、Open Lexiconの件数、読込成功、速度だけではなく、取得元と加工後辞書の一致、完全一致検索の再現率、包含語・部分文字列による誤一致をReleaseごとに検証する。
+このContractは、Open Lexiconが「12万件ある」と表示されるだけでなく、次をReleaseごとに確認するためのものです。
 
-対象は語彙識別情報である。語義、Intent、Task、Metaphor、Pragmatics、External Actionの意味精度を、このContractだけで保証するものではない。
+- Repository内のSource Snapshotが正確に120,000件ある
+- 12分割されたSourceから、同じ120,000件のRuntime Dataを再構築できる
+- 全RecordがSurface、Reading、Record LocatorのIndexへ接続されている
+- ParserEngineが分割Fileを一つの辞書として読み込む
+- 多義語を一件へ潰さない
+- 語彙情報をIntent、Task、意味、外部操作へ勝手に昇格しない
+- Offline配布物だけで起動できる
 
-## 2. 発見した旧構造の欠陥
+対象は語彙識別情報です。12万語すべての意味理解・語用理解・実行意図を保証するものではありません。
 
-旧12万語Snapshotでは、同じJMdict Entryの全表記と全読みを、各表記RecordへCross Productで登録していた。さらに、読みをCanonical Surfaceへ混ぜ、Canonicalizerが日本語文中の任意部分文字列を検索していた。
+## 2. 「分割」の意味
 
-その結果、旧Snapshotでは次の入力だけで無関係なCanonical候補が発生した。
+12万件は、用途の違う二つの形でRepositoryへ置かれています。
 
-```text
-UIは維持する。APIだけ変更しろ。 → 73件
-これはテストです。                  → 38件
-公園を確認する。                    → 30件
-```
-
-搭載件数と速度は条件を満たしていたが、語彙認識のPrecisionを満たしていなかった。
-
-## 3. 修正した不変条件
-
-- JMdictの1 Entryを1 Source-traceable Recordとして保持する。
-- `keb`を表記として保持し、`reb`を読みMetadataとして分離する。
-- `re_restr`と`re_nokanji`を`reading_mappings`へ保持する。
-- 読みをOrthographic AliasまたはCanonical Synonymへ自動昇格しない。
-- Open Lexiconは`exact_only_groups`として扱う。
-- Projectが意味・用法をReviewしたSynonymだけが文中Trie検索の対象になる。
-- 異なる完全一致語を、片方の文字列がもう片方へ含まれるという理由だけで同一視しない。
-- 語義、Synonym Sense、Intent、Task、Metaphor、Pragmatics、External ActionはBase Lexiconへ自動昇格しない。
-
-## 4. Release Accuracy Gate
-
-Release Readinessは公式JMdict Dumpと、加工後のRuntime Packを独立経路で照合する。
-
-### Source Fidelity
-
-加工後の全Recordについて次を照合する。
-
-- Source Entry ID
-- Source SHA-256
-- Lemma
-- Orthographic Surface
-- Reading
-- Reading Restriction
-- No-kanji Reading Flag
-- Part of Speech
-- Domain
-- Usage Label
-- Review Status
-- Semantic Field非混入
-
-### Exact Recall
-
-加工後の全Surfaceを単独入力し、期待するCanonical候補集合と完全一致することを検証する。同形異義Surfaceは候補を一件へ潰さず、Sourceに存在する全候補を保持する。
-
-### Precision
-
-- 別語である短い語と長い包含語を20,000組検証する。
-- Open Lexicon Surfaceを通常文へ埋め込んだ20,000文で、Exact-only語彙が文中部分一致として漏れないことを検証する。
-- Project-authored Synonymの文中検索機能は維持する。
-
-## 5. 2026-08-04 検証結果
-
-Source：公式JMdict
+### Source Snapshot
 
 ```text
-Source SHA-256
-9a46dadf9e2df7500222fc6024045e2252946102a2c4a29a2ca7228f986e57e6
+dictionaries/system/lexicon.d/cc-by-sa/
+├── release-...-0001.jsonl.gz  # 10,000件
+├── ...
+└── release-...-0012.jsonl.gz  # 10,000件
 ```
 
-| 検証項目 | 結果 |
+これは出典、License、加工前後の追跡、再構築のための正本です。
+
+### Runtime Data
+
+```text
+dictionaries/system/compiled/open_lexicon/
+├── manifest.json
+├── indexes/
+└── records/
+    ├── records-0000.jsonl.gz  # 10,000件
+    ├── ...
+    └── records-0011.jsonl.gz  # 10,000件
+```
+
+これは高速検索のためにSource Snapshotから決定論的に作った実行用Dataです。
+
+Fileが12個に分かれていても、Runtimeでは一つの辞書として扱います。起動準備中に全12Fileを読み込み、合計が120,000件でなければ起動を成立させません。共通IndexとRecord Locatorが、表記・読み・Record IDを正しいRecordへ接続します。
+
+## 3. 現在のRepository Snapshot
+
+現在の`main`に固定されているCompiled Manifestは次の内容です。
+
+| 項目 | 現在値 |
 |---|---:|
-| Runtime Record | 120,000 / 120,000 一致 |
-| Source Record発見 | 120,000 / 120,000 |
-| Source Fidelity | 120,000 / 120,000 |
-| Unique Exact Surface | 154,918 |
-| Exact Surface Lookup | 154,918 / 154,918 |
-| 同形異義Surface | 962、全候補保持 |
-| 包含語Precision | 20,000 / 20,000 |
-| 文中部分一致汚染 | 20,000 / 20,000で発生0 |
-| Unique Canonical Lemma | 119,092 |
-| 正規化した重複Reading Element | 1 |
-| Accuracy Error | 0 |
+| Runtime Record | **120,000** |
+| Sourceの実データShard | **12** |
+| Runtime Record Shard | **12** |
+| 1 Shardの基準件数 | **10,000** |
+| Unique Lemma | **119,092** |
+| Unique Exact Surface | **154,921** |
+| Unique Reading | **126,936** |
+| 同じSurfaceに複数Recordがある件数 | **1,711** |
+| Part-of-speech Key | **70** |
+| Domain Key | **93** |
+| Usage-label Key | **46** |
+| Record Locator Coverage | **120,000 / 120,000** |
+| Runtime Lookup方式 | **Compiled Index** |
 
-JMdict内に完全に同一のReading Elementが一件だけ重複していた。Schemaの決定論的重複除去と同じ方法で一件へ正規化し、意味・制約・表記の情報損失がないことを確認した。
+Source Datasetは`JMdict`、現在の固定Source Versionは`sha256-6de18f9e1bcb`、Source Licenseは`CC-BY-SA-4.0`です。
 
-## 6. 回帰・Offline・安全性
+## 4. 現在のRelease Gate
 
-Accuracy修正済み12万語Wheelで次を再検証した。
+### Source Snapshot Gate
 
-- 452 Metaphor
-- 339 Rule
-- 649 Gold Case
-- pytest 74件
-- Python 3.10／3.12
-- Repository外Offline Install
-- Runtime Network Downloadなし
-- Indexed／Exhaustive意味同値
-- External Action Fail Closed
-- 20倍辞書：6,780 Rule／9,040 Metaphor
-- compileall
+全120,000 Recordについて次を検査します。
 
-## 7. 性能
+- `record_id`と`lemma`の存在
+- Record IDの重複がないこと
+- `review_status=approved`
+- Dataset、Version、License、Source ID、Source SHA-256の存在
+- 意味、Synonym、Intent、Taskなどの未承認Fieldが混入していないこと
+- 12個の実データShardの合計が120,000件であること
 
-精度修正済み12万語Snapshotでの実測。
+### Deterministic Rebuild Gate
 
-| 境界 | 実測 |
-|---|---:|
-| Astera常駐stdio初回 | 4.196ms |
-| Astera常駐stdio p95 | 3.509ms |
-| Astera常駐stdio最大 | 3.588ms |
-| Kernel複合文 p95 | 1.561ms |
-| 20倍辞書複合文 p95 | 2.361ms |
-| 2万文字Rule Index p95 | 1.105ms |
-| 2万文字Metaphor Index p95 | 1.117ms |
+Repositoryの12 Source ShardからRuntime Dataを一時Directoryへ再構築します。
 
-保証対象は`LowLatencyClientSession`による常駐local stdio境界である。Upstream MCP ClientのDiagnostic計測は約91msであり、保証経路として扱わない。
+- Expected Record：120,000
+- Runtime Record Shard：12
+- 全IndexとRecord Fileを再生成
+- Checked-in Runtime DataとFile単位で比較
+- 差分が一つでもあれば失敗
 
-## 8. 実行Command
+### Full Index Coverage Gate
+
+全120,000 Runtime Recordについて次を確認します。
+
+- Record Locatorに存在する
+- Exact Surface Indexに存在する
+- Reading MappingがReading Indexに存在する
+- Canonical Groupと表記が一致する
+- Homograph IndexがSurface Indexの複数候補集合と一致する
+
+### Runtime Integration Gate
+
+ParserEngineを実際に起動し、次を確認します。
+
+- `lookup_backend=compiled-index`
+- `record_count=120000`
+- Runtimeが利用可能
+- 全12 Runtime Shardを起動準備中に読込済み
+- Preload後の合計が120,000件
+- 実入力からLexical CandidateとMeaning GraphのLexical Nodeが生成される
+
+### Offline Wheel Gate
+
+Release WheelをRepository外へOffline Installし、同じ120,000件のCompiled Runtimeを使って起動できることを確認します。
+
+Release Wheelには実行に必要なCompiled Runtimeだけを入れます。再構築用Source SnapshotはRepositoryに残し、配布物へ同じ12万件を二重収録しません。
+
+## 5. 安全境界
+
+- Exact lexical lookupを基本とする
+- Readingを表記Aliasへ自動昇格しない
+- 同じSurfaceの複数候補を保持する
+- Open LexiconをReviewed Synonym Trieへ混ぜない
+- 語義を自動確定しない
+- Intent、Task、Metaphor、Pragmatics、External Actionへ自動昇格しない
+- Candidateが競合する場合は曖昧なまま保持する
+- 5,000件のContext Candidate Registryは、承認されるまでRuntime判断に使わない
+
+## 6. 旧検証値との区別
+
+2026-08-04の旧Snapshotでは、次の値が記録されていました。
+
+- Unique Exact Surface：154,918
+- 同形異義Surface：962
+- Source SHA-256：`9a46dadf...`
+
+これらは当時のSnapshotに対する履歴であり、現在の`main`のCompiled Manifest値ではありません。
+
+現在値は、2026-08-05に統合された120,000 Record Runtime Manifestの値である154,921 Surface、1,711 Homograph Surfaceです。公開READMEと検証文書は現在値へ統一します。
+
+## 7. 実行Command
 
 ```bash
-python tools/open_lexicon_accuracy.py \
-  --source downloads/JMdict_e.gz \
-  --lexicon-root dictionaries/system/lexicon.d \
-  --manifest reports/open-lexicon-manifest.json \
-  --minimum-records 100000 \
-  --containment-cases 20000 \
-  --pollution-cases 20000 \
-  --output reports/open-lexicon-accuracy.json
+python tools/lexicon_validator.py
+python tools/validate_compiled_open_lexicon.py \
+  --root dictionaries/system/compiled/open_lexicon \
+  --expected-records 120000
+pytest \
+  tests/test_compiled_open_lexicon.py \
+  tests/test_open_lexicon_runtime.py \
+  tests/test_lexical_meaning_graph.py \
+  tests/test_repository_lexicon_integration.py \
+  tests/test_workflow_safety_contract.py
 ```
 
-ReleaseはこのAccuracy Gate、既存回帰、Offline Wheel、性能契約の一つでも失敗した場合は成立しない。
+Releaseは、件数、再構築一致、全Index接続、Runtime統合、Offline Install、安全境界、回帰、性能のどれか一つでも失敗した場合は成立しません。

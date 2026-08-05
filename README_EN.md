@@ -81,22 +81,40 @@ When meaning, target, scope, or contradiction remains unresolved, the runtime fa
 | Workflows | **42** |
 | Gold validation cases | **649** |
 
-Release artifacts contain an offline snapshot of **120,000 JMdict records** that were transformed and audited from the official source.
+Release artifacts contain an offline snapshot of **120,000 JMdict records** transformed and audited for lexical identity lookup.
 
 These records provide lexical identity data. They are not an automatic claim that every imported word has fully reviewed semantics, pragmatics, or executable intent.
 
-## Verified 120k lexicon accuracy
+## Current 120k lexicon values
 
-| Accuracy gate | Result |
+| Validation gate | Current result |
 |---|---:|
-| Source fidelity | **120,000 / 120,000** |
-| Exact surface lookup | **154,918 / 154,918** |
-| Ambiguous exact surfaces | **962, all candidates retained** |
-| Containment precision | **20,000 / 20,000** |
-| Sentence substring pollution | **0 false matches in 20,000 cases** |
-| Accuracy errors | **0** |
+| Source snapshot rebuilt into runtime data | **120,000 / 120,000** |
+| Runtime record-locator coverage | **120,000 / 120,000** |
+| Exact surfaces | **154,921** |
+| Readings | **126,936** |
+| Surfaces with multiple records | **1,711, all candidates retained** |
+| Runtime shards loaded | **12 / 12** |
+| File differences after deterministic rebuild | **0** |
+| Detected connection or integrity errors | **0** |
 
 See [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md) for the full contract.
+
+## Why the 120,000 records are split
+
+The repository stores the records in twelve files of 10,000 records each. They are not used as twelve independent dictionaries.
+
+```text
+12 auditable source files
+  ↓ deterministic full rebuild
+shared search indexes + 12 compact runtime files
+  ↓ all 12 files loaded before readiness
+one 120,000-record dictionary used by ParserEngine
+```
+
+Shared indexes connect surfaces, readings, and record IDs to the correct records. Readiness fails unless all twelve runtime files load and the total is exactly 120,000.
+
+The repository retains the source snapshot for provenance and reproducible rebuilding. Release wheels include only the compiled runtime copy, avoiding a duplicate second copy of the same 120,000 records.
 
 ## Open dictionary supply chain
 
@@ -224,8 +242,9 @@ Continuous validation covers:
 - dictionary and Gold data integrity;
 - Meaning Graph and Task Graph behavior;
 - quotation, questions, negation, hypotheses, and reference safety;
-- full comparison of the 120k lexicon against the official source;
-- exact lookup, ambiguity retention, and substring-pollution prevention;
+- complete source-snapshot to runtime-data reconstruction for all 120,000 records;
+- unified loading of all twelve runtime shards;
+- exact lookup, ambiguity retention, and complete index coverage;
 - MCP stdio end-to-end behavior;
 - offline installation;
 - 20x dictionary-scale performance;
