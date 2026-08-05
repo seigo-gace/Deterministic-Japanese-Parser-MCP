@@ -34,9 +34,7 @@ JA_BLOCK = f"""{JA_START}
 Program CodeはMIT Licenseで無料利用・改変・再配布できます。ただし、MIT Licenseは`Deterministic Japanese Parser MCP`、`DJPMCP`、`Shiori MCP Server`、公式Logo、`Astera`等のBrandを使って、改変Fork・製品・Serviceを公式と表示する権利を与えません。Brand利用は[`TRADEMARK.md`](TRADEMARK.md)に従います。
 
 外部ContributionはDCOが必須です。実質的なCode、辞書、Gold、設計、Release、Security、Governance変更は、Merge前にProject Ownerが受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)を必要とします。詳細は[`CONTRIBUTING.md`](CONTRIBUTING.md)を参照してください。
-{JA_END}
-
-"""
+{JA_END}"""
 
 EN_BLOCK = f"""{EN_START}
 ### Project ownership, brand, and governance
@@ -46,15 +44,13 @@ EN_BLOCK = f"""{EN_START}
 Program code is free to use, modify, and redistribute under the MIT License. The MIT License does not authorize a modified fork, product, service, package, account, or organization to present itself as official by using `Deterministic Japanese Parser MCP`, `DJPMCP`, `Shiori MCP Server`, official logos, `Astera`, or other Project Marks. Brand use is governed by [`TRADEMARK.md`](TRADEMARK.md).
 
 External contributions require DCO sign-off. Substantive code, dictionary, Gold, design, release, security, or governance contributions require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
-{EN_END}
-
-"""
+{EN_END}"""
 
 
 def _insert_once(text: str, marker: str, block: str) -> str:
     if marker not in text:
         raise ValueError(f"README anchor not found: {marker!r}")
-    return text.replace(marker, block + marker, 1)
+    return text.replace(marker, block + "\n\n" + marker, 1)
 
 
 def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
@@ -66,7 +62,7 @@ def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
         )
     prefix, remainder = text.split(start, 1)
     _, suffix = remainder.split(end, 1)
-    return prefix + block + suffix
+    return prefix + block + "\n\n" + suffix.lstrip("\n")
 
 
 def synchronize(text: str) -> str:
@@ -88,7 +84,7 @@ def synchronize(text: str) -> str:
             raise ValueError("English License anchor not found")
         updated = updated.replace(
             english_anchor,
-            "\n" + EN_BLOCK + "### License\n\nProgram code is MIT licensed.",
+            "\n" + EN_BLOCK + "\n\n### License\n\nProgram code is MIT licensed.",
             1,
         )
 
