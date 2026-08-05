@@ -99,6 +99,7 @@ def validate(root: Path, expected_records: int) -> dict[str, Any]:
         errors.append("homograph index is not the exact ambiguous-surface subset")
 
     all_ids = set(locator)
+    surface_keys = set(surfaces)
     for surface, owners in surfaces.items():
         if not surface or owners != sorted(set(owners)):
             errors.append(f"invalid surface owner list: {surface!r}")
@@ -125,7 +126,7 @@ def validate(root: Path, expected_records: int) -> dict[str, Any]:
         if members != sorted(set(members)):
             errors.append(f"canonical group is not deterministic: {lemma!r}")
             break
-        unknown = set(members) - set(surfaces)
+        unknown = set(members) - surface_keys
         if unknown:
             errors.append(f"canonical group has non-surface aliases: {lemma!r}")
             break
