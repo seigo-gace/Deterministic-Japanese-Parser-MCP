@@ -6,19 +6,25 @@ on:
     branches: [main]
     paths:
       - "research/context_collection/expansion_v3/**"
+      - "research/context_collection/stage3_decisions/**"
       - "reports/context-v3-stage3/**"
       - "tools/review_context_v3_stage3.py"
       - "tools/compact_context_v3_review_packs.py"
+      - "tools/apply_context_v3_stage3_decisions.py"
       - "tests/test_context_v3_stage3_review.py"
+      - "tests/test_context_v3_stage3_decisions.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
   pull_request:
     paths:
       - "research/context_collection/expansion_v3/**"
+      - "research/context_collection/stage3_decisions/**"
       - "reports/context-v3-stage3/**"
       - "tools/review_context_v3_stage3.py"
       - "tools/compact_context_v3_review_packs.py"
+      - "tools/apply_context_v3_stage3_decisions.py"
       - "tests/test_context_v3_stage3_review.py"
+      - "tests/test_context_v3_stage3_decisions.py"
       - "tests/test_workflow_safety_contract.py"
       - ".github/workflows/review-context-v3-stage3.yml"
 
@@ -63,6 +69,13 @@ jobs:
             --summary work/context-v3-stage3/summary.json \
             --output work/context-v3-stage3/review-pack-index.json
 
+      - name: Apply explicit substring review decisions
+        run: |
+          python tools/apply_context_v3_stage3_decisions.py \
+            --queue work/context-v3-stage3/review-queue.jsonl \
+            --decisions research/context_collection/stage3_decisions/epistemic-substring-decisions-v1.jsonl \
+            --output-root work/context-v3-stage3
+
       - name: Prove checked-in Stage 3 evidence is current
         run: |
           diff -u \
@@ -71,11 +84,18 @@ jobs:
           diff -u \
             reports/context-v3-stage3/runtime-boundary.json \
             work/context-v3-stage3/runtime-boundary.json
+          diff -u \
+            reports/context-v3-stage3/decision-summary.json \
+            work/context-v3-stage3/decision-summary.json
+          diff -u \
+            reports/context-v3-stage3/runtime-boundary-after-decisions.json \
+            work/context-v3-stage3/runtime-boundary-after-decisions.json
 
       - name: Validate all 5,000 candidates and safety boundaries
         run: |
           pytest -q \
             tests/test_context_v3_stage3_review.py \
+            tests/test_context_v3_stage3_decisions.py \
             tests/test_workflow_safety_contract.py
 
       - name: Upload Stage 3 review evidence
