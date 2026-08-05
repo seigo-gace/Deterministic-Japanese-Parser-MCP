@@ -148,7 +148,7 @@ def validate_contribution_rights(
 def main() -> int:
     token = os.environ["GH_TOKEN"]
     repository = os.environ["GH_REPOSITORY"]
-    owner = os.environ["GH_REPOSITORY_OWNER"]
+    owner = os.environ["GH_PROJECT_OWNER"]
     pr_number = os.environ["PR_NUMBER"]
     author = os.environ["PR_AUTHOR"]
     head_sha = os.environ["PR_HEAD_SHA"]
