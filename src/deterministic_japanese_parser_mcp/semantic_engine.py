@@ -43,12 +43,26 @@ class ParserEngine(CoreParserEngine):
         )
         semantic_ms = round((perf_counter() - started) * 1000, 3)
         task_graph = self.action_tasks.build(graph)
-        execution_allowed, blocked, action_closure = self.guard.evaluate(
+        guard_allowed, guard_blocked, action_closure = self.guard.evaluate(
             graph,
             contradictions=response.contradictions,
             unsupported=response.unsupported_elements,
             timeouts=response.timeouts,
             external_action=request.execution_mode == ExecutionMode.EXTERNAL_ACTION,
+        )
+        external_action = request.execution_mode == ExecutionMode.EXTERNAL_ACTION
+        execution_allowed = (
+            response.execution_allowed and guard_allowed
+            if external_action
+            else True
+        )
+        blocked = (
+            list(dict.fromkeys([
+                *response.blocked_reasons,
+                *guard_blocked,
+            ]))
+            if external_action
+            else []
         )
         overall = response.overall_status
         if graph.unresolved and overall == OverallStatus.COMPLETE:
@@ -58,7 +72,7 @@ class ParserEngine(CoreParserEngine):
         hard_deadline_met = total_ms <= self.settings.hard_deadline_ms
         if not hard_deadline_met:
             overall = OverallStatus.PARTIAL
-            if request.execution_mode == ExecutionMode.EXTERNAL_ACTION:
+            if external_action:
                 execution_allowed = False
                 blocked = list(dict.fromkeys([*blocked, "TIMEOUT"]))
         metrics = {
@@ -78,15 +92,7 @@ class ParserEngine(CoreParserEngine):
             "overall_status": overall,
             "meaning_graph": graph,
             "task_graph": task_graph,
-            "execution_allowed": (
-                execution_allowed
-                if request.execution_mode == ExecutionMode.EXTERNAL_ACTION
-                else True
-            ),
-            "blocked_reasons": (
-                blocked
-                if request.execution_mode == ExecutionMode.EXTERNAL_ACTION
-                else []
-            ),
+            "execution_allowed": execution_allowed,
+            "blocked_reasons": blocked,
             "metrics": metrics,
         })
