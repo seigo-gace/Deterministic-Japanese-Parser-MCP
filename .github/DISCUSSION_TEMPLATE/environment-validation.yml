@@ -1,0 +1,93 @@
+title: "[Environment Validation] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Windows、macOS、Linux、各MCP Client、Source Install、Wheel、Offline環境の動作確認用です。
+        不明点や途中結果もここへ投稿できます。再現可能な不具合と確認された後にBug Issueへ移します。
+
+  - type: input
+    id: tested_ref
+    attributes:
+      label: Version or commit SHA / 対象Version・Commit SHA
+      placeholder: "0.4.0, main, or commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: validation_target
+    attributes:
+      label: Validation target / 検証対象
+      options:
+        - Source installation / Source Install
+        - Wheel installation / Wheel Install
+        - Offline installation / Offline Install
+        - MCP stdio startup / MCP stdio起動
+        - Claude Desktop
+        - Cursor
+        - VS Code compatible client
+        - Python API
+        - Validation or benchmark command
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 実行環境
+      placeholder: |
+        OS:
+        Architecture:
+        Python:
+        Installation method:
+        MCP client and version:
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Commands and steps / Command・手順
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result / 結果
+      options:
+        - Passed / 成功
+        - Passed with unclear behavior / 成功したが不明点あり
+        - Failed / 失敗
+        - Unable to complete / 完了できない
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior / 実際の挙動
+      description: Explain where the process succeeded, stopped, or differed from the public instructions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs / 秘密情報除外済みLog
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission confirmation / 投稿確認
+      options:
+        - label: I removed secrets, credentials, personal data, private paths, and private URLs. / 秘密情報・認証情報・個人情報・非公開Path・非公開URLを除外しました。
+          required: true
+        - label: I included enough environment information for another person to repeat the check. / 第三者が再確認できる実行環境情報を記載しました。
+          required: true
+        - label: I understand that maintainers will reproduce a failure before creating a Bug Issue. / Bug Issue化の前にMaintainerが再現確認することを理解しています。
+          required: true
