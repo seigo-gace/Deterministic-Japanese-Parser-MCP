@@ -4,26 +4,38 @@ from time import perf_counter
 
 from .engine import ParserEngine as CoreParserEngine
 from .models import AnalyzeRequest, ExecutionMode, OverallStatus
+from .semantic_candidate_runtime import SemanticCandidateRuntime
 from .semantic_data_runtime import SemanticDataRuntime
 
 
 class ParserEngine(CoreParserEngine):
-    """Core parser with approved unified semantic data pack integration."""
+    """Core parser with candidate-only and approved semantic pack integration."""
 
     def __init__(self, settings=None):
         if settings is None:
             super().__init__()
         else:
             super().__init__(settings)
+        compiled_root = self.settings.system_dict_dir / "compiled"
+        self.semantic_candidates = SemanticCandidateRuntime(
+            compiled_root / "semantic_candidates"
+        )
         self.semantic_data = SemanticDataRuntime(
-            self.settings.system_dict_dir / "compiled" / "semantic_data"
+            compiled_root / "semantic_data"
         )
 
     def analyze(self, request: AnalyzeRequest, *, exhaustive_rules: bool = False):
         response = super().analyze(request, exhaustive_rules=exhaustive_rules)
         started = perf_counter()
-        graph = self.semantic_data.enrich(
+        graph = self.semantic_candidates.enrich(
             response.meaning_graph,
+            tokens=response.tokens,
+            original_text=request.original_text,
+            conversation_context=request.conversation_context,
+            known_entities=request.known_entities,
+        )
+        graph = self.semantic_data.enrich(
+            graph,
             tokens=response.tokens,
             original_text=request.original_text,
             conversation_context=request.conversation_context,
@@ -51,6 +63,7 @@ class ParserEngine(CoreParserEngine):
                 blocked = list(dict.fromkeys([*blocked, "TIMEOUT"]))
         metrics = {
             **response.metrics,
+            **self.semantic_candidates.last_metrics,
             **self.semantic_data.last_metrics,
             **self.action_tasks.last_metrics,
             "semantic_data_enrichment_ms": semantic_ms,
