@@ -43,8 +43,10 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install build-only parser dependency
-        run: python -m pip install "PyYAML>=6.0.3,<7" "pytest>=8.3,<10"
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
 
       - name: Rebuild language assets in a temporary directory
         run: |
