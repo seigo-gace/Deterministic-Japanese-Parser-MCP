@@ -5,6 +5,11 @@ import json
 
 import yaml
 
+from .open_lexicon_runtime import (
+    OpenLexiconRuntime,
+    register_default_open_lexicon,
+)
+
 
 def _load_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -124,6 +129,7 @@ def _load_lexicon_set(path: Path) -> dict:
         "groups": {},
         "exact_only_groups": [],
         "source_versions": [],
+        "lookup_backend": "raw-jsonl",
     }
     if not path.exists():
         return output
@@ -174,6 +180,26 @@ def _load_lexicon_set(path: Path) -> dict:
     if versions:
         output["version"] = "+".join(sorted(versions))
     return output
+
+
+def _load_compiled_lexicon_set(runtime: OpenLexiconRuntime) -> dict:
+    if not runtime.available:
+        return {}
+    manifest = runtime.manifest
+    return {
+        "version": runtime.version,
+        "record_count": runtime.record_count,
+        "groups": {},
+        "exact_only_groups": [],
+        "source_versions": list(manifest.get("source_versions", [])),
+        "exact_only_group_count": int(manifest.get("unique_lemmas", 0)),
+        "unique_surface_count": int(manifest.get("unique_surfaces", 0)),
+        "unique_reading_count": int(manifest.get("unique_readings", 0)),
+        "homograph_surface_count": int(manifest.get("homograph_surfaces", 0)),
+        "lookup_backend": "compiled-index",
+        "records_preloaded": runtime.records_preloaded,
+        "compiled_root": str(runtime.root),
+    }
 
 
 def merge_rule_docs(system: dict, user: dict) -> dict:
@@ -245,7 +271,7 @@ def _dictionary_fingerprint(system_dir: Path, user_dir: Path) -> tuple:
 
 
 class DictionaryBundle:
-    _CACHE: dict[tuple, tuple[dict, dict, dict, dict, dict]] = {}
+    _CACHE: dict[tuple, tuple[dict, dict, dict, dict, dict, OpenLexiconRuntime]] = {}
 
     def __init__(self, system_dir: Path, user_dir: Path):
         fingerprint = _dictionary_fingerprint(system_dir, user_dir)
@@ -258,8 +284,22 @@ class DictionaryBundle:
                 self.templates,
                 self.lexicon,
                 self.synonyms,
+                self.open_lexicon,
             ) = cached
+            register_default_open_lexicon(self.open_lexicon)
             return
+
+        compiled_root = system_dir / "compiled" / "open_lexicon"
+        self.open_lexicon = OpenLexiconRuntime(compiled_root)
+        if self.open_lexicon.available:
+            self.open_lexicon.preload_records()
+        compiled_lexicon = _load_compiled_lexicon_set(self.open_lexicon)
+        system_lexicon = (
+            compiled_lexicon
+            if compiled_lexicon
+            else _load_lexicon_set(system_dir / "lexicon.d")
+        )
+        register_default_open_lexicon(self.open_lexicon)
 
         system_rules = _load_yaml_set(system_dir / "rules")
         system_metaphors = _load_json_set(system_dir / "metaphors")
@@ -271,7 +311,6 @@ class DictionaryBundle:
             system_dir / "synonyms.yaml",
             system_dir / "synonyms.d",
         )
-        system_lexicon = _load_lexicon_set(system_dir / "lexicon.d")
         self.rules = merge_rule_docs(
             system_rules,
             _load_yaml(user_dir / "rules.yaml"),
@@ -284,22 +323,23 @@ class DictionaryBundle:
             system_templates,
             _load_yaml(user_dir / "task_templates.yaml"),
         )
-        self.synonyms = merge_synonyms(
-            system_synonyms,
-            system_lexicon,
-            _load_yaml(user_dir / "synonyms.yaml"),
-        )
-        cache_digest = hashlib.sha256(
-            repr(key).encode("utf-8")
-        ).hexdigest()
+        # Compiled lexical candidates are resolved by exact indexes in the
+        # tokenizer and must not pollute the reviewed synonym trie.
+        synonym_sources = [system_synonyms]
+        if not compiled_lexicon:
+            synonym_sources.append(system_lexicon)
+        synonym_sources.append(_load_yaml(user_dir / "synonyms.yaml"))
+        self.synonyms = merge_synonyms(*synonym_sources)
+        cache_digest = hashlib.sha256(repr(key).encode("utf-8")).hexdigest()
         self.synonyms["_cache_key"] = cache_digest
         self.lexicon = {
             key_name: value
             for key_name, value in system_lexicon.items()
             if key_name not in {"groups", "exact_only_groups"}
         }
-        self.lexicon["exact_only_group_count"] = len(
-            system_lexicon["exact_only_groups"]
+        self.lexicon.setdefault(
+            "exact_only_group_count",
+            len(system_lexicon.get("exact_only_groups", [])),
         )
         snapshot = (
             self.rules,
@@ -307,6 +347,7 @@ class DictionaryBundle:
             self.templates,
             self.lexicon,
             self.synonyms,
+            self.open_lexicon,
         )
         self._CACHE[key] = snapshot
         while len(self._CACHE) > 8:

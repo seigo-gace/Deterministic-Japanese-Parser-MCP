@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "record_count": 120000,
+  "unique_lemmas": 119092,
+  "unique_surfaces": 154921,
+  "unique_readings": 126936,
+  "homograph_surfaces": 1711,
+  "output_files": 20,
+  "errors": []
+}

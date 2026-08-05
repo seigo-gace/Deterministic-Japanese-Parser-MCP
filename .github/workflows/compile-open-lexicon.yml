@@ -1,0 +1,201 @@
+name: Compile 120k Open Lexicon
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/import-all-dictionaries
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "src/deterministic_japanese_parser_mcp/dictionaries.py"
+      - "src/deterministic_japanese_parser_mcp/models.py"
+      - "src/deterministic_japanese_parser_mcp/lexical_graph.py"
+      - "src/deterministic_japanese_parser_mcp/open_lexicon_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/tokenizer.py"
+      - "tools/apply_stage3_lexical_graph_patch.py"
+      - "tools/compile_open_lexicon_runtime.py"
+      - "tools/validate_compiled_open_lexicon.py"
+      - "tests/test_compiled_open_lexicon.py"
+      - "tests/test_open_lexicon_runtime.py"
+      - "tests/test_lexical_meaning_graph.py"
+      - ".github/workflows/compile-open-lexicon.yml"
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "src/deterministic_japanese_parser_mcp/dictionaries.py"
+      - "src/deterministic_japanese_parser_mcp/models.py"
+      - "src/deterministic_japanese_parser_mcp/lexical_graph.py"
+      - "src/deterministic_japanese_parser_mcp/open_lexicon_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/tokenizer.py"
+      - "tools/compile_open_lexicon_runtime.py"
+      - "tools/validate_compiled_open_lexicon.py"
+      - "tests/test_compiled_open_lexicon.py"
+      - "tests/test_open_lexicon_runtime.py"
+      - "tests/test_lexical_meaning_graph.py"
+      - ".github/workflows/compile-open-lexicon.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compile-open-lexicon-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-runtime-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply Stage 3 source integration when pending
+        run: |
+          set -euo pipefail
+          if [ -f tools/apply_stage3_lexical_graph_patch.py ]; then
+            python tools/apply_stage3_lexical_graph_patch.py
+            rm tools/apply_stage3_lexical_graph_patch.py
+            rm -f .github/workflows/apply-stage3-lexical-graph.yml
+          fi
+
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Compile the actual 120,000 records
+        run: |
+          set -euo pipefail
+          rm -rf work/open-lexicon-compiled reports/open-lexicon-runtime
+          mkdir -p work reports/open-lexicon-runtime
+          python tools/compile_open_lexicon_runtime.py \
+            --input-root dictionaries/system/lexicon.d \
+            --output-root work/open-lexicon-compiled \
+            --expected-records 120000 \
+            --record-shard-size 10000 \
+            --report reports/open-lexicon-runtime/compile-report.json
+
+      - name: Validate compiled indexes and safety boundaries
+        run: |
+          set -euo pipefail
+          python tools/validate_compiled_open_lexicon.py \
+            --root work/open-lexicon-compiled \
+            --expected-records 120000 \
+            --output reports/open-lexicon-runtime/validation.json
+          pytest -q \
+            tests/test_compiled_open_lexicon.py \
+            tests/test_open_lexicon_runtime.py \
+            tests/test_lexical_meaning_graph.py
+
+      - name: Install compiled runtime data
+        run: |
+          set -euo pipefail
+          rm -rf dictionaries/system/compiled/open_lexicon
+          mkdir -p dictionaries/system/compiled
+          mv work/open-lexicon-compiled dictionaries/system/compiled/open_lexicon
+
+      - name: Verify ParserEngine uses compiled indexes and MeaningGraph nodes
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+
+          engine = ParserEngine()
+          assert engine.bundle.lexicon["lookup_backend"] == "compiled-index"
+          assert engine.bundle.lexicon["record_count"] == 120000
+          assert engine.bundle.open_lexicon.available is True
+
+          response = engine.analyze(
+              AnalyzeRequest(original_text="日本を確認する。", deadline_ms=5000)
+          )
+          matched = [
+              token
+              for token in response.tokens
+              if token.lexical_candidate_total > 0
+          ]
+          assert matched, response.model_dump()
+          japanese = [token for token in matched if token.surface == "日本"]
+          assert japanese, [token.model_dump() for token in response.tokens]
+          assert japanese[0].lexical_candidates
+          assert all(
+              candidate.source_dataset == "JMdict"
+              for candidate in japanese[0].lexical_candidates
+          )
+          lexical_nodes = response.meaning_graph.lexical_nodes
+          assert lexical_nodes
+          japan_node = next(
+              node for node in lexical_nodes if node.surface == "日本"
+          )
+          assert japan_node.selected_record_id
+          suru_node = next(
+              node for node in lexical_nodes if node.surface == "する"
+          )
+          assert suru_node.selected_record_id
+          assert response.meaning_graph.quality_annotations[
+              "context_candidate_registry_used"
+          ] is False
+
+          report = {
+              "status": "PASS",
+              "lookup_backend": engine.bundle.lexicon["lookup_backend"],
+              "record_count": engine.bundle.lexicon["record_count"],
+              "exact_only_group_count": engine.bundle.lexicon[
+                  "exact_only_group_count"
+              ],
+              "input": response.original_text,
+              "matched_token_count": len(matched),
+              "matched_tokens": [token.model_dump() for token in matched],
+              "lexical_nodes": [
+                  node.model_dump() for node in lexical_nodes
+              ],
+              "semantic_auto_promotion": False,
+              "intent_auto_promotion": False,
+              "task_auto_promotion": False,
+              "external_action_auto_promotion": False,
+              "context_candidate_registry_used": False,
+          }
+          output = Path("reports/open-lexicon-runtime/runtime-connection.json")
+          output.write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Commit deterministic Stage 3 implementation and evidence
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Stage 3 implementation and evidence are already current."
+            exit 0
+          fi
+          git commit -m "feat: connect lexical candidates to MeaningGraph"
+          git fetch origin "${TARGET_BRANCH}"
+          git rebase "origin/${TARGET_BRANCH}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Upload compile and connection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lexicon-runtime-evidence
+          path: |
+            reports/open-lexicon-runtime
+            dictionaries/system/compiled/open_lexicon/manifest.json
+          if-no-files-found: error

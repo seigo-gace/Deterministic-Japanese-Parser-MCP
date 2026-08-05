@@ -1,0 +1,507 @@
+{
+  "status": "PASS",
+  "lookup_backend": "compiled-index",
+  "record_count": 120000,
+  "exact_only_group_count": 119092,
+  "input": "日本を確認する。",
+  "matched_token_count": 4,
+  "matched_tokens": [
+    {
+      "surface": "日本",
+      "normalized": "日本",
+      "reading": "ニッポン",
+      "pos": [
+        "名詞",
+        "固有名詞",
+        "地名",
+        "国",
+        "*",
+        "*"
+      ],
+      "span": {
+        "start": 0,
+        "end": 2,
+        "source_text": "日本"
+      },
+      "lexical_candidates": [
+        {
+          "record_id": "JMD-b4ab182e1c648987879b",
+          "lemma": "日本",
+          "matched_text": "日本",
+          "match_type": "surface",
+          "readings": [
+            "にほん",
+            "にっぽん"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "noun (common) (futsuumeishi)"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "lexical_candidate_total": 1,
+      "lexical_status": "MATCHED"
+    },
+    {
+      "surface": "を",
+      "normalized": "を",
+      "reading": "ヲ",
+      "pos": [
+        "助詞",
+        "格助詞",
+        "*",
+        "*",
+        "*",
+        "*"
+      ],
+      "span": {
+        "start": 2,
+        "end": 3,
+        "source_text": "を"
+      },
+      "lexical_candidates": [
+        {
+          "record_id": "JMD-db237c6b3452fbc71d64",
+          "lemma": "を",
+          "matched_text": "を",
+          "match_type": "surface",
+          "readings": [
+            "を"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "particle"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "lexical_candidate_total": 1,
+      "lexical_status": "MATCHED"
+    },
+    {
+      "surface": "確認",
+      "normalized": "確認",
+      "reading": "カクニン",
+      "pos": [
+        "名詞",
+        "普通名詞",
+        "サ変可能",
+        "*",
+        "*",
+        "*"
+      ],
+      "span": {
+        "start": 3,
+        "end": 5,
+        "source_text": "確認"
+      },
+      "lexical_candidates": [
+        {
+          "record_id": "JMD-5d55e190b08456e63eca",
+          "lemma": "確認",
+          "matched_text": "確認",
+          "match_type": "surface",
+          "readings": [
+            "かくにん"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "noun (common) (futsuumeishi)",
+            "noun or participle which takes the aux. verb suru",
+            "transitive verb"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "lexical_candidate_total": 1,
+      "lexical_status": "MATCHED"
+    },
+    {
+      "surface": "する",
+      "normalized": "為る",
+      "reading": "スル",
+      "pos": [
+        "動詞",
+        "非自立可能",
+        "*",
+        "*",
+        "サ行変格",
+        "終止形-一般"
+      ],
+      "span": {
+        "start": 5,
+        "end": 7,
+        "source_text": "する"
+      },
+      "lexical_candidates": [
+        {
+          "record_id": "JMD-458a5b15f4d1e7a4cd0c",
+          "lemma": "成る",
+          "matched_text": "為る",
+          "match_type": "normalized",
+          "readings": [
+            "なる"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "Godan verb with 'ru' ending",
+            "intransitive verb",
+            "auxiliary verb"
+          ],
+          "domains": [
+            "shogi"
+          ],
+          "usage_labels": [
+            "word usually written using kana alone",
+            "honorific or respectful (sonkeigo) language"
+          ],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        },
+        {
+          "record_id": "JMD-8990713011c0fc7c74f3",
+          "lemma": "為る",
+          "matched_text": "為る",
+          "match_type": "normalized",
+          "readings": [
+            "する"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "suru verb - included",
+            "intransitive verb",
+            "transitive verb",
+            "suffix",
+            "auxiliary verb"
+          ],
+          "domains": [],
+          "usage_labels": [
+            "word usually written using kana alone"
+          ],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "lexical_candidate_total": 2,
+      "lexical_status": "AMBIGUOUS"
+    }
+  ],
+  "lexical_nodes": [
+    {
+      "lexical_node_id": "L-001",
+      "surface": "日本",
+      "normalized": "日本",
+      "reading": "ニッポン",
+      "pos": [
+        "名詞",
+        "固有名詞",
+        "地名",
+        "国",
+        "*",
+        "*"
+      ],
+      "source_span": {
+        "start": 0,
+        "end": 2,
+        "source_text": "日本"
+      },
+      "candidates": [
+        {
+          "record_id": "JMD-b4ab182e1c648987879b",
+          "lemma": "日本",
+          "matched_text": "日本",
+          "match_type": "surface",
+          "readings": [
+            "にほん",
+            "にっぽん"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "noun (common) (futsuumeishi)"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "candidate_scores": {
+        "JMD-b4ab182e1c648987879b": 151
+      },
+      "candidate_evidence": {
+        "JMD-b4ab182e1c648987879b": [
+          "surface_exact",
+          "token_reading_match",
+          "token_pos_family_match",
+          "source_provenance_complete"
+        ]
+      },
+      "selected_record_id": "JMD-b4ab182e1c648987879b",
+      "resolution_reason": "single_candidate",
+      "resolution_confidence": 1.0,
+      "related_proposition_ids": [
+        "P-001"
+      ],
+      "related_entity_ids": [
+        "E-001"
+      ],
+      "related_sense_ids": [],
+      "status": "RESOLVED"
+    },
+    {
+      "lexical_node_id": "L-002",
+      "surface": "を",
+      "normalized": "を",
+      "reading": "ヲ",
+      "pos": [
+        "助詞",
+        "格助詞",
+        "*",
+        "*",
+        "*",
+        "*"
+      ],
+      "source_span": {
+        "start": 2,
+        "end": 3,
+        "source_text": "を"
+      },
+      "candidates": [
+        {
+          "record_id": "JMD-db237c6b3452fbc71d64",
+          "lemma": "を",
+          "matched_text": "を",
+          "match_type": "surface",
+          "readings": [
+            "を"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "particle"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "candidate_scores": {
+        "JMD-db237c6b3452fbc71d64": 151
+      },
+      "candidate_evidence": {
+        "JMD-db237c6b3452fbc71d64": [
+          "surface_exact",
+          "token_reading_match",
+          "token_pos_family_match",
+          "source_provenance_complete"
+        ]
+      },
+      "selected_record_id": "JMD-db237c6b3452fbc71d64",
+      "resolution_reason": "single_candidate",
+      "resolution_confidence": 1.0,
+      "related_proposition_ids": [
+        "P-001"
+      ],
+      "related_entity_ids": [
+        "E-001"
+      ],
+      "related_sense_ids": [],
+      "status": "RESOLVED"
+    },
+    {
+      "lexical_node_id": "L-003",
+      "surface": "確認",
+      "normalized": "確認",
+      "reading": "カクニン",
+      "pos": [
+        "名詞",
+        "普通名詞",
+        "サ変可能",
+        "*",
+        "*",
+        "*"
+      ],
+      "source_span": {
+        "start": 3,
+        "end": 5,
+        "source_text": "確認"
+      },
+      "candidates": [
+        {
+          "record_id": "JMD-5d55e190b08456e63eca",
+          "lemma": "確認",
+          "matched_text": "確認",
+          "match_type": "surface",
+          "readings": [
+            "かくにん"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "noun (common) (futsuumeishi)",
+            "noun or participle which takes the aux. verb suru",
+            "transitive verb"
+          ],
+          "domains": [],
+          "usage_labels": [],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "candidate_scores": {
+        "JMD-5d55e190b08456e63eca": 151
+      },
+      "candidate_evidence": {
+        "JMD-5d55e190b08456e63eca": [
+          "surface_exact",
+          "token_reading_match",
+          "token_pos_family_match",
+          "source_provenance_complete"
+        ]
+      },
+      "selected_record_id": "JMD-5d55e190b08456e63eca",
+      "resolution_reason": "single_candidate",
+      "resolution_confidence": 1.0,
+      "related_proposition_ids": [
+        "P-001"
+      ],
+      "related_entity_ids": [
+        "E-001"
+      ],
+      "related_sense_ids": [],
+      "status": "RESOLVED"
+    },
+    {
+      "lexical_node_id": "L-004",
+      "surface": "する",
+      "normalized": "為る",
+      "reading": "スル",
+      "pos": [
+        "動詞",
+        "非自立可能",
+        "*",
+        "*",
+        "サ行変格",
+        "終止形-一般"
+      ],
+      "source_span": {
+        "start": 5,
+        "end": 7,
+        "source_text": "する"
+      },
+      "candidates": [
+        {
+          "record_id": "JMD-8990713011c0fc7c74f3",
+          "lemma": "為る",
+          "matched_text": "為る",
+          "match_type": "normalized",
+          "readings": [
+            "する"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "suru verb - included",
+            "intransitive verb",
+            "transitive verb",
+            "suffix",
+            "auxiliary verb"
+          ],
+          "domains": [],
+          "usage_labels": [
+            "word usually written using kana alone"
+          ],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        },
+        {
+          "record_id": "JMD-458a5b15f4d1e7a4cd0c",
+          "lemma": "成る",
+          "matched_text": "為る",
+          "match_type": "normalized",
+          "readings": [
+            "なる"
+          ],
+          "restricted_to": [],
+          "no_kanji": false,
+          "part_of_speech": [
+            "Godan verb with 'ru' ending",
+            "intransitive verb",
+            "auxiliary verb"
+          ],
+          "domains": [
+            "shogi"
+          ],
+          "usage_labels": [
+            "word usually written using kana alone",
+            "honorific or respectful (sonkeigo) language"
+          ],
+          "source_dataset": "JMdict",
+          "source_version": "sha256-6de18f9e1bcb",
+          "source_license": "CC-BY-SA-4.0"
+        }
+      ],
+      "candidate_scores": {
+        "JMD-8990713011c0fc7c74f3": 131,
+        "JMD-458a5b15f4d1e7a4cd0c": 101
+      },
+      "candidate_evidence": {
+        "JMD-8990713011c0fc7c74f3": [
+          "normalized_exact",
+          "token_reading_match",
+          "token_pos_family_match",
+          "kana_usage_match",
+          "source_provenance_complete"
+        ],
+        "JMD-458a5b15f4d1e7a4cd0c": [
+          "normalized_exact",
+          "token_pos_family_match",
+          "kana_usage_match",
+          "source_provenance_complete"
+        ]
+      },
+      "selected_record_id": "JMD-8990713011c0fc7c74f3",
+      "resolution_reason": "deterministic_context_margin",
+      "resolution_confidence": 0.9,
+      "related_proposition_ids": [
+        "P-001"
+      ],
+      "related_entity_ids": [
+        "E-001"
+      ],
+      "related_sense_ids": [],
+      "status": "RESOLVED"
+    }
+  ],
+  "semantic_auto_promotion": false,
+  "intent_auto_promotion": false,
+  "task_auto_promotion": false,
+  "external_action_auto_promotion": false,
+  "context_candidate_registry_used": false
+}

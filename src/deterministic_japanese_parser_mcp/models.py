@@ -77,11 +77,50 @@ class OriginalSpan(BaseModel):
     source_text: str
 
 
+class LexicalCandidate(BaseModel):
+    record_id: str
+    lemma: str
+    matched_text: str
+    match_type: Literal["surface", "normalized", "reading"]
+    readings: list[str] = Field(default_factory=list)
+    restricted_to: list[str] = Field(default_factory=list)
+    no_kanji: bool = False
+    part_of_speech: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
+    usage_labels: list[str] = Field(default_factory=list)
+    source_dataset: str | None = None
+    source_version: str | None = None
+    source_license: str | None = None
+
+
 class Token(BaseModel):
     surface: str
     normalized: str
+    reading: str | None = None
     pos: list[str]
     span: OriginalSpan
+    lexical_candidates: list[LexicalCandidate] = Field(default_factory=list)
+    lexical_candidate_total: int = 0
+    lexical_status: Literal["MATCHED", "AMBIGUOUS", "NO_MATCH"] = "NO_MATCH"
+
+
+class LexicalNode(BaseModel):
+    lexical_node_id: str
+    surface: str
+    normalized: str
+    reading: str | None = None
+    pos: list[str] = Field(default_factory=list)
+    source_span: OriginalSpan
+    candidates: list[LexicalCandidate] = Field(default_factory=list)
+    candidate_scores: dict[str, int] = Field(default_factory=dict)
+    candidate_evidence: dict[str, list[str]] = Field(default_factory=dict)
+    selected_record_id: str | None = None
+    resolution_reason: str = "no_candidates"
+    resolution_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    related_proposition_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    related_sense_ids: list[str] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.AMBIGUOUS
 
 
 class Intent(BaseModel):
@@ -241,6 +280,7 @@ class MeaningGraph(BaseModel):
     entities: list[Entity] = Field(default_factory=list)
     clauses: list[Clause] = Field(default_factory=list)
     propositions: list[Proposition] = Field(default_factory=list)
+    lexical_nodes: list[LexicalNode] = Field(default_factory=list)
     scope_edges: list[ScopeEdge] = Field(default_factory=list)
     language_features: list[LanguageFeatureMatch] = Field(default_factory=list)
     unresolved: list[dict[str, Any]] = Field(default_factory=list)

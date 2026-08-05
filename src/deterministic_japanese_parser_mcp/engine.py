@@ -10,6 +10,7 @@ from .dictionaries import DictionaryBundle
 from .graph_contradictions import detect_graph
 from .graph_guard import GraphGuard
 from .logger import append_log
+from .lexical_graph import LexicalGraphEnricher
 from .meaning_graph import MeaningGraphBuilder
 from .metaphor import MetaphorMatcher
 from .models import (
@@ -55,6 +56,9 @@ class ParserEngine:
         self.enricher = SemanticEnricher(
             settings.system_dict_dir / "semantic_profiles.yaml",
             self.canonicalizer,
+        )
+        self.lexical_graph = LexicalGraphEnricher(
+            max_nodes=settings.max_graph_nodes,
         )
         self.tasks = TaskDecomposer(self.bundle.templates)
         self.action_tasks = ActionTaskGraphBuilder(self.bundle.templates)
@@ -260,6 +264,28 @@ class ParserEngine:
             })
             phase_metrics["semantic_enrichment_ms"] = 0.0
 
+        if deadline_remaining():
+            meaning_graph = run_phase(
+                "lexical_graph_enrichment",
+                lambda: self.lexical_graph.enrich(
+                    meaning_graph,
+                    tokens=tokens,
+                    original_text=request.original_text,
+                    conversation_context=context,
+                    known_entities=request.known_entities,
+                ),
+            )
+        else:
+            phase_metrics["lexical_graph_enrichment_ms"] = 0.0
+            self.lexical_graph.last_metrics = {
+                "lexical_node_count": 0,
+                "resolved_lexical_node_count": 0,
+                "ambiguous_lexical_node_count": 0,
+                "lexical_candidate_count": 0,
+                "lexical_node_limit_skip_count": 0,
+                "lexical_context_registry_used": 0,
+            }
+
         intents = self.meaning.emit_legacy_intents(
             meaning_graph,
             raw_intents,
@@ -388,6 +414,7 @@ class ParserEngine:
             **rule_metrics,
             **self.metaphors.last_metrics,
             **self.enricher.last_metrics,
+            **self.lexical_graph.last_metrics,
             **self.tasks.last_metrics,
             **self.action_tasks.last_metrics,
             "intent_count": len(intents),
@@ -398,6 +425,9 @@ class ParserEngine:
             "entity_count": len(meaning_graph.entities),
             "clause_count": len(meaning_graph.clauses),
             "proposition_count": len(meaning_graph.propositions),
+            "meaning_graph_lexical_node_count": len(
+                meaning_graph.lexical_nodes
+            ),
             "scope_edge_count": len(meaning_graph.scope_edges),
             "action_relevance_node_count": len(action_closure),
             "tokenizer_backend": self.tokenizer.backend,
