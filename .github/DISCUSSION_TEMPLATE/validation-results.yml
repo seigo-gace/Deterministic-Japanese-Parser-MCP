@@ -1,0 +1,105 @@
+title: "[Validation Result] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Codeを書かなくても検証に参加できます。
+        ここでは、Campaign結果、怪しい解析、自然な日本語とのズレ、安全性、性能、候補Dataの発見を受け付けます。
+
+        A suspicious result is not automatically a confirmed bug. Maintainers will reproduce and classify it before creating an Issue.
+
+  - type: input
+    id: campaign_pack
+    attributes:
+      label: Campaign or Pack ID / Campaign・Pack ID
+      description: Use "independent" when this was not part of a published campaign.
+      placeholder: "SAFETY-001, DIALECT-003, or independent"
+    validations:
+      required: true
+
+  - type: input
+    id: tested_ref
+    attributes:
+      label: Version or commit SHA / 対象Version・Commit SHA
+      placeholder: "0.4.0, main, or commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: validation_type
+    attributes:
+      label: Validation type / 検証種別
+      options:
+        - Japanese interpretation / 日本語解釈
+        - External Action Guard safety / 外部Action安全性
+        - MCP installation or client compatibility / MCP導入・Client互換
+        - Offline package / Offline Package
+        - Performance contract / 性能契約
+        - Open lexicon or context candidate data / Open Lexicon・候補Data
+        - Documentation or instructions / 文書・手順
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result / 判定
+      options:
+        - Correct / 正しい
+        - Partly suspicious / 一部おかしい
+        - Incorrect or failed / 間違い・失敗
+        - Unable to judge / 判断できない
+    validations:
+      required: true
+
+  - type: textarea
+    id: input_command
+    attributes:
+      label: Input, command, or candidate / 入力・Command・候補
+      description: Provide the smallest relevant input or command. Mask sensitive content.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed result / 実際の結果
+      description: Paste sanitized output or describe what happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: interpretation
+    attributes:
+      label: Expected interpretation or behavior / 自分の解釈・期待挙動
+      description: Explain how a human should interpret the input or how the system should behave.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 実行環境
+      description: Optional for language-only review. Include OS, Python, install method, and MCP client for execution validation.
+      placeholder: "Windows 11, Python 3.12, Claude Desktop, wheel install"
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence / 秘密情報除外済みEvidence
+      description: Add logs, measurements, screenshots, or public source links where useful. Do not copy proprietary dictionary definitions or corpus sentences.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission confirmation / 投稿確認
+      options:
+        - label: I removed secrets, credentials, personal data, and private URLs. / 秘密情報・認証情報・個人情報・非公開URLを除外しました。
+          required: true
+        - label: Examples are self-created or linked to a public source with source and license information where relevant. / 例文は自作、または必要なSource・License情報を付けた公開Sourceです。
+          required: true
+        - label: I understand that this result must be reproduced before it becomes a Bug Issue or runtime change. / Bug Issue化・Runtime変更の前に再現確認が必要であることを理解しています。
+          required: true
