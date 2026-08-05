@@ -1,0 +1,97 @@
+title: "[Validation Campaign] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        このカテゴリはMaintainerが作成する公開検証Campaign用です。
+        参加者は、指定されたPackまたは環境を一つ選び、結果を`Validation Results`へ投稿してください。
+
+        This category is for maintainer-created public validation campaigns.
+        Select one pack or environment and post the result in `Validation Results`.
+
+  - type: input
+    id: campaign_id
+    attributes:
+      label: Campaign ID / Campaign ID
+      placeholder: "NATURAL-JA-001"
+    validations:
+      required: true
+
+  - type: input
+    id: tested_ref
+    attributes:
+      label: Version or commit SHA / 対象Version・Commit SHA
+      placeholder: "0.4.0 or commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: track
+    attributes:
+      label: Participation track / 参加コース
+      options:
+        - Five-minute language review / 5分日本語確認
+        - Fifteen-minute execution validation / 15分実行検証
+        - Specialist review / 専門検証
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Purpose and risk / 目的・確認したいRisk
+      description: Explain what behavior is being independently checked and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: target
+    attributes:
+      label: Validation target / 検証対象
+      description: List pack IDs, commands, inputs, environments, or candidate batches.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps / 検証手順
+      description: Keep the task small enough for the selected participation track.
+    validations:
+      required: true
+
+  - type: textarea
+    id: result_format
+    attributes:
+      label: Result format / 結果投稿形式
+      value: |
+        - Campaign or Pack ID:
+        - Result: correct / suspicious / incorrect / unable to judge
+        - Observation:
+        - Expected interpretation or behavior:
+        - Environment, when applicable:
+        - Sanitized evidence:
+    validations:
+      required: true
+
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion and escalation rule / 完了・Issue化条件
+      description: State how many independent checks are needed and what qualifies as a confirmed reproducible bug.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Maintainer confirmation / Maintainer確認
+      options:
+        - label: Candidate findings will not be auto-promoted into runtime data. / 候補結果をRuntimeへ自動昇格しません。
+          required: true
+        - label: Only confirmed reproducible defects will be converted into Bug Issues. / 確認済みで再現可能な不具合だけをBug Issueへ移します。
+          required: true
+        - label: The campaign does not request secrets, personal data, private URLs, or copied proprietary content. / 秘密情報・個人情報・非公開URL・転載禁止Contentを要求しません。
+          required: true
