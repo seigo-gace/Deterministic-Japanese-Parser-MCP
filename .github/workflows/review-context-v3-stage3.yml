@@ -88,6 +88,14 @@ jobs:
             --output-root work/context-v3-stage3 \
             --expected-batch-size 20
 
+      - name: Apply explicit category review batch 002
+        run: |
+          python tools/apply_context_v3_stage3_category_decisions.py \
+            --queue work/context-v3-stage3/post-category-batch-001-queue.jsonl \
+            --decisions research/context_collection/stage3_decisions/category-name-place-batch-002.jsonl \
+            --output-root work/context-v3-stage3 \
+            --expected-batch-size 20
+
       - name: Prove checked-in Stage 3 evidence is current
         run: |
           diff -u \
@@ -108,6 +116,12 @@ jobs:
           diff -u \
             reports/context-v3-stage3/runtime-boundary-after-category-batch-001.json \
             work/context-v3-stage3/runtime-boundary-after-category-batch-001.json
+          diff -u \
+            reports/context-v3-stage3/category-batch-002-summary.json \
+            work/context-v3-stage3/category-batch-002-summary.json
+          diff -u \
+            reports/context-v3-stage3/runtime-boundary-after-category-batch-002.json \
+            work/context-v3-stage3/runtime-boundary-after-category-batch-002.json
 
       - name: Validate all 5,000 candidates and safety boundaries
         run: |
