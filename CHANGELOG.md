@@ -8,6 +8,8 @@ This file records user-visible changes to the public repository.
 
 ### Added
 
+- Public community validation contract in `VALIDATION.md`.
+- GitHub Discussion category forms for validation campaigns, validation results, Japanese-language review, environment validation, and evidence review.
 - Deterministic context-sensitive sense selection for high-impact polysemous Japanese expressions.
 - Sense candidates, evidence, and confidence fields in the Meaning Graph.
 - Local omitted-target and zero-object recovery with explicit inference evidence.
@@ -18,9 +20,15 @@ This file records user-visible changes to the public repository.
 - Supported Semantic Quality Contract: 167 cases.
 - Independent Semantic Holdout Contract: 130 runtime-independent cases.
 - Public security and support policies.
-- Public Issue forms and Pull Request template.
+- Public Issue form and Pull Request template.
 - Public documentation index and release checklist.
 - CI-backed Public Repository Contract that rejects missing public files and private workspace links.
+
+### Changed
+
+- GitHub Discussions are the public entrypoint for independent validation, uncertain findings, Japanese-language review, environment checks, candidate evidence, questions, and early ideas.
+- GitHub Issues are restricted to confirmed, reproducible bugs and regressions that require a fix.
+- The public feature-request and usage-question Issue forms were removed; the Issue chooser now routes those users to Discussions.
 
 ### Verified
 
