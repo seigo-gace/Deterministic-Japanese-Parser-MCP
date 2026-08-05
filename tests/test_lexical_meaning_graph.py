@@ -18,9 +18,12 @@ def test_compiled_open_lexicon_is_emitted_as_meaning_graph_nodes():
         )
     )
 
+    assert response.meaning_graph.graph_version == "2.2.0"
+    assert response.meaning_graph.semantic_hash
     nodes = response.meaning_graph.lexical_nodes
     assert nodes
     assert response.metrics["lexical_node_count"] == len(nodes)
+    assert response.metrics["meaning_graph_lexical_node_count"] == len(nodes)
     assert response.meaning_graph.quality_annotations[
         "context_candidate_registry_used"
     ] is False
@@ -28,6 +31,7 @@ def test_compiled_open_lexicon_is_emitted_as_meaning_graph_nodes():
     japan = next(item for item in nodes if item.surface == "日本")
     assert japan.status == ItemStatus.RESOLVED
     assert japan.selected_record_id
+    assert japan.related_proposition_ids
     assert japan.candidates[0].source_dataset == "JMdict"
     assert "surface_exact" in japan.candidate_evidence[
         japan.selected_record_id
@@ -104,6 +108,7 @@ def test_equal_lexical_candidates_remain_ambiguous_without_guessing():
     )
 
     assert len(graph.lexical_nodes) == 1
+    assert graph.semantic_hash
     node = graph.lexical_nodes[0]
     assert node.status == ItemStatus.AMBIGUOUS
     assert node.selected_record_id is None
