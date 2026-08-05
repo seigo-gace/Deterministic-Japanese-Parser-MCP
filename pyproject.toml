@@ -57,7 +57,7 @@ where = ["src"]
   "dictionaries/system/compiled/open_lexicon/records/*.jsonl.gz",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data" = [
-  "dictionaries/system/compiled/semantic_data/manifest.json",
+  "dictionaries/system/compiled/semantic_data/*.json",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/indexes" = [
   "dictionaries/system/compiled/semantic_data/indexes/*.json.gz",
