@@ -23,69 +23,305 @@ jobs:
       - name: Prepare build tools
         run: python -m pip install --upgrade pip build
 
-      - name: Fetch official JMdict and build the 100k+ lexical base
+      - name: Audit checked-in 120k snapshot and rebuild compiled runtime offline
         run: |
           set -euo pipefail
-          mkdir -p downloads work reports dictionaries/sources
-          python tools/fetch_open_dictionary.py \
-            --source jmdict \
-            --output downloads/JMdict_e.gz \
-            --manifest reports/open-lexicon-source.json
-          SOURCE_SHA=$(python -c 'import json; print(json.load(open("reports/open-lexicon-source.json", encoding="utf-8"))["sha256"])')
-          SOURCE_VERSION="sha256-${SOURCE_SHA:0:12}"
-          BATCH_ID="release-jmdict-${GITHUB_SHA:0:12}"
-          echo "OPEN_LEXICON_BATCH_ID=${BATCH_ID}" >> "$GITHUB_ENV"
-          echo "OPEN_LEXICON_SOURCE_VERSION=${SOURCE_VERSION}" >> "$GITHUB_ENV"
-          python tools/dictionary_supply/importers/jmdict.py \
-            --input downloads/JMdict_e.gz \
-            --source-version "$SOURCE_VERSION" \
-            --lexical-only \
-            --output work/jmdict-lexical.jsonl
-          python tools/build_open_lexicon.py \
-            --input work/jmdict-lexical.jsonl \
-            --output-root dictionaries/system/lexicon.d \
-            --manifest "dictionaries/sources/${BATCH_ID}.json" \
-            --batch-id "$BATCH_ID" \
-            --minimum-records 100000 \
-            --maximum-records 120000 \
-            --shard-size 10000 \
-            --repo-root . \
-            --sync-repository-metadata \
-            | tee reports/open-lexicon-build.txt
-          cp "dictionaries/sources/${BATCH_ID}.json" reports/open-lexicon-manifest.json
-          DJPMCP_MIN_LEXICON_RECORDS=100000 \
+          mkdir -p work reports
+          python - <<'PY'
+          from __future__ import annotations
+
+          import gzip
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path("dictionaries/system/lexicon.d")
+          compiled_manifest_path = Path(
+              "dictionaries/system/compiled/open_lexicon/manifest.json"
+          )
+          compiled_manifest = json.loads(
+              compiled_manifest_path.read_text(encoding="utf-8")
+          )
+          paths = sorted([
+              *root.rglob("*.jsonl"),
+              *root.rglob("*.jsonl.gz"),
+          ], key=lambda item: str(item))
+          record_count = 0
+          record_ids: set[str] = set()
+          source_versions: set[str] = set()
+          source_licenses: set[str] = set()
+          source_datasets: set[str] = set()
+          source_sha256: set[str] = set()
+          populated_shards = 0
+          shard_evidence = []
+          semantic_fields = (
+              "senses",
+              "synonyms",
+              "antonyms",
+              "related",
+              "forms",
+          )
+
+          for path in paths:
+              opener = gzip.open if path.name.endswith(".gz") else open
+              shard_count = 0
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              with opener(path, "rt", encoding="utf-8") as handle:
+                  for line_number, line in enumerate(handle, 1):
+                      if not line.strip():
+                          continue
+                      item = json.loads(line)
+                      record_id = item.get("record_id")
+                      lemma = item.get("lemma")
+                      if not record_id or not lemma:
+                          raise AssertionError(
+                              f"record_id/lemma missing: {path}:{line_number}"
+                          )
+                      if record_id in record_ids:
+                          raise AssertionError(
+                              f"duplicate record_id: {record_id}"
+                          )
+                      if item.get("review_status") != "approved":
+                          raise AssertionError(
+                              f"unapproved record: {record_id}"
+                          )
+                      promoted = [
+                          name for name in semantic_fields if item.get(name)
+                      ]
+                      if promoted:
+                          raise AssertionError(
+                              f"semantic auto-promotion: {record_id}: {promoted}"
+                          )
+                      source = item.get("source") or {}
+                      required_source = (
+                          source.get("dataset"),
+                          source.get("version"),
+                          source.get("license"),
+                          source.get("source_id"),
+                          source.get("source_sha256"),
+                      )
+                      if not all(required_source):
+                          raise AssertionError(
+                              f"source provenance incomplete: {record_id}"
+                          )
+                      record_ids.add(record_id)
+                      source_datasets.add(source["dataset"])
+                      source_versions.add(source["version"])
+                      source_licenses.add(source["license"])
+                      source_sha256.add(source["source_sha256"])
+                      record_count += 1
+                      shard_count += 1
+              if shard_count:
+                  populated_shards += 1
+              shard_evidence.append({
+                  "path": str(path),
+                  "sha256": digest,
+                  "record_count": shard_count,
+              })
+
+          assert record_count == 120000, record_count
+          assert populated_shards == 12, populated_shards
+          assert source_datasets == {"JMdict"}, source_datasets
+          assert source_versions == set(
+              compiled_manifest["source_versions"]
+          ), source_versions
+          assert source_licenses == set(
+              compiled_manifest["source_licenses"]
+          ), source_licenses
+          assert compiled_manifest["record_count"] == record_count
+          assert compiled_manifest["exact_lookup_only"] is True
+          assert compiled_manifest["reading_alias_promotion"] is False
+          assert compiled_manifest["semantic_auto_promotion"] is False
+          assert compiled_manifest["intent_auto_promotion"] is False
+          assert compiled_manifest["external_action_auto_promotion"] is False
+
+          report = {
+              "status": "PASS",
+              "mode": "checked_in_snapshot_offline",
+              "record_count": record_count,
+              "record_id_count": len(record_ids),
+              "populated_shards": populated_shards,
+              "all_input_files": len(paths),
+              "source_datasets": sorted(source_datasets),
+              "source_versions": sorted(source_versions),
+              "source_licenses": sorted(source_licenses),
+              "source_sha256": sorted(source_sha256),
+              "semantic_auto_promotion": False,
+              "intent_auto_promotion": False,
+              "external_action_auto_promotion": False,
+              "shards": shard_evidence,
+          }
+          Path("reports/open-lexicon-source.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+          DJPMCP_MIN_LEXICON_RECORDS=120000 \
             python tools/lexicon_validator.py \
             | tee reports/open-lexicon-validator.txt
-          python - <<'PY'
-          import json
-          manifest = json.load(open("reports/open-lexicon-manifest.json", encoding="utf-8"))
-          assert manifest["record_count"] >= 100000, manifest
-          assert manifest["minimum_record_contract"] == 100000, manifest
-          assert manifest["reading_alias_promotion"] is False, manifest
-          assert manifest["semantic_auto_promotion"] is False, manifest
-          assert manifest["external_action_auto_promotion"] is False, manifest
-          assert all(item["compressed_sha256"] for item in manifest["shards"]), manifest
-          print({
-              "open_lexicon_records": manifest["record_count"],
-              "open_lexicon_surfaces": manifest["surface_count"],
-              "open_lexicon_shards": len(manifest["shards"]),
-              "compressed_bytes": manifest["compressed_bytes"],
-          })
-          PY
-          du -sh downloads work dictionaries/system/lexicon.d | tee reports/open-lexicon-disk-usage.txt
 
-      - name: Audit all built JMdict records and lexical lookup accuracy
+          rm -rf work/release-open-lexicon-compiled
+          python tools/compile_open_lexicon_runtime.py \
+            --input-root dictionaries/system/lexicon.d \
+            --output-root work/release-open-lexicon-compiled \
+            --expected-records 120000 \
+            --record-shard-size 10000 \
+            --report reports/open-lexicon-build.json
+
+          python tools/validate_compiled_open_lexicon.py \
+            --root work/release-open-lexicon-compiled \
+            --expected-records 120000 \
+            --output reports/open-lexicon-compiled-validation.json
+
+          diff -qr \
+            dictionaries/system/compiled/open_lexicon \
+            work/release-open-lexicon-compiled \
+            | tee reports/open-lexicon-determinism.txt
+
+          rm -rf dictionaries/system/compiled/open_lexicon
+          mv \
+            work/release-open-lexicon-compiled \
+            dictionaries/system/compiled/open_lexicon
+          cp \
+            dictionaries/system/compiled/open_lexicon/manifest.json \
+            reports/open-lexicon-manifest.json
+          du -sh \
+            dictionaries/system/lexicon.d \
+            dictionaries/system/compiled/open_lexicon \
+            | tee reports/open-lexicon-disk-usage.txt
+
+      - name: Audit every local record against every compiled lookup index
         run: |
-          set -o pipefail
-          python tools/open_lexicon_accuracy.py \
-            --source downloads/JMdict_e.gz \
-            --lexicon-root dictionaries/system/lexicon.d \
-            --manifest reports/open-lexicon-manifest.json \
-            --minimum-records 100000 \
-            --containment-cases 20000 \
-            --pollution-cases 20000 \
-            --output reports/open-lexicon-accuracy.json \
-            | tee reports/open-lexicon-accuracy.txt
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import gzip
+          import json
+          from pathlib import Path
+
+          raw_root = Path("dictionaries/system/lexicon.d")
+          compiled_root = Path(
+              "dictionaries/system/compiled/open_lexicon"
+          )
+
+          def load_gzip_json(name: str):
+              with gzip.open(
+                  compiled_root / "indexes" / name,
+                  "rt",
+                  encoding="utf-8",
+              ) as handle:
+                  return json.load(handle)
+
+          surface_index = load_gzip_json("surface-index.json.gz")
+          reading_index = load_gzip_json("reading-index.json.gz")
+          canonical = load_gzip_json("canonical-groups.json.gz")
+          homographs = load_gzip_json("homograph-index.json.gz")
+          locator = load_gzip_json("record-locator.json.gz")
+
+          surface_checks = 0
+          reading_checks = 0
+          record_checks = 0
+          errors: list[str] = []
+          raw_paths = sorted([
+              *raw_root.rglob("*.jsonl"),
+              *raw_root.rglob("*.jsonl.gz"),
+          ], key=lambda item: str(item))
+
+          for path in raw_paths:
+              opener = gzip.open if path.name.endswith(".gz") else open
+              with opener(path, "rt", encoding="utf-8") as handle:
+                  for line_number, line in enumerate(handle, 1):
+                      if not line.strip():
+                          continue
+                      item = json.loads(line)
+                      record_id = item["record_id"]
+                      lemma = item["lemma"]
+                      if record_id not in locator:
+                          errors.append(
+                              f"locator missing: {record_id}"
+                          )
+                          continue
+                      orthographic = []
+                      for surface in [lemma, *item.get("surfaces", [])]:
+                          if surface and surface not in orthographic:
+                              orthographic.append(surface)
+                      group = canonical.get(lemma, [])
+                      if group != sorted(set(orthographic)):
+                          errors.append(
+                              f"canonical mismatch: {record_id}"
+                          )
+                      for surface in orthographic:
+                          if record_id not in surface_index.get(surface, []):
+                              errors.append(
+                                  f"surface missing: {record_id}: {surface}"
+                              )
+                          surface_checks += 1
+                      for mapping in item.get("reading_mappings", []):
+                          expected = {
+                              "record_id": record_id,
+                              "restricted_to": sorted(set(
+                                  mapping.get("restricted_to", [])
+                              )),
+                              "no_kanji": bool(
+                                  mapping.get("no_kanji", False)
+                              ),
+                          }
+                          actual = reading_index.get(
+                              mapping["reading"], []
+                          )
+                          if expected not in actual:
+                              errors.append(
+                                  f"reading mapping missing: "
+                                  f"{record_id}: {mapping['reading']}"
+                              )
+                          reading_checks += 1
+                      record_checks += 1
+                      if len(errors) >= 100:
+                          break
+              if len(errors) >= 100:
+                  break
+
+          expected_homographs = {
+              surface: owners
+              for surface, owners in surface_index.items()
+              if len(owners) > 1
+          }
+          if homographs != expected_homographs:
+              errors.append("homograph subset mismatch")
+          if record_checks != 120000:
+              errors.append(
+                  f"record coverage mismatch: {record_checks}"
+              )
+          if len(locator) != 120000:
+              errors.append(
+                  f"locator coverage mismatch: {len(locator)}"
+              )
+
+          report = {
+              "status": "PASS" if not errors else "FAIL",
+              "mode": "offline_raw_to_compiled_full_coverage",
+              "record_checks": record_checks,
+              "surface_checks": surface_checks,
+              "reading_mapping_checks": reading_checks,
+              "unique_surfaces": len(surface_index),
+              "unique_lemmas": len(canonical),
+              "homograph_surfaces": len(homographs),
+              "locator_records": len(locator),
+              "exact_lookup_only": True,
+              "substring_scan_enabled": False,
+              "errors": errors,
+          }
+          Path("reports/open-lexicon-accuracy.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          if errors:
+              raise SystemExit(1)
+          PY
 
       - name: Download and build every dependency after lexicon generation
         run: |
@@ -101,6 +337,7 @@ jobs:
             --include wheelhouse \
             --include dist \
             --include dictionaries/system/lexicon.d \
+            --include dictionaries/system/compiled/open_lexicon \
             --include dictionaries/sources \
             --output reports/release-manifest.json
 
@@ -117,7 +354,7 @@ jobs:
           python -m pip install --no-index --find-links wheelhouse pytest pytest-cov
           python -m pip freeze | sort > reports/offline-installed-environment.txt
 
-      - name: Verify installed wheel and 100k+ lexicon outside repository
+      - name: Verify installed wheel and 120k compiled lexicon outside repository
         env:
           PIP_NO_INDEX: "1"
         run: |
@@ -128,8 +365,9 @@ jobs:
 
           engine = ParserEngine()
           lexicon_count = engine.bundle.lexicon["record_count"]
-          assert lexicon_count >= 100000, lexicon_count
-          assert engine.bundle.lexicon["exact_only_group_count"] >= 100000
+          assert lexicon_count == 120000, lexicon_count
+          assert engine.bundle.lexicon["lookup_backend"] == "compiled-index"
+          assert engine.bundle.lexicon["exact_only_group_count"] == 119092
           response = engine.analyze(AnalyzeRequest(
               original_text="UIは維持する。APIだけ変更しろ。",
               execution_mode="external_action",
@@ -138,18 +376,25 @@ jobs:
           assert engine.tokenizer.backend == "sudachi-core"
           assert {"preserve", "modify"} <= {item.type for item in response.intents}
           assert response.meaning_graph.propositions
+          assert response.meaning_graph.lexical_nodes
           assert response.meaning_graph.semantic_hash
+          assert response.meaning_graph.graph_version == "2.2.0"
+          assert response.meaning_graph.quality_annotations[
+              "context_candidate_registry_used"
+          ] is False
           assert [task.intent_type for task in response.task_graph.tasks] == ["modify"]
           assert response.original_text == "UIは維持する。APIだけ変更しろ。"
           print({
               "installed_wheel": "OK",
               "tokenizer": engine.tokenizer.backend,
+              "lookup_backend": engine.bundle.lexicon["lookup_backend"],
               "rules": len(engine.rules.compiled),
               "metaphors": len(engine.metaphors.entries),
               "open_lexicon_records": lexicon_count,
               "exact_only_groups": engine.bundle.lexicon["exact_only_group_count"],
               "canonical_groups": len(engine.bundle.synonyms["groups"]),
               "propositions": len(response.meaning_graph.propositions),
+              "lexical_nodes": len(response.meaning_graph.lexical_nodes),
               "action_tasks": len(response.task_graph.tasks),
           })
           PY
@@ -162,10 +407,10 @@ jobs:
           . .offline-venv/bin/activate
           python scripts/preflight.py | tee reports/offline-preflight.json
 
-      - name: Offline runtime lexicon provenance and 100k minimum validation
+      - name: Offline runtime lexicon provenance and 120k validation
         env:
           PIP_NO_INDEX: "1"
-          DJPMCP_MIN_LEXICON_RECORDS: "100000"
+          DJPMCP_MIN_LEXICON_RECORDS: "120000"
         run: |
           set -o pipefail
           . .offline-venv/bin/activate
@@ -182,7 +427,7 @@ jobs:
       - name: Offline semantic profile and independent holdout contracts
         env:
           PIP_NO_INDEX: "1"
-          DJPMCP_MIN_LEXICON_RECORDS: "100000"
+          DJPMCP_MIN_LEXICON_RECORDS: "120000"
         run: |
           set -euo pipefail
           . .offline-venv/bin/activate
@@ -205,12 +450,12 @@ jobs:
       - name: Offline unit, importer, supply-chain and MCP stdio E2E tests
         env:
           PIP_NO_INDEX: "1"
-          DJPMCP_MIN_LEXICON_RECORDS: "100000"
+          DJPMCP_MIN_LEXICON_RECORDS: "120000"
         run: |
           . .offline-venv/bin/activate
           pytest --junitxml=reports/offline-pytest.xml
 
-      - name: Offline existing benchmark gate with the 100k lexical base
+      - name: Offline existing benchmark gate with the 120k lexical base
         env:
           PIP_NO_INDEX: "1"
         run: |
@@ -218,14 +463,14 @@ jobs:
           . .offline-venv/bin/activate
           python scripts/benchmark.py --check --rounds 100 | tee reports/offline-benchmark.json
 
-      - name: Offline 10ms target and 20x dictionary contract with the 100k lexical base
+      - name: Offline 10ms target and 20x dictionary contract with the 120k lexical base
         env:
           PIP_NO_INDEX: "1"
         run: |
           . .offline-venv/bin/activate
           python scripts/performance_contract.py --check --rounds 100 --stdio-rounds 50 --scale 20 --max-ready-ms 10 --output reports/offline-performance.json
 
-      - name: Offline Astera 10ms target and 50ms hard contract with the 100k lexical base
+      - name: Offline Astera 10ms target and 50ms hard contract with the 120k lexical base
         env:
           PIP_NO_INDEX: "1"
         run: |
@@ -248,6 +493,7 @@ jobs:
             --include dist \
             --include reports \
             --include dictionaries/system/lexicon.d \
+            --include dictionaries/system/compiled/open_lexicon \
             --include dictionaries/sources \
             --output evidence-manifest.json
 
