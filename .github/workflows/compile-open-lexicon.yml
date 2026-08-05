@@ -153,6 +153,8 @@ jobs:
             exit 0
           fi
           git commit -m "data: verify 120k lexicon runtime connection"
+          git fetch origin "${TARGET_BRANCH}"
+          git rebase "origin/${TARGET_BRANCH}"
           git push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Upload compile and connection evidence
