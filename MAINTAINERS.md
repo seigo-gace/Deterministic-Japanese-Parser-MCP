@@ -30,3 +30,13 @@ No other maintainer currently has independent authority to publish an official r
 Delegated maintainers or reviewers, if appointed later, will be recorded here with their exact scope. Delegation does not transfer ownership and may be changed or revoked under [`GOVERNANCE.md`](GOVERNANCE.md).
 
 将来Maintainer・Reviewerを任命した場合は、正確な権限範囲を本Fileへ記録します。委任はOwnershipを移転せず、[`GOVERNANCE.md`](GOVERNANCE.md)に従って変更・解除できます。
+
+## Platform enforcement / GitHub強制設定
+
+The version-controlled ownership and contribution controls are implemented in [`.github/CODEOWNERS`](.github/CODEOWNERS), [`.github/workflows/contribution-rights.yml`](.github/workflows/contribution-rights.yml), and the pull-request template. The GitHub Ruleset required to make code-owner review, status checks, pull requests, force-push blocking, and deletion blocking mandatory is specified in [`docs/REPOSITORY_CONTROL_SETTINGS.md`](docs/REPOSITORY_CONTROL_SETTINGS.md).
+
+Version管理されるOwnership・Contribution Controlは、[`.github/CODEOWNERS`](.github/CODEOWNERS)、[`.github/workflows/contribution-rights.yml`](.github/workflows/contribution-rights.yml)、Pull Request Templateへ実装しています。Code Owner Review、Status Check、Pull Request、Force Push禁止、Deletion禁止をGitHub Platform上で必須化するRulesetは、[`docs/REPOSITORY_CONTROL_SETTINGS.md`](docs/REPOSITORY_CONTROL_SETTINGS.md)に定めます。
+
+The repository must not claim that the Ruleset is active until its actual setting and verification record are confirmed. Repository policy files cannot substitute for a platform Ruleset.
+
+実Repository SettingとVerification Recordを確認するまでは、RulesetがActiveであると表示してはなりません。Repository Policy FileはPlatform Rulesetを代替しません。
