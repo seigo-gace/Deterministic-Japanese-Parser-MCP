@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import json
 from pathlib import Path
 import re
 
@@ -172,14 +171,8 @@ def _clause_for_position(
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
-    payload = graph.model_dump(exclude={"semantic_hash"}, mode="json")
     return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
     ).hexdigest()
 
 
@@ -1204,6 +1197,7 @@ class SemanticEnricher:
         metaphors: list[Metaphor],
         conversation_context: list[str],
         known_entities: list[str],
+        update_hash: bool = True,
     ) -> MeaningGraph:
         propositions = list(graph.propositions)
         clauses = list(graph.clauses)
@@ -1302,7 +1296,8 @@ class SemanticEnricher:
                 "discourse_edges": discourse_count,
             },
         })
-        graph = graph.model_copy(update={"semantic_hash": _stable_hash(graph)})
+        if update_hash:
+            graph = graph.model_copy(update={"semantic_hash": _stable_hash(graph)})
         self.last_metrics = {
             "resolved_sense_count": resolved_senses,
             "ambiguous_sense_count": ambiguous_senses,

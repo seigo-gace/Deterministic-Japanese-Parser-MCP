@@ -35,14 +35,8 @@ def _overlap(left: OriginalSpan, right: OriginalSpan) -> bool:
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
-    payload = graph.model_dump(exclude={"semantic_hash"}, mode="json")
     return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
     ).hexdigest()
 
 
@@ -275,6 +269,29 @@ class SemanticDataRuntime:
                 **graph.quality_annotations,
                 "semantic_data_pack_used": False,
                 "semantic_data_pack_record_count": 0,
+            }
+            updated = graph.model_copy(update={"quality_annotations": quality})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
+
+        if self.record_count == 0:
+            quality = {
+                **graph.quality_annotations,
+                "semantic_data_pack_used": True,
+                "semantic_data_pack_record_count": 0,
+                "semantic_data_pack_match_count": 0,
+                "semantic_data_pack_resolved_count": 0,
+                "semantic_data_pack_ambiguous_count": 0,
+                "semantic_data_pack_automatic_external_action": False,
+            }
+            self.last_metrics = {
+                "semantic_pack_available": 1,
+                "semantic_pack_match_count": 0,
+                "semantic_pack_resolved_count": 0,
+                "semantic_pack_ambiguous_count": 0,
             }
             updated = graph.model_copy(update={"quality_annotations": quality})
             if update_hash:

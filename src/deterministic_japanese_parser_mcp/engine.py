@@ -252,6 +252,7 @@ class ParserEngine:
                 metaphors=metaphors,
                 conversation_context=context,
                 known_entities=request.known_entities,
+                update_hash=False,
             ),
         )
         if deadline_remaining():
@@ -264,6 +265,7 @@ class ParserEngine:
                     metaphors=metaphors,
                     conversation_context=context,
                     known_entities=request.known_entities,
+                    update_hash=False,
                 ),
             )
         else:
