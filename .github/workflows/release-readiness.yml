@@ -387,7 +387,7 @@ jobs:
           assert response.meaning_graph.propositions
           assert response.meaning_graph.lexical_nodes
           assert response.meaning_graph.semantic_hash
-          assert response.meaning_graph.graph_version == "2.2.0"
+          assert response.meaning_graph.graph_version == "2.3.0"
           assert response.meaning_graph.quality_annotations[
               "context_candidate_registry_used"
           ] is False
