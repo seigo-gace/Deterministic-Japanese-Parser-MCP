@@ -138,6 +138,26 @@ def apply_decisions(
         for field, value in patch.items():
             record[field] = value
         scope = decision["scope"]
+        # A semantic-scope approval is the explicit reviewer authority that
+        # promotes the already attached candidate set.  The source-owned
+        # candidate identity, label, glosses and evidence stay unchanged;
+        # only reviewer-controlled promotion metadata is updated.  Without
+        # this projection, the approved-only compiler would discard every
+        # candidate that entered the queue as ``needs-evidence`` even after
+        # the reviewer approved its semantic scope.
+        if (
+            scope == "semantic"
+            and decision["status"] == "approved"
+            and "meaning_candidates" not in patch
+        ):
+            promoted_candidates = []
+            for candidate in record.get("meaning_candidates", []):
+                promoted = dict(candidate)
+                promoted["review_status"] = "approved"
+                if "meaning_promotion_allowed" in promoted:
+                    promoted["meaning_promotion_allowed"] = True
+                promoted_candidates.append(promoted)
+            record["meaning_candidates"] = promoted_candidates
         blockers = record["approval"]["blockers_by_scope"].get(scope, [])
         if scope == "semantic" and record.get("meaning_candidates"):
             blockers = [item for item in blockers if item != "meaning-candidate-required"]

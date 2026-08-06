@@ -469,6 +469,82 @@ def test_decision_cannot_overwrite_jmdict_meaning_candidates(
         )
 
 
+def test_semantic_approval_promotes_existing_jmdict_candidates_without_overwrite(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JMD-PROMOTE-001", "明るい")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {"lexical": "approved"}
+    raw["source"] = {
+        **raw["source"],
+        "dataset": "JMdict",
+    }
+    original_candidate = {
+        **raw["meaning_candidates"][0],
+        "label": "光が十分にある",
+        "glosses": ["bright", "well-lit"],
+        "review_status": "needs-evidence",
+        "meaning_promotion_allowed": False,
+    }
+    raw["meaning_candidates"] = [original_candidate]
+    raw.pop("polarity")
+    raw.pop("intensity")
+    source_path = open_root / "open.jsonl"
+    source_path.write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    decision_root = tmp_path / "decisions"
+    decision_root.mkdir()
+    decision = {
+        "decision_id": "DEC-JMDICT-PROMOTE",
+        "record_id": raw["record_id"],
+        "scope": "semantic",
+        "status": "approved",
+        "reviewer": "gpt-app-directed-review",
+        "decided_at": "2026-08-06T12:00:00+09:00",
+        "rationale": "既存の複数語義を保持したまま不足判断だけを承認した。",
+        "input_sha256": hashlib.sha256(
+            json.dumps(
+                raw,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+        "patch": {"polarity": "neutral", "intensity": 0.0},
+    }
+    (decision_root / "decision_ledger.jsonl").write_text(
+        json.dumps(decision, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+        decision_root=decision_root,
+    )
+    reviewed = _read_jsonl(review_root / "review-records.jsonl")[0]
+    promoted = reviewed["meaning_candidates"][0]
+    assert promoted["candidate_id"] == original_candidate["candidate_id"]
+    assert promoted["label"] == original_candidate["label"]
+    assert promoted["glosses"] == original_candidate["glosses"]
+    assert promoted["evidence_ids"] == original_candidate["evidence_ids"]
+    assert promoted["review_status"] == "approved"
+    assert promoted["meaning_promotion_allowed"] is True
+
+    compiled_root = tmp_path / "compiled"
+    compile_approved(review_root, compiled_root, shard_size=100)
+    with gzip.open(
+        compiled_root / "records/records-0000.jsonl.gz", "rt", encoding="utf-8"
+    ) as handle:
+        compiled = json.loads(next(handle))
+    assert compiled["meaning_candidates"] == [promoted]
+
+
 def test_pipeline_is_byte_deterministic(tmp_path: Path) -> None:
     open_root = tmp_path / "open"
     open_root.mkdir()
