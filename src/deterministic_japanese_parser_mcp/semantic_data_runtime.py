@@ -94,11 +94,33 @@ class SemanticDataRuntime:
             raise FileNotFoundError(
                 "compiled semantic data indexes are incomplete: " + ", ".join(missing)
             )
+        runtime_required = {
+            "surface": index_root / "runtime-surface-index.json.gz",
+            "reading": index_root / "runtime-reading-index.json.gz",
+            "locator": index_root / "runtime-record-locator.json.gz",
+        }
+        if "runtime_record_count" in manifest:
+            runtime_missing = [
+                str(path) for path in runtime_required.values() if not path.exists()
+            ]
+            if runtime_missing:
+                raise FileNotFoundError(
+                    "compiled semantic runtime indexes are incomplete: "
+                    + ", ".join(runtime_missing)
+                )
+            selected_indexes = runtime_required
+            expected_locator_count = int(manifest["runtime_record_count"])
+        else:
+            # Backward compatibility for compiler manifests created before
+            # runtime-only lookup indexes were introduced.
+            selected_indexes = required
+            expected_locator_count = int(manifest.get("record_count", 0))
+
         self.manifest = manifest
-        self.surface_index = _load_json_gzip(required["surface"])
-        self.reading_index = _load_json_gzip(required["reading"])
-        self.record_locator = _load_json_gzip(required["locator"])
-        if len(self.record_locator) != int(manifest.get("record_count", 0)):
+        self.surface_index = _load_json_gzip(selected_indexes["surface"])
+        self.reading_index = _load_json_gzip(selected_indexes["reading"])
+        self.record_locator = _load_json_gzip(selected_indexes["locator"])
+        if len(self.record_locator) != expected_locator_count:
             raise ValueError("semantic data record locator count mismatch")
         self.available = True
         self.last_metrics["semantic_pack_available"] = 1
@@ -106,6 +128,10 @@ class SemanticDataRuntime:
     @property
     def record_count(self) -> int:
         return int(self.manifest.get("record_count", 0))
+
+    @property
+    def runtime_record_count(self) -> int:
+        return int(self.manifest.get("runtime_record_count", self.record_count))
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
         cached = self._shards.get(number)
@@ -277,11 +303,12 @@ class SemanticDataRuntime:
                 })
             return updated
 
-        if self.record_count == 0:
+        if self.runtime_record_count == 0:
             quality = {
                 **graph.quality_annotations,
                 "semantic_data_pack_used": True,
-                "semantic_data_pack_record_count": 0,
+                "semantic_data_pack_record_count": self.record_count,
+                "semantic_data_runtime_record_count": 0,
                 "semantic_data_pack_match_count": 0,
                 "semantic_data_pack_resolved_count": 0,
                 "semantic_data_pack_ambiguous_count": 0,
@@ -417,6 +444,7 @@ class SemanticDataRuntime:
             **graph.quality_annotations,
             "semantic_data_pack_used": True,
             "semantic_data_pack_record_count": self.record_count,
+            "semantic_data_runtime_record_count": self.runtime_record_count,
             "semantic_data_pack_match_count": match_count,
             "semantic_data_pack_resolved_count": resolved_count,
             "semantic_data_pack_ambiguous_count": ambiguous_count,

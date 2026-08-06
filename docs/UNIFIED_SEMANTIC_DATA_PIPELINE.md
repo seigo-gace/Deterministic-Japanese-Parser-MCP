@@ -83,6 +83,8 @@ Pipeline自身は承認を作りません。Reviewが残る間、WorkflowはEvid
 
 承認済みPackは`dictionaries/system/compiled/semantic_data/`にManifest、gzip Record Shard、Surface・Reading・Lemma・POS・Domain・Meaning・Target Indexとして出力します。同形異義は潰さず、候補を保持します。
 
+Pack全体のIndexとは別に、Semantic Runtime専用のSurface・Reading・Record Locator Indexを生成します。Lexicalだけが承認済みのRecordはPackと全体Indexへ残しますが、承認済み意味候補がないためSemantic Runtime検索Indexには入れません。語彙同定はOpen Lexicon層、承認済み意味・語用の追加はSemantic Runtime層が担当し、同じLexical RecordのGzip Shardを意味解析のたびに重複読込しない構造です。
+
 ## 専門・利用者Packの分離
 
 Core、専門、利用者の入力は物理的に別Directoryで管理し、正規化後も`pack_namespace`を保持します。衝突時に黙って上書きせず、`collision-report.jsonl`へ全Record IDを出します。Runtime利用時は有効にするDomain/User Packを選び、Coreとの候補集合として統合参照する設計です。

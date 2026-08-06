@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -232,3 +233,66 @@ def test_missing_compiled_pack_is_safe_noop(tmp_path: Path) -> None:
     assert runtime.available is False
     assert graph.propositions[0].sense_id is None
     assert graph.quality_annotations["semantic_data_pack_used"] is False
+
+
+def test_lexical_only_pack_never_loads_semantic_record_shards(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "LEXICAL-ONLY-001",
+        "lemma": "確認",
+        "surfaces": ["確認"],
+        "readings": ["カクニン"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "LEXICAL-ONLY-001:sense:001",
+                "label": "内容を確かめること",
+                "review_status": "needs-evidence",
+            }
+        ],
+        "approval_scopes": {"lexical": "approved"},
+        "source": _source("LEXICAL-ONLY-001"),
+        "review_status": "needs-evidence",
+    }
+    pack_root = tmp_path / "open"
+    pack_root.mkdir()
+    (pack_root / "lexical.jsonl").write_text(
+        json.dumps(record, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    review_root = tmp_path / "review"
+    compiled_root = tmp_path / "compiled"
+    build_review_assets(
+        open_lexicon_root=pack_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    compile_approved(review_root, compiled_root, shard_size=100)
+
+    runtime = SemanticDataRuntime(compiled_root)
+    assert runtime.record_count == 1
+    assert runtime.runtime_record_count == 0
+
+    def fail_if_loaded(_number: int):
+        raise AssertionError("lexical-only records must not load semantic shards")
+
+    runtime._load_shard = fail_if_loaded  # type: ignore[method-assign]
+    graph = runtime.enrich(
+        _graph("確認"),
+        tokens=[Token(
+            surface="確認",
+            normalized="確認",
+            reading="カクニン",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=2, source_text="確認"),
+        )],
+        original_text="確認",
+        conversation_context=[],
+        known_entities=[],
+    )
+    assert graph.propositions[0].sense_id is None
+    assert graph.quality_annotations["semantic_data_pack_record_count"] == 1
+    assert graph.quality_annotations["semantic_data_runtime_record_count"] == 0

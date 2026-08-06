@@ -202,6 +202,17 @@ def test_open_lexicon_without_meaning_remains_in_unified_review_queue(
     ]
     compiled_root = tmp_path / "compiled"
     compile_approved(review_root, compiled_root, shard_size=100)
+    compiled_manifest = json.loads(
+        (compiled_root / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert compiled_manifest["record_count"] == 1
+    assert compiled_manifest["runtime_record_count"] == 0
+    with gzip.open(
+        compiled_root / "indexes/runtime-surface-index.json.gz",
+        "rt",
+        encoding="utf-8",
+    ) as handle:
+        assert json.load(handle) == {}
     with gzip.open(
         compiled_root / "records/records-0000.jsonl.gz", "rt", encoding="utf-8"
     ) as handle:

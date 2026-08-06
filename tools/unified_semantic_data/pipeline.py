@@ -438,11 +438,15 @@ def compile_approved(
     meaning_index: dict[str, set[str]] = defaultdict(set)
     target_index: dict[str, set[str]] = defaultdict(set)
     locator: dict[str, dict[str, int]] = {}
+    runtime_surface_index: dict[str, set[str]] = defaultdict(set)
+    runtime_reading_index: dict[str, set[str]] = defaultdict(set)
+    runtime_locator: dict[str, dict[str, int]] = {}
     for number, record in enumerate(records):
-        locator[record["record_id"]] = {
+        location = {
             "shard": number // shard_size,
             "line": number % shard_size + 1,
         }
+        locator[record["record_id"]] = location
         lemma_index[normalize_key(record["lemma"])].add(record["record_id"])
         for value in record["normalized_surfaces"]:
             surface_index[value].add(record["record_id"])
@@ -456,6 +460,19 @@ def compile_approved(
             meaning_index[item["candidate_id"]].add(record["record_id"])
         for value in record["semantic_targets"]:
             target_index[value].add(record["record_id"])
+        # The full indexes describe every approved field-projected record.
+        # SemanticDataRuntime only needs records with an approved meaning it
+        # can actually apply. Keeping a separate lookup prevents lexical-only
+        # records from causing pointless shard loads while preserving them in
+        # the compiled pack for other approved consumers.
+        if record.get("meaning_candidates"):
+            runtime_locator[record["record_id"]] = location
+            for value in record["normalized_surfaces"]:
+                runtime_surface_index[value].add(record["record_id"])
+            for value in record["readings"]:
+                runtime_reading_index[normalize_key(value)].add(
+                    record["record_id"]
+                )
 
     if compiled_root.exists():
         shutil.rmtree(compiled_root)
@@ -470,6 +487,9 @@ def compile_approved(
         "meaning-index.json.gz": meaning_index,
         "semantic-target-index.json.gz": target_index,
         "record-locator.json.gz": locator,
+        "runtime-surface-index.json.gz": runtime_surface_index,
+        "runtime-reading-index.json.gz": runtime_reading_index,
+        "runtime-record-locator.json.gz": runtime_locator,
     }
     for filename, mapping in indexes.items():
         serializable = {
@@ -553,6 +573,7 @@ def compile_approved(
         "compiler_version": COMPILER_VERSION,
         "mode": "approved-unified-semantic-data",
         "record_count": len(records),
+        "runtime_record_count": len(runtime_locator),
         "record_shard_size": shard_size,
         "record_shards": (
             (len(records) + shard_size - 1) // shard_size if records else 0

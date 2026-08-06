@@ -13,7 +13,7 @@ import unicodedata
 import yaml
 
 SCHEMA_VERSION = "2.0.0"
-COMPILER_VERSION = "2.0.0"
+COMPILER_VERSION = "2.1.0"
 ALLOWED_REVIEW_STATUS = {"approved", "needs-evidence", "rejected", "hold"}
 APPROVAL_SCOPES = ("lexical", "semantic", "pragmatic", "task", "external_action")
 ALLOWED_POLARITIES = {"positive", "negative", "neutral"}
