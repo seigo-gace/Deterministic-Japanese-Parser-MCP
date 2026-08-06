@@ -130,10 +130,17 @@ class SemanticDataRuntime:
                 record_id = item.get("record_id")
                 if not record_id:
                     raise ValueError(f"semantic record_id missing: {path}:{line_number}")
-                if item.get("review_status") != "approved":
-                    raise ValueError(f"unapproved semantic record in runtime: {record_id}")
-                if item.get("review_blockers"):
-                    raise ValueError(f"blocked semantic record in runtime: {record_id}")
+                approval = item.get("approval") or {}
+                approved_scopes = approval.get("approved_scopes") or []
+                if not approved_scopes:
+                    raise ValueError(
+                        f"semantic record has no approved scope: {record_id}"
+                    )
+                blocked = approval.get("blockers_by_scope") or {}
+                if any(blocked.get(scope) for scope in approved_scopes):
+                    raise ValueError(
+                        f"approved semantic record contains scoped blocker: {record_id}"
+                    )
                 records[record_id] = item
         self._shards[number] = records
         self._shards.move_to_end(number)

@@ -11,11 +11,12 @@ YAML・JSON・JSONLをこのDirectory以下へ配置し、公式Dataと同じ共
 - 重複・同形異義・既存Data衝突の検出
 - Source・Version・License・Digestの検証
 - Review Queue生成
-- 承認済みDataだけのRuntime Compile
+- Scope別Decision Ledgerの適用
+- 承認済みScopeだけのRuntime Compile
 - Meaning Graphへの反映
 
 利用者Dataは公式Dataを黙って上書きしません。同じSurfaceがある場合は候補を保持し、意味と文脈の根拠で判定します。ActionまたはSocial解釈が曖昧な場合はFail Closedします。
 
-未承認DataはRuntimeと配布Wheelへ入りません。
+判断はGPTアプリ側で利用者の指示に従って行い、GitHub側にはDecision Ledgerとして保存します。LLM APIは現在のPipelineでは使いません。未承認DataはRuntimeと配布Wheelへ入りません。
 
 詳細は `docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md` を参照してください。

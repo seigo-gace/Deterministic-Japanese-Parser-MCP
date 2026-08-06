@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Decision Ledger Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id", "record_id", "scope", "status", "reviewer",
+    "decided_at", "rationale", "input_sha256"
+  ],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 1},
+    "record_id": {"type": "string", "minLength": 1},
+    "scope": {"enum": ["lexical", "semantic", "pragmatic", "task", "external_action"]},
+    "status": {"enum": ["approved", "needs-evidence", "rejected", "hold"]},
+    "reviewer": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "rationale": {"type": "string", "minLength": 1},
+    "input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "patch": {"type": "object"}
+  }
+}

@@ -1,3 +1,5 @@
-# Semantic source locks
+# Future semantic source adapters
 
-Source snapshots used to generate meaning candidates must be URL-, version- and SHA-256-locked. Candidate extraction does not grant semantic approval or Runtime promotion.
+現在のPipelineは外部SourceをDownloadして12万件の意味候補を復元しません。既存の語彙同定Data、5,000件のContext候補、Repositoryへ追加されたDomain/User Packだけを非AI・決定論的に処理します。
+
+将来、外部Source Adapterを追加する場合はURL・Version・SHA-256・Licenseを固定し、出力をReview Batchへ送ります。外部SourceやLLM APIからのCandidate抽出だけで承認またはRuntime昇格することは禁止します。

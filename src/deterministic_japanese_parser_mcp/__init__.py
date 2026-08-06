@@ -10,7 +10,7 @@ install_semantic_completion()
 install_semantic_contextual_refinement()
 install_language_feature_runtime()
 
-from .semantic_engine import ParserEngine
+from .engine import ParserEngine
 from .low_latency_client import LowLatencyClientSession
 from .models import (
     AnalyzeRequest,

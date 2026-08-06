@@ -65,6 +65,21 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/records" = [
   "dictionaries/system/compiled/semantic_data/records/*.jsonl.gz",
 ]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/core" = [
+  "dictionaries/system/compiled/semantic_data/core/*.json",
+  "dictionaries/system/compiled/semantic_data/core/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/core/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/domains" = [
+  "dictionaries/system/compiled/semantic_data/domains/*.json",
+  "dictionaries/system/compiled/semantic_data/domains/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/domains/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/user" = [
+  "dictionaries/system/compiled/semantic_data/user/*.json",
+  "dictionaries/system/compiled/semantic_data/user/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/user/*.jsonl.gz",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
   "dictionaries/sources/*.json",
 ]

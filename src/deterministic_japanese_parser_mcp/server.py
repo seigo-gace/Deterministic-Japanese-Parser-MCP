@@ -10,7 +10,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
-from .semantic_engine import ParserEngine
+from .engine import ParserEngine
 from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
 from .normalizer import normalize_with_map
 

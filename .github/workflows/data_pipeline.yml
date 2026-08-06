@@ -1,0 +1,196 @@
+name: Dictionary Data Pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "research/semantic_decisions/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "schemas/**"
+      - "tools/build_context_semantic_collection.py"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "tests/test_context_semantic_collection.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - ".github/workflows/data_pipeline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-data-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+
+      - name: Reject LLM API integration in the current pipeline
+        run: |
+          if rg -n \
+            '(^|[[:space:]])(from|import)[[:space:]]+(openai|anthropic|google\.generativeai)|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY' \
+            tools/unified_semantic_data tools/unified_semantic_data_pipeline.py; then
+            echo "Current pipeline must remain non-AI; GPT app is the external operator."
+            exit 1
+          fi
+
+      - name: Normalize, inspect, apply ledgers and compile approved scopes
+        run: |
+          mkdir -p reports
+          python tools/unified_semantic_data_pipeline.py \
+            --compile-approved \
+            --review-batch-size 20 \
+            --output-root reports/unified-semantic-data \
+            --compiled-root dictionaries/system/compiled/semantic_data \
+            | tee reports/data-pipeline-run.json
+
+      - name: Verify byte deterministic rebuild
+        run: |
+          python tools/unified_semantic_data_pipeline.py \
+            --check \
+            --review-batch-size 20 \
+            | tee reports/data-pipeline-determinism.json
+
+      - name: Test adapters, review boundary and approved runtime pack
+        run: |
+          pytest \
+            tests/test_context_semantic_collection.py \
+            tests/test_unified_semantic_data_pipeline.py \
+            tests/test_semantic_data_runtime.py \
+            --junitxml=reports/data-pipeline-pytest.xml
+
+      - name: Preserve Gold, holdout and external-action safety gates
+        run: |
+          python tools/lexicon_validator.py \
+            | tee reports/data-pipeline-lexicon-validator.txt
+          python tools/validator.py \
+            | tee reports/data-pipeline-validator.txt
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/data-pipeline-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/data-pipeline-holdout.json
+
+      - name: Enforce p95 10ms target and 50ms hard limit
+        run: |
+          python scripts/benchmark.py --check --rounds 30 \
+            | tee reports/data-pipeline-benchmark.json
+          python scripts/performance_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --scale 20 \
+            --max-ready-ms 10 \
+            --output reports/data-pipeline-performance.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/data-pipeline-astera-latency.json
+
+      - name: Build wheel containing approved data only
+        run: python -m build --wheel
+
+      - name: Verify wheel has no candidate pack and works offline
+        run: |
+          python -m venv --system-site-packages /tmp/djpmcp-wheel
+          /tmp/djpmcp-wheel/bin/pip install \
+            --no-index --no-deps --force-reinstall dist/*.whl
+          cd /tmp
+          /tmp/djpmcp-wheel/bin/python - <<'PY'
+          from pathlib import Path
+          import json
+          import sysconfig
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+
+          share = Path(sysconfig.get_path("data")) / "share/deterministic-japanese-parser-mcp"
+          assert not (share / "dictionaries/system/compiled/semantic_candidates").exists()
+          manifest = json.loads(
+              (share / "dictionaries/system/compiled/semantic_data/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert manifest["approved_only"] is True
+          assert manifest["field_scope_projection"] is True
+          assert set(manifest["pack_namespaces"]) == {"core", "domains", "user"}
+          for namespace in manifest["pack_namespaces"]:
+              assert (
+                  share
+                  / f"dictionaries/system/compiled/semantic_data/{namespace}/manifest.json"
+              ).exists()
+          response = ParserEngine().analyze(
+              AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
+          )
+          assert response.meaning_graph.propositions
+          assert response.meaning_graph.semantic_hash
+          print({"approved_records": manifest["record_count"], "offline": True})
+          PY
+
+      - name: Write PR summary
+        if: always()
+        run: |
+          if test -f reports/unified-semantic-data/manifest.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("reports/unified-semantic-data/manifest.json").read_text())
+          print("## Dictionary Data Pipeline")
+          print(f"- Input records: {manifest['total_records']}")
+          print(f"- Approved-scope records: {manifest['runtime_eligible_records']}")
+          print(f"- Review required: {manifest['review_queue_records']}")
+          print(f"- Review batches (max 20): {manifest['review_batch_count']}")
+          print(f"- LLM API used: {manifest['boundaries']['llm_api_used']}")
+          PY
+          fi
+
+      - name: Upload review and gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dictionary-data-pipeline-evidence
+          path: |
+            reports/data-pipeline-*.json
+            reports/data-pipeline-*.txt
+            reports/data-pipeline-*.xml
+            reports/unified-semantic-data
+            dictionaries/system/compiled/semantic_data/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Block promotion while review remains
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("reports/unified-semantic-data/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          remaining = int(manifest["review_queue_records"])
+          if remaining:
+              raise SystemExit(
+                  "REVIEW_REQUIRED: "
+                  f"{remaining} records in {manifest['review_batch_count']} batches; "
+                  "add explicit Decision Ledger entries."
+              )
+          print("REVIEW COMPLETE")
+          PY
