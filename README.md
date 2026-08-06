@@ -1,7 +1,7 @@
 # Deterministic Japanese Parser MCP
 
 <p align="center">
-  <strong>生成AIを使わず、日本語の意味・条件・禁止・例外・参照・実行可否を再現可能な構造へ変換するMCPサーバー</strong>
+  <strong>日本語の指示・条件・禁止・例外・参照関係を、生成AIなしで再現可能な構造へ変換するMCPサーバー</strong>
 </p>
 
 <p align="center">
@@ -14,148 +14,38 @@
 
 | 項目 | 内容 |
 |---|---|
+| MCPツール | `analyze_japanese` |
 | 実行方式 | 非AI・非生成・決定論的 |
+| 接続方法 | MCP標準入出力（stdio）、Python API |
 | 対応環境 | Python 3.10以上 |
-| 接続方式 | MCP標準入出力・Python API |
-| プログラムのライセンス | MIT |
-| 実行時の外部AI接続 | なし |
-| 実行時の外部辞書接続 | なし |
+| 外部接続 | 実行時のAI API・辞書API接続なし |
+| プログラムライセンス | MIT |
 
-[導入](#導入) ｜ [使い方](#使い方) ｜ [検証](#検証) ｜ [検証に参加する](VALIDATION.md) ｜ [不具合を報告する](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/issues/new?template=bug_report.yml) ｜ [公開検証・質問](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions)
+[すぐに試す](#すぐに試す) ｜ [MCPへ接続する](#mcpへ接続する) ｜ [入力と出力](#入力と出力) ｜ [辞書データ](#辞書データ) ｜ [検証](#検証) ｜ [限界](#限界)
 
----
+## 何をするMCPか
 
-## これは何か
-
-**Deterministic Japanese Parser MCP**は、日本語入力を単純な意図一覧へ変換するのではなく、次の情報を接続した**意味グラフ**へ変換します。
+このMCPは、日本語を回答文へ変換するものではありません。日本語の依頼や説明を解析し、後続システムが判断に使える次の構造を返します。
 
 - 誰が、何を、何に対して求めているか
 - 条件、例外、禁止、維持、優先順位、順序、依存関係
 - 引用、疑問、仮定、伝聞、訂正、撤回
-- 省略された対象と、解決できない参照
-- 外部操作として実行してよい内容と、止めるべき内容
+- 省略された対象、未解決の参照、多義性、矛盾
+- 実行候補と、その実行を許可または停止する理由
 
-実行時に大規模言語モデルや外部AIを呼び出しません。固定された辞書、形態情報、事前構築した規則索引、文法処理、範囲解決、会話文脈、矛盾検出、作業グラフ、外部操作保護機構を使って処理します。
+たとえば「UIは維持する。APIだけ変更しろ。」という入力から、`UI`を保護対象、`API`を変更対象として分離し、Meaning Graph（意味グラフ）、Task Graph、外部操作の安全判定を返します。
 
-このサーバー自体は回答文を生成しません。後続システムが、日本語の指示や制約を安全に扱うための構造を返します。
+### できること／しないこと
 
-## 何が返るか
+| できること | しないこと |
+|---|---|
+| 日本語を型付きMeaning Graphへ変換する | 回答文や会話文を生成する |
+| Taskと制約をTask Graphへ整理する | 外部サービスを直接操作する |
+| 条件・否定・引用・疑問の適用範囲を保持する | 根拠のない意味を推測で補う |
+| 未解決・矛盾・時間超過時に外部操作を停止する | 実行時にLLMや外部辞書APIを呼ぶ |
+| 同じ入力条件から同じ意味ハッシュを作る | すべての日本語を人間同等に理解する |
 
-主な出力は次のとおりです。
-
-- `meaning_graph.entities`：対象、人、物、組織など
-- `meaning_graph.clauses`：文節・節の構造
-- `meaning_graph.propositions`：要求、判断、状態、関係
-- `meaning_graph.scope_edges`：否定、条件、引用、疑問などの適用範囲
-- `meaning_graph.unresolved`：解決できなかった意味・参照・省略
-- `task_graph.tasks`：実行候補
-- `task_graph.constraints`：維持、禁止、条件、例外、保護対象
-- `execution_allowed`：外部操作を許可できるか
-- `blocked_reasons`：停止理由
-
-同じ入力、同じ文脈、同じ辞書・規則版からは、同じ意味ハッシュを返します。
-
-## 安全性の中心設計
-
-次の入力を、そのまま外部操作へ昇格させません。
-
-- 引用内に書かれた命令
-- 「削除するべき？」のような疑問
-- 「もし不要なら削除する」のような仮定
-- 「削除しろと言われた」のような伝聞
-- 対象が解決できない指示語
-- 維持対象と変更対象が矛盾する指示
-- 制限時間内に意味を確定できなかった入力
-
-重要な意味、対象、範囲、矛盾が未解決の場合は、推測で埋めず外部操作を停止します。
-
-## 現在の収録規模
-
-| データ | 件数 |
-|---|---:|
-| 比喩・慣用・語用表現 | **452** |
-| 決定論的な意図規則 | **339** |
-| 意図種別 | **21** |
-| 類義語の正規化グループ | **100** |
-| 作業・手順ひな型 | **63** |
-| 手順群 | **42** |
-| 正解検証用データ | **649** |
-
-公開版の配布物では、公式JMdictから加工・照合した**120,000件の語彙記録**を完全オフラインで読み込みます。
-
-この12万件は語彙識別用の基礎データです。全語の意味・語用・実行意図を自動承認したものではありません。
-
-## 12万件語彙データの現在値
-
-| 検証項目 | 結果 |
-|---|---:|
-| Source SnapshotからRuntimeへ再構築 | **120,000 / 120,000** |
-| Runtime Record Locator接続 | **120,000 / 120,000** |
-| 完全一致Surface | **154,921** |
-| Reading | **126,936** |
-| 同じ表記に複数候補があるSurface | **1,711件、全候補保持** |
-| Runtime Shard読込 | **12 / 12** |
-| 再構築後のFile差分 | **0** |
-| 検出された接続・整合性エラー | **0** |
-
-詳細は[`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)を参照してください。
-
-## 12万件が分割されている理由
-
-12万件は、Repository上では10,000件ずつ12Fileへ分けています。ただし、別々の辞書として使っているわけではありません。
-
-```text
-監査・再構築用のSource 12 File
-  ↓ 全件を決定論的に変換
-検索Index + 実行用Record 12 File
-  ↓ 起動前に全12 Fileを読込
-一つの120,000件辞書としてParserEngineが使用
-```
-
-共通Indexが、表記・読み・Record IDを正しいRecordへ接続します。全12Fileを読み込んだ合計が120,000件にならなければ、起動準備を成功扱いにしません。
-
-Repositoryには再構築用Sourceを残しますが、配布Wheelには実行用Compiled Dataだけを入れ、同じ12万件を二重に配布しません。
-
-## 辞書を追加する仕組み
-
-無料で機械処理可能な辞書資源を、次の順序で処理します。
-
-```text
-公式公開データ
-  ↓
-固定版の取得・ハッシュ記録
-  ↓
-出典別の変換
-  ↓
-共通形式への統一
-  ↓
-重複・衝突・多義の検査
-  ↓
-肯定例・否定例・境界例の作成
-  ↓
-人による意味・出典・ライセンス確認
-  ↓
-全回帰・安全性・性能・オフライン検証
-  ↓
-承認済みデータだけを反映
-```
-
-対応する主な公開資源：
-
-- Japanese Wiktionary
-- Wikidata Lexemes
-- JMdict
-- SudachiDictの公開元データ
-
-候補データは自動で本番辞書へ入りません。意味、使用文脈、出典、ライセンス、衝突、安全性を確認したものだけを反映します。
-
-詳細：
-
-- [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
-- [`tools/README.md`](tools/README.md)
-- [`dictionaries/README.md`](dictionaries/README.md)
-
-## 導入
+## すぐに試す
 
 ### Linux・macOS
 
@@ -164,8 +54,8 @@ git clone https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP.git
 cd Deterministic-Japanese-Parser-MCP
 python -m venv .venv
 . .venv/bin/activate
-pip install -e ".[dev]"
-djpmcp
+pip install -e .
+djpmcp-validate
 ```
 
 ### Windows PowerShell
@@ -175,13 +65,73 @@ git clone https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP.git
 cd Deterministic-Japanese-Parser-MCP
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-djpmcp
+pip install -e .
+djpmcp-validate
 ```
 
-## 使い方
+開発・全テストを行う場合だけ、`pip install -e ".[dev]"`を使用してください。
 
-### Pythonから呼び出す
+## MCPへ接続する
+
+MCPクライアントのサーバー設定へ、次のように登録します。`command`には、仮想環境内の`djpmcp`実行ファイルの絶対パスを指定するのが確実です。
+
+```json
+{
+  "mcpServers": {
+    "deterministic-japanese-parser": {
+      "command": "/absolute/path/Deterministic-Japanese-Parser-MCP/.venv/bin/djpmcp"
+    }
+  }
+}
+```
+
+Windowsでは、たとえば`C:\\path\\Deterministic-Japanese-Parser-MCP\\.venv\\Scripts\\djpmcp.exe`を指定します。接続後、MCPクライアントから`analyze_japanese`を呼び出せます。
+
+## 入力と出力
+
+### `analyze_japanese`の入力
+
+| 項目 | 必須 | 既定値 | 説明 |
+|---|---:|---|---|
+| `original_text` | はい | — | 解析する日本語。空文字列は不可 |
+| `conversation_context` | いいえ | `[]` | 参照解決に使う直前までの発話 |
+| `known_entities` | いいえ | `[]` | 既知の人・物・組織・対象 |
+| `protected_elements` | いいえ | `[]` | 変更してはいけない対象 |
+| `social_context` | いいえ | 空 | 話者、相手、関係、場面、丁寧さ |
+| `discourse_state` | いいえ | `{}` | 呼び出し側が保持する談話状態 |
+| `execution_mode` | いいえ | `analysis` | `analysis` / `comparison` / `planning` / `external_action` |
+| `analysis_depth` | いいえ | `auto` | `auto` / `fast` / `deep` |
+| `deadline_ms` | いいえ | `50` | 1〜60,000ミリ秒 |
+
+MCPツールへ渡す引数の例：
+
+```json
+{
+  "original_text": "UIは維持する。APIだけ変更しろ。",
+  "protected_elements": ["UI"],
+  "execution_mode": "external_action",
+  "analysis_depth": "auto",
+  "deadline_ms": 50
+}
+```
+
+### 主な出力
+
+| 出力 | 内容 |
+|---|---|
+| `overall_status` | 全体結果：`COMPLETE` / `PARTIAL` / `FAILED` |
+| `meaning_graph` | Entity、Clause、Proposition、語彙候補、Scope、未解決情報 |
+| `task_graph` | Task、依存関係、維持・禁止・条件・検証条件 |
+| `execution_allowed` | 外部操作へ進めるか |
+| `blocked_reasons` | 停止した理由 |
+| `ambiguities` / `contradictions` | 多義性と矛盾 |
+| `missing_information` / `unsupported_elements` | 不足情報と未対応要素 |
+| `versions` | 辞書・規則・Graphの版情報 |
+| `metrics` | 処理時間、Deadline判定などの実行情報 |
+
+同じ入力、会話文脈、辞書、規則版からは同じ`meaning_graph.semantic_hash`が得られます。
+
+### Python API
 
 ```python
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
@@ -189,6 +139,7 @@ from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 response = ParserEngine().analyze(
     AnalyzeRequest(
         original_text="UIは維持する。APIだけ変更しろ。",
+        protected_elements=["UI"],
         execution_mode="external_action",
         deadline_ms=50,
     )
@@ -200,33 +151,96 @@ print(response.execution_allowed)
 print(response.blocked_reasons)
 ```
 
-### 処理の流れ
+## 処理の流れ
 
-```text
-入力
-  ↓
-原文保存・正規化・位置対応
-  ↓
-形態情報
-  ↓
-規則・比喩・語用候補
-  ↓
-文法処理
-  ↓
-意味グラフ
-  ↓
-範囲・参照・矛盾の検証
-  ↓
-作業グラフと制約
-  ↓
-外部操作の許可・停止判定
-  ↓
-形式検証済み応答
+```mermaid
+flowchart TD
+    A["日本語入力"] --> B["正規化・形態解析"]
+    B --> C["辞書・規則・文脈照合"]
+    C --> D["Meaning Graph"]
+    D --> E["Task Graph"]
+    E --> F["External Action Guard"]
+    F --> G["検証済み構造"]
 ```
+
+原文位置を保ったまま正規化し、Sudachiの形態情報、固定辞書、事前構築した規則索引、文法処理、範囲・参照・矛盾検出を組み合わせます。解析結果に重要な未解決項目があれば、推測で埋めずに明示します。
+
+## 安全性
+
+次のような表現は、そのまま外部操作として扱いません。
+
+- 引用内の命令：「削除しろと言われた」
+- 疑問：「削除するべき？」
+- 仮定：「不要なら削除する」
+- 対象が未解決の指示：「それを変更して」
+- 維持対象と変更対象が衝突する指示
+- Deadline内に重要な意味を確定できない入力
+
+外部操作を許可できない場合は、`execution_allowed=false`と`blocked_reasons`で理由を返します。解析結果を利用して実際の操作を行うかどうかは、呼び出し側が最終判断します。
+
+## 辞書データ
+
+### 現在、標準Runtimeで使うデータ
+
+| データ | 件数 | Runtimeでの役割 |
+|---|---:|---|
+| Open Lexicon | 120,000 | 表記・読み・品詞などの語彙同定。意味は自動承認していない |
+| 比喩・慣用・語用表現 | 452 | 固定表現の解釈 |
+| 決定論的な意図規則 | 339 | 要求・禁止・条件などの判定 |
+| 意図種別 | 21 | 判定結果の分類 |
+| 類義語グループ | 100 | 表記・意味の正規化 |
+| Task Template | 63 | 作業構造の生成 |
+| Workflow | 42 | 順序・依存関係の生成 |
+| Gold Case | 649 | 回帰・品質検証 |
+
+Open LexiconはJMdict由来の語彙情報を、語彙同定専用として12 Shardへ分割したものです。すべてのShardを一つの辞書として読み込み、同形異義語は一候補へ潰さず保持します。これは12万語すべての意味・語用・実行意図を理解できるという意味ではありません。
+
+特殊語彙・方言・擬音語・若者言葉など約5,000件はReview対象です。明示的に承認されたScopeだけがCompile対象となり、未承認の意味候補は標準Runtimeへ入りません。
+
+12万件の再構築・索引・多義保持の検証値は[`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)を参照してください。
+
+### 辞書データの自動加工・統合
+
+新しいデータは、入力元にかかわらず同じ非AIパイプラインで処理します。
+
+| 入力種別 | 差し込み口 | 管理方法 |
+|---|---|---|
+| Open Lexicon | `dictionaries/system/lexicon.d/` | License別に分離 |
+| 特殊・文脈語彙 | `research/context_collection/expansion_v3/` | Review候補として管理 |
+| 専門辞書 | `dictionaries/domain_packs/<domain>/` | Coreと物理的に分離 |
+| 利用者データ | `dictionaries/user_packs/<pack>/` | 公式データを上書きせず併存 |
+
+Pipelineは次を順番に行います。
+
+1. 共通Schemaへの変換とNFKC正規化
+2. 読み、品詞、語形、表記揺れの機械的整理
+3. Source、Version、License、SHA-256の検査
+4. 重複、同形異義、衝突、既存データとの関係候補の検出
+5. 判断が必要な項目を最大20件のReview Batchへ分割
+6. Decision Ledgerに記録された承認だけを適用
+7. 承認済みScopeだけを`core` / `domains` / `user`へCompile
+8. Gold、独立Holdout、安全性、性能、WheelのOffline検証
+
+承認はRecord単位の一括判定ではなく、`lexical`、`semantic`、`pragmatic`、`task`、`external_action`のScopeごとに行います。Compilerは未承認ScopeのFieldを除外します。
+
+現在のPipelineはLLM APIを使用しません。GPTアプリは外部の作業主体としてReview Batchを読み、利用者が確認した判断をDecision Ledgerへ記録します。Pipeline自身は意味を生成せず、自動承認もしません。Reviewが残る場合、GitHub ActionsはEvidenceを保存したうえで`REVIEW_REQUIRED`として公開Gateを停止します。
+
+実行例：
+
+```bash
+python tools/unified_semantic_data_pipeline.py --compile-approved
+python tools/unified_semantic_data_pipeline.py --check
+python tools/unified_semantic_data_pipeline.py --require-review-complete
+```
+
+詳細は[`docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md`](docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md)を参照してください。
 
 ## 検証
 
+開発用Dependencyを導入してから実行します。
+
 ```bash
+pip install -e ".[dev]"
 python tools/lexicon_validator.py
 python tools/validator.py
 pytest
@@ -236,98 +250,43 @@ python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
 python -m compileall -q src tools scripts tests
 ```
 
-継続検証では次を確認します。
+CIは辞書整合性、Meaning Graph、Task Graph、引用・疑問・否定・仮定・参照の安全性、MCP標準入出力、Offline Wheel、辞書20倍規模の性能を検証します。
 
-- Python 3.10・3.12
-- 辞書と正解検証データの整合性
-- 意味グラフと作業グラフ
-- 引用・疑問・否定・仮定・参照の安全性
-- 12万件Source SnapshotとRuntime Dataの全件一致
-- 全12 Runtime Shardの一体読込
-- 完全一致・多義保持・Index全接続
-- MCP標準入出力
-- オフライン導入
-- 辞書20倍規模での性能
-- 通常10ミリ秒目標・絶対50ミリ秒上限
-
-## 公開検証への参加
-
-コードを書けなくても参加できます。
-
-- 5分で日本語の解釈を確認する
-- 不自然・疑わしい結果を投稿する
-- Windows、macOS、Linux、各MCPクライアントで動作確認する
-- 方言、俗語、比喩、慣用表現の意味を確認する
-- 5,000件候補データの出典・読み・意味・地域・世代・ライセンスを確認する
-
-参加方法は[`VALIDATION.md`](VALIDATION.md)にまとめています。
-
-### Discussionsで扱う内容
-
-- 検証参加と検証結果
-- 判断に迷う解析
-- 日本語表現の確認
-- 導入環境の確認
-- 候補データの根拠確認
-- 質問と初期段階の改善案
-
-[Discussionsを開く](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions)
-
-### Issuesで扱う内容
-
-Issuesは、**確認済みで再現可能な不具合・回帰の修正追跡専用**です。
-
-質問、未確認の違和感、検証参加、初期案はIssuesへ入れず、Discussionsを使用します。
-
-[確認済み不具合を報告する](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/issues/new?template=bug_report.yml)
-
-脆弱性の詳細は公開IssueやDiscussionへ書かず、[`SECURITY.md`](SECURITY.md)に従ってください。
-
-## 性能契約
-
-| 測定範囲 | 条件 |
+| 性能境界 | 契約 |
 |---|---:|
 | 常駐済み内部処理の最適目標 | 5ミリ秒以下 |
-| 通常の呼び出し目標 | 95パーセンタイルで10ミリ秒以下 |
+| 通常呼び出し | p95 10ミリ秒以下 |
 | 絶対上限 | 50ミリ秒以下 |
-| 上限までに解決できない場合 | `TIMEOUT`を返し外部操作を停止 |
+| 上限内に完了しない場合 | `TIMEOUT`として外部操作を停止 |
 
-測定範囲には、常駐標準入出力、応答の読み取り、出力形式検証、意味グラフ・作業グラフ・保護判定の受け渡しを含みます。
+詳しい品質条件は[`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md)、性能条件は[`docs/PERFORMANCE_AND_RELEASE_CONTRACT.md`](docs/PERFORMANCE_AND_RELEASE_CONTRACT.md)に記載しています。
 
 ## 限界
 
-このプロジェクトは、あらゆる日本語を人間と同等に理解できるとは主張しません。
+- 皮肉、広い常識、複雑な省略、長い複数段落の談話を完全には扱えません。
+- 地域・世代・共同体に強く依存する表現は、根拠が不足すれば未解決として返します。
+- Open Lexiconの12万件は語彙同定データであり、全件の意味理解を保証しません。
+- `execution_allowed`は解析上の安全判定です。認証、権限、業務ルール、法的判断を代替しません。
+- このMCPは外部操作を実行しません。実行責任は呼び出し側にあります。
 
-皮肉、広い常識、複雑な省略、長い複数段落の談話、地域・世代・共同体に強く依存する表現など、固定した辞書と規則で根拠を説明できない内容は未解決として返します。
+## 文書・サポート
 
-12万件語彙検証は語彙識別の正確性を確認するものであり、12万語すべての意味理解を保証するものではありません。
+| 目的 | 文書・窓口 |
+|---|---|
+| 文書全体の索引 | [`docs/README.md`](docs/README.md) |
+| 使い方・導入・未確認の解析結果 | [GitHub Discussions](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions) |
+| 再現可能な不具合 | [GitHub Issues](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/issues/new?template=bug_report.yml) |
+| 脆弱性の報告 | [`SECURITY.md`](SECURITY.md) |
+| 検証への参加 | [`VALIDATION.md`](VALIDATION.md) |
+| Contribution | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| 変更履歴 | [`CHANGELOG.md`](CHANGELOG.md) |
 
-## 文書案内
+## ライセンスと出典
 
-- [`docs/README.md`](docs/README.md)：公開文書の索引
-- [`VALIDATION.md`](VALIDATION.md)：第三者検証への参加方法
-- [`SUPPORT.md`](SUPPORT.md)：質問・不具合・安全報告の使い分け
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)：コード・辞書・検証データの提供条件
-- [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md)：意味品質契約
-- [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)：12万件語彙の正確性検証
-- [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)：辞書追加の設計
-- [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)：公開版の必須検証
-- [`CHANGELOG.md`](CHANGELOG.md)：変更履歴
+プログラムコードはMITライセンスです。詳細は[`LICENSE`](LICENSE)を参照してください。
+
+外部辞書由来のデータには、各RecordとSource Manifestに記録された元データのライセンスが適用されます。現在のJMdict由来Open LexiconはCC BY-SA 4.0で、Electronic Dictionary Research and Development GroupへのAttributionを各Recordに保持しています。第三者Dependencyと辞書データの扱いは[`NOTICE.md`](NOTICE.md)に記載しています。
 
 <!-- project-control-ja:start -->
-## 所有・管理・ブランド
-
-**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。**
-
-公式リポジトリ、設計方針、公開版、外部提供物の採用、名称・ロゴなどの利用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってプロジェクト所有者が保持します。
-
-プログラムはMITライセンスで利用・改変・再配布できます。ただし、MITライセンスは、改変版や派生サービスを公式版として表示するための名称・ロゴ・ブランド利用権を与えません。詳細は[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
-
-外部提供には開発者証明への署名が必要です。実質的なコード、辞書、正解検証データ、設計、公開、安全性、管理規程の変更には、統合前にプロジェクト所有者が受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)が必要です。
+プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
 <!-- project-control-ja:end -->
-
-## ライセンス
-
-プログラムコードはMITライセンスです。詳細は[`LICENSE`](LICENSE)と[`NOTICE.md`](NOTICE.md)を参照してください。
-
-外部辞書から反映したデータには、各記録と出典台帳に記載された元データのライセンスが適用されます。
