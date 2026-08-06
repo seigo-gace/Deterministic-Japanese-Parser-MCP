@@ -18,7 +18,7 @@ def test_compiled_open_lexicon_is_emitted_as_meaning_graph_nodes():
         )
     )
 
-    assert response.meaning_graph.graph_version == "2.2.0"
+    assert response.meaning_graph.graph_version == "2.3.0"
     assert response.meaning_graph.semantic_hash
     nodes = response.meaning_graph.lexical_nodes
     assert nodes

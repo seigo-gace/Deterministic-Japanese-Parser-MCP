@@ -268,6 +268,7 @@ class SemanticDataRuntime:
         original_text: str,
         conversation_context: list[str],
         known_entities: list[str],
+        update_hash: bool = True,
     ) -> MeaningGraph:
         if not self.available:
             quality = {
@@ -276,7 +277,11 @@ class SemanticDataRuntime:
                 "semantic_data_pack_record_count": 0,
             }
             updated = graph.model_copy(update={"quality_annotations": quality})
-            return updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
 
         context_text = "\n".join([original_text, *conversation_context, *known_entities])
         propositions = list(graph.propositions)
@@ -406,7 +411,10 @@ class SemanticDataRuntime:
             "unresolved": unresolved,
             "quality_annotations": quality,
         })
-        updated = updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+        if update_hash:
+            updated = updated.model_copy(update={
+                "semantic_hash": _stable_hash(updated),
+            })
         self.last_metrics = {
             "semantic_pack_available": 1,
             "semantic_pack_match_count": match_count,

@@ -1,10 +1,11 @@
 VERSION = {
-    "schema_version": "2.1.0",
+    "schema_version": "2.3.0",
     "server_version": "0.4.0",
     "dictionary_version": "1.2.0",
     "rule_version": "1.2.0",
     "grammar_kernel_version": "1.1.0",
-    "meaning_graph_version": "2.1.0",
+    "meaning_graph_version": "2.3.0",
+    "reading_analysis_version": "1.0.0",
     "parser_version": "SudachiPy-0.6.11",
     "parser_dictionary_version": "SudachiDict-core-20260428",
     "metaphor_dictionary_version": "1.2.0",

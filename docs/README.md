@@ -30,6 +30,7 @@ Discussion Category Form：
 
 ## Architecture and contracts / 設計・契約
 
+- [`JAPANESE_READING_CONTRACT.md`](JAPANESE_READING_CONTRACT.md) — MCPの第一目的、読解レイヤー、`reading_analysis`、未対応範囲、p95 10ms Gate
 - [`SEMANTIC_QUALITY_CONTRACT.md`](SEMANTIC_QUALITY_CONTRACT.md) — Sense、Pragmatics、省略、談話、Reference、安全性の95%品質契約と独立Holdout
 - [`OPEN_LEXICON_ACCURACY.md`](OPEN_LEXICON_ACCURACY.md) — 12万語JMdict SnapshotのSource Fidelity、Recall、Precision契約
 - [`OPEN_DICTIONARY_SUPPLY_CHAIN.md`](OPEN_DICTIONARY_SUPPLY_CHAIN.md) — Open Dictionary取得、変換、Review、Promotion、Rollback

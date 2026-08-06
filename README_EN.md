@@ -1,7 +1,7 @@
 # Deterministic Japanese Parser MCP
 
 <p align="center">
-  <strong>An MCP server that turns Japanese instructions, conditions, prohibitions, exceptions, and references into reproducible structures without generative AI</strong>
+  <strong>An MCP server that reads Japanese and turns lexical meaning, sentence structure, semantic scope, and discourse relations into reproducible structures without generative AI</strong>
 </p>
 
 <p align="center">
@@ -25,23 +25,25 @@
 
 ## What this MCP does
 
-This MCP does not generate an answer. It analyzes Japanese requests and descriptions and returns structures that downstream systems can use for decisions:
+The primary purpose of this MCP is to read Japanese correctly and return a reusable machine structure. Safety decisions and task construction are downstream consumers of that reading; they are not the primary purpose. The MCP generates no answer text and analyzes ordinary descriptions as well as instructions.
 
-- who requests what and against which target;
-- conditions, exceptions, prohibitions, preservation, priorities, sequence, and dependencies;
-- quotation, questions, hypotheses, reported speech, corrections, and withdrawal;
-- omitted targets, unresolved references, ambiguity, and contradictions;
-- candidate actions and the reasons they may proceed or must remain blocked.
+- surface form, reading, part of speech, sense candidates, and contextual meaning;
+- predicate-argument structure: who did what, to whom, where, and how;
+- scope for negation, quantity, degree, conditions, tense, aspect, voice, and modality;
+- evidence and unresolved items for omission, reference, quotation, hearsay, questions, honorifics, and social relations;
+- causal, contrastive, rephrasing, exemplification, evidential, and concluding relations between clauses;
+- task candidates derived after reading, plus reasons an external action may proceed or remain blocked.
 
-For example, from `UIは維持する。APIだけ変更しろ。` (“Preserve the UI. Change only the API.”), it separates `UI` as a protected target from `API` as the modification target, then returns a Meaning Graph, a Task Graph, and an external-action safety decision.
+For example, `開発者が設定を変更した。` yields the predicate “change,” agent “developer,” object “setting,” and past tense. In `すべての問題を解決できるわけではない。`, universal quantification and partial negation remain separate scopes. A Task Graph and external-action decision are added only when the text contains an actionable instruction.
 
 ### What it does and does not do
 
 | It does | It does not |
 |---|---|
-| Convert Japanese into a typed Meaning Graph | Generate answers or conversation text |
+| Convert ordinary Japanese and instructions into a typed Meaning Graph | Generate answers or conversation text |
+| Structure predicates, arguments, tense, aspect, voice, negation, conditions, quantity, and modality | Guess an omitted subject, word sense, or causal relation without evidence |
 | Organize tasks and constraints into a Task Graph | Operate external services directly |
-| Preserve the scope of conditions, negation, quotation, and questions | Invent unsupported meaning |
+| Preserve the scope of conditions, negation, quotation, and questions | Present commonsense-only inference as fact |
 | Block external action on unresolved, contradictory, or timed-out analysis | Call an LLM or external dictionary API at runtime |
 | Produce the same semantic hash from the same input conditions | Claim human-level understanding of all Japanese |
 
@@ -120,7 +122,8 @@ Example MCP tool arguments:
 | Output | Contents |
 |---|---|
 | `overall_status` | Overall result: `COMPLETE` / `PARTIAL` / `FAILED` |
-| `meaning_graph` | Entities, clauses, propositions, lexical candidates, scope, and unresolved items |
+| `meaning_graph` | Entities, clauses, propositions, lexical candidates, reading structures, and unresolved items |
+| `meaning_graph.reading_analysis` | Predicates and arguments, dependency arcs, scope, attribution, and discourse relations |
 | `task_graph` | Tasks, dependencies, preservation, prohibitions, conditions, and verification criteria |
 | `execution_allowed` | Whether an external action may proceed |
 | `blocked_reasons` | Reasons the action was blocked |
@@ -156,14 +159,14 @@ print(response.blocked_reasons)
 ```mermaid
 flowchart TD
     A["Japanese input"] --> B["Normalization and morphology"]
-    B --> C["Dictionary, rule, and context matching"]
-    C --> D["Meaning Graph"]
-    D --> E["Task Graph"]
-    E --> F["External Action Guard"]
-    F --> G["Validated structure"]
+    B --> C["Lexical meaning and predicates"]
+    C --> D["Scope, attribution, discourse"]
+    D --> E["Meaning Graph"]
+    E --> F["Task candidates"]
+    F --> G["External Action Guard"]
 ```
 
-The parser preserves original text positions while combining Sudachi morphology, fixed dictionaries, prebuilt rule indexes, deterministic grammar processing, and scope, reference, and contradiction detection. Material unresolved items remain explicit instead of being guessed.
+The parser preserves original text positions while combining Sudachi morphology, approved dictionaries, prebuilt rule indexes, deterministic predicate-argument analysis, and scope, reference, discourse, and contradiction detection. An ordinary statement is never promoted to an executable command. Material unresolved items remain explicit instead of being guessed. See [`docs/JAPANESE_READING_CONTRACT.md`](docs/JAPANESE_READING_CONTRACT.md) for the capability layers, output contract, and current boundaries.
 
 ## Safety
 
@@ -267,6 +270,7 @@ See [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md) for
 - The parser cannot fully handle irony, broad world knowledge, complex ellipsis, or long multi-paragraph discourse.
 - Expressions that strongly depend on region, generation, or community remain unresolved when evidence is insufficient.
 - The 120,000-record Open Lexicon provides lexical identity, not complete semantic understanding.
+- Current predicate-argument analysis is deterministic and based on morphology plus case particles; it is not a complete dependency parser for unrestricted word order, long-distance dependencies, or complex coordination.
 - `execution_allowed` is a parser safety decision. It does not replace authentication, authorization, business policy, or legal judgment.
 - This MCP does not execute external actions. The caller remains responsible for execution.
 
