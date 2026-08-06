@@ -20,12 +20,18 @@ PATCH_FIELDS = {
     "usage_labels",
     "semantic_targets",
     "risk_class",
+    "polarity",
+    "intensity",
+    "task_candidates",
+    "external_action_risk",
 }
 
 
 def _decision_paths(root: Path | None) -> list[Path]:
     if root is None or not root.exists():
         return []
+    if root.is_file():
+        return [root]
     return sorted(
         [*root.rglob("*.jsonl"), *root.rglob("*.json")], key=str
     )
@@ -65,7 +71,37 @@ def load_decisions(root: Path | None) -> list[dict[str, Any]]:
                 raise ValueError(
                     f"decision patch contains forbidden fields: {path}:{line_number}"
                 )
-            decision["_path"] = str(path.relative_to(root))
+            if "polarity" in patch and patch["polarity"] not in {
+                "positive", "negative", "neutral"
+            }:
+                raise ValueError(f"invalid polarity: {path}:{line_number}")
+            if "intensity" in patch and (
+                isinstance(patch["intensity"], bool)
+                or not isinstance(patch["intensity"], (int, float))
+                or not 0.0 <= float(patch["intensity"]) <= 1.0
+            ):
+                raise ValueError(f"invalid intensity: {path}:{line_number}")
+            if "context_conditions" in patch and not isinstance(
+                patch["context_conditions"], dict
+            ):
+                raise ValueError(
+                    f"context_conditions must be an object: {path}:{line_number}"
+                )
+            if "task_candidates" in patch and not isinstance(
+                patch["task_candidates"], list
+            ):
+                raise ValueError(
+                    f"task_candidates must be a list: {path}:{line_number}"
+                )
+            if "external_action_risk" in patch and not isinstance(
+                patch["external_action_risk"], bool
+            ):
+                raise ValueError(
+                    f"external_action_risk must be a boolean: {path}:{line_number}"
+                )
+            decision["_path"] = (
+                path.name if root.is_file() else str(path.relative_to(root))
+            )
             decision["_line"] = line_number
             decisions.append(decision)
     ids = [item["decision_id"] for item in decisions]
@@ -90,7 +126,16 @@ def apply_decisions(
             raise ValueError(
                 f"stale decision input digest: {decision['decision_id']}"
             )
-        for field, value in (decision.get("patch") or {}).items():
+        patch = decision.get("patch") or {}
+        if (
+            record.get("source", {}).get("dataset") == "JMdict"
+            and "meaning_candidates" in patch
+        ):
+            raise ValueError(
+                "JMdict meaning candidates are source-owned and cannot be "
+                f"overwritten: {decision['decision_id']}"
+            )
+        for field, value in patch.items():
             record[field] = value
         scope = decision["scope"]
         blockers = record["approval"]["blockers_by_scope"].get(scope, [])
@@ -103,6 +148,42 @@ def apply_decisions(
                     blockers = [
                         item for item in blockers if item != f"{name}-example-required"
                     ]
+            if "context_conditions" in patch:
+                blockers = [
+                    item for item in blockers if item != "context-review-required"
+                ]
+        if scope == "semantic":
+            polarity = patch.get("polarity", record.get("polarity"))
+            intensity = patch.get("intensity", record.get("intensity"))
+            if polarity in {"positive", "negative", "neutral"}:
+                blockers = [
+                    item for item in blockers if item != "polarity-required"
+                ]
+            if (
+                not isinstance(intensity, bool)
+                and isinstance(intensity, (int, float))
+                and 0.0 <= float(intensity) <= 1.0
+            ):
+                record["intensity"] = float(intensity)
+                blockers = [
+                    item for item in blockers if item != "intensity-required"
+                ]
+        if scope == "task" and "task_candidates" in patch:
+            if not isinstance(patch["task_candidates"], list):
+                raise ValueError(
+                    f"task_candidates must be a list: {decision['decision_id']}"
+                )
+            blockers = [
+                item for item in blockers if item != "task-review-required"
+            ]
+        if scope == "external_action" and isinstance(
+            patch.get("external_action_risk"), bool
+        ):
+            blockers = [
+                item
+                for item in blockers
+                if item != "external-action-risk-review-required"
+            ]
         record["approval"]["blockers_by_scope"][scope] = blockers
         record["approval"]["scopes"][scope] = decision["status"]
         if decision["status"] == "approved" and blockers:

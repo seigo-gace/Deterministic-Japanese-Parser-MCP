@@ -7,19 +7,23 @@ on:
       - "dictionaries/system/lexicon.d/**"
       - "research/context_collection/expansion_v3/**"
       - "research/semantic_decisions/**"
+      - "research/semantic_sources/jmdict/**"
       - "dictionaries/domain_packs/**"
       - "dictionaries/user_packs/**"
       - "schemas/**"
       - "tools/build_context_semantic_collection.py"
+      - "tools/build_jmdict_semantic_lexicon.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
       - "tests/test_context_semantic_collection.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_semantic_data_runtime.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - ".github/workflows/data_pipeline.yml"
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -48,10 +52,49 @@ jobs:
             exit 1
           fi
 
+      - name: Restore immutable PR 26 Review Queue
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31030553984
+          github-token: ${{ github.token }}
+          path: work/pr26-processing-evidence
+
+      - name: Verify the 125000-record Review Queue lock
+        run: |
+          mkdir -p reports
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          lock = json.loads(
+              Path("research/semantic_sources/jmdict/source-lock.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          queue = Path(
+              "work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl"
+          )
+          digest = hashlib.sha256(queue.read_bytes()).hexdigest()
+          records = sum(1 for line in queue.open(encoding="utf-8") if line.strip())
+          if digest != lock["review_queue_sha256"]:
+              raise SystemExit(
+                  f"Review Queue checksum mismatch: expected={lock['review_queue_sha256']} actual={digest}"
+              )
+          if records != lock["review_queue_records"]:
+              raise SystemExit(
+                  f"Review Queue count mismatch: expected={lock['review_queue_records']} actual={records}"
+              )
+          print({"records": records, "sha256": digest})
+          PY
+
       - name: Normalize, inspect, apply ledgers and compile approved scopes
         run: |
           mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
+            --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
             --compile-approved \
             --review-batch-size 20 \
             --output-root reports/unified-semantic-data \
@@ -61,6 +104,7 @@ jobs:
       - name: Verify byte deterministic rebuild
         run: |
           python tools/unified_semantic_data_pipeline.py \
+            --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
             --check \
             --review-batch-size 20 \
             | tee reports/data-pipeline-determinism.json
@@ -69,6 +113,7 @@ jobs:
         run: |
           pytest \
             tests/test_context_semantic_collection.py \
+            tests/test_jmdict_semantic_lexicon.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
             --junitxml=reports/data-pipeline-pytest.xml

@@ -20,7 +20,9 @@ DEFAULT_PACK_ROOTS = (
 )
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
-DEFAULT_DECISION_ROOT = ROOT / "research/semantic_decisions"
+DEFAULT_DECISION_LEDGER = (
+    ROOT / "research/semantic_decisions/decision_ledger.jsonl"
+)
 
 
 def main() -> int:
@@ -54,7 +56,16 @@ def main() -> int:
     parser.add_argument("--shard-size", type=int, default=10000)
     parser.add_argument("--review-batch-size", type=int, default=20)
     parser.add_argument(
-        "--decision-root", type=Path, default=DEFAULT_DECISION_ROOT
+        "--review-seed",
+        type=Path,
+        help="immutable 125000-record PR #26 Review Queue input",
+    )
+    parser.add_argument(
+        "--decision-ledger",
+        "--decision-root",
+        dest="decision_root",
+        type=Path,
+        default=DEFAULT_DECISION_LEDGER,
     )
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--compile-approved", action="store_true")
@@ -82,6 +93,7 @@ def main() -> int:
             system_root=args.system_root,
             decision_root=args.decision_root,
             review_batch_size=args.review_batch_size,
+            review_seed=args.review_seed,
         )
         result = {"status": "WRITTEN", "review": review}
         if args.compile_approved:

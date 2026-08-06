@@ -195,7 +195,7 @@ flowchart TD
 
 Open LexiconはJMdict由来の語彙情報を、語彙同定専用として12 Shardへ分割したものです。すべてのShardを一つの辞書として読み込み、同形異義語は一候補へ潰さず保持します。これは12万語すべての意味・語用・実行意図を理解できるという意味ではありません。
 
-特殊語彙・方言・擬音語・若者言葉など約5,000件はReview対象です。明示的に承認されたScopeだけがCompile対象となり、未承認の意味候補は標準Runtimeへ入りません。
+加工パイプラインでは、PR #26でJMdict意味候補を付与済みの12万件を、特殊語彙・方言・擬音語・若者言葉など約5,000件と合わせた125,000件の固定Review Queueとして扱います。5,000件だけを優先したり、12万件をReviewから除外したりしません。未承認の意味候補は標準Runtimeへ入りません。
 
 12万件の再構築・索引・多義保持の検証値は[`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)を参照してください。
 
@@ -205,8 +205,8 @@ Open LexiconはJMdict由来の語彙情報を、語彙同定専用として12 Sh
 
 | 入力種別 | 差し込み口 | 管理方法 |
 |---|---|---|
-| Open Lexicon | `dictionaries/system/lexicon.d/` | License別に分離 |
-| 特殊・文脈語彙 | `research/context_collection/expansion_v3/` | Review候補として管理 |
+| Open Lexicon 120,000件 | `dictionaries/system/lexicon.d/` | JMdict意味候補を保持し、共通Review Queueへ送る |
+| 特殊・文脈語彙 5,000件 | `research/context_collection/expansion_v3/` | 共通Schema化し、同じReview Queueへ送る |
 | 専門辞書 | `dictionaries/domain_packs/<domain>/` | Coreと物理的に分離 |
 | 利用者データ | `dictionaries/user_packs/<pack>/` | 公式データを上書きせず併存 |
 
@@ -216,14 +216,15 @@ Pipelineは次を順番に行います。
 2. 読み、品詞、語形、表記揺れの機械的整理
 3. Source、Version、License、SHA-256の検査
 4. 重複、同形異義、衝突、既存データとの関係候補の検出
-5. 判断が必要な項目を最大20件のReview Batchへ分割
-6. Decision Ledgerに記録された承認だけを適用
-7. 承認済みScopeだけを`core` / `domains` / `user`へCompile
-8. Gold、独立Holdout、安全性、性能、WheelのOffline検証
+5. 125,000件を区別せず、一つのReview Queueから最大20件のReview Batchへ分割
+6. 各Recordの極性、0.0〜1.0の強度、必須／除外Context、Task候補、外部Action Riskを判断
+7. 判断を`research/semantic_decisions/decision_ledger.jsonl`へ記録し、明示された承認だけを適用
+8. 承認済みScopeだけを`core` / `domains` / `user`へCompile
+9. Gold、独立Holdout、安全性、性能、WheelのOffline検証
 
 承認はRecord単位の一括判定ではなく、`lexical`、`semantic`、`pragmatic`、`task`、`external_action`のScopeごとに行います。Compilerは未承認ScopeのFieldを除外します。
 
-現在のPipelineはLLM APIを使用しません。GPTアプリは外部の作業主体としてReview Batchを読み、利用者が確認した判断をDecision Ledgerへ記録します。Pipeline自身は意味を生成せず、自動承認もしません。Reviewが残る場合、GitHub ActionsはEvidenceを保存したうえで`REVIEW_REQUIRED`として公開Gateを停止します。
+現在のPipelineはLLM APIを使用しません。GPTアプリは外部の作業主体として125,000件のReview Batchを順に読み、利用者が指示した判断をDecision Ledgerへ記録します。12万件のJMdict意味候補は上書きせず、不足している極性・強度・文脈・Task候補・外部Action Riskを追加します。Pipeline自身は判断を作らず、自動承認もしません。Reviewが残る場合、GitHub ActionsはEvidenceを保存したうえで`REVIEW_REQUIRED`として公開Gateを停止します。
 
 実行例：
 

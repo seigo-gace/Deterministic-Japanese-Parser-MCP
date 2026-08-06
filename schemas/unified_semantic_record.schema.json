@@ -17,6 +17,15 @@
     "readings": {"type": "array", "items": {"type": "string"}},
     "part_of_speech": {"type": "array", "items": {"type": "string"}},
     "meaning_candidates": {"type": "array", "items": {"type": "object"}},
+    "polarity": {
+      "enum": ["positive", "negative", "neutral", "unspecified"]
+    },
+    "intensity": {
+      "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0
+    },
+    "context_conditions": {"type": "object"},
+    "task_candidates": {"type": "array"},
+    "external_action_risk": {"type": ["boolean", "null"]},
     "positive_examples": {"type": "array"},
     "negative_examples": {"type": "array"},
     "boundary_examples": {"type": "array"},

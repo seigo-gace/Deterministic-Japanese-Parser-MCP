@@ -195,7 +195,7 @@ When an external action cannot be allowed, the response includes `execution_allo
 
 The Open Lexicon contains JMdict-derived lexical information split into twelve shards for lexical identification only. The runtime loads the shards as one dictionary and retains all homograph candidates instead of collapsing them. This does not imply complete semantic, pragmatic, or executable-intent understanding of all 120,000 records.
 
-Approximately 5,000 special-vocabulary, dialect, onomatopoeia, and youth-language records remain review candidates. Only explicitly approved scopes can be compiled, and unapproved meaning candidates are not loaded by the default runtime.
+For the processing pipeline, the 120,000 records already enriched with JMdict meaning candidates by PR #26 are combined with approximately 5,000 special-vocabulary, dialect, onomatopoeia, and youth-language records in one digest-locked 125,000-record Review Queue. The pipeline neither prioritizes only the 5,000 records nor excludes the 120,000 records from review. Unapproved meaning candidates are never loaded by the default runtime.
 
 See [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md) for reconstruction, index, and ambiguity-retention evidence for the 120,000-record lexicon.
 
@@ -205,8 +205,8 @@ New data passes through the same non-AI pipeline regardless of its source.
 
 | Input type | Ingest path | Separation model |
 |---|---|---|
-| Open Lexicon | `dictionaries/system/lexicon.d/` | Separated by license |
-| Special and contextual vocabulary | `research/context_collection/expansion_v3/` | Managed as review candidates |
+| Open Lexicon — 120,000 records | `dictionaries/system/lexicon.d/` | Preserve JMdict meaning candidates and enter the common Review Queue |
+| Special and contextual vocabulary — 5,000 records | `research/context_collection/expansion_v3/` | Adapt to the common schema and enter the same Review Queue |
 | Domain dictionaries | `dictionaries/domain_packs/<domain>/` | Physically separated from core data |
 | User data | `dictionaries/user_packs/<pack>/` | Coexists without silently replacing project data |
 
@@ -216,14 +216,15 @@ The pipeline performs these stages:
 2. organize readings, part of speech, morphology, and spelling variants;
 3. validate source, version, license, and SHA-256 evidence;
 4. detect duplicates, homographs, collisions, and possible relations to existing data;
-5. split judgment-dependent items into review batches of no more than 20 records;
-6. apply only approvals recorded in a Decision Ledger;
-7. compile approved scopes into separate `core`, `domains`, and `user` packs;
-8. run Gold, independent holdout, safety, performance, and offline-wheel gates.
+5. place all 125,000 records in one Review Queue, then split it into review batches of no more than 20 records;
+6. judge polarity, intensity from 0.0 to 1.0, required and excluded contexts, task candidates, and External Action Risk for every record;
+7. write judgments to `research/semantic_decisions/decision_ledger.jsonl` and apply only explicit approvals;
+8. compile approved scopes into separate `core`, `domains`, and `user` packs;
+9. run Gold, independent holdout, safety, performance, and offline-wheel gates.
 
 Approval is field-scoped rather than one Boolean for the entire record: `lexical`, `semantic`, `pragmatic`, `task`, and `external_action`. The compiler removes fields from every unapproved scope.
 
-The current pipeline does not use an LLM API. The GPT app acts as an external operator: it reads review batches and records user-confirmed judgments in the Decision Ledger. The pipeline does not generate meanings or approve records on its own. When review remains, GitHub Actions preserves the evidence and stops the publication gate with `REVIEW_REQUIRED`.
+The current pipeline does not use an LLM API. The GPT app acts as the external operator: it reads the 125,000-record review workload in order and writes user-directed judgments to the Decision Ledger. It preserves the existing JMdict meanings for the 120,000 records and adds only the missing polarity, intensity, context, task-candidate, and External Action Risk judgments. The pipeline does not make judgments or approve records on its own. When review remains, GitHub Actions preserves the evidence and stops the publication gate with `REVIEW_REQUIRED`.
 
 Example commands:
 

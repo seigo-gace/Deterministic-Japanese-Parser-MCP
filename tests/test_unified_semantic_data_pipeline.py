@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,24 @@ def _approved_record(record_id: str, surface: str) -> dict:
             }
         ],
         "semantic_targets": ["lexicon"],
+        "polarity": "neutral",
+        "intensity": 0.5,
+        "context_conditions": {
+            "required_any": [],
+            "required_all": [],
+            "forbidden_any": [],
+            "required_social": [],
+            "required_discourse": [],
+        },
+        "task_candidates": [],
+        "external_action_risk": False,
+        "approval_scopes": {
+            "lexical": "approved",
+            "semantic": "approved",
+            "pragmatic": "approved",
+            "task": "approved",
+            "external_action": "approved",
+        },
         "source": _source(record_id),
         "review_status": "approved",
     }
@@ -150,7 +169,7 @@ def test_pipeline_accepts_lexicon_context_domain_and_user_sources(tmp_path: Path
     assert surface_index["校内ルーブリック"] == ["USER-001"]
 
 
-def test_open_lexicon_without_meaning_compiles_lexical_scope_only(
+def test_open_lexicon_without_meaning_remains_in_unified_review_queue(
     tmp_path: Path,
 ) -> None:
     open_root = tmp_path / "open"
@@ -171,11 +190,16 @@ def test_open_lexicon_without_meaning_compiles_lexical_scope_only(
     )
     assert manifest["total_records"] == 1
     assert manifest["runtime_eligible_records"] == 1
-    assert manifest["review_queue_records"] == 0
+    assert manifest["review_queue_records"] == 1
     queue = _read_jsonl(review_root / "review-queue.jsonl")
-    assert queue == []
+    assert [item["record_id"] for item in queue] == ["OPEN-UNRESOLVED"]
     approved = _read_jsonl(review_root / "approved-records.jsonl")
-    assert approved[0]["approval"]["approved_scopes"] == ["lexical"]
+    assert approved[0]["approval"]["approved_scopes"] == [
+        "external_action",
+        "lexical",
+        "pragmatic",
+        "task",
+    ]
     compiled_root = tmp_path / "compiled"
     compile_approved(review_root, compiled_root, shard_size=100)
     with gzip.open(
@@ -193,6 +217,7 @@ def test_context_judgment_is_split_into_bounded_review_batches(
     for number in range(21):
         raw = _approved_record(f"CTX-{number:03d}", f"候補{number}")
         raw["review_status"] = "needs-evidence"
+        raw.pop("approval_scopes")
         raw["feature_type"] = "slang"
         raw["semantic_targets"] = ["lexicon", "language_feature"]
         raw["positive_examples"] = ["肯定例"]
@@ -233,6 +258,7 @@ def test_explicit_digest_bound_decision_approves_only_selected_scope(
     domain_root.mkdir()
     raw = _approved_record("DOMAIN-REVIEW-001", "学習分析")
     raw["review_status"] = "needs-evidence"
+    raw.pop("approval_scopes")
     source_path = domain_root / "education.yaml"
     source_path.write_text(
         yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8"
@@ -247,7 +273,14 @@ def test_explicit_digest_bound_decision_approves_only_selected_scope(
         "reviewer": "gpt-app-directed-review",
         "decided_at": "2026-08-06T12:00:00+09:00",
         "rationale": "根拠と意味候補を確認した。",
-        "input_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+        "input_sha256": hashlib.sha256(
+            json.dumps(
+                raw,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
     }
     (decision_root / "education.jsonl").write_text(
         json.dumps(decision, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -264,8 +297,165 @@ def test_explicit_digest_bound_decision_approves_only_selected_scope(
     record = _read_jsonl(review_root / "review-records.jsonl")[0]
     assert manifest["decision_count"] == 1
     assert record["approval"]["approved_scopes"] == ["semantic"]
-    assert record["approval"]["review_scopes"] == ["lexical"]
+    assert record["approval"]["review_scopes"] == [
+        "external_action",
+        "lexical",
+        "pragmatic",
+        "task",
+    ]
     assert manifest["runtime_eligible_records"] == 0
+
+
+def test_open_and_context_records_share_the_same_review_process(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    context_root = tmp_path / "context"
+    open_root.mkdir()
+    context_root.mkdir()
+    open_record = _approved_record("JMD-001", "明るい")
+    context_record = _approved_record("CTX-001", "エグい")
+    for record in (open_record, context_record):
+        record["review_status"] = "needs-evidence"
+        record["approval_scopes"] = {"lexical": "approved"}
+        record.pop("polarity")
+        record.pop("intensity")
+        record.pop("context_conditions")
+        record.pop("task_candidates")
+        record.pop("external_action_risk")
+    (open_root / "open.jsonl").write_text(
+        json.dumps(open_record, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    (context_root / "context.yaml").write_text(
+        yaml.safe_dump(context_record, allow_unicode=True), encoding="utf-8"
+    )
+
+    review_root = tmp_path / "review"
+    manifest = build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=context_root,
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+
+    assert manifest["total_records"] == 2
+    assert manifest["review_queue_records"] == 2
+    queue = _read_jsonl(review_root / "review-queue.jsonl")
+    assert {item["source_kind"] for item in queue} == {
+        "open_lexicon",
+        "context",
+    }
+    for item in queue:
+        assert set(item["approval"]["review_scopes"]) == {
+            "external_action",
+            "pragmatic",
+            "semantic",
+            "task",
+        }
+        assert item["meaning_candidates"]
+        assert item["polarity"] == "unspecified"
+        assert item["intensity"] is None
+        assert item["external_action_risk"] is None
+
+
+def test_pr26_review_seed_preserves_meanings_and_unifies_both_sources(
+    tmp_path: Path,
+) -> None:
+    seed_path = tmp_path / "review-queue.jsonl"
+    records = []
+    for source_kind, record_id, surface in (
+        ("open_lexicon", "JMD-SEED-001", "明るい"),
+        ("context", "CTX-SEED-001", "エグい"),
+    ):
+        record = _approved_record(record_id, surface)
+        record["source_kind"] = source_kind
+        record["review_status"] = "needs-evidence"
+        record.pop("approval_scopes")
+        record.pop("polarity")
+        record.pop("intensity")
+        record.pop("context_conditions")
+        record.pop("task_candidates")
+        record.pop("external_action_risk")
+        records.append(record)
+    seed_path.write_text(
+        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in records),
+        encoding="utf-8",
+    )
+    review_root = tmp_path / "review"
+    manifest = build_review_assets(
+        open_lexicon_root=tmp_path / "unused-open",
+        context_root=tmp_path / "unused-context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+        review_seed=seed_path,
+    )
+    assert manifest["total_records"] == 2
+    assert manifest["review_queue_records"] == 2
+    assert manifest["source_counts"] == {
+        "context": 1,
+        "open_lexicon": 1,
+    }
+    for item in _read_jsonl(review_root / "review-queue.jsonl"):
+        assert item["meaning_candidates"]
+        assert item["approval"]["approved_scopes"] == ["lexical"]
+        assert set(item["approval"]["review_scopes"]) == {
+            "external_action",
+            "pragmatic",
+            "semantic",
+            "task",
+        }
+
+
+def test_decision_cannot_overwrite_jmdict_meaning_candidates(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JMD-LOCKED-001", "明るい")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {"lexical": "approved"}
+    raw["source"] = {
+        **raw["source"],
+        "dataset": "JMdict",
+    }
+    source_path = open_root / "open.jsonl"
+    source_path.write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    decision_root = tmp_path / "decisions"
+    decision_root.mkdir()
+    decision = {
+        "decision_id": "DEC-JMDICT-OVERWRITE",
+        "record_id": raw["record_id"],
+        "scope": "semantic",
+        "status": "approved",
+        "reviewer": "gpt-app-directed-review",
+        "decided_at": "2026-08-06T12:00:00+09:00",
+        "rationale": "上書き拒否の境界テスト",
+        "input_sha256": hashlib.sha256(
+            json.dumps(
+                raw,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+        "patch": {"meaning_candidates": []},
+    }
+    (decision_root / "decision_ledger.jsonl").write_text(
+        json.dumps(decision, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="cannot be overwritten"):
+        build_review_assets(
+            open_lexicon_root=open_root,
+            context_root=tmp_path / "context",
+            pack_roots=[],
+            output_root=tmp_path / "review",
+            system_root=tmp_path / "system",
+            decision_root=decision_root,
+        )
 
 
 def test_pipeline_is_byte_deterministic(tmp_path: Path) -> None:

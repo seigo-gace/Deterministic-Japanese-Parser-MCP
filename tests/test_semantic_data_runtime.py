@@ -39,10 +39,36 @@ def _source(source_id: str) -> dict:
 
 
 def _compile_pack(tmp_path: Path, records: list[dict]) -> Path:
+    approved_records = []
+    for source_record in records:
+        record = dict(source_record)
+        candidates = record.get("meaning_candidates") or []
+        record.setdefault(
+            "polarity",
+            candidates[0].get("polarity", "neutral") if candidates else "neutral",
+        )
+        record.setdefault("intensity", 0.5)
+        record.setdefault("context_conditions", {})
+        record.setdefault("task_candidates", [])
+        record.setdefault(
+            "external_action_risk", record.get("risk_class") == "action"
+        )
+        record["approval_scopes"] = {
+            "lexical": "approved",
+            "semantic": "approved",
+            "pragmatic": "approved",
+            "task": "approved",
+            "external_action": "approved",
+        }
+        approved_records.append(record)
     pack_root = tmp_path / "domain_packs"
     pack_root.mkdir()
     (pack_root / "fixture.yaml").write_text(
-        yaml.safe_dump({"records": records}, allow_unicode=True, sort_keys=False),
+        yaml.safe_dump(
+            {"records": approved_records},
+            allow_unicode=True,
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
     review_root = tmp_path / "review"

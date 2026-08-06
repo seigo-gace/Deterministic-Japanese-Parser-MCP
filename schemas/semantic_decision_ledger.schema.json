@@ -16,6 +16,34 @@
     "decided_at": {"type": "string", "format": "date-time"},
     "rationale": {"type": "string", "minLength": 1},
     "input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "patch": {"type": "object"}
+    "patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "meaning_candidates": {"type": "array", "items": {"type": "object"}},
+        "parameters": {"type": "object"},
+        "register": {"type": "object"},
+        "context_conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required_any": {"type": "array"},
+            "required_all": {"type": "array"},
+            "forbidden_any": {"type": "array"},
+            "required_social": {"type": "array"},
+            "required_discourse": {"type": "array"}
+          }
+        },
+        "examples": {"type": "object"},
+        "domains": {"type": "array"},
+        "usage_labels": {"type": "array"},
+        "semantic_targets": {"type": "array"},
+        "risk_class": {"type": "string"},
+        "polarity": {"enum": ["positive", "negative", "neutral"]},
+        "intensity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "task_candidates": {"type": "array"},
+        "external_action_risk": {"type": "boolean"}
+      }
+    }
   }
 }

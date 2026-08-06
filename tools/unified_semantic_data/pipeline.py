@@ -26,8 +26,36 @@ def iter_source_records(
     context_root: Path,
     pack_roots: Iterable[Path],
     analyzer: MorphologyAnalyzer,
+    review_seed: Path | None = None,
 ) -> Iterator[dict[str, Any]]:
-    if open_lexicon_root.exists():
+    if review_seed is not None:
+        if not review_seed.is_file():
+            raise FileNotFoundError(review_seed)
+        for raw in _iter_jsonl(review_seed):
+            source_kind = raw.get("source_kind")
+            if source_kind not in {"open_lexicon", "context"}:
+                raise ValueError(
+                    f"invalid review seed source_kind: {source_kind}"
+                )
+            raw["approval_scopes"] = {
+                **dict(raw.get("approval_scopes") or {}),
+                "lexical": "approved",
+                "semantic": "needs-evidence",
+                "pragmatic": "needs-evidence",
+                "task": "needs-evidence",
+                "external_action": "needs-evidence",
+            }
+            raw["_force_judgment_review"] = True
+            record = _build_record(
+                raw,
+                source_kind=source_kind,
+                analyzer=analyzer,
+            )
+            record["original_location"]["path"] = (
+                f"pr26-review-seed/{record['record_id']}"
+            )
+            yield record
+    elif open_lexicon_root.exists():
         paths = sorted(
             [
                 *open_lexicon_root.rglob("*.jsonl"),
@@ -46,7 +74,7 @@ def iter_source_records(
                     f"open_lexicon/{path.relative_to(open_lexicon_root)}"
                 )
                 yield record
-    if context_root.exists():
+    if review_seed is None and context_root.exists():
         paths = sorted(
             [*context_root.rglob("*.yaml"), *context_root.rglob("*.yml")],
             key=str,
@@ -164,6 +192,7 @@ def build_review_assets(
     system_root: Path,
     decision_root: Path | None = None,
     review_batch_size: int = 20,
+    review_seed: Path | None = None,
 ) -> dict[str, Any]:
     analyzer = MorphologyAnalyzer()
     records = list(
@@ -172,6 +201,7 @@ def build_review_assets(
             context_root,
             pack_roots,
             analyzer,
+            review_seed,
         )
     )
     records.sort(key=lambda item: (item["source_kind"], item["record_id"]))
@@ -315,6 +345,7 @@ def build_review_assets(
         "review_batch_count": len(batches),
         "review_batch_size": review_batch_size,
         "decision_count": len(decision_audit),
+        "base_review_seed": str(review_seed) if review_seed else None,
         "collision_surfaces": len(collisions),
         "existing_runtime_link_records": len(link_rows),
         "review_blocker_counts": dict(sorted(blocker_counts.items())),
@@ -369,6 +400,8 @@ def compile_approved(
         # already approved.
         if "semantic" not in approved_scopes:
             record["meaning_candidates"] = []
+            record["polarity"] = "unspecified"
+            record["intensity"] = None
         else:
             record["meaning_candidates"] = [
                 item
@@ -383,11 +416,15 @@ def compile_approved(
                 "positive": [], "negative": [], "boundary": []
             }
         if "task" not in approved_scopes:
+            record["task_candidates"] = []
             record["semantic_targets"] = [
                 value
                 for value in record.get("semantic_targets", [])
                 if value not in {"intent_rule", "task_template"}
             ]
+        if "external_action" not in approved_scopes:
+            record["external_action_risk"] = None
+            record["risk_class"] = "semantic"
         record.pop("review_blockers", None)
         record.pop("review_status", None)
         record.pop("runtime_eligible", None)
@@ -564,6 +601,7 @@ def check_determinism(args: argparse.Namespace) -> dict[str, Any]:
             system_root=args.system_root,
             decision_root=getattr(args, "decision_root", None),
             review_batch_size=getattr(args, "review_batch_size", 20),
+            review_seed=getattr(args, "review_seed", None),
         )
         build_review_assets(
             open_lexicon_root=args.open_lexicon_root,
@@ -573,6 +611,7 @@ def check_determinism(args: argparse.Namespace) -> dict[str, Any]:
             system_root=args.system_root,
             decision_root=getattr(args, "decision_root", None),
             review_batch_size=getattr(args, "review_batch_size", 20),
+            review_seed=getattr(args, "review_seed", None),
         )
         compile_approved(
             first / "review",

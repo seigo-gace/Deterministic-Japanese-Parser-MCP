@@ -1,0 +1,22 @@
+{
+  "schema_version": "2.0.0",
+  "dataset": "PR #26 unified Review Queue",
+  "mode": "immutable-github-actions-artifact",
+  "repository": "seigo-gace/Deterministic-Japanese-Parser-MCP",
+  "pull_request": 26,
+  "workflow_run_id": 31030553984,
+  "artifact_id": 8940646706,
+  "artifact_name": "unified-data-supply-processing-evidence",
+  "artifact_expires_at": "2026-11-03T17:33:14Z",
+  "review_queue_path": "unified-semantic-data/review-queue.jsonl",
+  "review_queue_records": 125000,
+  "review_queue_sha256": "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17",
+  "open_lexicon_records": 120000,
+  "context_records": 5000,
+  "meaning_candidate_count": 146657,
+  "jmdict_semantic_source_version": "sha256-27429c76cda0",
+  "jmdict_semantic_source_sha256": "27429c76cda00b407051fecabae8264e6752461284f7d3854406afa449a95a04",
+  "license": "CC-BY-SA-4.0 plus each Context record source license",
+  "meaning_policy": "Preserve PR #26 meaning candidates; add only polarity, intensity, context, task candidates and external action risk through the Decision Ledger.",
+  "promotion_policy": "The artifact is review input only and cannot be loaded by Runtime or Wheel."
+}

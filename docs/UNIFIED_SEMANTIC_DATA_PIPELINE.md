@@ -4,13 +4,13 @@
 
 この仕組みは辞書の意味をAIで大量生成するものではありません。Deterministic Japanese Parser MCPが利用するデータを、入力元が増えても同じ品質・安全・速度条件で受け入れられるようにする非AI・決定論的な供給基盤です。
 
-対象は、語彙同定用のオープン辞書約120,000件、特殊・文脈語彙約5,000件、将来の専門辞書、利用者追加データです。既存の比喩・判定規則・類義語Group・Task Template・Gold Caseは別レイヤーの正本として保持し、新規データから型付きRelationだけを生成します。
+対象は、JMdict意味候補を保持するオープン辞書120,000件、特殊・文脈語彙5,000件、将来の専門辞書、利用者追加データです。120,000件と5,000件は同じ共通Schema・同じReview Queue・同じDecision Ledgerで処理します。既存の比喩・判定規則・類義語Group・Task Template・Gold Caseは別レイヤーの正本として保持し、新規データから型付きRelationだけを生成します。
 
 ## 実行主体の境界
 
 | 主体 | 行うこと | 行わないこと |
 |---|---|---|
-| GPTアプリ | 利用者の一括指示を受ける、GitHubへ入力を置く、Review Batchを読み、利用者確認済みのDecision Ledgerを作る、PR結果を説明する | Runtime内推論、GitHub Actions内からのAPI推論、自動承認 |
+| GPTアプリ | 利用者の一括指示を受ける、125,000件のReview Batchを読む、Decision Ledgerを作る、PR結果を説明する | Runtime内推論、GitHub Actions内からのAPI推論、自動承認、JMdict意味候補の上書き |
 | GitHub Actions + Python | Schema化、正規化、重複・衝突・Source・License検査、Ledger適用、承認Scope限定Compile、品質・安全・速度Gate | 意味の創作、判断の代行、BranchへのCommit・Push |
 | MCP Runtime | Wheelに同梱された承認済みPackをオフラインで決定論的に参照する | 未承認候補の読込、外部API呼出し、辞書からの外部操作生成 |
 
@@ -20,8 +20,8 @@
 
 | 入力 | 入口 | 主用途 | 既定の判断境界 |
 |---|---|---|---|
-| オープン辞書約120,000件 | `dictionaries/system/lexicon.d/` | Surface・読み・品詞・語形・出典 | 語彙同定Scope。意味が無いだけではReview対象にしない |
-| 特殊語彙約5,000件 | `research/context_collection/expansion_v3/` | 意味・極性・強度・場面・社会関係・文脈・3種用例 | 判断項目をReview Batchへ送る |
+| オープン辞書120,000件 | `dictionaries/system/lexicon.d/` + checksum固定JMdict | Surface・読み・品詞・語形・出典・意味候補 | 5,000件と同じReview Queueへ送る。意味候補は保持する |
+| 特殊語彙5,000件 | `research/context_collection/expansion_v3/` | Context由来候補と共通Schema項目 | 120,000件と同じReview Queueへ送る |
 | 専門辞書 | `dictionaries/domain_packs/<domain>/` | 分野固有の意味・用法 | Coreと分離。明示承認後だけ統合参照 |
 | 利用者データ | `dictionaries/user_packs/<pack>/` | 組織・製品・ローカル表現 | 公式Dataを上書きせず併存 |
 
@@ -42,7 +42,7 @@ Schemaは`schemas/unified_semantic_record.schema.json`です。出力は次を�
 - 入力RecordのSHA-256とDecision ID
 - Scope別の承認状態とBlocker
 
-Sudachi Coreは不足した読み・品詞・語形の機械的候補整理だけに使います。意味は生成しません。
+Sudachi Coreは不足した読み・品詞・語形の機械的候補整理だけに使います。意味は生成しません。120,000件の意味候補は`research/semantic_sources/jmdict/source-lock.json`で固定したPR #26のWorkflow Artifactから復元し、Review判断で上書きしません。日次更新されるJMdict配布URLを毎回取り直す方式ではないため、処理途中に意味候補が変わりません。
 
 ## 承認Scope
 
@@ -60,7 +60,9 @@ Compilerは`lexical`が承認されたRecordだけを受け入れ、さらに未
 
 判断が残るRecordは`reports/unified-semantic-data/review-batches/`へ最大20件ずつ分割します。GPTアプリはこのBatchを読み、利用者の指示に従って`research/semantic_decisions/`へDecision Ledgerを追加します。
 
-Decision LedgerはRecord ID、Scope、判断、Reviewer、日時、理由、元入力SHA-256を必須とします。入力が変更されてSHA-256が一致しなくなった古い判断は適用しません。Ledger Schemaは`schemas/semantic_decision_ledger.schema.json`です。
+Decision Ledgerの正本は`research/semantic_decisions/decision_ledger.jsonl`です。Record ID、Scope、判断、Reviewer、日時、理由、元入力RecordのSHA-256を必須とします。`semantic`判断は極性（positive / negative / neutral）と強度（0.0〜1.0）、`pragmatic`判断は必須／除外Context、`task`判断はTask候補、`external_action`判断はRiskのtrue / falseをPatchへ記録します。入力が変更されてSHA-256が一致しなくなった古い判断は適用しません。Ledger Schemaは`schemas/semantic_decision_ledger.schema.json`です。
+
+120,000件と5,000件は一つのQueueへ入り、同じBatch生成規則で処理されます。Source種別による除外・優先処理は行いません。125,000件すべての必要Scopeが確定するまで公開Gateは開きません。
 
 Pipeline自身は承認を作りません。Reviewが残る間、WorkflowはEvidenceを保存した後に`REVIEW_REQUIRED`で失敗し、公開可能状態にしません。
 
@@ -89,18 +91,19 @@ Core、専門、利用者の入力は物理的に別Directoryで管理し、正�
 
 `.github/workflows/data_pipeline.yml`は対象PRで次を実行します。
 
-1. 4種Adapterから共通Schemaへ正規化
-2. Source・License・Digest、重複、同形異義、既存Data Relationを検査
-3. 既存Decision Ledgerだけを適用
-4. Review Batchを最大20件で生成
-5. 承認ScopeだけをCompile
-6. 2回BuildのByte一致を検査
-7. Adapter・Review・Runtime Pack Test
-8. Gold、Holdout、External Action Safety Gate
-9. p95 10ms Target、50ms Hard Limit
-10. Approved-only Wheel BuildとRepository外Offline Test
-11. Evidence ArtifactとPR Summaryを保存
-12. Review残件があれば`REVIEW_REQUIRED`で停止
+1. Run ID・Artifact ID・件数・SHA-256固定のPR #26 Review Queueを復元
+2. 4種Adapterから125,000件と追加Packを共通Schemaへ正規化
+3. Source・License・Digest、重複、同形異義、既存Data Relationを検査
+4. 既存Decision Ledgerだけを適用
+5. 125,000件の共通Review QueueからReview Batchを最大20件で生成
+6. 承認ScopeだけをCompile
+7. 2回BuildのByte一致を検査
+8. Adapter・Review・Runtime Pack Test
+9. Gold、Holdout、External Action Safety Gate
+10. p95 10ms Target、50ms Hard Limit
+11. Approved-only Wheel BuildとRepository外Offline Test
+12. Evidence ArtifactとPR Summaryを保存
+13. Review残件があれば`REVIEW_REQUIRED`で停止
 
 Workflowの権限は`contents: read`のみで、Commit・Push・Merge・Releaseは行いません。
 
