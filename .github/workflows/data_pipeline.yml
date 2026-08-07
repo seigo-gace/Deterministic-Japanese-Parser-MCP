@@ -45,12 +45,111 @@ jobs:
 
       - name: Reject LLM API integration in the current pipeline
         run: |
-          if rg -n \
-            '(^|[[:space:]])(from|import)[[:space:]]+(openai|anthropic|google\.generativeai)|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY' \
-            tools/unified_semantic_data tools/unified_semantic_data_pipeline.py; then
-            echo "Current pipeline must remain non-AI; GPT app is the external operator."
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+
+          forbidden_imports = ("openai", "anthropic", "google.generativeai")
+          forbidden_env_keys = (
+              "OPENAI_API_KEY",
+              "ANTHROPIC_API_KEY",
+              "GEMINI_API_KEY",
+          )
+          targets = (
+              Path("tools/unified_semantic_data"),
+              Path("tools/unified_semantic_data_pipeline.py"),
+          )
+
+          def inspect_source(source: str, path: Path) -> list[str]:
+              try:
+                  tree = ast.parse(source, filename=str(path))
+              except SyntaxError as exc:
+                  raise SystemExit(
+                      f"LLM integration scanner could not parse {path}: {exc}"
+                  ) from exc
+
+              findings: list[str] = []
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for alias in node.names:
+                          if any(
+                              alias.name == name or alias.name.startswith(f"{name}.")
+                              for name in forbidden_imports
+                          ):
+                              findings.append(
+                                  f"{path}:{node.lineno}: forbidden import {alias.name}"
+                              )
+                  elif isinstance(node, ast.ImportFrom):
+                      module = node.module or ""
+                      if any(
+                          module == name or module.startswith(f"{name}.")
+                          for name in forbidden_imports
+                      ):
+                          findings.append(
+                              f"{path}:{node.lineno}: forbidden import from {module}"
+                          )
+                      if module == "google" and any(
+                          alias.name == "generativeai" for alias in node.names
+                      ):
+                          findings.append(
+                              f"{path}:{node.lineno}: forbidden import from google.generativeai"
+                          )
+
+              for lineno, line in enumerate(source.splitlines(), start=1):
+                  for key in forbidden_env_keys:
+                      if key in line:
+                          findings.append(
+                              f"{path}:{lineno}: forbidden environment key {key}"
+                          )
+              return findings
+
+          self_test_bad = """\
+          import openai
+          from anthropic import Anthropic
+          import google.generativeai as genai
+          from google import generativeai
+          key = 'OPENAI_API_KEY'
+          """
+          self_test_findings = inspect_source(self_test_bad, Path("<scanner-self-test>"))
+          expected_self_test_findings = 5
+          if len(self_test_findings) != expected_self_test_findings:
+              raise SystemExit(
+                  "LLM integration scanner self-test failed: "
+                  f"expected {expected_self_test_findings} findings, "
+                  f"got {len(self_test_findings)}"
+              )
+          if inspect_source("from pathlib import Path\n", Path("<scanner-control>")):
+              raise SystemExit("LLM integration scanner control self-test failed")
+
+          python_files: list[Path] = []
+          for target in targets:
+              if target.is_file():
+                  python_files.append(target)
+              elif target.is_dir():
+                  python_files.extend(sorted(target.rglob("*.py")))
+              else:
+                  raise SystemExit(f"LLM integration scanner target missing: {target}")
+
+          if not python_files:
+              raise SystemExit("LLM integration scanner found no pipeline Python files")
+
+          findings: list[str] = []
+          for path in python_files:
+              findings.extend(
+                  inspect_source(path.read_text(encoding="utf-8"), path)
+              )
+
+          if findings:
+              print("Current pipeline must remain non-AI; GPT app is the external operator.")
+              for finding in findings:
+                  print(finding)
+              raise SystemExit(1)
+
+          print(
+              "LLM integration scanner PASS: "
+              f"self-test={expected_self_test_findings}, files={len(python_files)}"
+          )
+          PY
 
       - name: Restore immutable PR 26 Review Queue
         uses: actions/download-artifact@v4
