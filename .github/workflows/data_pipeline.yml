@@ -191,6 +191,7 @@ jobs:
 
       - name: Normalize, inspect, apply ledgers and compile approved scopes
         run: |
+          set -o pipefail
           mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
@@ -202,6 +203,7 @@ jobs:
 
       - name: Verify byte deterministic rebuild
         run: |
+          set -o pipefail
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
             --check \
@@ -219,6 +221,7 @@ jobs:
 
       - name: Preserve Gold, holdout and external-action safety gates
         run: |
+          set -o pipefail
           python tools/lexicon_validator.py \
             | tee reports/data-pipeline-lexicon-validator.txt
           python tools/validator.py \
@@ -232,6 +235,7 @@ jobs:
 
       - name: Enforce p95 10ms target and 50ms hard limit
         run: |
+          set -o pipefail
           python scripts/benchmark.py --check --rounds 30 \
             | tee reports/data-pipeline-benchmark.json
           python scripts/performance_contract.py \
