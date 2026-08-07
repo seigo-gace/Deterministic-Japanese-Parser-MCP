@@ -307,6 +307,49 @@ def _has_semantic_negation(text: str) -> bool:
     )
 
 
+def _scope_target_frame_ids(
+    operator_type: str,
+    start: int,
+    end: int,
+    frames: list[PredicateFrame],
+) -> list[str]:
+    ordered = sorted(frames, key=lambda item: item.source_span.start)
+    if not ordered:
+        return []
+
+    if operator_type == "condition":
+        following = [
+            frame for frame in ordered if frame.source_span.start >= end
+        ]
+        return [following[0].frame_id] if following else []
+
+    if operator_type == "quantifier":
+        following = [
+            frame for frame in ordered if frame.source_span.start >= end
+        ]
+        if following:
+            return [following[0].frame_id]
+
+    overlapping = [
+        frame
+        for frame in ordered
+        if frame.source_span.start < end and start < frame.source_span.end
+    ]
+    if overlapping:
+        return [overlapping[-1].frame_id]
+
+    preceding = [
+        frame for frame in ordered if frame.source_span.start < end
+    ]
+    if preceding:
+        return [preceding[-1].frame_id]
+
+    following = [
+        frame for frame in ordered if frame.source_span.start >= end
+    ]
+    return [following[0].frame_id] if following else []
+
+
 def _operators_for_clause(
     clause: Clause,
     original: str,
@@ -332,7 +375,12 @@ def _operators_for_clause(
         ):
             return
         used[operator_type].append((relative_start, relative_end))
-        targets = [item.frame_id for item in frames]
+        targets = _scope_target_frame_ids(
+            operator_type,
+            start,
+            end,
+            frames,
+        )
         operands = [clause.source_span]
         if operator_type == "condition":
             operands = [
@@ -609,6 +657,38 @@ class DeterministicReadingRuntime:
                 previous_end_position = max(end_positions, default=head_position)
 
         entities, frames = self._ensure_entities(graph, frames)
+        frame_updates: dict[str, PredicateFrame] = {}
+        for clause in graph.clauses:
+            clause_frames = sorted(
+                [frame for frame in frames if frame.clause_id == clause.clause_id],
+                key=lambda item: item.source_span.start,
+            )
+            for index, frame in enumerate(clause_frames):
+                next_frame = (
+                    clause_frames[index + 1]
+                    if index + 1 < len(clause_frames)
+                    else None
+                )
+                local_end = (
+                    next_frame.source_span.start
+                    if next_frame is not None
+                    else clause.source_span.end
+                )
+                local_end = max(local_end, frame.source_span.end)
+                local_text = original_text[frame.source_span.start:local_end]
+                frame_updates[frame.frame_id] = frame.model_copy(update={
+                    "polarity": (
+                        "negative"
+                        if _has_semantic_negation(local_text)
+                        else "positive"
+                    ),
+                    "tense": _tense(local_text),
+                    "aspect": _aspect(local_text),
+                    "voice": _voice(local_text),
+                    "modality": _modalities(local_text),
+                })
+        frames = [frame_updates.get(frame.frame_id, frame) for frame in frames]
+
         frame_by_clause = {}
         for frame in frames:
             frame_by_clause.setdefault(frame.clause_id, []).append(frame)

@@ -67,6 +67,39 @@ def test_condition_forms_are_not_collapsed(engine, text, semantic_value):
     )
 
 
+def test_negation_targets_only_the_modified_predicate(engine):
+    response = _analyze(engine, "設定を変更せず保存した。")
+    reading = response.meaning_graph.reading_analysis
+    frames = {frame.predicate: frame for frame in reading.predicate_frames}
+
+    change = frames["変更する"]
+    save = frames["保存する"]
+    assert change.polarity == "negative"
+    assert save.polarity == "positive"
+
+    negation = next(
+        item for item in reading.scope_operators
+        if item.operator_type == "negation"
+    )
+    assert negation.target_frame_ids == [change.frame_id]
+
+
+def test_condition_targets_only_the_consequent_predicate(engine):
+    response = _analyze(engine, "テストが通ったら、結果を保存する。")
+    reading = response.meaning_graph.reading_analysis
+    save = next(
+        frame for frame in reading.predicate_frames
+        if frame.predicate == "保存する"
+    )
+    condition = next(
+        item for item in reading.scope_operators
+        if item.operator_type == "condition"
+        and item.semantic_value == "event_condition"
+    )
+
+    assert condition.target_frame_ids == [save.frame_id]
+
+
 def test_quotation_preserves_source_and_hearsay(engine):
     response = _analyze(engine, "「削除しろ」と担当者が言ったらしい。")
     reading = response.meaning_graph.reading_analysis
