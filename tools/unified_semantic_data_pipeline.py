@@ -20,9 +20,7 @@ DEFAULT_PACK_ROOTS = (
 )
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
-DEFAULT_DECISION_LEDGER = (
-    ROOT / "research/semantic_decisions/decision_ledger.jsonl"
-)
+DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
 
 
 def main() -> int:
