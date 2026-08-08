@@ -35,14 +35,8 @@ def _overlap(left: OriginalSpan, right: OriginalSpan) -> bool:
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
-    payload = graph.model_dump(exclude={"semantic_hash"}, mode="json")
     return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
     ).hexdigest()
 
 
@@ -100,11 +94,33 @@ class SemanticDataRuntime:
             raise FileNotFoundError(
                 "compiled semantic data indexes are incomplete: " + ", ".join(missing)
             )
+        runtime_required = {
+            "surface": index_root / "runtime-surface-index.json.gz",
+            "reading": index_root / "runtime-reading-index.json.gz",
+            "locator": index_root / "runtime-record-locator.json.gz",
+        }
+        if "runtime_record_count" in manifest:
+            runtime_missing = [
+                str(path) for path in runtime_required.values() if not path.exists()
+            ]
+            if runtime_missing:
+                raise FileNotFoundError(
+                    "compiled semantic runtime indexes are incomplete: "
+                    + ", ".join(runtime_missing)
+                )
+            selected_indexes = runtime_required
+            expected_locator_count = int(manifest["runtime_record_count"])
+        else:
+            # Backward compatibility for compiler manifests created before
+            # runtime-only lookup indexes were introduced.
+            selected_indexes = required
+            expected_locator_count = int(manifest.get("record_count", 0))
+
         self.manifest = manifest
-        self.surface_index = _load_json_gzip(required["surface"])
-        self.reading_index = _load_json_gzip(required["reading"])
-        self.record_locator = _load_json_gzip(required["locator"])
-        if len(self.record_locator) != int(manifest.get("record_count", 0)):
+        self.surface_index = _load_json_gzip(selected_indexes["surface"])
+        self.reading_index = _load_json_gzip(selected_indexes["reading"])
+        self.record_locator = _load_json_gzip(selected_indexes["locator"])
+        if len(self.record_locator) != expected_locator_count:
             raise ValueError("semantic data record locator count mismatch")
         self.available = True
         self.last_metrics["semantic_pack_available"] = 1
@@ -112,6 +128,10 @@ class SemanticDataRuntime:
     @property
     def record_count(self) -> int:
         return int(self.manifest.get("record_count", 0))
+
+    @property
+    def runtime_record_count(self) -> int:
+        return int(self.manifest.get("runtime_record_count", self.record_count))
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
         cached = self._shards.get(number)
@@ -130,10 +150,17 @@ class SemanticDataRuntime:
                 record_id = item.get("record_id")
                 if not record_id:
                     raise ValueError(f"semantic record_id missing: {path}:{line_number}")
-                if item.get("review_status") != "approved":
-                    raise ValueError(f"unapproved semantic record in runtime: {record_id}")
-                if item.get("review_blockers"):
-                    raise ValueError(f"blocked semantic record in runtime: {record_id}")
+                approval = item.get("approval") or {}
+                approved_scopes = approval.get("approved_scopes") or []
+                if not approved_scopes:
+                    raise ValueError(
+                        f"semantic record has no approved scope: {record_id}"
+                    )
+                blocked = approval.get("blockers_by_scope") or {}
+                if any(blocked.get(scope) for scope in approved_scopes):
+                    raise ValueError(
+                        f"approved semantic record contains scoped blocker: {record_id}"
+                    )
                 records[record_id] = item
         self._shards[number] = records
         self._shards.move_to_end(number)
@@ -261,6 +288,7 @@ class SemanticDataRuntime:
         original_text: str,
         conversation_context: list[str],
         known_entities: list[str],
+        update_hash: bool = True,
     ) -> MeaningGraph:
         if not self.available:
             quality = {
@@ -269,7 +297,35 @@ class SemanticDataRuntime:
                 "semantic_data_pack_record_count": 0,
             }
             updated = graph.model_copy(update={"quality_annotations": quality})
-            return updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
+
+        if self.runtime_record_count == 0:
+            quality = {
+                **graph.quality_annotations,
+                "semantic_data_pack_used": True,
+                "semantic_data_pack_record_count": self.record_count,
+                "semantic_data_runtime_record_count": 0,
+                "semantic_data_pack_match_count": 0,
+                "semantic_data_pack_resolved_count": 0,
+                "semantic_data_pack_ambiguous_count": 0,
+                "semantic_data_pack_automatic_external_action": False,
+            }
+            self.last_metrics = {
+                "semantic_pack_available": 1,
+                "semantic_pack_match_count": 0,
+                "semantic_pack_resolved_count": 0,
+                "semantic_pack_ambiguous_count": 0,
+            }
+            updated = graph.model_copy(update={"quality_annotations": quality})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
 
         context_text = "\n".join([original_text, *conversation_context, *known_entities])
         propositions = list(graph.propositions)
@@ -388,6 +444,7 @@ class SemanticDataRuntime:
             **graph.quality_annotations,
             "semantic_data_pack_used": True,
             "semantic_data_pack_record_count": self.record_count,
+            "semantic_data_runtime_record_count": self.runtime_record_count,
             "semantic_data_pack_match_count": match_count,
             "semantic_data_pack_resolved_count": resolved_count,
             "semantic_data_pack_ambiguous_count": ambiguous_count,
@@ -399,7 +456,10 @@ class SemanticDataRuntime:
             "unresolved": unresolved,
             "quality_annotations": quality,
         })
-        updated = updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+        if update_hash:
+            updated = updated.model_copy(update={
+                "semantic_hash": _stable_hash(updated),
+            })
         self.last_metrics = {
             "semantic_pack_available": 1,
             "semantic_pack_match_count": match_count,

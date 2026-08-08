@@ -5,6 +5,7 @@ import hashlib
 import json
 import sys
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
 import regex
@@ -14,10 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.config import SETTINGS
 from deterministic_japanese_parser_mcp.dictionaries import _load_json_set
 
 METAPHOR_DIR = ROOT / "dictionaries/system/metaphors"
 GOLD_DIR = ROOT / "tests/gold"
+VALIDATION_HARD_DEADLINE_MS = 60_000
 
 
 def _load_json(path: Path) -> dict:
@@ -173,7 +176,19 @@ def main() -> int:
             except Exception as exc:
                 errors.append(f"bad regex {item['id']}: {exc}")
 
-    engine = ParserEngine()
+    # Gold validation measures semantic correctness and indexed/exhaustive parity.
+    # Keep that correctness gate independent from host scheduling jitter; the
+    # production 10 ms / 50 ms runtime contract is enforced by dedicated
+    # performance and Astera latency gates.
+    validation_settings = replace(
+        SETTINGS,
+        hard_deadline_ms=max(
+            SETTINGS.hard_deadline_ms,
+            SETTINGS.target_latency_ms,
+            VALIDATION_HARD_DEADLINE_MS,
+        ),
+    )
+    engine = ParserEngine(settings=validation_settings)
     try:
         gold = load_gold()
     except ValueError as exc:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from typing import Iterable
 
@@ -77,14 +76,8 @@ def _overlap(left: OriginalSpan, right: OriginalSpan) -> bool:
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
-    payload = graph.model_dump(exclude={"semantic_hash"}, mode="json")
     return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
     ).hexdigest()
 
 

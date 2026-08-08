@@ -10,12 +10,12 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
-from .semantic_engine import ParserEngine
+from .engine import ParserEngine
 from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
 from .normalizer import normalize_with_map
 
 SERVER_NAME = "deterministic-japanese-parser"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.4.0"
 TOOL_NAME = "analyze_japanese"
 
 server = Server(SERVER_NAME)
@@ -85,9 +85,10 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name=TOOL_NAME,
             description=(
-                "Deterministically transform Japanese text into a MeaningGraph, "
-                "typed scope relations, an action TaskGraph, legacy compatibility "
-                "views, and an action-relevance safety decision."
+                "Deterministically read Japanese text and return lexical meaning, "
+                "predicate-argument structure, negation/condition/modality scope, "
+                "quotation attribution, discourse relations, a MeaningGraph, and "
+                "downstream TaskGraph and external-action safety decisions."
             ),
             inputSchema=AnalyzeRequest.model_json_schema(),
             outputSchema=AnalyzeResponse.model_json_schema(),
@@ -122,6 +123,12 @@ async def call_tool(
         "overall_status": structured["overall_status"],
         "execution_allowed": structured["execution_allowed"],
         "proposition_count": len(structured["meaning_graph"]["propositions"]),
+        "predicate_frame_count": len(
+            structured["meaning_graph"]["reading_analysis"]["predicate_frames"]
+        ),
+        "scope_operator_count": len(
+            structured["meaning_graph"]["reading_analysis"]["scope_operators"]
+        ),
         "action_task_count": len(structured["task_graph"]["tasks"]),
         "semantic_hash": structured["meaning_graph"]["semantic_hash"],
     }

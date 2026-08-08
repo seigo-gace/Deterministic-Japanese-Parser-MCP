@@ -10,6 +10,9 @@
 
 ### 対象能力
 
+- 通常文の述語・格項・時制・相・態を保持する読解構造
+- 否定、数量、条件、疑問、引用、モダリティの明示的な作用範囲
+- 引用・伝聞の内容、情報源、報告述語の帰属構造
 - 高影響多義語の文脈別Sense選択
 - Sense Candidate、Evidence、ConfidenceのMeaning Graph出力
 - 省略されたTargetとゼロ代名詞の局所Antecedent補完
@@ -80,6 +83,12 @@ Rule / Morphology / Grammar Kernel
     ↓
 Meaning Graph
     ↓
+Reading Analysis
+    ├─ Predicate / argument frames
+    ├─ Scope operators
+    ├─ Attribution
+    └─ Discourse relations
+    ↓
 Semantic Profile Stage
     ├─ Sense candidate scoring
     ├─ Pragmatic speech act
@@ -122,6 +131,9 @@ This contract measures the deterministic semantic capabilities explicitly suppor
 
 ### Covered capabilities
 
+- reading structures for ordinary clauses, predicates, case-marked arguments, tense, aspect, and voice;
+- explicit scope for negation, quantity, conditions, questions, quotation, and modality;
+- attribution structures for quoted and reported content;
 - context-sensitive sense selection for high-impact polysemous expressions;
 - sense candidates, evidence, and confidence in the Meaning Graph;
 - local omitted-target and zero-object recovery;

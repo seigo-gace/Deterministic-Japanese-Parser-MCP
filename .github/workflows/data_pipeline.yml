@@ -1,0 +1,352 @@
+name: Dictionary Data Pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "dictionaries/system/lexicon.d/**"
+      - "research/context_collection/expansion_v3/**"
+      - "research/semantic_decisions/**"
+      - "research/semantic_sources/jmdict/**"
+      - "dictionaries/domain_packs/**"
+      - "dictionaries/user_packs/**"
+      - "schemas/**"
+      - "tools/build_context_semantic_collection.py"
+      - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/bulk_review_station.py"
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "tests/test_bulk_review_station.py"
+      - "tests/test_context_semantic_collection.py"
+      - "tests/test_jmdict_semantic_lexicon.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "tests/test_unified_semantic_data_pipeline.py"
+      - ".github/workflows/data_pipeline.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  deterministic-data-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+
+      - name: Reject LLM API integration in the deterministic pipeline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+
+          forbidden_imports = ("openai", "anthropic", "google.generativeai")
+          forbidden_env_keys = (
+              "OPENAI_API_KEY",
+              "ANTHROPIC_API_KEY",
+              "GEMINI_API_KEY",
+          )
+          targets = (
+              Path("tools/unified_semantic_data"),
+              Path("tools/unified_semantic_data_pipeline.py"),
+          )
+
+          def inspect_source(source: str, path: Path) -> list[str]:
+              try:
+                  tree = ast.parse(source, filename=str(path))
+              except SyntaxError as exc:
+                  raise SystemExit(
+                      f"LLM integration scanner could not parse {path}: {exc}"
+                  ) from exc
+
+              findings: list[str] = []
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for alias in node.names:
+                          if any(
+                              alias.name == name or alias.name.startswith(f"{name}.")
+                              for name in forbidden_imports
+                          ):
+                              findings.append(
+                                  f"{path}:{node.lineno}: forbidden import {alias.name}"
+                              )
+                  elif isinstance(node, ast.ImportFrom):
+                      module = node.module or ""
+                      if any(
+                          module == name or module.startswith(f"{name}.")
+                          for name in forbidden_imports
+                      ):
+                          findings.append(
+                              f"{path}:{node.lineno}: forbidden import from {module}"
+                          )
+                      if module == "google" and any(
+                          alias.name == "generativeai" for alias in node.names
+                      ):
+                          findings.append(
+                              f"{path}:{node.lineno}: forbidden import from google.generativeai"
+                          )
+
+              for lineno, line in enumerate(source.splitlines(), start=1):
+                  for key in forbidden_env_keys:
+                      if key in line:
+                          findings.append(
+                              f"{path}:{lineno}: forbidden environment key {key}"
+                          )
+              return findings
+
+          self_test_bad = """\
+          import openai
+          from anthropic import Anthropic
+          import google.generativeai as genai
+          from google import generativeai
+          key = 'OPENAI_API_KEY'
+          """
+          self_test_findings = inspect_source(self_test_bad, Path("<scanner-self-test>"))
+          expected_self_test_findings = 5
+          if len(self_test_findings) != expected_self_test_findings:
+              raise SystemExit(
+                  "LLM integration scanner self-test failed: "
+                  f"expected {expected_self_test_findings} findings, "
+                  f"got {len(self_test_findings)}"
+              )
+          if inspect_source("from pathlib import Path\n", Path("<scanner-control>")):
+              raise SystemExit("LLM integration scanner control self-test failed")
+
+          python_files: list[Path] = []
+          for target in targets:
+              if target.is_file():
+                  python_files.append(target)
+              elif target.is_dir():
+                  python_files.extend(sorted(target.rglob("*.py")))
+              else:
+                  raise SystemExit(f"LLM integration scanner target missing: {target}")
+
+          if not python_files:
+              raise SystemExit("LLM integration scanner found no pipeline Python files")
+
+          findings: list[str] = []
+          for path in python_files:
+              findings.extend(
+                  inspect_source(path.read_text(encoding="utf-8"), path)
+              )
+
+          if findings:
+              print(
+                  "Deterministic pipeline must remain non-AI; "
+                  "Bulk Review Station is the external build-time operator."
+              )
+              for finding in findings:
+                  print(finding)
+              raise SystemExit(1)
+
+          print(
+              "LLM integration scanner PASS: "
+              f"self-test={expected_self_test_findings}, files={len(python_files)}"
+          )
+          PY
+
+      - name: Restore immutable PR 26 Review Queue
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31030553984
+          github-token: ${{ github.token }}
+          path: work/pr26-processing-evidence
+
+      - name: Verify the 125000-record Review Queue lock
+        run: |
+          mkdir -p reports
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          lock = json.loads(
+              Path("research/semantic_sources/jmdict/source-lock.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          queue = Path(
+              "work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl"
+          )
+          digest = hashlib.sha256(queue.read_bytes()).hexdigest()
+          records = sum(1 for line in queue.open(encoding="utf-8") if line.strip())
+          if digest != lock["review_queue_sha256"]:
+              raise SystemExit(
+                  f"Review Queue checksum mismatch: expected={lock['review_queue_sha256']} actual={digest}"
+              )
+          if records != lock["review_queue_records"]:
+              raise SystemExit(
+                  f"Review Queue count mismatch: expected={lock['review_queue_records']} actual={records}"
+              )
+          print({"records": records, "sha256": digest})
+          PY
+
+      - name: Normalize, inspect, prepare Bulk Review and compile approved scopes
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          python tools/unified_semantic_data_pipeline.py \
+            --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --compile-approved \
+            --bulk-review \
+            --output-root reports/unified-semantic-data \
+            --compiled-root dictionaries/system/compiled/semantic_data \
+            | tee reports/data-pipeline-run.json
+
+      - name: Verify byte deterministic rebuild
+        run: |
+          set -o pipefail
+          python tools/unified_semantic_data_pipeline.py \
+            --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --check \
+            --bulk-review \
+            | tee reports/data-pipeline-determinism.json
+
+      - name: Test adapters, review boundary and approved runtime pack
+        run: |
+          pytest \
+            tests/test_context_semantic_collection.py \
+            tests/test_jmdict_semantic_lexicon.py \
+            tests/test_bulk_review_station.py \
+            tests/test_unified_semantic_data_pipeline.py \
+            tests/test_semantic_data_runtime.py \
+            --junitxml=reports/data-pipeline-pytest.xml
+
+      - name: Preserve Gold, holdout and external-action safety gates
+        run: |
+          set -o pipefail
+          python tools/lexicon_validator.py \
+            | tee reports/data-pipeline-lexicon-validator.txt
+          python tools/validator.py \
+            | tee reports/data-pipeline-validator.txt
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/data-pipeline-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/data-pipeline-holdout.json
+
+      - name: Enforce p95 10ms target and 50ms hard limit
+        run: |
+          set -o pipefail
+          python scripts/benchmark.py --check --rounds 30 \
+            | tee reports/data-pipeline-benchmark.json
+          python scripts/performance_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --scale 20 \
+            --max-ready-ms 10 \
+            --output reports/data-pipeline-performance.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/data-pipeline-astera-latency.json
+
+      - name: Build wheel containing approved data only
+        run: python -m build --wheel
+
+      - name: Verify wheel has no candidate pack and works offline
+        run: |
+          python -m venv --system-site-packages /tmp/djpmcp-wheel
+          /tmp/djpmcp-wheel/bin/pip install \
+            --no-index --no-deps --force-reinstall dist/*.whl
+          cd /tmp
+          /tmp/djpmcp-wheel/bin/python - <<'PY'
+          from pathlib import Path
+          import json
+          import sysconfig
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+
+          share = Path(sysconfig.get_path("data")) / "share/deterministic-japanese-parser-mcp"
+          assert not (share / "dictionaries/system/compiled/semantic_candidates").exists()
+          manifest = json.loads(
+              (share / "dictionaries/system/compiled/semantic_data/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert manifest["approved_only"] is True
+          assert manifest["field_scope_projection"] is True
+          assert set(manifest["pack_namespaces"]) == {"core", "domains", "user"}
+          for namespace in manifest["pack_namespaces"]:
+              assert (
+                  share
+                  / f"dictionaries/system/compiled/semantic_data/{namespace}/manifest.json"
+              ).exists()
+          response = ParserEngine().analyze(
+              AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
+          )
+          assert response.meaning_graph.propositions
+          assert response.meaning_graph.semantic_hash
+          print({"approved_records": manifest["record_count"], "offline": True})
+          PY
+
+      - name: Write PR summary
+        if: always()
+        run: |
+          if test -f reports/unified-semantic-data/manifest.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("reports/unified-semantic-data/manifest.json").read_text())
+          print("## Dictionary Data Pipeline")
+          print(f"- Input records: {manifest['total_records']}")
+          print(f"- Approved-scope records: {manifest['runtime_eligible_records']}")
+          print(f"- Review required: {manifest['review_queue_records']}")
+          print(f"- Bulk review job: {manifest.get('bulk_review_job_id')}")
+          print(f"- Provider batches: {manifest.get('provider_batch_count')}")
+          print(f"- LLM API used: {manifest['boundaries']['llm_api_used']}")
+          PY
+          fi
+
+      - name: Upload review and gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dictionary-data-pipeline-evidence
+          path: |
+            reports/data-pipeline-*.json
+            reports/data-pipeline-*.txt
+            reports/data-pipeline-*.xml
+            reports/unified-semantic-data
+            dictionaries/system/compiled/semantic_data/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Block promotion while review remains
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("reports/unified-semantic-data/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          remaining = int(manifest["review_queue_records"])
+          if remaining:
+              raise SystemExit(
+                  "REVIEW_REQUIRED: "
+                  f"{remaining} records in bulk review job "
+                  f"{manifest.get('bulk_review_job_id')}; "
+                  "add explicit Decision Ledger entries."
+              )
+          print("REVIEW COMPLETE")
+          PY

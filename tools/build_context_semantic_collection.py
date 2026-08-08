@@ -180,6 +180,13 @@ def build_collection(
             "attribution": origin,
         }
         normalized["review_status"] = "needs-evidence"
+        normalized["approval_scopes"] = {
+            "lexical": "approved",
+            "semantic": "needs-evidence",
+            "pragmatic": "needs-evidence",
+            "task": "needs-evidence",
+            "external_action": "needs-evidence",
+        }
         normalized["review_metadata"] = {
             "candidate_record_evidence_id": evidence_id,
             "constructed_examples": bool(provenance.get("constructed_examples")),

@@ -132,4 +132,4 @@ def test_context_collection_fixes_record_provenance_and_preserves_review_boundar
     assert review["total_records"] == 2
     assert "source-version-required" not in review["review_blocker_counts"]
     assert "source-digest-required" not in review["review_blocker_counts"]
-    assert review["runtime_eligible_records"] == 0
+    assert review["runtime_eligible_records"] == 1
