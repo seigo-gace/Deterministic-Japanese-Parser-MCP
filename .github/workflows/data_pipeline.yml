@@ -13,9 +13,11 @@ on:
       - "schemas/**"
       - "tools/build_context_semantic_collection.py"
       - "tools/build_jmdict_semantic_lexicon.py"
+      - "tools/bulk_review_station.py"
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "tests/test_bulk_review_station.py"
       - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_semantic_data_runtime.py"
@@ -43,7 +45,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" build
 
-      - name: Reject LLM API integration in the current pipeline
+      - name: Reject LLM API integration in the deterministic pipeline
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -140,7 +142,10 @@ jobs:
               )
 
           if findings:
-              print("Current pipeline must remain non-AI; GPT app is the external operator.")
+              print(
+                  "Deterministic pipeline must remain non-AI; "
+                  "Bulk Review Station is the external build-time operator."
+              )
               for finding in findings:
                   print(finding)
               raise SystemExit(1)
@@ -189,14 +194,14 @@ jobs:
           print({"records": records, "sha256": digest})
           PY
 
-      - name: Normalize, inspect, apply ledgers and compile approved scopes
+      - name: Normalize, inspect, prepare Bulk Review and compile approved scopes
         run: |
           set -o pipefail
           mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
             --compile-approved \
-            --review-batch-size 20 \
+            --bulk-review \
             --output-root reports/unified-semantic-data \
             --compiled-root dictionaries/system/compiled/semantic_data \
             | tee reports/data-pipeline-run.json
@@ -207,7 +212,7 @@ jobs:
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
             --check \
-            --review-batch-size 20 \
+            --bulk-review \
             | tee reports/data-pipeline-determinism.json
 
       - name: Test adapters, review boundary and approved runtime pack
@@ -215,6 +220,7 @@ jobs:
           pytest \
             tests/test_context_semantic_collection.py \
             tests/test_jmdict_semantic_lexicon.py \
+            tests/test_bulk_review_station.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
             --junitxml=reports/data-pipeline-pytest.xml
@@ -303,7 +309,8 @@ jobs:
           print(f"- Input records: {manifest['total_records']}")
           print(f"- Approved-scope records: {manifest['runtime_eligible_records']}")
           print(f"- Review required: {manifest['review_queue_records']}")
-          print(f"- Review batches (max 20): {manifest['review_batch_count']}")
+          print(f"- Bulk review job: {manifest.get('bulk_review_job_id')}")
+          print(f"- Provider batches: {manifest.get('provider_batch_count')}")
           print(f"- LLM API used: {manifest['boundaries']['llm_api_used']}")
           PY
           fi
@@ -337,7 +344,8 @@ jobs:
           if remaining:
               raise SystemExit(
                   "REVIEW_REQUIRED: "
-                  f"{remaining} records in {manifest['review_batch_count']} batches; "
+                  f"{remaining} records in bulk review job "
+                  f"{manifest.get('bulk_review_job_id')}; "
                   "add explicit Decision Ledger entries."
               )
           print("REVIEW COMPLETE")

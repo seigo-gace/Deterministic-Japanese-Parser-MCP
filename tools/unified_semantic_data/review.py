@@ -1,4 +1,4 @@
-"""Deterministic review-batch and human/GPT-app decision-ledger handling."""
+"""Deterministic review-batch and decision-ledger handling."""
 from __future__ import annotations
 
 from collections import Counter
@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable
+import warnings
 
 from .common import APPROVAL_SCOPES, _json_line, normalize_text
 
@@ -138,13 +139,6 @@ def apply_decisions(
         for field, value in patch.items():
             record[field] = value
         scope = decision["scope"]
-        # A semantic-scope approval is the explicit reviewer authority that
-        # promotes the already attached candidate set.  The source-owned
-        # candidate identity, label, glosses and evidence stay unchanged;
-        # only reviewer-controlled promotion metadata is updated.  Without
-        # this projection, the approved-only compiler would discard every
-        # candidate that entered the queue as ``needs-evidence`` even after
-        # the reviewer approved its semantic scope.
         if (
             scope == "semantic"
             and decision["status"] == "approved"
@@ -241,6 +235,11 @@ def apply_decisions(
 def write_review_batches(
     records: list[dict[str, Any]], output_root: Path, *, batch_size: int = 20
 ) -> list[dict[str, Any]]:
+    warnings.warn(
+        "write_review_batches() is deprecated; use Bulk Review Station instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if batch_size < 1 or batch_size > 20:
         raise ValueError("review batch size must be between 1 and 20")
     batch_root = output_root / "review-batches"
@@ -273,3 +272,28 @@ def write_review_batches(
         index_text, encoding="utf-8", newline="\n"
     )
     return manifests
+
+
+def prepare_review_operator(
+    records: list[dict[str, Any]],
+    output_root: Path,
+    *,
+    bulk_review: bool,
+    batch_size: int = 20,
+) -> dict[str, Any]:
+    """Select the new Bulk Review Station or the deprecated 20-record path."""
+    if bulk_review:
+        from bulk_review_station import prepare_bulk_review_job
+
+        manifest = prepare_bulk_review_job(records, output_root)
+        return {
+            "mode": "bulk",
+            "bulk_review_job_id": manifest["bulk_review_job_id"],
+            "provider_batch_count": manifest["provider_batch_count"],
+        }
+    batches = write_review_batches(records, output_root, batch_size=batch_size)
+    return {
+        "mode": "legacy",
+        "review_batch_count": len(batches),
+        "review_batch_size": batch_size,
+    }

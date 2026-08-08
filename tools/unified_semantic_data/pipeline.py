@@ -18,7 +18,7 @@ from .common import (
     _iter_jsonl, _iter_yaml_or_json, _json_line, _sha256_bytes,
     _sha256_file, _build_record, normalize_key,
 )
-from .review import apply_decisions, load_decisions, write_review_batches
+from .review import apply_decisions, load_decisions, prepare_review_operator
 
 
 def iter_source_records(
@@ -193,6 +193,7 @@ def build_review_assets(
     decision_root: Path | None = None,
     review_batch_size: int = 20,
     review_seed: Path | None = None,
+    bulk_review: bool = False,
 ) -> dict[str, Any]:
     analyzer = MorphologyAnalyzer()
     records = list(
@@ -323,8 +324,11 @@ def build_review_assets(
             newline="\n",
         )
 
-    batches = write_review_batches(
-        queue, output_root, batch_size=review_batch_size
+    review_operator = prepare_review_operator(
+        queue,
+        output_root,
+        bulk_review=bulk_review,
+        batch_size=review_batch_size,
     )
 
     source_counts = Counter(item["source_kind"] for item in records)
@@ -334,6 +338,17 @@ def build_review_assets(
     target_counts = Counter(
         target for item in records for target in item["semantic_targets"]
     )
+    operator_manifest = (
+        {
+            "bulk_review_job_id": review_operator["bulk_review_job_id"],
+            "provider_batch_count": review_operator["provider_batch_count"],
+        }
+        if bulk_review
+        else {
+            "review_batch_count": review_operator["review_batch_count"],
+            "review_batch_size": review_operator["review_batch_size"],
+        }
+    )
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "compiler_version": COMPILER_VERSION,
@@ -342,8 +357,7 @@ def build_review_assets(
         "source_counts": dict(sorted(source_counts.items())),
         "runtime_eligible_records": len(eligible),
         "review_queue_records": len(queue),
-        "review_batch_count": len(batches),
-        "review_batch_size": review_batch_size,
+        **operator_manifest,
         "decision_count": len(decision_audit),
         "base_review_seed": str(review_seed) if review_seed else None,
         "collision_surfaces": len(collisions),
@@ -358,6 +372,7 @@ def build_review_assets(
             "approved_only_compile": True,
             "llm_api_used": False,
             "gpt_app_is_external_operator": True,
+            "bulk_review_station_prepared": bulk_review,
             "decision_ledger_required_for_judgment": True,
         },
         "files": {
@@ -395,9 +410,6 @@ def compile_approved(
             raise ValueError(
                 f"unapproved record reached compiler: {record.get('record_id')}"
             )
-        # Scope projection is the safety boundary: fields from an unapproved
-        # scope never reach the runtime artifact even when lexical identity is
-        # already approved.
         if "semantic" not in approved_scopes:
             record["meaning_candidates"] = []
             record["polarity"] = "unspecified"
@@ -460,11 +472,6 @@ def compile_approved(
             meaning_index[item["candidate_id"]].add(record["record_id"])
         for value in record["semantic_targets"]:
             target_index[value].add(record["record_id"])
-        # The full indexes describe every approved field-projected record.
-        # SemanticDataRuntime only needs records with an approved meaning it
-        # can actually apply. Keeping a separate lookup prevents lexical-only
-        # records from causing pointless shard loads while preserving them in
-        # the compiled pack for other approved consumers.
         if record.get("meaning_candidates"):
             runtime_locator[record["record_id"]] = location
             for value in record["normalized_surfaces"]:
@@ -614,6 +621,8 @@ def check_determinism(args: argparse.Namespace) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
         first = Path(first_dir)
         second = Path(second_dir)
+        review_batch_size = getattr(args, "review_batch_size", None) or 20
+        bulk_review = bool(getattr(args, "bulk_review", False))
         build_review_assets(
             open_lexicon_root=args.open_lexicon_root,
             context_root=args.context_root,
@@ -621,8 +630,9 @@ def check_determinism(args: argparse.Namespace) -> dict[str, Any]:
             output_root=first / "review",
             system_root=args.system_root,
             decision_root=getattr(args, "decision_root", None),
-            review_batch_size=getattr(args, "review_batch_size", 20),
+            review_batch_size=review_batch_size,
             review_seed=getattr(args, "review_seed", None),
+            bulk_review=bulk_review,
         )
         build_review_assets(
             open_lexicon_root=args.open_lexicon_root,
@@ -631,8 +641,9 @@ def check_determinism(args: argparse.Namespace) -> dict[str, Any]:
             output_root=second / "review",
             system_root=args.system_root,
             decision_root=getattr(args, "decision_root", None),
-            review_batch_size=getattr(args, "review_batch_size", 20),
+            review_batch_size=review_batch_size,
             review_seed=getattr(args, "review_seed", None),
+            bulk_review=bulk_review,
         )
         compile_approved(
             first / "review",
