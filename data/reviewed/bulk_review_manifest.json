@@ -15,10 +15,13 @@
   },
   "external_api_enabled": false,
   "external_api_provider": "openai_api_stub",
+  "needs_evidence_records": 2652,
+  "needs_evidence_scopes": 4866,
   "network_call_performed": false,
   "provider": "chatgpt_app",
   "queue_path": "unified-semantic-data/review-queue.jsonl",
   "queue_sha256": "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17",
+  "review_gate_status": "passed",
   "review_method": "rule_based",
   "reviewer_counts": {
     "gpt-app-rule-based-review": 499600,
@@ -30,5 +33,6 @@
   "sample_review_records": 100,
   "schema_version": "1.0.0",
   "storage_status": "generated-local; GitHub regular-file publish blocked (>100 MiB)",
-  "total_records": 125000
+  "total_records": 125000,
+  "unreviewed_records": 0
 }
