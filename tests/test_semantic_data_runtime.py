@@ -226,6 +226,112 @@ def test_ambiguous_action_semantics_fail_closed(tmp_path: Path) -> None:
     assert graph.language_features[0].status == ItemStatus.AMBIGUOUS
 
 
+def test_preexisting_resolved_sense_has_priority_over_generic_pack(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-GENERIC-FALL-001",
+        "lemma": "落ちる",
+        "surfaces": ["落ちる"],
+        "readings": ["オチル"],
+        "part_of_speech": ["動詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-GENERIC-FALL-001:generic",
+                "label": "to fall",
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-GENERIC-FALL-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="落ちる",
+        normalized="落ちる",
+        reading="オチル",
+        pos=["動詞"],
+        span=OriginalSpan(start=0, end=3, source_text="落ちる"),
+    )
+    source_graph = _graph("落ちる")
+    source_graph = source_graph.model_copy(update={
+        "propositions": [
+            source_graph.propositions[0].model_copy(update={
+                "sense_id": "fall.system_failure",
+                "sense_label": "system_or_connection_failure",
+                "sense_confidence": 0.95,
+                "inference_sources": ["semantic-profile"],
+            })
+        ]
+    })
+
+    graph = runtime.enrich(
+        source_graph,
+        tokens=[token],
+        original_text="落ちる",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "fall.system_failure"
+    assert proposition.sense_label == "system_or_connection_failure"
+    assert proposition.inference_sources == ["semantic-profile"]
+
+
+def test_generic_lexical_ambiguity_does_not_downgrade_resolved_action(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-GENERIC-SHARE-001",
+        "lemma": "共有",
+        "surfaces": ["共有"],
+        "readings": ["キョウユウ"],
+        "part_of_speech": ["名詞", "動詞"],
+        "risk_class": "semantic",
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-GENERIC-SHARE-001:joint",
+                "label": "共同所有",
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-GENERIC-SHARE-001:network",
+                "label": "情報共有",
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-GENERIC-SHARE-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="共有",
+        normalized="共有",
+        reading="キョウユウ",
+        pos=["名詞", "動詞"],
+        span=OriginalSpan(start=0, end=2, source_text="共有"),
+    )
+
+    graph = runtime.enrich(
+        _graph("共有", executable=True),
+        tokens=[token],
+        original_text="共有",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    proposition = graph.propositions[0]
+    assert proposition.status == ItemStatus.RESOLVED
+    assert proposition.executable_candidate is True
+    assert proposition.sense_id is None
+    assert proposition.sense_candidates == []
+
+
 def test_missing_compiled_pack_is_safe_noop(tmp_path: Path) -> None:
     runtime = SemanticDataRuntime(tmp_path / "missing")
     graph = runtime.enrich(
