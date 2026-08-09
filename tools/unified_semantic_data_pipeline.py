@@ -6,6 +6,13 @@ import json
 from pathlib import Path
 import warnings
 
+from unified_semantic_data.factory_foundation import (
+    FOUNDATION_VERSION,
+    build_foundation_assets,
+    can_reuse_pipeline,
+    content_fingerprint,
+    write_factory_state,
+)
 from unified_semantic_data.pipeline import (
     build_review_assets,
     check_determinism,
@@ -22,6 +29,54 @@ DEFAULT_PACK_ROOTS = (
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
 DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
+
+
+def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Path]]:
+    inputs: list[tuple[str, Path]] = []
+    if args.review_seed:
+        inputs.append(("review-seed", args.review_seed))
+    else:
+        inputs.extend(
+            [
+                ("open-lexicon", args.open_lexicon_root),
+                ("context", args.context_root),
+            ]
+        )
+    inputs.extend(
+        (f"pack-{index:02d}", path)
+        for index, path in enumerate(args.pack_root, 1)
+    )
+    inputs.append(("decision-ledger", args.decision_root))
+
+    # build_review_assets() links these existing deterministic resources.
+    inputs.extend(
+        [
+            ("baseline-metaphors", args.system_root / "metaphors"),
+            ("baseline-synonyms", args.system_root / "synonyms.yaml"),
+            ("baseline-synonyms-d", args.system_root / "synonyms.d"),
+            ("baseline-language-features", args.system_root / "language_features.d"),
+        ]
+    )
+
+    # Code is part of the content address. A transform change must invalidate reuse.
+    inputs.extend(
+        [
+            ("code-entrypoint", Path(__file__)),
+            ("code-common", ROOT / "tools/unified_semantic_data/common.py"),
+            ("code-pipeline", ROOT / "tools/unified_semantic_data/pipeline.py"),
+            ("code-review", ROOT / "tools/unified_semantic_data/review.py"),
+            (
+                "code-factory-foundation",
+                ROOT / "tools/unified_semantic_data/factory_foundation.py",
+            ),
+            ("code-bulk-review", ROOT / "tools/bulk_review_station.py"),
+        ]
+    )
+    return inputs
+
+
+def _load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main() -> int:
@@ -53,6 +108,17 @@ def main() -> int:
         default=DEFAULT_COMPILED_ROOT,
     )
     parser.add_argument("--shard-size", type=int, default=10000)
+    parser.add_argument(
+        "--foundation-partitions",
+        type=int,
+        default=256,
+        help="stable lexical-identity partition count for incremental factory assets",
+    )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="ignore content-addressed factory state and rebuild all factory stages",
+    )
     parser.add_argument(
         "--review-batch-size",
         type=int,
@@ -91,6 +157,8 @@ def main() -> int:
         args.pack_root = list(DEFAULT_PACK_ROOTS)
     if args.shard_size < 100:
         raise ValueError("shard-size must be at least 100")
+    if not 1 <= args.foundation_partitions <= 4096:
+        raise ValueError("foundation-partitions must be between 1 and 4096")
     if args.bulk_review and args.review_batch_size is not None:
         parser.error("--bulk-review and --review-batch-size cannot be used together")
 
@@ -112,24 +180,76 @@ def main() -> int:
     if args.check:
         result = check_determinism(args)
     else:
-        review = build_review_assets(
-            open_lexicon_root=args.open_lexicon_root,
-            context_root=args.context_root,
-            pack_roots=args.pack_root,
-            output_root=args.output_root,
-            system_root=args.system_root,
-            decision_root=args.decision_root,
-            review_batch_size=args.review_batch_size,
-            review_seed=args.review_seed,
-            bulk_review=args.bulk_review,
+        fingerprint = content_fingerprint(
+            _pipeline_fingerprint_inputs(args),
+            parameters={
+                "foundation_version": FOUNDATION_VERSION,
+                "shard_size": args.shard_size,
+                "foundation_partitions": args.foundation_partitions,
+                "bulk_review": args.bulk_review,
+                "review_batch_size": args.review_batch_size,
+                "compile_approved": args.compile_approved,
+            },
         )
-        result = {"status": "WRITTEN", "review": review}
-        if args.compile_approved:
-            result["compiled"] = compile_approved(
-                args.output_root,
-                args.compiled_root,
-                shard_size=args.shard_size,
+        state_path = args.output_root / ".factory-state.json"
+
+        if (
+            not args.force_rebuild
+            and can_reuse_pipeline(
+                state_path,
+                input_fingerprint=fingerprint,
+                review_root=args.output_root,
+                compiled_root=args.compiled_root,
+                require_compiled=args.compile_approved,
             )
+        ):
+            review = _load_json(args.output_root / "manifest.json")
+            foundation = _load_json(
+                args.output_root / "factory-foundation/manifest.json"
+            )
+            result = {
+                "status": "REUSED",
+                "input_fingerprint": fingerprint,
+                "review": review,
+                "factory_foundation": foundation,
+            }
+            if args.compile_approved:
+                result["compiled"] = _load_json(args.compiled_root / "manifest.json")
+        else:
+            review = build_review_assets(
+                open_lexicon_root=args.open_lexicon_root,
+                context_root=args.context_root,
+                pack_roots=args.pack_root,
+                output_root=args.output_root,
+                system_root=args.system_root,
+                decision_root=args.decision_root,
+                review_batch_size=args.review_batch_size,
+                review_seed=args.review_seed,
+                bulk_review=args.bulk_review,
+            )
+            result = {
+                "status": "WRITTEN",
+                "input_fingerprint": fingerprint,
+                "review": review,
+            }
+            if args.compile_approved:
+                result["compiled"] = compile_approved(
+                    args.output_root,
+                    args.compiled_root,
+                    shard_size=args.shard_size,
+                )
+            foundation = build_foundation_assets(
+                args.output_root,
+                partition_count=args.foundation_partitions,
+            )
+            result["factory_foundation"] = foundation
+            write_factory_state(
+                state_path,
+                input_fingerprint=fingerprint,
+                foundation_manifest=foundation,
+                compiled=args.compile_approved,
+            )
+
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     review = result.get("review") or {}
     if args.require_review_complete and review.get("review_queue_records", 0):
