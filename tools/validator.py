@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import replace
@@ -23,6 +25,78 @@ from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
 METAPHOR_DIR = ROOT / "dictionaries/system/metaphors"
 GOLD_DIR = ROOT / "tests/gold"
 VALIDATION_HARD_DEADLINE_MS = 60_000
+SEMANTIC_IMPACT_PREFIXES = (
+    "src/",
+    "dictionaries/",
+    "rules/",
+    "config/",
+    "schemas/",
+    "research/",
+    "data/reviewed/",
+    "scripts/",
+    "tools/",
+)
+NON_SEMANTIC_PREFIXES = (
+    "docs/",
+    ".github/ISSUE_TEMPLATE/",
+    ".github/PULL_REQUEST_TEMPLATE/",
+)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Deterministic dictionary, rule and Gold validation."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--gold-only",
+        action="store_true",
+        help="Run only the Gold semantic/parity gate.",
+    )
+    mode.add_argument(
+        "--global-only",
+        action="store_true",
+        help="Run only dictionary/rule control validation.",
+    )
+    parser.add_argument("--batch", type=int, help="1-based Gold shard number.")
+    parser.add_argument(
+        "--total-batches",
+        type=int,
+        default=1,
+        help="Total Gold shard count.",
+    )
+    parser.add_argument(
+        "--changed-since",
+        help=(
+            "Conservatively select Gold cases affected since a git base SHA. "
+            "Source/runtime changes fall back to the full Gold set."
+        ),
+    )
+    parser.add_argument(
+        "--selection-only",
+        action="store_true",
+        help="Print selected Gold IDs as JSON without running ParserEngine.",
+    )
+    parser.add_argument(
+        "--skip-determinism",
+        action="store_true",
+        help="Skip the repeated-response determinism check for this shard.",
+    )
+    args = parser.parse_args(argv)
+    if args.total_batches < 1:
+        parser.error("--total-batches must be >= 1")
+    if args.batch is not None and not 1 <= args.batch <= args.total_batches:
+        parser.error("--batch must be between 1 and --total-batches")
+    if args.batch is None and args.total_batches != 1:
+        parser.error("--total-batches requires --batch")
+    if args.global_only and (
+        args.batch is not None
+        or args.changed_since
+        or args.selection_only
+        or args.skip_determinism
+    ):
+        parser.error("Gold selection options cannot be combined with --global-only")
+    return args
 
 
 def _load_json(path: Path) -> dict:
@@ -87,9 +161,15 @@ def load_rules() -> dict[str, list[dict]]:
     return intents
 
 
-def load_gold() -> list[dict]:
+def _gold_files() -> list[Path]:
+    return sorted(GOLD_DIR.glob("*.json"))
+
+
+def load_gold(paths: set[Path] | None = None) -> list[dict]:
     by_id: dict[str, dict] = {}
-    for path in sorted(GOLD_DIR.glob("*.json")):
+    for path in _gold_files():
+        if paths is not None and path.resolve() not in paths:
+            continue
         doc = _load_json(path)
         allow_override = doc.get("override_policy") == "last_case_id_wins"
         for case in doc.get("cases", []):
@@ -129,13 +209,7 @@ def request_from_case(case: dict) -> AnalyzeRequest:
 
 
 def _rule_parity(engine: ParserEngine, request: AnalyzeRequest) -> tuple[dict, dict]:
-    """Compare indexed/exhaustive rule extraction without rerunning full ParserEngine.
-
-    ParserEngine.analyze(exhaustive_rules=True) differs from the indexed path only
-    at RuleEngine extraction plus response metrics. Gold semantic validation already
-    runs the complete indexed parser below, so parity can be proven at the rule
-    extraction boundary without repeating reading, semantic-pack and graph phases.
-    """
+    """Compare indexed/exhaustive rule extraction without rerunning full ParserEngine."""
     normalized, mapping = normalize_with_map(request.original_text)
     deadline_ms = min(request.deadline_ms, engine.settings.hard_deadline_ms)
 
@@ -164,8 +238,75 @@ def _rule_parity(engine: ParserEngine, request: AnalyzeRequest) -> tuple[dict, d
     )
 
 
-def main() -> int:
-    errors: list[str] = []
+def _changed_files(base_sha: str) -> list[str] | None:
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}...HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _differential_gold_paths(
+    changed_files: list[str] | None,
+) -> tuple[set[Path] | None, str]:
+    """Return a conservative Gold file selection.
+
+    None means full Gold is required. An empty set means no Gold case is affected.
+    Case-level dependency metadata does not yet exist, so any runtime/source change
+    deliberately falls back to the complete 649-case gate.
+    """
+    if changed_files is None:
+        return None, "git-diff-unavailable-full-fallback"
+    if not changed_files:
+        return set(), "no-changes"
+
+    gold_changes = {
+        (ROOT / path).resolve()
+        for path in changed_files
+        if path.startswith("tests/gold/") and path.endswith(".json")
+    }
+    other_changes = [
+        path for path in changed_files if not path.startswith("tests/gold/")
+    ]
+    if gold_changes and not other_changes:
+        return gold_changes, "changed-gold-files-only"
+
+    if all(
+        path.startswith(NON_SEMANTIC_PREFIXES) or path == "README.md"
+        for path in changed_files
+    ):
+        return set(), "non-semantic-files-only"
+
+    if any(path.startswith(SEMANTIC_IMPACT_PREFIXES) for path in changed_files):
+        return None, "semantic-impact-full-fallback"
+
+    return None, "unknown-impact-full-fallback"
+
+
+def _select_gold(
+    gold: list[dict],
+    *,
+    batch: int | None,
+    total_batches: int,
+) -> list[dict]:
+    if batch is None:
+        return gold
+    shard_index = batch - 1
+    return [
+        case
+        for index, case in enumerate(gold)
+        if index % total_batches == shard_index
+    ]
+
+
+def _validate_global(errors: list[str]) -> tuple[int, int]:
     errors.extend(validate_metaphor_controls())
     metaphors = load_metaphors()
     seen: set[str] = set()
@@ -193,9 +334,7 @@ def main() -> int:
             surface_owner[surface] = expression
         policy = entry.get("context_policy", "optional")
         if policy not in {"optional", "required_any", "forbidden_any"}:
-            errors.append(
-                f"invalid context_policy: {expression}: {policy}"
-            )
+            errors.append(f"invalid context_policy: {expression}: {policy}")
 
     manifest_path = METAPHOR_DIR / "manifest.json"
     if manifest_path.exists():
@@ -217,11 +356,15 @@ def main() -> int:
                 regex.compile(item["pattern"])
             except Exception as exc:
                 errors.append(f"bad regex {item['id']}: {exc}")
+    return len(metaphors), len(ids)
 
-    # Gold validation measures semantic correctness and indexed/exhaustive parity.
-    # Keep that correctness gate independent from host scheduling jitter; the
-    # production 10 ms / 50 ms runtime contract is enforced by dedicated
-    # performance and Astera latency gates.
+
+def _validate_gold(
+    gold: list[dict],
+    *,
+    errors: list[str],
+    run_determinism: bool,
+) -> tuple[int, int]:
     validation_settings = replace(
         SETTINGS,
         hard_deadline_ms=max(
@@ -231,19 +374,11 @@ def main() -> int:
         ),
     )
     engine = ParserEngine(settings=validation_settings)
-    try:
-        gold = load_gold()
-    except ValueError as exc:
-        errors.append(str(exc))
-        gold = []
     failures: list[dict] = []
     parity_failures: list[dict] = []
+
     for case in gold:
         request = request_from_case(case)
-
-        # Run complete semantic validation once per Gold case. The previous
-        # implementation ran the entire ParserEngine twice (indexed/exhaustive),
-        # which duplicated full semantic-pack work after the 125k pack compile.
         indexed = engine.analyze(request)
 
         indexed_rules, exhaustive_rules = _rule_parity(engine, request)
@@ -259,35 +394,24 @@ def main() -> int:
         got_type_set = set(got_types)
         expected = set(expected_doc.get("intents", []))
         missing = expected - got_type_set
-        forbidden = (
-            set(expected_doc.get("forbidden_intents", [])) & got_type_set
-        )
+        forbidden = set(expected_doc.get("forbidden_intents", [])) & got_type_set
         exact_intents = expected_doc.get("exact_intents")
-        exact_intent_mismatch = (
-            exact_intents is not None and got_types != exact_intents
-        )
+        exact_intent_mismatch = exact_intents is not None and got_types != exact_intents
 
         got_metaphor_list = [item.expression for item in indexed.metaphors]
         got_metaphors = set(got_metaphor_list)
-        missing_metaphors = (
-            set(expected_doc.get("metaphors", [])) - got_metaphors
-        )
+        missing_metaphors = set(expected_doc.get("metaphors", [])) - got_metaphors
         duplicate_metaphors: list[str] = []
         if expected_doc.get("unique_metaphors"):
-            duplicate_metaphors = sorted({
-                item
-                for item in got_metaphor_list
-                if got_metaphor_list.count(item) > 1
-            })
+            counts = Counter(got_metaphor_list)
+            duplicate_metaphors = sorted(
+                item for item, count in counts.items() if count > 1
+            )
 
         got_task_intents = [item.intent_type for item in indexed.tasks]
-        missing_tasks = (
-            set(expected_doc.get("task_intents", []))
-            - set(got_task_intents)
-        )
-        forbidden_tasks = (
-            set(expected_doc.get("forbidden_task_intents", []))
-            & set(got_task_intents)
+        missing_tasks = set(expected_doc.get("task_intents", [])) - set(got_task_intents)
+        forbidden_tasks = set(expected_doc.get("forbidden_task_intents", [])) & set(
+            got_task_intents
         )
         exact_tasks = expected_doc.get("exact_task_targets")
         exact_task_mismatch = (
@@ -335,25 +459,80 @@ def main() -> int:
             })
 
     if failures:
-        errors.append(
-            f"gold failures: {len(failures)} first={failures[:5]}"
-        )
+        errors.append(f"gold failures: {len(failures)} first={failures[:5]}")
     if parity_failures:
         errors.append(
             "indexed/exhaustive rule mismatch: "
             f"{len(parity_failures)} first={parity_failures[:5]}"
         )
 
-    if gold:
+    if run_determinism and gold:
         request = request_from_case(gold[-1])
-        hashes = {
-            response_hash(engine.analyze(request))
-            for _ in range(100)
-        }
+        hashes = {response_hash(engine.analyze(request)) for _ in range(100)}
         if len(hashes) != 1:
-            errors.append(
-                f"non-deterministic response hashes: {sorted(hashes)}"
+            errors.append(f"non-deterministic response hashes: {sorted(hashes)}")
+
+    return len(failures), len(parity_failures)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    errors: list[str] = []
+    metaphor_count = 0
+    rule_count = 0
+
+    if not args.gold_only:
+        metaphor_count, rule_count = _validate_global(errors)
+        if args.global_only:
+            if errors:
+                print("VALIDATION FAILED")
+                for error in errors:
+                    print("-", error)
+                return 1
+            print(
+                "GLOBAL VALIDATION OK: "
+                f"metaphors={metaphor_count} rules={rule_count}"
             )
+            return 0
+
+    try:
+        changed_files = _changed_files(args.changed_since) if args.changed_since else None
+        selected_paths: set[Path] | None = None
+        differential_reason = "full-gold"
+        if args.changed_since:
+            selected_paths, differential_reason = _differential_gold_paths(changed_files)
+        gold = load_gold(selected_paths)
+    except ValueError as exc:
+        errors.append(str(exc))
+        gold = []
+        differential_reason = "load-error"
+
+    selected_gold = _select_gold(
+        gold,
+        batch=args.batch,
+        total_batches=args.total_batches,
+    )
+
+    if args.selection_only:
+        print(json.dumps({
+            "changed_since": args.changed_since,
+            "differential_reason": differential_reason,
+            "changed_files": changed_files if args.changed_since else None,
+            "batch": args.batch,
+            "total_batches": args.total_batches,
+            "selected_count": len(selected_gold),
+            "selected_ids": [case["id"] for case in selected_gold],
+        }, ensure_ascii=False, sort_keys=True))
+        return 1 if errors else 0
+
+    failures = 0
+    parity_failures = 0
+    if selected_gold:
+        failures, parity_failures = _validate_gold(
+            selected_gold,
+            errors=errors,
+            run_determinism=not args.skip_determinism,
+        )
 
     if errors:
         print("VALIDATION FAILED")
@@ -361,11 +540,13 @@ def main() -> int:
             print("-", error)
         return 1
 
+    batch_label = "all" if args.batch is None else f"{args.batch}/{args.total_batches}"
     print(
         "VALIDATION OK: "
-        f"metaphors={len(metaphors)} rules={len(ids)} gold={len(gold)} "
-        f"indexed_rules={engine.rules.last_metrics['indexed_rule_count']} "
-        f"always_scan={engine.rules.last_metrics['always_scan_rule_count']}"
+        f"metaphors={metaphor_count} rules={rule_count} "
+        f"gold={len(selected_gold)} batch={batch_label} "
+        f"differential={differential_reason} "
+        f"failures={failures} parity_failures={parity_failures}"
     )
     return 0
 
