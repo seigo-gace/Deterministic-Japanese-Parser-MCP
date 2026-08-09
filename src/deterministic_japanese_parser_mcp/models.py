@@ -376,6 +376,61 @@ class ParagraphStructure(BaseModel):
     status: ItemStatus = ItemStatus.RESOLVED
 
 
+class ArgumentComponent(BaseModel):
+    component_id: str
+    component_type: Literal[
+        "claim",
+        "reason",
+        "evidence",
+        "explicit_premise",
+        "implicit_premise",
+        "counterargument",
+        "rebuttal",
+        "limitation",
+    ]
+    text: str | None = None
+    clause_id: str | None = None
+    paragraph_id: str | None = None
+    source_span: OriginalSpan | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    related_component_ids: list[str] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "DETERMINED"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class ArgumentEdge(BaseModel):
+    edge_id: str
+    source_component_id: str
+    target_component_id: str
+    relation: Literal[
+        "supports",
+        "opposes",
+        "limits",
+        "conditions",
+        "rephrases",
+    ]
+    evidence_ids: list[str] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "DETERMINED"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class ArgumentationResult(BaseModel):
+    claims: list[ArgumentComponent] = Field(default_factory=list)
+    reasons: list[ArgumentComponent] = Field(default_factory=list)
+    evidence: list[ArgumentComponent] = Field(default_factory=list)
+    explicit_premises: list[ArgumentComponent] = Field(default_factory=list)
+    implicit_premise_candidates: list[ArgumentComponent] = Field(
+        default_factory=list
+    )
+    counterarguments: list[ArgumentComponent] = Field(default_factory=list)
+    rebuttals: list[ArgumentComponent] = Field(default_factory=list)
+    limitations: list[ArgumentComponent] = Field(default_factory=list)
+    edges: list[ArgumentEdge] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "AMBIGUOUS"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class ReadingAnalysis(BaseModel):
     analysis_version: str = "1.0.0"
     purpose: Literal["japanese_reading_comprehension"] = (
@@ -388,6 +443,7 @@ class ReadingAnalysis(BaseModel):
     discourse_relations: list[DiscourseRelation] = Field(default_factory=list)
     paragraph_structure: ParagraphStructure | None = None
     summary: SummaryResult | None = None
+    argumentation: ArgumentationResult | None = None
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     status: ItemStatus = ItemStatus.RESOLVED
 
