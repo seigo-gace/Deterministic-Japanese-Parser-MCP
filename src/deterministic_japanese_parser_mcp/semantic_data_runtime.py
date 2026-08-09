@@ -11,7 +11,7 @@ from threading import Lock
 from typing import Any, BinaryIO, Iterable
 import unicodedata
 
-from .grammar_kernel import ACTION_INTENTS
+from .grammar_kernel import ACTION_INTENTS, CONSTRAINT_INTENTS
 from .models import (
     ItemStatus,
     LanguageFeatureMatch,
@@ -542,14 +542,17 @@ class SemanticDataRuntime:
                         item[2].get("risk_class") in {"action", "social"}
                         for item in ranked
                     )
-                    # Ordinary lexical/semantic polysemy must remain available
-                    # as evidence, but it must not downgrade an already-resolved
-                    # explicit action. Only action/social-risk ambiguity is
-                    # allowed to cross the external-action fail-closed boundary.
-                    if (
+                    # Grammar-derived action and constraint intents are already
+                    # structural decisions. Ordinary lexical/semantic polysemy
+                    # remains available as lexical evidence but must not turn a
+                    # resolved structural proposition into an ambiguous one.
+                    # Action/social-risk ambiguity still crosses this boundary
+                    # and remains fail-closed for external execution.
+                    structural_intent = (
                         proposition.intent_type in ACTION_INTENTS
-                        and not action_sensitive
-                    ):
+                        or proposition.intent_type in CONSTRAINT_INTENTS
+                    )
+                    if structural_intent and not action_sensitive:
                         continue
                     proposition = proposition.model_copy(update={
                         "sense_id": None,
