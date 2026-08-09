@@ -20,6 +20,7 @@ from .models import (
     Proposition,
     ReadingAnalysis,
     ScopeOperator,
+    SummaryResult,
     Token,
 )
 
@@ -651,6 +652,77 @@ class DeterministicReadingRuntime:
             status=status,
         )
 
+    def _extract_summary(
+        self,
+        paragraph_structure: ParagraphStructure | None,
+    ) -> SummaryResult:
+        """Extract a deterministic document summary from paragraph topics."""
+        if (
+            paragraph_structure is None
+            or paragraph_structure.ambiguity_flag
+            or not paragraph_structure.paragraphs
+        ):
+            return SummaryResult(
+                status="AMBIGUOUS",
+                candidates=[],
+                confidence=0.0,
+            )
+
+        paragraphs = paragraph_structure.paragraphs
+        topics: list[dict[str, str | int | float]] = []
+        last_index = len(paragraphs) - 1
+        for idx, para in enumerate(paragraphs):
+            if not para.topic_sentence:
+                continue
+            if len(paragraphs) == 1 or idx == 0:
+                weight = 1.0
+            elif idx == last_index:
+                weight = 0.75
+            else:
+                weight = 0.5
+            score = max(0.0, min(weight * para.confidence, 1.0))
+            topics.append({
+                "text": para.topic_sentence,
+                "index": idx,
+                "score": score,
+            })
+
+        if not topics:
+            return SummaryResult(
+                status="AMBIGUOUS",
+                candidates=[],
+                confidence=0.0,
+            )
+
+        sorted_topics = sorted(
+            topics,
+            key=lambda item: (-float(item["score"]), int(item["index"])),
+        )
+        best = sorted_topics[0]
+
+        if len(sorted_topics) >= 2:
+            diff = float(best["score"]) - float(sorted_topics[1]["score"])
+            if diff < 0.2:
+                selected = sorted_topics[:3]
+                return SummaryResult(
+                    status="AMBIGUOUS",
+                    candidates=[str(item["text"]) for item in selected],
+                    confidence=max(0.0, min(diff + 0.5, 1.0)),
+                    source_paragraph_indices=[
+                        int(item["index"]) for item in selected
+                    ],
+                    method="topic_sentence_aggregation",
+                )
+
+        return SummaryResult(
+            summary_text=str(best["text"]),
+            confidence=max(0.0, min(float(best["score"]) + 0.5, 1.0)),
+            status="DETERMINED",
+            candidates=[],
+            source_paragraph_indices=[int(best["index"])],
+            method="topic_sentence_aggregation",
+        )
+
     @staticmethod
     def _ensure_entities(
         graph: MeaningGraph,
@@ -932,6 +1004,7 @@ class DeterministicReadingRuntime:
             original_text,
             clauses,
         )
+        summary = self._extract_summary(paragraph_structure)
         reading = ReadingAnalysis(
             predicate_frames=frames,
             dependency_arcs=arcs,
@@ -939,6 +1012,7 @@ class DeterministicReadingRuntime:
             attribution_frames=attributions,
             discourse_relations=discourse,
             paragraph_structure=paragraph_structure,
+            summary=summary,
             unresolved=unresolved,
             status=status,
         )
