@@ -6,7 +6,9 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Any, Iterable
+from tempfile import TemporaryFile
+from threading import Lock
+from typing import Any, BinaryIO, Iterable
 import unicodedata
 
 from .models import (
@@ -66,6 +68,9 @@ class SemanticDataRuntime:
         self.record_locator: dict[str, dict[str, int]] = {}
         self.shard_cache_size = max(1, shard_cache_size)
         self._shards: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
+        self._record_store: BinaryIO | None = None
+        self._record_offsets: dict[str, tuple[int, int]] = {}
+        self._record_store_lock = Lock()
         self.last_metrics: dict[str, int | float | str] = {
             "semantic_pack_available": 0,
             "semantic_pack_match_count": 0,
@@ -122,6 +127,14 @@ class SemanticDataRuntime:
         self.record_locator = _load_json_gzip(selected_indexes["locator"])
         if len(self.record_locator) != expected_locator_count:
             raise ValueError("semantic data record locator count mismatch")
+
+        runtime_shards = {
+            int(location["shard"])
+            for location in self.record_locator.values()
+        }
+        if len(runtime_shards) > self.shard_cache_size:
+            self._prepare_random_access_store()
+
         self.available = True
         self.last_metrics["semantic_pack_available"] = 1
 
@@ -132,6 +145,88 @@ class SemanticDataRuntime:
     @property
     def runtime_record_count(self) -> int:
         return int(self.manifest.get("runtime_record_count", self.record_count))
+
+    @staticmethod
+    def _validated_record(
+        item: dict[str, Any],
+        *,
+        path: Path,
+        line_number: int,
+        expected_record_id: str | None = None,
+    ) -> dict[str, Any]:
+        record_id = item.get("record_id")
+        if not record_id:
+            raise ValueError(f"semantic record_id missing: {path}:{line_number}")
+        if expected_record_id is not None and record_id != expected_record_id:
+            raise ValueError(
+                "semantic record locator mismatch: "
+                f"expected={expected_record_id} actual={record_id} "
+                f"path={path}:{line_number}"
+            )
+        approval = item.get("approval") or {}
+        approved_scopes = approval.get("approved_scopes") or []
+        if not approved_scopes:
+            raise ValueError(f"semantic record has no approved scope: {record_id}")
+        blocked = approval.get("blockers_by_scope") or {}
+        if any(blocked.get(scope) for scope in approved_scopes):
+            raise ValueError(
+                f"approved semantic record contains scoped blocker: {record_id}"
+            )
+        return item
+
+    def _prepare_random_access_store(self) -> None:
+        """Materialize runtime rows once to avoid repeated full-shard JSON parsing.
+
+        The compiled locator already identifies the exact line for every runtime
+        record. When runtime records span more shards than the bounded parsed
+        shard cache can retain, repeatedly parsing 10k-record gzip shards causes
+        deterministic cache thrashing. This store scans each required shard once
+        as bytes, keeps only runtime rows in a temporary seekable file, and
+        records byte offsets. Runtime semantics and approval validation remain
+        unchanged; individual rows are JSON-decoded and validated on access.
+        """
+
+        line_map_by_shard: dict[int, dict[int, str]] = {}
+        for record_id, location in self.record_locator.items():
+            shard = int(location["shard"])
+            line_number = int(location["line"])
+            shard_lines = line_map_by_shard.setdefault(shard, {})
+            if line_number in shard_lines:
+                raise ValueError(
+                    "semantic runtime locator line collision: "
+                    f"shard={shard} line={line_number}"
+                )
+            shard_lines[line_number] = record_id
+
+        store = TemporaryFile(mode="w+b")
+        offsets: dict[str, tuple[int, int]] = {}
+        offset = 0
+        try:
+            for shard, requested_lines in sorted(line_map_by_shard.items()):
+                path = self.root / "records" / f"records-{shard:04d}.jsonl.gz"
+                if not path.exists():
+                    raise FileNotFoundError(path)
+                with gzip.open(path, "rb") as handle:
+                    for line_number, line in enumerate(handle, 1):
+                        record_id = requested_lines.get(line_number)
+                        if record_id is None:
+                            continue
+                        offsets[record_id] = (offset, len(line))
+                        store.write(line)
+                        offset += len(line)
+            if len(offsets) != len(self.record_locator):
+                missing = sorted(set(self.record_locator) - set(offsets))
+                raise ValueError(
+                    "semantic runtime locator could not materialize all records: "
+                    f"missing={missing[:20]}"
+                )
+            store.flush()
+        except Exception:
+            store.close()
+            raise
+
+        self._record_store = store
+        self._record_offsets = offsets
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
         cached = self._shards.get(number)
@@ -146,22 +241,12 @@ class SemanticDataRuntime:
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
-                item = json.loads(line)
-                record_id = item.get("record_id")
-                if not record_id:
-                    raise ValueError(f"semantic record_id missing: {path}:{line_number}")
-                approval = item.get("approval") or {}
-                approved_scopes = approval.get("approved_scopes") or []
-                if not approved_scopes:
-                    raise ValueError(
-                        f"semantic record has no approved scope: {record_id}"
-                    )
-                blocked = approval.get("blockers_by_scope") or {}
-                if any(blocked.get(scope) for scope in approved_scopes):
-                    raise ValueError(
-                        f"approved semantic record contains scoped blocker: {record_id}"
-                    )
-                records[record_id] = item
+                item = self._validated_record(
+                    json.loads(line),
+                    path=path,
+                    line_number=line_number,
+                )
+                records[item["record_id"]] = item
         self._shards[number] = records
         self._shards.move_to_end(number)
         while len(self._shards) > self.shard_cache_size:
@@ -172,6 +257,31 @@ class SemanticDataRuntime:
         location = self.record_locator.get(record_id)
         if location is None:
             raise KeyError(record_id)
+
+        if self._record_store is not None:
+            span = self._record_offsets.get(record_id)
+            if span is None:
+                raise KeyError(record_id)
+            offset, length = span
+            with self._record_store_lock:
+                self._record_store.seek(offset)
+                payload = self._record_store.read(length)
+            if len(payload) != length:
+                raise ValueError(
+                    f"semantic runtime record cache truncated: {record_id}"
+                )
+            path = (
+                self.root
+                / "records"
+                / f"records-{int(location['shard']):04d}.jsonl.gz"
+            )
+            return self._validated_record(
+                json.loads(payload),
+                path=path,
+                line_number=int(location["line"]),
+                expected_record_id=record_id,
+            )
+
         item = self._load_shard(int(location["shard"])).get(record_id)
         if item is None:
             raise KeyError(record_id)
@@ -204,7 +314,9 @@ class SemanticDataRuntime:
         evidence = ["semantic_pack_surface_match"]
         record_pos = " ".join(record.get("part_of_speech", [])).casefold()
         token_pos = " ".join(token.pos).casefold()
-        if token_pos and record_pos and any(part in record_pos for part in token_pos.split("-") if part):
+        if token_pos and record_pos and any(
+            part in record_pos for part in token_pos.split("-") if part
+        ):
             score += 20
             evidence.append("semantic_pack_pos_match")
 
@@ -234,7 +346,11 @@ class SemanticDataRuntime:
 
         domains = [*record.get("domains", []), *candidate.get("domains", [])]
         matched_domain = next(
-            (domain for domain in domains if domain and domain.casefold() in context_text.casefold()),
+            (
+                domain
+                for domain in domains
+                if domain and domain.casefold() in context_text.casefold()
+            ),
             None,
         )
         if matched_domain:
@@ -246,7 +362,10 @@ class SemanticDataRuntime:
         return score, evidence
 
     @staticmethod
-    def _apply_parameters(proposition: Proposition, candidate: dict[str, Any]) -> Proposition:
+    def _apply_parameters(
+        proposition: Proposition,
+        candidate: dict[str, Any],
+    ) -> Proposition:
         parameters = dict(candidate.get("parameters") or {})
         allowed_scalar = {
             "force_level",
@@ -272,7 +391,9 @@ class SemanticDataRuntime:
         for key in list_fields:
             values = parameters.get(key)
             if values:
-                update[key] = list(dict.fromkeys([*getattr(proposition, key), *values]))
+                update[key] = list(
+                    dict.fromkeys([*getattr(proposition, key), *values])
+                )
         if parameters.get("sensory_features"):
             update["sensory_features"] = {
                 **proposition.sensory_features,
@@ -343,9 +464,14 @@ class SemanticDataRuntime:
                 index
                 for index, proposition in enumerate(propositions)
                 if _overlap(token.span, proposition.source_span)
-                or any(argument.span and _overlap(token.span, argument.span) for argument in proposition.arguments)
+                or any(
+                    argument.span and _overlap(token.span, argument.span)
+                    for argument in proposition.arguments
+                )
             ]
-            ranked: list[tuple[int, str, dict[str, Any], dict[str, Any], list[str]]] = []
+            ranked: list[
+                tuple[int, str, dict[str, Any], dict[str, Any], list[str]]
+            ] = []
             for record in records:
                 for candidate in record.get("meaning_candidates", []):
                     if candidate.get("review_status") != "approved":
@@ -358,7 +484,9 @@ class SemanticDataRuntime:
                     )
                     if score <= -10000:
                         continue
-                    ranked.append((score, candidate["candidate_id"], record, candidate, evidence))
+                    ranked.append(
+                        (score, candidate["candidate_id"], record, candidate, evidence)
+                    )
             if not ranked:
                 continue
             ranked.sort(key=lambda item: (-item[0], item[1], item[2]["record_id"]))
@@ -386,7 +514,10 @@ class SemanticDataRuntime:
                     proposition = proposition.model_copy(update={
                         "sense_id": top[1],
                         "sense_label": top[3].get("label") or top[1],
-                        "sense_confidence": min(0.99, 0.70 + max(0, margin) / 100),
+                        "sense_confidence": min(
+                            0.99,
+                            0.70 + max(0, margin) / 100,
+                        ),
                         "sense_candidates": sense_candidates,
                         "evidence_ids": list(dict.fromkeys([
                             *proposition.evidence_ids,
@@ -410,7 +541,11 @@ class SemanticDataRuntime:
                         "sense_confidence": 0.0,
                         "sense_candidates": sense_candidates,
                         "status": ItemStatus.AMBIGUOUS,
-                        "executable_candidate": False if action_sensitive else proposition.executable_candidate,
+                        "executable_candidate": (
+                            False
+                            if action_sensitive
+                            else proposition.executable_candidate
+                        ),
                     })
                     unresolved.append({
                         "type": "semantic_data_pack",
@@ -424,18 +559,41 @@ class SemanticDataRuntime:
             for record in records:
                 if "language_feature" not in record.get("semantic_targets", []):
                     continue
-                selected_candidate = top[3] if selected and top[2]["record_id"] == record["record_id"] else None
+                selected_candidate = (
+                    top[3]
+                    if selected and top[2]["record_id"] == record["record_id"]
+                    else None
+                )
                 language_features.append(LanguageFeatureMatch(
                     entry_id=record["record_id"],
                     feature_type=record.get("feature_type") or "semantic_data",
                     surface=token.surface,
-                    interpretation_id=selected_candidate.get("candidate_id") if selected_candidate else None,
-                    interpretation=selected_candidate.get("label") if selected_candidate else None,
+                    interpretation_id=(
+                        selected_candidate.get("candidate_id")
+                        if selected_candidate
+                        else None
+                    ),
+                    interpretation=(
+                        selected_candidate.get("label")
+                        if selected_candidate
+                        else None
+                    ),
                     parameters=(selected_candidate or {}).get("parameters", {}),
-                    register_profile=(selected_candidate or {}).get("register", record.get("register", {})),
+                    register_profile=(selected_candidate or {}).get(
+                        "register",
+                        record.get("register", {}),
+                    ),
                     source_span=token.span,
-                    status=ItemStatus.RESOLVED if selected_candidate else ItemStatus.AMBIGUOUS,
-                    candidate_ids=[item[1] for item in ranked if item[2]["record_id"] == record["record_id"]],
+                    status=(
+                        ItemStatus.RESOLVED
+                        if selected_candidate
+                        else ItemStatus.AMBIGUOUS
+                    ),
+                    candidate_ids=[
+                        item[1]
+                        for item in ranked
+                        if item[2]["record_id"] == record["record_id"]
+                    ],
                     evidence_ids=(selected_candidate or {}).get("evidence_ids", []),
                     risk_class=record.get("risk_class", "semantic"),
                 ))
