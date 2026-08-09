@@ -8,6 +8,9 @@ on:
       - "research/context_collection/expansion_v3/**"
       - "research/semantic_decisions/**"
       - "research/semantic_sources/jmdict/**"
+      - "data/reviewed/**"
+      - "config/review_provider.yaml"
+      - "rules/review_rules.yaml"
       - "dictionaries/domain_packs/**"
       - "dictionaries/user_packs/**"
       - "schemas/**"
@@ -194,12 +197,58 @@ jobs:
           print({"records": records, "sha256": digest})
           PY
 
+      - name: Rebuild reviewed Decision Ledger and verify canonical manifest
+        run: |
+          set -o pipefail
+          mkdir -p data/reviewed reports
+          python tools/bulk_review_station.py review \
+            --queue work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --ledger data/reviewed/decision_ledger.jsonl \
+            --manifest reports/reviewed-ledger-rebuild.json \
+            | tee reports/reviewed-ledger-rebuild.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = json.loads(
+              Path("data/reviewed/bulk_review_manifest.json").read_text(encoding="utf-8")
+          )
+          actual = json.loads(
+              Path("reports/reviewed-ledger-rebuild.json").read_text(encoding="utf-8")
+          )
+          checks = {
+              "decision_count": 500000,
+              "decision_ledger_sha256": expected["decision_ledger_sha256"],
+              "queue_sha256": expected["queue_sha256"],
+              "network_call_performed": False,
+          }
+          for key, value in checks.items():
+              if actual.get(key) != value:
+                  raise SystemExit(
+                      f"reviewed ledger mismatch: {key} expected={value!r} actual={actual.get(key)!r}"
+                  )
+          if expected.get("review_gate_status") != "passed":
+              raise SystemExit("canonical Review Gate is not passed")
+          if int(expected.get("unreviewed_records", -1)) != 0:
+              raise SystemExit(
+                  f"canonical unreviewed_records must be 0: {expected.get('unreviewed_records')}"
+              )
+          print({
+              "review_gate_status": expected["review_gate_status"],
+              "unreviewed_records": expected["unreviewed_records"],
+              "needs_evidence_records": expected["needs_evidence_records"],
+              "needs_evidence_scopes": expected["needs_evidence_scopes"],
+              "decision_ledger_sha256": actual["decision_ledger_sha256"],
+          })
+          PY
+
       - name: Normalize, inspect, prepare Bulk Review and compile approved scopes
         run: |
           set -o pipefail
           mkdir -p reports
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --decision-ledger data/reviewed/decision_ledger.jsonl \
             --compile-approved \
             --bulk-review \
             --output-root reports/unified-semantic-data \
@@ -211,6 +260,7 @@ jobs:
           set -o pipefail
           python tools/unified_semantic_data_pipeline.py \
             --review-seed work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --decision-ledger data/reviewed/decision_ledger.jsonl \
             --check \
             --bulk-review \
             | tee reports/data-pipeline-determinism.json
@@ -304,14 +354,21 @@ jobs:
             python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           from pathlib import Path
-          manifest = json.loads(Path("reports/unified-semantic-data/manifest.json").read_text())
+          pipeline = json.loads(
+              Path("reports/unified-semantic-data/manifest.json").read_text(encoding="utf-8")
+          )
+          reviewed = json.loads(
+              Path("data/reviewed/bulk_review_manifest.json").read_text(encoding="utf-8")
+          )
           print("## Dictionary Data Pipeline")
-          print(f"- Input records: {manifest['total_records']}")
-          print(f"- Approved-scope records: {manifest['runtime_eligible_records']}")
-          print(f"- Review required: {manifest['review_queue_records']}")
-          print(f"- Bulk review job: {manifest.get('bulk_review_job_id')}")
-          print(f"- Provider batches: {manifest.get('provider_batch_count')}")
-          print(f"- LLM API used: {manifest['boundaries']['llm_api_used']}")
+          print(f"- Input records: {pipeline['total_records']}")
+          print(f"- Approved-scope records: {pipeline['runtime_eligible_records']}")
+          print(f"- Review Gate: {reviewed['review_gate_status']}")
+          print(f"- Unreviewed records: {reviewed['unreviewed_records']}")
+          print(f"- Needs-evidence records: {reviewed['needs_evidence_records']}")
+          print(f"- Needs-evidence scopes: {reviewed['needs_evidence_scopes']}")
+          print(f"- Non-approved evidence queue: {pipeline['review_queue_records']}")
+          print(f"- LLM API used: {pipeline['boundaries']['llm_api_used']}")
           PY
           fi
 
@@ -324,29 +381,42 @@ jobs:
             reports/data-pipeline-*.json
             reports/data-pipeline-*.txt
             reports/data-pipeline-*.xml
+            reports/reviewed-ledger-rebuild.json
+            reports/reviewed-ledger-rebuild.log
             reports/unified-semantic-data
             dictionaries/system/compiled/semantic_data/manifest.json
           if-no-files-found: error
           retention-days: 30
 
-      - name: Block promotion while review remains
+      - name: Enforce reviewed Decision Coverage gate
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
-          manifest = json.loads(
-              Path("reports/unified-semantic-data/manifest.json").read_text(
-                  encoding="utf-8"
-              )
+          reviewed = json.loads(
+              Path("data/reviewed/bulk_review_manifest.json").read_text(encoding="utf-8")
           )
-          remaining = int(manifest["review_queue_records"])
-          if remaining:
+          pipeline = json.loads(
+              Path("reports/unified-semantic-data/manifest.json").read_text(encoding="utf-8")
+          )
+          status = reviewed.get("review_gate_status")
+          unreviewed = int(reviewed.get("unreviewed_records", -1))
+          pending = int(reviewed.get("needs_evidence_records", -1))
+          pipeline_pending = int(pipeline.get("review_queue_records", -1))
+          if status != "passed" or unreviewed != 0:
               raise SystemExit(
                   "REVIEW_REQUIRED: "
-                  f"{remaining} records in bulk review job "
-                  f"{manifest.get('bulk_review_job_id')}; "
-                  "add explicit Decision Ledger entries."
+                  f"status={status} unreviewed_records={unreviewed}."
               )
-          print("REVIEW COMPLETE")
+          if pipeline_pending != pending:
+              raise SystemExit(
+                  "EVIDENCE_QUEUE_MISMATCH: "
+                  f"canonical={pending} pipeline={pipeline_pending}."
+              )
+          print(
+              "REVIEW COMPLETE: "
+              f"unreviewed_records={unreviewed}; "
+              f"needs_evidence_records={pending} retained as non-approved evidence queue."
+          )
           PY
