@@ -60,7 +60,13 @@ class SemanticDataRuntime:
     propositions. It preserves ambiguity and never creates external actions.
     """
 
-    def __init__(self, root: Path, *, shard_cache_size: int = 4):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        shard_cache_size: int = 4,
+        record_cache_size: int = 256,
+    ):
         self.root = Path(root)
         self.available = False
         self.manifest: dict[str, Any] = {}
@@ -68,10 +74,13 @@ class SemanticDataRuntime:
         self.reading_index: dict[str, list[str]] = {}
         self.record_locator: dict[str, dict[str, int]] = {}
         self.shard_cache_size = max(1, shard_cache_size)
+        self.record_cache_size = max(1, record_cache_size)
         self._shards: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
+        self._record_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._record_store: BinaryIO | None = None
         self._record_offsets: dict[str, tuple[int, int]] = {}
         self._record_store_lock = Lock()
+        self._record_cache_lock = Lock()
         self.last_metrics: dict[str, int | float | str] = {
             "semantic_pack_available": 0,
             "semantic_pack_match_count": 0,
@@ -260,6 +269,12 @@ class SemanticDataRuntime:
             raise KeyError(record_id)
 
         if self._record_store is not None:
+            with self._record_cache_lock:
+                cached = self._record_cache.get(record_id)
+                if cached is not None:
+                    self._record_cache.move_to_end(record_id)
+                    return cached
+
             span = self._record_offsets.get(record_id)
             if span is None:
                 raise KeyError(record_id)
@@ -276,12 +291,22 @@ class SemanticDataRuntime:
                 / "records"
                 / f"records-{int(location['shard']):04d}.jsonl.gz"
             )
-            return self._validated_record(
+            item = self._validated_record(
                 json.loads(payload),
                 path=path,
                 line_number=int(location["line"]),
                 expected_record_id=record_id,
             )
+            with self._record_cache_lock:
+                existing = self._record_cache.get(record_id)
+                if existing is not None:
+                    self._record_cache.move_to_end(record_id)
+                    return existing
+                self._record_cache[record_id] = item
+                self._record_cache.move_to_end(record_id)
+                while len(self._record_cache) > self.record_cache_size:
+                    self._record_cache.popitem(last=False)
+            return item
 
         item = self._load_shard(int(location["shard"])).get(record_id)
         if item is None:
