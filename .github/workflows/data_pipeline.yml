@@ -275,16 +275,30 @@ jobs:
             tests/test_semantic_data_runtime.py \
             --junitxml=reports/data-pipeline-pytest.xml
 
-      - name: Preserve Gold, holdout and external-action safety gates
+      - name: Validate Open Lexicon gate
+        timeout-minutes: 10
         run: |
           set -o pipefail
           python tools/lexicon_validator.py \
             | tee reports/data-pipeline-lexicon-validator.txt
+
+      - name: Validate Gold gate
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
           python tools/validator.py \
             | tee reports/data-pipeline-validator.txt
+
+      - name: Validate supported semantic quality and external-action safety gate
+        timeout-minutes: 30
+        run: |
           python scripts/semantic_quality_contract.py \
             --check \
             --output reports/data-pipeline-quality.json
+
+      - name: Validate semantic holdout and external-action safety gate
+        timeout-minutes: 30
+        run: |
           python scripts/semantic_holdout_contract.py \
             --check \
             --output reports/data-pipeline-holdout.json
