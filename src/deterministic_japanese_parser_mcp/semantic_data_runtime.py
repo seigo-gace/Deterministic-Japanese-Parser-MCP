@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Any, BinaryIO, Iterable
 import unicodedata
 
+from .grammar_kernel import ACTION_INTENTS
 from .models import (
     ItemStatus,
     LanguageFeatureMatch,
@@ -510,6 +511,12 @@ class SemanticDataRuntime:
 
             for index in related_indices:
                 proposition = propositions[index]
+                # The system semantic profile runs before the approved data pack
+                # and may already have a stronger, context-specific resolution.
+                # A later lexical/context pack can add coverage, but it must not
+                # replace an already resolved sense with a weaker generic sense.
+                if proposition.sense_id is not None:
+                    continue
                 if selected:
                     proposition = proposition.model_copy(update={
                         "sense_id": top[1],
@@ -535,6 +542,15 @@ class SemanticDataRuntime:
                         item[2].get("risk_class") in {"action", "social"}
                         for item in ranked
                     )
+                    # Ordinary lexical/semantic polysemy must remain available
+                    # as evidence, but it must not downgrade an already-resolved
+                    # explicit action. Only action/social-risk ambiguity is
+                    # allowed to cross the external-action fail-closed boundary.
+                    if (
+                        proposition.intent_type in ACTION_INTENTS
+                        and not action_sensitive
+                    ):
+                        continue
                     proposition = proposition.model_copy(update={
                         "sense_id": None,
                         "sense_label": None,
