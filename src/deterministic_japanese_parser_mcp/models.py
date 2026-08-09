@@ -356,6 +356,17 @@ class ParagraphFrame(BaseModel):
     status: ItemStatus = ItemStatus.RESOLVED
 
 
+class SummaryResult(BaseModel):
+    """文章全体の要旨抽出結果。"""
+
+    summary_text: str | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "AMBIGUOUS"
+    candidates: list[str] | None = None
+    source_paragraph_indices: list[int] = Field(default_factory=list)
+    method: str = "topic_sentence_aggregation"
+
+
 class ParagraphStructure(BaseModel):
     paragraphs: list[ParagraphFrame] = Field(default_factory=list)
     relations: list[ParagraphRelation] = Field(default_factory=list)
@@ -376,6 +387,7 @@ class ReadingAnalysis(BaseModel):
     attribution_frames: list[AttributionFrame] = Field(default_factory=list)
     discourse_relations: list[DiscourseRelation] = Field(default_factory=list)
     paragraph_structure: ParagraphStructure | None = None
+    summary: SummaryResult | None = None
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     status: ItemStatus = ItemStatus.RESOLVED
 
