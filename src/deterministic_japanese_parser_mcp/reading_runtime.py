@@ -6,6 +6,9 @@ import re
 from .grammar_kernel import quote_ranges
 from .models import (
     Argument,
+    ArgumentComponent,
+    ArgumentEdge,
+    ArgumentationResult,
     AttributionFrame,
     Clause,
     DependencyArc,
@@ -724,6 +727,568 @@ class DeterministicReadingRuntime:
         )
 
     @staticmethod
+    def _extract_argumentation(
+        *,
+        paragraph_structure: ParagraphStructure | None,
+        summary: SummaryResult | None,
+        clauses: list[Clause],
+        discourse_relations: list[DiscourseRelation],
+        scope_operators: list[ScopeOperator],
+        attribution_frames: list[AttributionFrame],
+    ) -> ArgumentationResult:
+        """Build only argument relations supported by existing reading evidence."""
+        clause_by_id = {item.clause_id: item for item in clauses}
+        paragraph_by_clause: dict[str, ParagraphFrame] = {}
+        paragraphs = (
+            paragraph_structure.paragraphs
+            if paragraph_structure is not None
+            else []
+        )
+        for paragraph in paragraphs:
+            for clause_id in paragraph.clause_ids:
+                paragraph_by_clause[clause_id] = paragraph
+
+        buckets: dict[str, list[ArgumentComponent]] = {
+            "claim": [],
+            "reason": [],
+            "evidence": [],
+            "explicit_premise": [],
+            "implicit_premise": [],
+            "counterargument": [],
+            "rebuttal": [],
+            "limitation": [],
+        }
+        prefixes = {
+            "claim": "C",
+            "reason": "R",
+            "evidence": "E",
+            "explicit_premise": "EP",
+            "implicit_premise": "IP",
+            "counterargument": "CA",
+            "rebuttal": "RB",
+            "limitation": "L",
+        }
+        component_index: dict[tuple, ArgumentComponent] = {}
+        edges: list[ArgumentEdge] = []
+        unresolved: list[dict] = []
+        support_relation_by_edge: dict[str, str] = {}
+
+        def add_component(
+            component_type: str,
+            *,
+            text: str | None,
+            clause_id: str | None = None,
+            paragraph_id: str | None = None,
+            source_span: OriginalSpan | None = None,
+            evidence_ids: list[str] | None = None,
+            related_component_ids: list[str] | None = None,
+            status: str = "DETERMINED",
+            confidence: float = 0.98,
+        ) -> ArgumentComponent:
+            key = (
+                component_type,
+                clause_id,
+                paragraph_id,
+                text,
+                source_span.start if source_span else None,
+                source_span.end if source_span else None,
+            )
+            existing = component_index.get(key)
+            if existing is not None:
+                merged_evidence = list(dict.fromkeys([
+                    *existing.evidence_ids,
+                    *(evidence_ids or []),
+                ]))
+                merged_related = list(dict.fromkeys([
+                    *existing.related_component_ids,
+                    *(related_component_ids or []),
+                ]))
+                updated = existing.model_copy(update={
+                    "evidence_ids": merged_evidence,
+                    "related_component_ids": merged_related,
+                    "confidence": max(existing.confidence, confidence),
+                })
+                position = buckets[component_type].index(existing)
+                buckets[component_type][position] = updated
+                component_index[key] = updated
+                return updated
+            component = ArgumentComponent(
+                component_id=(
+                    f"ARG-{prefixes[component_type]}-"
+                    f"{len(buckets[component_type]) + 1:03d}"
+                ),
+                component_type=component_type,
+                text=text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id,
+                source_span=source_span,
+                evidence_ids=list(evidence_ids or []),
+                related_component_ids=list(related_component_ids or []),
+                status=status,
+                confidence=confidence,
+            )
+            buckets[component_type].append(component)
+            component_index[key] = component
+            return component
+
+        def paragraph_id_for(clause_id: str | None) -> str | None:
+            if clause_id is None:
+                return None
+            paragraph = paragraph_by_clause.get(clause_id)
+            return paragraph.paragraph_id if paragraph else None
+
+        def component_for_clause(
+            component_type: str,
+            clause_id: str,
+        ) -> ArgumentComponent | None:
+            return next(
+                (
+                    item
+                    for item in buckets[component_type]
+                    if item.clause_id == clause_id
+                ),
+                None,
+            )
+
+        def ensure_claim(
+            clause_id: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentComponent | None:
+            existing = component_for_clause("claim", clause_id)
+            if existing is not None:
+                return existing
+            clause = clause_by_id.get(clause_id)
+            if clause is None:
+                unresolved.append({
+                    "type": "argumentation_missing_clause",
+                    "clause_id": clause_id,
+                    "evidence_id": evidence_id,
+                })
+                return None
+            return add_component(
+                "claim",
+                text=clause.text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id_for(clause_id),
+                source_span=clause.source_span,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+
+        def add_clause_component(
+            component_type: str,
+            clause_id: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentComponent | None:
+            clause = clause_by_id.get(clause_id)
+            if clause is None:
+                unresolved.append({
+                    "type": "argumentation_missing_clause",
+                    "clause_id": clause_id,
+                    "evidence_id": evidence_id,
+                })
+                return None
+            return add_component(
+                component_type,
+                text=clause.text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id_for(clause_id),
+                source_span=clause.source_span,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+
+        def add_edge(
+            source: ArgumentComponent,
+            target: ArgumentComponent,
+            relation: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentEdge:
+            existing = next(
+                (
+                    item
+                    for item in edges
+                    if item.source_component_id == source.component_id
+                    and item.target_component_id == target.component_id
+                    and item.relation == relation
+                ),
+                None,
+            )
+            if existing is not None:
+                return existing
+            edge = ArgumentEdge(
+                edge_id=f"ARG-E-{len(edges) + 1:03d}",
+                source_component_id=source.component_id,
+                target_component_id=target.component_id,
+                relation=relation,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+            edges.append(edge)
+            return edge
+
+        if (
+            paragraph_structure is None
+            or paragraph_structure.ambiguity_flag
+            or paragraph_structure.status != ItemStatus.RESOLVED
+        ):
+            unresolved.append({
+                "type": "argumentation_paragraph_structure_ambiguous",
+                "status": "AMBIGUOUS",
+            })
+
+        if summary is None or summary.status != "DETERMINED" or not summary.summary_text:
+            unresolved.append({
+                "type": "argumentation_summary_ambiguous",
+                "status": "AMBIGUOUS",
+            })
+            if summary is not None:
+                for index, candidate_text in enumerate(summary.candidates or []):
+                    paragraph_index = (
+                        summary.source_paragraph_indices[index]
+                        if index < len(summary.source_paragraph_indices)
+                        else None
+                    )
+                    paragraph = (
+                        paragraphs[paragraph_index]
+                        if paragraph_index is not None
+                        and 0 <= paragraph_index < len(paragraphs)
+                        else None
+                    )
+                    clause_id = paragraph.clause_ids[0] if paragraph and paragraph.clause_ids else None
+                    clause = clause_by_id.get(clause_id) if clause_id else None
+                    add_component(
+                        "claim",
+                        text=candidate_text,
+                        clause_id=clause_id,
+                        paragraph_id=paragraph.paragraph_id if paragraph else None,
+                        source_span=(
+                            paragraph.topic_sentence_span
+                            if paragraph and paragraph.topic_sentence_span
+                            else clause.source_span if clause else None
+                        ),
+                        evidence_ids=["SUMMARY:CANDIDATE"],
+                        status="AMBIGUOUS",
+                        confidence=summary.confidence,
+                    )
+        else:
+            source_indices = summary.source_paragraph_indices or [0]
+            for index in source_indices:
+                if not 0 <= index < len(paragraphs):
+                    unresolved.append({
+                        "type": "argumentation_summary_source_missing",
+                        "paragraph_index": index,
+                        "status": "AMBIGUOUS",
+                    })
+                    continue
+                paragraph = paragraphs[index]
+                topic_span = paragraph.topic_sentence_span or paragraph.source_span
+                clause = next(
+                    (
+                        item
+                        for item in clauses
+                        if item.source_span.start <= topic_span.start
+                        and topic_span.end <= item.source_span.end
+                    ),
+                    None,
+                )
+                add_component(
+                    "claim",
+                    text=summary.summary_text,
+                    clause_id=clause.clause_id if clause else None,
+                    paragraph_id=paragraph.paragraph_id,
+                    source_span=topic_span,
+                    evidence_ids=["SUMMARY:DETERMINED"],
+                    confidence=summary.confidence,
+                )
+
+        for relation in discourse_relations:
+            if relation.status != ItemStatus.RESOLVED:
+                unresolved.append({
+                    "type": "argumentation_discourse_relation_ambiguous",
+                    "discourse_relation_id": relation.relation_id,
+                    "status": "AMBIGUOUS",
+                })
+                continue
+            evidence_id = f"DISCOURSE:{relation.relation_id}"
+            confidence = relation.confidence
+            if relation.relation == "justifies":
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                reason = add_clause_component(
+                    "reason",
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and reason:
+                    edge = add_edge(
+                        reason,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+                    support_relation_by_edge[edge.edge_id] = relation.relation
+            elif relation.relation in {"concludes", "causes"}:
+                claim = ensure_claim(
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                reason = add_clause_component(
+                    "reason",
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and reason:
+                    edge = add_edge(
+                        reason,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+                    support_relation_by_edge[edge.edge_id] = relation.relation
+            elif relation.relation == "exemplifies":
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                evidence = add_clause_component(
+                    "evidence",
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and evidence:
+                    add_edge(
+                        evidence,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+            elif relation.relation == "contrasts_with":
+                limitation_marker = relation.marker in {"ただし", "もっとも"}
+                source_counter = component_for_clause(
+                    "counterargument",
+                    relation.source_clause_id,
+                )
+                if source_counter is not None and not limitation_marker:
+                    rebuttal = add_clause_component(
+                        "rebuttal",
+                        relation.target_clause_id,
+                        evidence_id,
+                        confidence,
+                    )
+                    if rebuttal:
+                        add_edge(
+                            rebuttal,
+                            source_counter,
+                            "opposes",
+                            evidence_id,
+                            confidence,
+                        )
+                    continue
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                target_type = "limitation" if limitation_marker else "counterargument"
+                target = add_clause_component(
+                    target_type,
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and target:
+                    add_edge(
+                        target,
+                        claim,
+                        "limits" if limitation_marker else "opposes",
+                        evidence_id,
+                        confidence,
+                    )
+            elif relation.relation == "rephrases":
+                source_claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                target_claim = ensure_claim(
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if source_claim and target_claim:
+                    add_edge(
+                        target_claim,
+                        source_claim,
+                        "rephrases",
+                        evidence_id,
+                        confidence,
+                    )
+            # `adds` is intentionally not promoted to a support edge. The design
+            # contract treats it as supplementary evidence only.
+
+        for attribution in attribution_frames:
+            if attribution.status != ItemStatus.RESOLVED:
+                continue
+            add_component(
+                "evidence",
+                text=attribution.content_span.source_text,
+                clause_id=attribution.clause_id,
+                paragraph_id=paragraph_id_for(attribution.clause_id),
+                source_span=attribution.content_span,
+                evidence_ids=[f"ATTRIBUTION:{attribution.attribution_id}"],
+                confidence=0.95,
+            )
+
+        argument_components = [
+            *buckets["claim"],
+            *buckets["reason"],
+            *buckets["evidence"],
+            *buckets["counterargument"],
+            *buckets["rebuttal"],
+            *buckets["limitation"],
+        ]
+        for operator in scope_operators:
+            if (
+                operator.operator_type != "condition"
+                or operator.status != ItemStatus.RESOLVED
+            ):
+                continue
+            targets = [
+                item
+                for item in argument_components
+                if item.clause_id == operator.clause_id
+                and item.component_type in {"claim", "reason"}
+            ]
+            if len(targets) != 1:
+                unresolved.append({
+                    "type": "argumentation_explicit_premise_target_ambiguous",
+                    "operator_id": operator.operator_id,
+                    "candidate_component_ids": [item.component_id for item in targets],
+                    "status": "AMBIGUOUS",
+                })
+                continue
+            target = targets[0]
+            premise = add_component(
+                "explicit_premise",
+                text=operator.source_span.source_text,
+                clause_id=operator.clause_id,
+                paragraph_id=paragraph_id_for(operator.clause_id),
+                source_span=operator.source_span,
+                evidence_ids=[f"SCOPE:{operator.operator_id}"],
+                related_component_ids=[target.component_id],
+                confidence=0.98,
+            )
+            add_edge(
+                premise,
+                target,
+                "conditions",
+                f"SCOPE:{operator.operator_id}",
+                0.98,
+            )
+
+        component_by_id = {
+            item.component_id: item
+            for values in buckets.values()
+            for item in values
+        }
+        explicit_targets = {
+            edge.target_component_id
+            for edge in edges
+            if edge.relation == "conditions"
+        }
+        for edge in list(edges):
+            if (
+                edge.relation != "supports"
+                or support_relation_by_edge.get(edge.edge_id)
+                not in {"justifies", "concludes"}
+            ):
+                continue
+            source = component_by_id.get(edge.source_component_id)
+            target = component_by_id.get(edge.target_component_id)
+            if (
+                source is None
+                or target is None
+                or source.component_type != "reason"
+                or target.component_type != "claim"
+                or target.component_id in explicit_targets
+            ):
+                continue
+            candidate = add_component(
+                "implicit_premise",
+                text=None,
+                evidence_ids=edge.evidence_ids,
+                related_component_ids=[source.component_id, target.component_id],
+                status="AMBIGUOUS",
+                confidence=0.5,
+            )
+            unresolved.append({
+                "type": "argumentation_implicit_premise",
+                "reason": "warrant_not_explicit",
+                "component_id": candidate.component_id,
+                "related_component_ids": [source.component_id, target.component_id],
+                "evidence_ids": edge.evidence_ids,
+                "status": "AMBIGUOUS",
+            })
+
+        if not buckets["claim"]:
+            unresolved.append({
+                "type": "argumentation_claim_not_determined",
+                "status": "AMBIGUOUS",
+            })
+
+        ambiguous_component = any(
+            item.status == "AMBIGUOUS"
+            for values in buckets.values()
+            for item in values
+        )
+        result_status = (
+            "AMBIGUOUS"
+            if unresolved or ambiguous_component
+            else "DETERMINED"
+        )
+        if not buckets["claim"]:
+            confidence = 0.0
+        else:
+            base = (
+                summary.confidence
+                if summary is not None and summary.status == "DETERMINED"
+                else 0.6
+            )
+            confidence = min(0.98, max(0.0, base) + min(0.2, 0.04 * len(edges)))
+            if result_status == "AMBIGUOUS":
+                confidence = min(confidence, 0.69)
+
+        return ArgumentationResult(
+            claims=buckets["claim"],
+            reasons=buckets["reason"],
+            evidence=buckets["evidence"],
+            explicit_premises=buckets["explicit_premise"],
+            implicit_premise_candidates=buckets["implicit_premise"],
+            counterarguments=buckets["counterargument"],
+            rebuttals=buckets["rebuttal"],
+            limitations=buckets["limitation"],
+            edges=edges,
+            status=result_status,
+            confidence=confidence,
+            unresolved=unresolved,
+        )
+
+    @staticmethod
     def _ensure_entities(
         graph: MeaningGraph,
         frames: list[PredicateFrame],
@@ -1005,6 +1570,14 @@ class DeterministicReadingRuntime:
             clauses,
         )
         summary = self._extract_summary(paragraph_structure)
+        argumentation = self._extract_argumentation(
+            paragraph_structure=paragraph_structure,
+            summary=summary,
+            clauses=clauses,
+            discourse_relations=discourse,
+            scope_operators=operators,
+            attribution_frames=attributions,
+        )
         reading = ReadingAnalysis(
             predicate_frames=frames,
             dependency_arcs=arcs,
@@ -1013,6 +1586,7 @@ class DeterministicReadingRuntime:
             discourse_relations=discourse,
             paragraph_structure=paragraph_structure,
             summary=summary,
+            argumentation=argumentation,
             unresolved=unresolved,
             status=status,
         )
@@ -1031,6 +1605,9 @@ class DeterministicReadingRuntime:
             "reading_scope_operators": len(operators),
             "reading_attribution_frames": len(attributions),
             "reading_discourse_relations": len(discourse),
+            "reading_argumentation_claims": len(argumentation.claims),
+            "reading_argumentation_edges": len(argumentation.edges),
+            "reading_argumentation_status": argumentation.status,
             "reading_unresolved": len(unresolved),
             "reading_action_inference": False,
         }
@@ -1052,6 +1629,8 @@ class DeterministicReadingRuntime:
             "reading_scope_operator_count": len(operators),
             "reading_attribution_frame_count": len(attributions),
             "reading_discourse_relation_count": len(discourse),
+            "reading_argumentation_claim_count": len(argumentation.claims),
+            "reading_argumentation_edge_count": len(argumentation.edges),
             "reading_unresolved_count": len(unresolved),
         }
         return updated
