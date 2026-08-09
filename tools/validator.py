@@ -7,6 +7,7 @@ import sys
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
+from time import perf_counter
 
 import regex
 import yaml
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 from deterministic_japanese_parser_mcp.config import SETTINGS
 from deterministic_japanese_parser_mcp.dictionaries import _load_json_set
+from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
 
 METAPHOR_DIR = ROOT / "dictionaries/system/metaphors"
 GOLD_DIR = ROOT / "tests/gold"
@@ -105,9 +107,9 @@ def semantic_response(response) -> dict:
     return value
 
 
-def response_hash(response) -> str:
+def _payload_hash(value) -> str:
     encoded = json.dumps(
-        semantic_response(response),
+        value,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -115,11 +117,51 @@ def response_hash(response) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def response_hash(response) -> str:
+    return _payload_hash(semantic_response(response))
+
+
 def request_from_case(case: dict) -> AnalyzeRequest:
     request = dict(case.get("request", {}))
     request.setdefault("original_text", case["text"])
     request.setdefault("deadline_ms", 60000)
     return AnalyzeRequest(**request)
+
+
+def _rule_parity(engine: ParserEngine, request: AnalyzeRequest) -> tuple[dict, dict]:
+    """Compare indexed/exhaustive rule extraction without rerunning full ParserEngine.
+
+    ParserEngine.analyze(exhaustive_rules=True) differs from the indexed path only
+    at RuleEngine extraction plus response metrics. Gold semantic validation already
+    runs the complete indexed parser below, so parity can be proven at the rule
+    extraction boundary without repeating reading, semantic-pack and graph phases.
+    """
+    normalized, mapping = normalize_with_map(request.original_text)
+    deadline_ms = min(request.deadline_ms, engine.settings.hard_deadline_ms)
+
+    indexed, indexed_timeouts = engine.rules.extract(
+        normalized,
+        mapping,
+        request.original_text,
+        deadline_at=perf_counter() + deadline_ms / 1000,
+    )
+    exhaustive, exhaustive_timeouts = engine.rules.extract_exhaustive(
+        normalized,
+        mapping,
+        request.original_text,
+        deadline_at=perf_counter() + deadline_ms / 1000,
+    )
+
+    return (
+        {
+            "intents": [item.model_dump(mode="json") for item in indexed],
+            "timeouts": indexed_timeouts,
+        },
+        {
+            "intents": [item.model_dump(mode="json") for item in exhaustive],
+            "timeouts": exhaustive_timeouts,
+        },
+    )
 
 
 def main() -> int:
@@ -198,13 +240,18 @@ def main() -> int:
     parity_failures: list[dict] = []
     for case in gold:
         request = request_from_case(case)
+
+        # Run complete semantic validation once per Gold case. The previous
+        # implementation ran the entire ParserEngine twice (indexed/exhaustive),
+        # which duplicated full semantic-pack work after the 125k pack compile.
         indexed = engine.analyze(request)
-        exhaustive = engine.analyze(request, exhaustive_rules=True)
-        if semantic_response(indexed) != semantic_response(exhaustive):
+
+        indexed_rules, exhaustive_rules = _rule_parity(engine, request)
+        if indexed_rules != exhaustive_rules:
             parity_failures.append({
                 "id": case["id"],
-                "indexed_hash": response_hash(indexed),
-                "exhaustive_hash": response_hash(exhaustive),
+                "indexed_rule_hash": _payload_hash(indexed_rules),
+                "exhaustive_rule_hash": _payload_hash(exhaustive_rules),
             })
 
         expected_doc = case["expected"]
@@ -293,7 +340,7 @@ def main() -> int:
         )
     if parity_failures:
         errors.append(
-            "indexed/exhaustive response mismatch: "
+            "indexed/exhaustive rule mismatch: "
             f"{len(parity_failures)} first={parity_failures[:5]}"
         )
 
