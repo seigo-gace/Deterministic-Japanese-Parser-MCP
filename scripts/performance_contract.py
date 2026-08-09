@@ -68,6 +68,37 @@ def semantic_structured(value: dict) -> dict:
     return cleaned
 
 
+def performance_metrics(structured: dict) -> dict[str, float | int | str | bool]:
+    metrics = structured.get("metrics") or {}
+    diagnostic_keys = (
+        "normalization_ms",
+        "tokenization_ms",
+        "intent_candidate_detection_ms",
+        "metaphor_detection_ms",
+        "reference_resolution_ms",
+        "meaning_graph_ms",
+        "semantic_enrichment_ms",
+        "reading_analysis_ms",
+        "approved_semantic_data_ms",
+        "lexical_graph_enrichment_ms",
+        "legacy_task_view_ms",
+        "action_task_graph_ms",
+        "legacy_contradiction_view_ms",
+        "graph_contradiction_detection_ms",
+        "logging_ms",
+        "total_ms",
+        "semantic_pack_available",
+        "semantic_pack_match_count",
+        "semantic_pack_resolved_count",
+        "semantic_pack_ambiguous_count",
+    )
+    return {
+        key: metrics[key]
+        for key in diagnostic_keys
+        if key in metrics
+    }
+
+
 def expand_rules(doc: dict, scale: int) -> dict:
     expanded = deepcopy(doc)
     base_count = sum(len(items) for items in expanded.get("intents", {}).values())
@@ -166,6 +197,9 @@ async def _measure_stdio_session(
             first_result = await session.call_tool("analyze_japanese", arguments=arguments)
             first_ms = (time.perf_counter_ns() - first_started) / 1_000_000
             first_structured = validate_structured_result(first_result)
+            first_engine_metrics = performance_metrics(first_structured)
+            first_engine_total_ms = float(first_engine_metrics.get("total_ms", 0.0))
+            first_non_engine_ms = max(0.0, first_ms - first_engine_total_ms)
 
             for _ in range(10):
                 validate_structured_result(
@@ -173,18 +207,42 @@ async def _measure_stdio_session(
                 )
 
             values: list[float] = []
+            engine_values: list[float] = []
+            non_engine_values: list[float] = []
+            phase_values: dict[str, list[float]] = {}
             last_structured = first_structured
             for _ in range(rounds):
                 started = time.perf_counter_ns()
                 result = await session.call_tool("analyze_japanese", arguments=arguments)
                 last_structured = validate_structured_result(result)
-                values.append((time.perf_counter_ns() - started) / 1_000_000)
+                call_ms = (time.perf_counter_ns() - started) / 1_000_000
+                values.append(call_ms)
+
+                engine_metrics = performance_metrics(last_structured)
+                engine_total_ms = float(engine_metrics.get("total_ms", 0.0))
+                engine_values.append(engine_total_ms)
+                non_engine_values.append(max(0.0, call_ms - engine_total_ms))
+                for key, value in engine_metrics.items():
+                    if key.endswith("_ms") and key != "total_ms" and isinstance(value, (int, float)):
+                        phase_values.setdefault(key, []).append(float(value))
 
     return {
         "process_start_to_ready_ms": round(ready_ms, 3),
         "schema_prepare_ms": round(schema_prepare_ms, 3),
         "first_ready_tool_call_ms": round(first_ms, 3),
         "steady_tool_call": stats(values),
+        "diagnostics": {
+            "first_ready_engine_total_ms": round(first_engine_total_ms, 3),
+            "first_ready_non_engine_ms": round(first_non_engine_ms, 3),
+            "first_ready_engine_metrics": first_engine_metrics,
+            "steady_engine_total": stats(engine_values),
+            "steady_non_engine": stats(non_engine_values),
+            "steady_engine_phase_p95_ms": {
+                key: stats(samples)["p95_ms"]
+                for key, samples in sorted(phase_values.items())
+                if samples
+            },
+        },
         "semantic_response": last_structured,
     }
 
@@ -259,6 +317,9 @@ def main() -> int:
             "base_metaphor_count": len(base.metaphors.entries),
             "stress_metaphor_count": len(stress.metaphors.entries),
             "stress_index_build_ms": round(stress_build_ms, 3),
+            "semantic_pack_available": base.semantic_data.available,
+            "semantic_pack_record_count": base.semantic_data.record_count,
+            "semantic_runtime_record_count": base.semantic_data.runtime_record_count,
         },
         "semantic_parity": parity,
         "engine_short_warm": stats(measure(
