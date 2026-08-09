@@ -1,0 +1,11 @@
+schema_version: 1.0.0
+provider: chatgpt_app
+chatgpt_app:
+  review_method: rule_based
+  rules: rules/review_rules.yaml
+  sample_review_count: 100
+  network_enabled: false
+openai_api:
+  enabled: false
+  implementation: stub
+  note: Future user-selectable external API entry. No network implementation in Phase 1-4.
