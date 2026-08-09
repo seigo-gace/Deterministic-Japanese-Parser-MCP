@@ -328,6 +328,43 @@ class AttributionFrame(BaseModel):
     status: ItemStatus = ItemStatus.RESOLVED
 
 
+class ParagraphRelation(BaseModel):
+    relation_id: str
+    source_paragraph_id: str
+    target_paragraph_id: str
+    relation: str
+    marker: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ParagraphFrame(BaseModel):
+    paragraph_id: str
+    text: str
+    start_char: int
+    end_char: int
+    source_span: OriginalSpan
+    clause_ids: list[str] = Field(default_factory=list)
+    proposition_ids: list[str] = Field(default_factory=list)
+    sentence_spans: list[OriginalSpan] = Field(default_factory=list)
+    topic_sentence: str | None = None
+    topic_sentence_start: int | None = None
+    topic_sentence_end: int | None = None
+    topic_sentence_span: OriginalSpan | None = None
+    role: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ParagraphStructure(BaseModel):
+    paragraphs: list[ParagraphFrame] = Field(default_factory=list)
+    relations: list[ParagraphRelation] = Field(default_factory=list)
+    boundary_method: str = "explicit_blank_line"
+    ambiguity_flag: bool = False
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
 class ReadingAnalysis(BaseModel):
     analysis_version: str = "1.0.0"
     purpose: Literal["japanese_reading_comprehension"] = (
@@ -338,6 +375,7 @@ class ReadingAnalysis(BaseModel):
     scope_operators: list[ScopeOperator] = Field(default_factory=list)
     attribution_frames: list[AttributionFrame] = Field(default_factory=list)
     discourse_relations: list[DiscourseRelation] = Field(default_factory=list)
+    paragraph_structure: ParagraphStructure | None = None
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     status: ItemStatus = ItemStatus.RESOLVED
 

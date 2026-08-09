@@ -14,6 +14,8 @@ from .models import (
     ItemStatus,
     MeaningGraph,
     OriginalSpan,
+    ParagraphFrame,
+    ParagraphStructure,
     PredicateFrame,
     Proposition,
     ReadingAnalysis,
@@ -46,6 +48,7 @@ _CASE_ROLES = {
     "と": "companion_or_quote",
 }
 _BOUNDARY = re.compile(r"^[、。！？!?；;：:]$")
+_PARAGRAPH_BOUNDARY = re.compile(r"(?:\r?\n[ \t]*){2,}")
 
 _NEGATION_PATTERNS = (
     (re.compile(r"わけではない"), "partial_negation"),
@@ -543,6 +546,112 @@ class DeterministicReadingRuntime:
         self.last_metrics: dict[str, int | float] = {}
 
     @staticmethod
+    def _detect_paragraphs(
+        original_text: str,
+        clauses: list[Clause],
+    ) -> ParagraphStructure:
+        """Detect only explicitly separated paragraphs and preserve source spans."""
+        boundaries = list(_PARAGRAPH_BOUNDARY.finditer(original_text))
+        if not boundaries:
+            return ParagraphStructure(
+                ambiguity_flag=True,
+                unresolved=[{
+                    "type": "paragraph_boundary_not_explicit",
+                    "status": ItemStatus.AMBIGUOUS.value,
+                }],
+                status=ItemStatus.AMBIGUOUS,
+            )
+
+        paragraph_spans: list[tuple[int, int]] = []
+        cursor = 0
+        for boundary in boundaries:
+            start = cursor
+            end = boundary.start()
+            while start < end and original_text[start].isspace():
+                start += 1
+            while end > start and original_text[end - 1].isspace():
+                end -= 1
+            if start < end:
+                paragraph_spans.append((start, end))
+            cursor = boundary.end()
+
+        start = cursor
+        end = len(original_text)
+        while start < end and original_text[start].isspace():
+            start += 1
+        while end > start and original_text[end - 1].isspace():
+            end -= 1
+        if start < end:
+            paragraph_spans.append((start, end))
+
+        paragraphs: list[ParagraphFrame] = []
+        unresolved: list[dict] = []
+        for start, end in paragraph_spans:
+            sentence_clauses = [
+                clause
+                for clause in clauses
+                if start <= clause.source_span.start
+                and clause.source_span.end <= end
+            ]
+            overlapping = [
+                clause
+                for clause in clauses
+                if clause.source_span.start < end
+                and start < clause.source_span.end
+                and clause not in sentence_clauses
+            ]
+            if overlapping:
+                unresolved.append({
+                    "type": "paragraph_boundary_overlap",
+                    "paragraph_start": start,
+                    "paragraph_end": end,
+                    "clause_ids": [item.clause_id for item in overlapping],
+                    "status": ItemStatus.AMBIGUOUS.value,
+                })
+            if not sentence_clauses:
+                unresolved.append({
+                    "type": "paragraph_without_sentence",
+                    "paragraph_start": start,
+                    "paragraph_end": end,
+                    "status": ItemStatus.INSUFFICIENT.value,
+                })
+                continue
+
+            topic = sentence_clauses[0].source_span
+            paragraphs.append(ParagraphFrame(
+                paragraph_id=f"PG-{len(paragraphs) + 1:03d}",
+                text=original_text[start:end],
+                start_char=start,
+                end_char=end,
+                source_span=_span(start, end, original_text),
+                clause_ids=[item.clause_id for item in sentence_clauses],
+                proposition_ids=list(dict.fromkeys(
+                    proposition_id
+                    for item in sentence_clauses
+                    for proposition_id in item.proposition_ids
+                )),
+                sentence_spans=[item.source_span for item in sentence_clauses],
+                topic_sentence=topic.source_text,
+                topic_sentence_start=topic.start,
+                topic_sentence_end=topic.end,
+                topic_sentence_span=topic,
+            ))
+
+        status = (
+            ItemStatus.RESOLVED
+            if paragraphs and not unresolved
+            else ItemStatus.AMBIGUOUS
+        )
+        return ParagraphStructure(
+            paragraphs=paragraphs,
+            relations=[],
+            boundary_method="explicit_blank_line",
+            ambiguity_flag=bool(unresolved or not paragraphs),
+            unresolved=unresolved,
+            status=status,
+        )
+
+    @staticmethod
     def _ensure_entities(
         graph: MeaningGraph,
         frames: list[PredicateFrame],
@@ -819,12 +928,17 @@ class DeterministicReadingRuntime:
                 else ItemStatus.INSUFFICIENT
             )
         )
+        paragraph_structure = self._detect_paragraphs(
+            original_text,
+            clauses,
+        )
         reading = ReadingAnalysis(
             predicate_frames=frames,
             dependency_arcs=arcs,
             scope_operators=operators,
             attribution_frames=attributions,
             discourse_relations=discourse,
+            paragraph_structure=paragraph_structure,
             unresolved=unresolved,
             status=status,
         )
