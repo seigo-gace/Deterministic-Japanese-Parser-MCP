@@ -39,7 +39,12 @@ def _source(source_id: str) -> dict:
     }
 
 
-def _compile_pack(tmp_path: Path, records: list[dict]) -> Path:
+def _compile_pack(
+    tmp_path: Path,
+    records: list[dict],
+    *,
+    shard_size: int = 100,
+) -> Path:
     approved_records = []
     for source_record in records:
         record = dict(source_record)
@@ -81,7 +86,7 @@ def _compile_pack(tmp_path: Path, records: list[dict]) -> Path:
         output_root=review_root,
         system_root=tmp_path / "system",
     )
-    compile_approved(review_root, compiled_root, shard_size=100)
+    compile_approved(review_root, compiled_root, shard_size=shard_size)
     return compiled_root
 
 
@@ -296,3 +301,51 @@ def test_lexical_only_pack_never_loads_semantic_record_shards(
     assert graph.propositions[0].sense_id is None
     assert graph.quality_annotations["semantic_data_pack_record_count"] == 1
     assert graph.quality_annotations["semantic_data_runtime_record_count"] == 0
+
+
+def test_runtime_materializes_seekable_store_when_shards_exceed_cache(
+    tmp_path: Path,
+) -> None:
+    records = []
+    for number in range(5):
+        record_id = f"SEM-SCALE-{number:03d}"
+        surface = f"性能語{number}"
+        records.append({
+            "record_id": record_id,
+            "lemma": surface,
+            "surfaces": [surface],
+            "readings": [f"セイノウゴ{number}"],
+            "part_of_speech": ["名詞"],
+            "domains": ["general"],
+            "meaning_candidates": [
+                {
+                    "candidate_id": f"{record_id}:sense:001",
+                    "label": f"性能評価語{number}",
+                    "review_status": "approved",
+                }
+            ],
+            "semantic_targets": ["lexicon"],
+            "source": _source(record_id),
+            "review_status": "approved",
+        })
+
+    root = _compile_pack(tmp_path, records, shard_size=1)
+    runtime = SemanticDataRuntime(root, shard_cache_size=2)
+
+    assert runtime._record_store is not None
+    assert len(runtime._record_offsets) == 5
+
+    def fail_if_loaded(_number: int):
+        raise AssertionError("random-access store must bypass full shard parsing")
+
+    runtime._load_shard = fail_if_loaded  # type: ignore[method-assign]
+    token = Token(
+        surface="性能語4",
+        normalized="性能語4",
+        reading="セイノウゴ4",
+        pos=["名詞"],
+        span=OriginalSpan(start=0, end=4, source_text="性能語4"),
+    )
+    matches = runtime.lookup_token(token)
+
+    assert [item["record_id"] for item in matches] == ["SEM-SCALE-004"]
