@@ -32,8 +32,10 @@ jobs:
             tools/public_semantic_sources.py \
             tools/public_kanji_sources.py \
             tools/public_dependency_sources.py
-      - name: Run deterministic adapter self-test
-        run: python tools/public_semantic_sources.py self-test
+      - name: Run deterministic adapter self-tests
+        run: |
+          python tools/public_semantic_sources.py self-test
+          python tools/public_dependency_sources.py --self-test
       - name: Prepare base-source manifest
         run: |
           mkdir -p work
@@ -95,8 +97,13 @@ jobs:
               raise SystemExit('NICT_SOURCE_DIGEST_MISSING')
           if not str(report.get('body_member') or '').endswith('DEP_WIKIPEDIA_V1.0.bz2'):
               raise SystemExit('NICT_BODY_MEMBER_MISSING')
-          if not str(report.get('readme_member') or '').endswith('DEP_WIKIPEDIA_V1.0_README.doc'):
-              raise SystemExit('NICT_README_MEMBER_MISSING')
+          if report.get('readme_detected') is not True:
+              raise SystemExit(f"NICT_README_NOT_DETECTED:{report.get('archive_members')}")
+          if len(str(report.get('readme_sha256') or '')) != 64:
+              raise SystemExit('NICT_README_DIGEST_MISSING')
+          analysis = report.get('sample_analysis') or {}
+          if int(analysis.get('nonempty_lines', 0)) <= 0:
+              raise SystemExit('NICT_SAMPLE_EMPTY')
           if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
               raise SystemExit('NICT_ACQUISITION_BOUNDARY_VIOLATION')
           if lock.get('source_sha256') != report.get('source_sha256'):
@@ -105,8 +112,11 @@ jobs:
               'source_bytes': report['source_bytes'],
               'source_sha256': report['source_sha256'],
               'archive_members': report['archive_member_count'],
+              'readme_member': report['readme_member'],
               'sample_encoding': report['sample_encoding'],
               'sample_lines': report['sample_lines'],
+              'format_guess': analysis.get('format_guess'),
+              'tab_field_histogram': analysis.get('tab_field_histogram'),
           })
           PY
           rm -f work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz
