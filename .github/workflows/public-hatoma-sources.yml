@@ -21,10 +21,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Validate source manifest and deterministic adapters
+      - name: Validate source manifest and canonical TEI adapter
         run: |
           python -m py_compile tools/public_hatoma_sources.py tools/public_hatoma_multifile.py
-          python tools/public_hatoma_sources.py --self-test
           python tools/public_hatoma_multifile.py --self-test
           python - <<'PY'
           import json
@@ -51,7 +50,7 @@ jobs:
               if bad:
                   raise SystemExit(f'HATOMA_ZIP_CORRUPT:{bad}')
           PY
-      - name: Normalize every entry from every TEI member
+      - name: Normalize exact canonical tei/hatoma.tei and inventory other TEI members
         run: |
           python tools/public_hatoma_multifile.py \
             --manifest config/public_hatoma_sources.json \
@@ -59,28 +58,49 @@ jobs:
             --output-root work/public-hatoma/normalized \
             --report reports/public-hatoma-report.json \
             --lock reports/public-hatoma-lock.json
-      - name: Enforce all-member preservation and meaning-evidence boundary
+      - name: Enforce canonical source, exact structure, and meaning-evidence boundary
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           report=json.loads(Path('reports/public-hatoma-report.json').read_text(encoding='utf-8'))
           lock=json.loads(Path('reports/public-hatoma-lock.json').read_text(encoding='utf-8'))
+          expected = {
+              'normalized_records': 16946,
+              'preserved_records': 16946,
+              'normalized_sense_records': 18327,
+              'definition_elements': 18346,
+              'nonempty_definitions': 18342,
+              'empty_definitions': 4,
+              'meaning_complete_records': 16942,
+              'unresolved_entries': 4,
+              'example_records': 34155,
+              'translation_records': 34155,
+              'form_records': 16732,
+              'orthography_records': 16732,
+              'media_reference_records': 16732,
+          }
           if report.get('status') != 'NORMALIZED':
               raise SystemExit('HATOMA_NOT_NORMALIZED')
-          entries=int(report.get('entries',0))
-          if entries < 15000:
-              raise SystemExit(f'HATOMA_ENTRY_COUNT_SUSPICIOUS:{entries}')
-          if entries != int(report.get('normalized_records',-1)) or entries != int(report.get('preserved_records',-1)):
-              raise SystemExit('HATOMA_ENTRY_LOSS')
-          if int(report.get('tei_entry_members',0)) <= 1:
-              raise SystemExit(f'HATOMA_MULTIFILE_NOT_OBSERVED:{report.get("tei_entry_members")}')
-          if report.get('source_archive_sha256') != lock.get('source_archive_sha256'):
-              raise SystemExit('HATOMA_ARCHIVE_LOCK_MISMATCH')
-          if len(str(lock.get('tei_members_manifest_sha256') or '')) != 64:
-              raise SystemExit('HATOMA_MEMBER_MANIFEST_LOCK_MISSING')
-          if int(report.get('definition_count',0)) <= 0 or int(report.get('meaning_complete_records',0)) <= 0:
-              raise SystemExit('HATOMA_NO_MEANING_EVIDENCE')
+          for key, value in expected.items():
+              if int(report.get(key, -1)) != value:
+                  raise SystemExit(f'HATOMA_EXACT_COUNT_MISMATCH:{key}:{report.get(key)}:{value}')
+          if not str(report.get('canonical_member') or '').endswith('/tei/hatoma.tei'):
+              raise SystemExit(f'HATOMA_CANONICAL_MEMBER_CHANGED:{report.get("canonical_member")}')
+          if report.get('source_archive_sha256') != '8c46de727be8d19ae8d7b5b88af343b39630646c8df6a32b692c7bba1c577ac3':
+              raise SystemExit('HATOMA_ARCHIVE_DIGEST_CHANGED')
+          if report.get('canonical_member_sha256') != '12e8d33c7b34e526a57c2eaa3cbfd05860975643a1b7629dc0758361cb4df99b':
+              raise SystemExit('HATOMA_CANONICAL_DIGEST_CHANGED')
+          if report.get('license_sha256') != '87a816969906840bf7af8d4d01cdfad4741b18946365e1f286007935509f2edb':
+              raise SystemExit('HATOMA_LICENSE_DIGEST_CHANGED')
+          if report.get('source_archive_sha256') != lock.get('source_archive_sha256') or report.get('canonical_member_sha256') != lock.get('canonical_member_sha256'):
+              raise SystemExit('HATOMA_SOURCE_LOCK_MISMATCH')
+          inventory = report.get('tei_member_inventory') or []
+          if len(inventory) != 4:
+              raise SystemExit(f'HATOMA_TEI_INVENTORY_CHANGED:{len(inventory)}')
+          canonical = [item for item in inventory if item.get('canonical')]
+          if len(canonical) != 1 or int(canonical[0].get('entry_count',0)) != 16946:
+              raise SystemExit(f'HATOMA_CANONICAL_INVENTORY_INVALID:{canonical}')
           if report.get('definition_fabricated') is not False or report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
               raise SystemExit('HATOMA_EVIDENCE_BOUNDARY_VIOLATION')
           if report.get('runtime_promotion') is not False:
@@ -88,23 +108,12 @@ jobs:
           for item in report.get('output_files') or []:
               if len(str(item.get('sha256') or '')) != 64:
                   raise SystemExit(f'HATOMA_OUTPUT_DIGEST_MISSING:{item.get("path")}')
-          print({
-              'xml_members_inspected': report['xml_members_inspected'],
-              'tei_entry_members': report['tei_entry_members'],
-              'entries': entries,
-              'meaning_complete_records': report['meaning_complete_records'],
-              'unresolved_entries': report['unresolved_entries'],
-              'sense_count': report['sense_count'],
-              'definition_count': report['definition_count'],
-              'examples': report['example_count'],
-              'example_translations': report['example_translation_count'],
-              'forms': report['form_count'],
-              'orthographies': report['orthography_count'],
-              'pronunciations': report['pronunciation_count'],
-              'audio_refs': report['audio_reference_count'],
+          print({**expected,
+              'canonical_member': report['canonical_member'],
               'source_sha256': report['source_archive_sha256'],
+              'canonical_sha256': report['canonical_member_sha256'],
               'license_sha256': report['license_sha256'],
-              'member_manifest_sha256': lock['tei_members_manifest_sha256'],
+              'tei_inventory': [(x['member'], x['extension'], x['entry_count'], x['sha256']) for x in inventory],
           })
           PY
       - name: Upload fixed source and normalized Hatoma evidence pack
