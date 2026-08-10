@@ -6,6 +6,7 @@ record has source-derived meaning evidence plus source/license provenance.
 """
 from __future__ import annotations
 import argparse, gzip, hashlib, json, shutil, sqlite3, tempfile, unicodedata
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -106,6 +107,53 @@ def normalize_wnja(spec:dict[str,Any],asset:Path,source_sha:str,out:Path)->dict[
     finally:
         c.close(); db.unlink(missing_ok=True)
 
+def normalize_kanjidic2(spec:dict[str,Any],asset:Path,source_sha:str,out:Path)->dict[str,Any]:
+    out.parent.mkdir(parents=True,exist_ok=True)
+    xml_path=out.parent/"kanjidic2.xml"
+    with gzip.open(asset,"rb") as src,xml_path.open("wb") as dst: shutil.copyfileobj(src,dst,1024*1024)
+    records=[]; missing=[]; header={}
+    try:
+        root=ET.parse(xml_path).getroot()
+        header_el=root.find("header")
+        if header_el is not None:
+            header={child.tag:norm(child.text) for child in header_el}
+        for idx,ch in enumerate(root.findall("character"),1):
+            literal=norm(ch.findtext("literal"))
+            if not literal: continue
+            rm=ch.find("reading_meaning")
+            readings=[]; meanings=[]; nanori=[]
+            if rm is not None:
+                for n in rm.findall("nanori"):
+                    v=norm(n.text)
+                    if v:nanori.append(v)
+                for group in rm.findall("rmgroup"):
+                    for r in group.findall("reading"):
+                        v=norm(r.text)
+                        if v:readings.append(v)
+                    for m in group.findall("meaning"):
+                        if m.get("m_lang") is None:
+                            v=norm(m.text)
+                            if v:meanings.append(v)
+            meanings=sorted(set(meanings)); readings=sorted(set(readings)); nanori=sorted(set(nanori))
+            if not meaning_ok(meanings):
+                missing.append({"literal":literal,"index":idx})
+                continue
+            misc=ch.find("misc")
+            strokes=[]; grade=None; freq=None; jlpt=None
+            if misc is not None:
+                strokes=[norm(x.text) for x in misc.findall("stroke_count") if norm(x.text)]
+                grade=norm(misc.findtext("grade")); freq=norm(misc.findtext("freq")); jlpt=norm(misc.findtext("jlpt"))
+            records.append({"id":f"KANJIDIC2-{ord(literal):06X}","surface":literal,"readings":readings,"part_of_speech":["kanji"],
+              "meanings":meanings,"label":meanings[0],"domains":["kanji","character"],"dataset":spec["title"],"license":spec["license"],
+              "source_id":f"U+{ord(literal):04X}","source_url":spec["homepage"],"source_sha256":source_sha,"attribution":spec.get("attribution",""),
+              "parameters":{"nanori":nanori,"stroke_count":strokes,"grade":grade or None,"frequency_rank":freq or None,"jlpt_legacy":jlpt or None}})
+        if missing: raise RuntimeError(f"KANJIDIC2 meaning evidence missing: count={len(missing)} sample={missing[:20]}")
+        records.sort(key=lambda x:x["id"])
+        with out.open("w",encoding="utf-8",newline="\n") as f:
+            for r in records:f.write(line(r)+"\n")
+        return {"records":len(records),"missing_meaning_records":0,"normalized_sha256":sha(out),"source_header":header}
+    finally: xml_path.unlink(missing_ok=True)
+
 def h(v:Any)->str:return "".join(norm(v).replace("\n"," ").split()).casefold()
 def normalize_okinawa(spec:dict[str,Any],asset:Path,source_sha:str,out:Path)->dict[str,Any]:
     import openpyxl
@@ -173,6 +221,8 @@ def acquire(mp:Path,root:Path,rp:Path,lp:Path)->dict[str,Any]:
             license_sha=download(str(s["license_url"]),lic/f"{sid}-LICENSE.txt")
         elif adapter=="okinawa_xlsx":
             a=raw/f"{sid}.xlsx"; url=str(s["url"]); source_sha=download(url,a); out=ref/f"{sid}.jsonl"; result=normalize_okinawa(s,a,source_sha,out); license_sha=None
+        elif adapter=="kanjidic2_xml_gz":
+            a=raw/f"{sid}.xml.gz"; url=str(s["url"]); source_sha=download(url,a); out=ref/f"{sid}.jsonl"; result=normalize_kanjidic2(s,a,source_sha,out); license_sha=None
         else:raise RuntimeError(f"unsupported adapter: {adapter}")
         v=validate_ref(out); reports.append({"source_id":sid,**result,"validation":v})
         locks.append({"source_id":sid,"adapter":adapter,"version":s.get("version") or s.get("release_tag"),"source_url":url,
