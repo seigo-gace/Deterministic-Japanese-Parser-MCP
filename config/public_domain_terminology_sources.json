@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "license": {
+    "name": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "terms_url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/README.html",
+    "attribution": "科学技術用語形態素解析辞書 © バイオサイエンスデータベースセンター licensed under CC表示-継承4.0国際"
+  },
+  "sources": [
+    {
+      "id": "nbdc-jst-thesaurus-2015-mecab-v2",
+      "title": "MeCab用形態素解析辞書：JSTシソーラス見出し語・同義語",
+      "status": "enabled",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Thesaurus2015.dic.zip",
+      "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-1.html",
+      "source_dictionary": "Thesaurus2015",
+      "domain": ["science", "technology"],
+      "expected_records_approx": 127214
+    },
+    {
+      "id": "nbdc-jglobal-mesh-mecab-v2",
+      "title": "MeCab用形態素解析辞書：J-GLOBAL MeSH",
+      "status": "enabled",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/JSTMeSH.dic.zip",
+      "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-2.html",
+      "source_dictionary": "MeSH",
+      "domain": ["medicine", "life-science"]
+    },
+    {
+      "id": "nbdc-nikkaji-mecab-v2",
+      "title": "MeCab用形態素解析辞書：日化辞",
+      "status": "enabled",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Nikkaji.dic.zip",
+      "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-3.html",
+      "source_dictionary": "Nikkaji",
+      "domain": ["chemistry", "chemical-substance"]
+    }
+  ],
+  "semantic_policy": "Morphology/domain terminology evidence only. The archive explicitly does not encode term-to-term thesaurus relations. Do not fabricate definitions or synonym edges. Preserve empty readings/pronunciations and source identifiers for later evidence joins."
+}
