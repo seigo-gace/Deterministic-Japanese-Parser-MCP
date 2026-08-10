@@ -7,6 +7,7 @@ on:
       - "config/public_authority_sources.json"
       - "tools/public_authority_sources.py"
       - "tools/public_authority_sparql.py"
+      - "tools/public_authority_sparql_xml_runner.py"
       - ".github/workflows/public-authority-sources.yml"
 
 permissions:
@@ -51,9 +52,6 @@ jobs:
               raise SystemExit('NDLSH_NOT_NORMALIZED')
           if report.get('column_count') != 18:
               raise SystemExit(f"NDLSH_COLUMN_LOSS:{report.get('column_count')}")
-          # The official NDLSH batch is a subset of all Web NDL topical authorities.
-          # Remote evidence for 2026-08-10 produced 20,785 rows; do not confuse this
-          # batch with the ~152k full topicalTerm scheme collected by the SPARQL job.
           if int(report.get('records', 0)) < 20000:
               raise SystemExit(f"NDLSH_BATCH_RECORD_COUNT_SUSPICIOUS:{report.get('records')}")
           if int(report.get('malformed_records', -1)) != 0:
@@ -100,11 +98,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: Validate full topical collector syntax
-        run: python -m py_compile tools/public_authority_sparql.py
+        run: |
+          python -m py_compile tools/public_authority_sparql.py tools/public_authority_sparql_xml_runner.py
       - name: Collect every topical authority and direct URI/literal property
         run: |
           mkdir -p work/public-authority-sources/full-topical reports
-          python tools/public_authority_sparql.py \
+          python tools/public_authority_sparql_xml_runner.py \
             --output-root work/public-authority-sources/full-topical \
             --report reports/public-authority-full-topical-report.json
       - name: Verify full topical scheme collection
@@ -115,9 +114,6 @@ jobs:
           report = json.loads(Path('reports/public-authority-full-topical-report.json').read_text(encoding='utf-8'))
           if report.get('status') != 'COMPLETE_SPARQL_COLLECTION':
               raise SystemExit('FULL_TOPICAL_NOT_COMPLETE')
-          # Web NDL Authorities had 152,309 topical authorities on 2026-08-01.
-          # Use a conservative lower bound because the live scheme changes daily;
-          # never truncate silently below this boundary.
           if int(report.get('topical_authorities', 0)) < 150000:
               raise SystemExit(f"FULL_TOPICAL_COUNT_SUSPICIOUS:{report.get('topical_authorities')}")
           if int(report.get('direct_triples', 0)) < int(report['topical_authorities']):
@@ -128,6 +124,8 @@ jobs:
               raise SystemExit('FULL_TOPICAL_DEFINITION_FABRICATION')
           if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
               raise SystemExit('FULL_TOPICAL_BOUNDARY_VIOLATION')
+          if 'sparql-results-xml' not in (report.get('response_format_pages') or {}):
+              raise SystemExit(f"FULL_TOPICAL_XML_NOT_USED:{report.get('response_format_pages')}")
           for item in report.get('files') or []:
               if len(str(item.get('sha256') or '')) != 64:
                   raise SystemExit(f"FULL_TOPICAL_DIGEST_MISSING:{item.get('path')}")
@@ -136,6 +134,7 @@ jobs:
               'direct_triples': report['direct_triples'],
               'pref_label_records': report['pref_label_records'],
               'alt_label_records': report['alt_label_records'],
+              'response_formats': report['response_format_pages'],
           })
           PY
       - name: Upload full topical authority evidence
