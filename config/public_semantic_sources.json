@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "policy": {
     "require_free_access": true,
     "require_machine_retrievable_data": true,
@@ -7,7 +7,8 @@
     "require_source_digest": true,
     "forbid_web_scraping_without_reuse_permission": true,
     "forbid_placeholder_meanings": true,
-    "fail_closed_on_missing_meaning": true
+    "fail_closed_on_missing_meaning": true,
+    "preserve_unresolved_source_rows": true
   },
   "sources": [
     {
@@ -22,8 +23,9 @@
       "homepage": "https://bond-lab.github.io/wnja/jpn/downloads.html",
       "license": "Japanese WordNet License (BSD-style; redistribution requires license and attribution)",
       "license_url": "https://bond-lab.github.io/wnja/license.txt",
+      "expected_source_sha256": "64a14dcfe3ba296566e91a70a2fc0616e85cf2ee7b7fd8cdcbc66c8b12a505a5",
       "attribution": "日本語ワードネット 1.1 © NICT / Francis Bond / Takayuki Kuribayashi",
-      "meaning_evidence": ["japanese_definition", "english_definition_fallback", "synset_relations", "synonyms", "examples"]
+      "meaning_evidence": ["japanese_definition", "synset_relations", "synonyms", "examples"]
     },
     {
       "id": "ninjal-okinawa-dictionary-main",
@@ -36,8 +38,23 @@
       "version": "Dictionary 9th printing / 2001 revision; electronic dataset",
       "license": "CC BY 4.0",
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "expected_source_sha256": "38fe3e32486d4698db18f7caa6ef605d474af4eaadfdbf51beb67c0c46387c12",
       "attribution": "国立国語研究所資料集5『沖縄語辞典』第9刷",
       "meaning_evidence": ["meaning", "part_of_speech", "accent"]
+    },
+    {
+      "id": "unicode-unihan-17.0.0",
+      "title": "Unicode Unihan 17.0.0",
+      "category": ["kanji", "han-ideograph", "definition", "reading"],
+      "status": "enabled",
+      "adapter": "unihan_zip",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip",
+      "homepage": "https://www.unicode.org/reports/tr38/",
+      "version": "Unicode 17.0.0",
+      "license": "Unicode License v3 (Unicode-3.0)",
+      "license_url": "https://www.unicode.org/license.txt",
+      "attribution": "Unicode Unihan Database © Unicode, Inc.",
+      "meaning_evidence": ["kDefinition", "kJapaneseOn", "kJapaneseKun"]
     },
     {
       "id": "jmdict",
@@ -58,7 +75,7 @@
       "license": "CC BY-SA 4.0",
       "license_url": "https://www.edrdg.org/edrdg/licence.html",
       "attribution": "KANJIDIC2 © Electronic Dictionary Research and Development Group",
-      "meaning_evidence": ["english_meanings", "readings", "nanori", "character_metadata"]
+      "meaning_evidence": ["english_meanings", "readings", "nanori", "character_metadata", "cross_source_unihan_fallback"]
     },
     {
       "id": "japanese-law-standard-bilingual-dictionary",
