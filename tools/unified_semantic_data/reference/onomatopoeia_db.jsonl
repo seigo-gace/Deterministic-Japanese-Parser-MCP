@@ -1,0 +1,6 @@
+{"surface":"キラキラ","meaning":"光り輝く様子、または華やかで魅力的に見える様子","category":"onomatopoeia","domains":["general"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-kirakira","license":"Master-provided project reference"}
+{"surface":"ザーザー","meaning":"雨や水などが激しく連続して流れたり降ったりする音や様子","category":"onomatopoeia","domains":["general"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-zaazaa","license":"Master-provided project reference"}
+{"surface":"ユラユラ","meaning":"物がゆっくりと繰り返し揺れ動く様子","category":"onomatopoeia","domains":["general"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-yurayura","license":"Master-provided project reference"}
+{"surface":"ウキウキ","meaning":"期待や喜びで気持ちが弾み、落ち着かないほど嬉しい様子","category":"onomatopoeia","domains":["emotion"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-ukiuki","license":"Master-provided project reference"}
+{"surface":"イライラ","meaning":"思いどおりにならず、焦りや怒りで落ち着かない状態","category":"onomatopoeia","domains":["emotion"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-iraira","license":"Master-provided project reference"}
+{"surface":"ゴロゴロ","meanings":["雷などが低く連続して鳴る音","物が転がる様子","家などで何もせず横になって過ごす様子"],"category":"onomatopoeia","domains":["general"],"dataset":"master-semantic-reference","source_id":"onomatopoeia-gorogoro","license":"Master-provided project reference"}
