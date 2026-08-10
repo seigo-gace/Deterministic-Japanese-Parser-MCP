@@ -78,6 +78,30 @@
       "meaning_evidence": ["english_meanings", "readings", "nanori", "character_metadata", "cross_source_unihan_fallback"]
     },
     {
+      "id": "nict-wikipedia-dependency-v1.0",
+      "title": "日本語Wikipediaエントリの係り受けデータベース Version 1.0",
+      "category": ["dependency", "syntax", "frequency", "wikipedia-entry"],
+      "status": "enabled_large_corpus",
+      "adapter": "nict_wikipedia_dependency_tar_gz",
+      "url": "https://alaginrc.nict.go.jp/wikidep/src/DEP_WIKIPEDIA_V1.0.tar.gz",
+      "homepage": "https://alaginrc.nict.go.jp/wikidep/",
+      "version": "1.0 (2011-12-01)",
+      "license": "CC BY-SA 3.0 Unported",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "ウィキペディア日本語版の情報等をベースとして国立研究開発法人情報通信研究機構が作成した『日本語Wikipediaエントリの係り受けデータベース』",
+      "evidence_role": ["dependency_relation", "dependency_frequency", "compound_entry_boundary"],
+      "meaning_policy": "This dataset is relation evidence, not a lexical-definition source. Join lexical meanings from separately licensed semantic sources; do not invent meanings from dependency pairs."
+    },
+    {
+      "id": "alagin-japanese-dependency-v1.1",
+      "title": "日本語係り受けデータベース Version 1.1 (A-8)",
+      "category": ["dependency", "syntax", "frequency", "web-corpus"],
+      "status": "restricted_contract_required",
+      "homepage": "https://alaginrc.nict.go.jp/li-outline.html",
+      "version": "1.1",
+      "reason": "ALAGIN currently states that data use is limited to ALAGIN members and acquisition requires a contract. It is therefore not treated as an anonymously downloadable free source. The public Wikipedia subset remains separately ingestible under CC BY-SA 3.0."
+    },
+    {
       "id": "japanese-law-standard-bilingual-dictionary",
       "title": "法令用語日英標準対訳辞書",
       "category": ["law", "legal-terms", "examples"],
