@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Collect every Web NDL Authorities topical-term authority via official SPARQL 1.1.
 
-The batch NDLSH file covers only the published NDLSH scope. This collector targets
-all authorities in the official topicalTerms scheme. To avoid silently dropping
-unknown source fields, it preserves every direct URI/literal predicate-object pair
-and separately resolves SKOS-XL pref/alt label blank-node content.
+The NDLSH batch covers only its published subset. This collector targets all
+authorities in the official topicalTerms scheme. It preserves every direct
+URI/literal predicate-object pair and resolves SKOS-XL pref/alt labels.
+SPARQL Results JSON is the primary response format; CSV remains a validated
+fallback. Unknown response formats fail closed.
 """
 from __future__ import annotations
 
@@ -41,14 +42,71 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def request_csv(query: str, *, retries: int = 6) -> list[dict[str, str]]:
+def parse_sparql_json(raw: bytes) -> list[dict[str, str]]:
+    value = json.loads(raw.decode("utf-8-sig", errors="strict"))
+    if not isinstance(value, dict):
+        raise RuntimeError("SPARQL JSON root is not an object")
+    head = value.get("head") or {}
+    results = value.get("results") or {}
+    variables = head.get("vars") or []
+    bindings = results.get("bindings") or []
+    if not isinstance(variables, list) or not all(isinstance(item, str) for item in variables):
+        raise RuntimeError(f"SPARQL JSON head.vars invalid: {variables!r}")
+    if not isinstance(bindings, list):
+        raise RuntimeError("SPARQL JSON results.bindings is not a list")
+    rows: list[dict[str, str]] = []
+    for row_number, binding in enumerate(bindings, 1):
+        if not isinstance(binding, dict):
+            raise RuntimeError(f"SPARQL JSON binding is not an object: row={row_number}")
+        row: dict[str, str] = {}
+        for variable in variables:
+            cell = binding.get(variable)
+            if cell is None:
+                row[variable] = ""
+                continue
+            if not isinstance(cell, dict):
+                raise RuntimeError(
+                    f"SPARQL JSON binding cell invalid: row={row_number} variable={variable}"
+                )
+            cell_value = cell.get("value", "")
+            if not isinstance(cell_value, str):
+                raise RuntimeError(
+                    f"SPARQL JSON binding value invalid: row={row_number} variable={variable}"
+                )
+            row[variable] = cell_value
+        rows.append(row)
+    return rows
+
+
+def parse_sparql_response(raw: bytes, content_type: str) -> tuple[list[dict[str, str]], str]:
+    stripped = raw.lstrip()
+    folded_type = content_type.casefold()
+    if "json" in folded_type or stripped.startswith(b"{"):
+        return parse_sparql_json(raw), "sparql-results-json"
+    if "csv" in folded_type or b"," in raw[:1024]:
+        text = raw.decode("utf-8-sig", errors="strict")
+        reader = csv.DictReader(io.StringIO(text, newline=""))
+        if not reader.fieldnames:
+            raise RuntimeError("SPARQL CSV response has no header")
+        rows = [
+            {str(key): (value or "") for key, value in row.items() if key is not None}
+            for row in reader
+        ]
+        return rows, "csv-fallback"
+    preview = raw[:300].decode("utf-8", errors="replace")
+    raise RuntimeError(
+        f"unsupported SPARQL response format: content_type={content_type!r} preview={preview!r}"
+    )
+
+
+def request_rows(query: str, *, retries: int = 6) -> tuple[list[dict[str, str]], str]:
     payload = urlencode({"query": query}).encode("utf-8")
     request = Request(
         ENDPOINT,
         data=payload,
         headers={
             "User-Agent": UA,
-            "Accept": "text/csv",
+            "Accept": "application/sparql-results+json, application/json;q=0.9, text/csv;q=0.5",
             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
         },
         method="POST",
@@ -58,8 +116,8 @@ def request_csv(query: str, *, retries: int = 6) -> list[dict[str, str]]:
         try:
             with urlopen(request, timeout=120) as response:
                 raw = response.read()
-            text = raw.decode("utf-8-sig", errors="strict")
-            return [dict(row) for row in csv.DictReader(io.StringIO(text))]
+                content_type = response.headers.get("content-type", "")
+            return parse_sparql_response(raw, content_type)
         except (HTTPError, URLError, TimeoutError) as exc:
             last_error = exc
             if attempt + 1 >= retries:
@@ -68,12 +126,17 @@ def request_csv(query: str, *, retries: int = 6) -> list[dict[str, str]]:
     raise RuntimeError(f"SPARQL request failed after {retries} attempts: {last_error}")
 
 
-def paginated(query_body: str, order_by: str) -> list[dict[str, str]]:
+def paginated(
+    query_body: str,
+    order_by: str,
+    response_formats: Counter[str],
+) -> list[dict[str, str]]:
     output: list[dict[str, str]] = []
     offset = 0
     while True:
         query = f"{PREFIXES}\n{query_body}\nORDER BY {order_by}\nLIMIT {PAGE_SIZE} OFFSET {offset}"
-        rows = request_csv(query)
+        rows, response_format = request_rows(query)
+        response_formats[response_format] += 1
         output.extend(rows)
         if len(rows) < PAGE_SIZE:
             break
@@ -84,12 +147,14 @@ def paginated(query_body: str, order_by: str) -> list[dict[str, str]]:
 
 def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
     output_root.mkdir(parents=True, exist_ok=True)
+    response_formats: Counter[str] = Counter()
 
     base_rows = paginated(
         f'''SELECT ?uri ?label WHERE {{
           ?uri skos:inScheme <{SCHEME}> ; rdfs:label ?label .
         }}''',
         "?uri",
+        response_formats,
     )
     uri_order: list[str] = []
     labels: dict[str, str] = {}
@@ -110,6 +175,7 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
           FILTER (isIRI(?object) || isLiteral(?object))
         }}''',
         "?uri ?predicate ?object",
+        response_formats,
     )
     pref_rows = paginated(
         f'''SELECT ?uri ?literal ?yomi WHERE {{
@@ -118,6 +184,7 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
           OPTIONAL {{ ?node ndl:transcription ?yomi . }}
         }}''',
         "?uri ?literal ?yomi",
+        response_formats,
     )
     alt_rows = paginated(
         f'''SELECT ?uri ?literal ?yomi WHERE {{
@@ -126,12 +193,16 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
           OPTIONAL {{ ?node ndl:transcription ?yomi . }}
         }}''',
         "?uri ?literal ?yomi",
+        response_formats,
     )
 
     base_path = output_root / "topical-authorities.jsonl"
     with base_path.open("w", encoding="utf-8", newline="\n") as handle:
         for uri in uri_order:
-            handle.write(json.dumps({"uri": uri, "label": labels[uri]}, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+            handle.write(
+                json.dumps({"uri": uri, "label": labels[uri]}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                + "\n"
+            )
 
     direct_path = output_root / "topical-direct-triples.jsonl"
     seen_direct: set[tuple[str, str, str]] = set()
@@ -143,7 +214,10 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
             if item in seen_direct:
                 continue
             seen_direct.add(item)
-            handle.write(json.dumps({"uri": item[0], "predicate": item[1], "object": item[2]}, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+            handle.write(
+                json.dumps({"uri": item[0], "predicate": item[1], "object": item[2]}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                + "\n"
+            )
 
     def write_labels(path: Path, rows: list[dict[str, str]], label_type: str) -> int:
         seen: set[tuple[str, str, str]] = set()
@@ -158,7 +232,10 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
                 if key in seen:
                     continue
                 seen.add(key)
-                handle.write(json.dumps({"uri": uri, "literal": literal, "yomi": yomi, "label_type": label_type}, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                handle.write(
+                    json.dumps({"uri": uri, "literal": literal, "yomi": yomi, "label_type": label_type}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    + "\n"
+                )
         return len(seen)
 
     pref_path = output_root / "topical-pref-labels.jsonl"
@@ -170,7 +247,9 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
     observed_direct_uris = {item[0] for item in seen_direct}
     missing_direct = sorted(base_set - observed_direct_uris)
     if missing_direct:
-        raise RuntimeError(f"topical authorities missing direct triples: count={len(missing_direct)} sample={missing_direct[:20]}")
+        raise RuntimeError(
+            f"topical authorities missing direct triples: count={len(missing_direct)} sample={missing_direct[:20]}"
+        )
 
     files = []
     for path in (base_path, direct_path, pref_path, alt_path):
@@ -183,9 +262,10 @@ def collect(output_root: Path, report_path: Path) -> dict[str, Any]:
         "direct_triples": len(seen_direct),
         "pref_label_records": pref_count,
         "alt_label_records": alt_count,
+        "response_format_pages": dict(sorted(response_formats.items())),
         "files": files,
         "attribution": "Web NDL Authorities（国立国会図書館典拠データ検索・提供サービス）から取得",
-        "collection_method": "official SPARQL 1.1 endpoint; PAGE_SIZE=1000; OFFSET pagination",
+        "collection_method": "official SPARQL 1.1 endpoint; PAGE_SIZE=1000; OFFSET pagination; SPARQL Results JSON primary with CSV fallback",
         "definition_fabricated": False,
         "llm_api_used": False,
         "web_scraping_used": False,
