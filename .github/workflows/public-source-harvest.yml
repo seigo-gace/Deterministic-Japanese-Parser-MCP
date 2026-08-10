@@ -5,11 +5,13 @@ on:
   push:
     paths:
       - "config/public_source_harvest.json"
+      - "config/public_source_harvest_wave2.json"
       - "tools/public_source_harvest.py"
       - ".github/workflows/public-source-harvest.yml"
   pull_request:
     paths:
       - "config/public_source_harvest.json"
+      - "config/public_source_harvest_wave2.json"
       - "tools/public_source_harvest.py"
       - ".github/workflows/public-source-harvest.yml"
 
@@ -24,13 +26,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Validate acquisition-only harvester
+      - name: Validate acquisition-only harvester and both inventories
         run: |
           python -m py_compile tools/public_source_harvest.py
           python tools/public_source_harvest.py self-test
           python tools/public_source_harvest.py list --manifest config/public_source_harvest.json
+          python tools/public_source_harvest.py list --manifest config/public_source_harvest_wave2.json
 
-  acquire-raw-source:
+  acquire-raw-source-wave1:
     needs: validate-inventory
     strategy:
       fail-fast: false
@@ -70,7 +73,53 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: source-harvest-${{ matrix.source_id }}-${{ github.sha }}
+          name: source-harvest-wave1-${{ matrix.source_id }}-${{ github.sha }}
+          path: work/source-harvest/${{ matrix.source_id }}/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 0
+
+  acquire-raw-source-wave2:
+    needs: validate-inventory
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        source_id:
+          - "jmnedict"
+          - "wlsp"
+          - "wlsp2unidic"
+          - "wlsp-familiarity"
+          - "wlsp-antonym"
+          - "wlsp-school-grade"
+          - "tsutsuji-familiarity"
+          - "kanji-familiarity"
+          - "bccwj-wsd-frequency"
+          - "chj-wlsp"
+          - "jcola"
+          - "real-persona-chat"
+          - "dbcls-meta-scientific-terms"
+          - "dbcls-meta-species-names"
+          - "dbcls-species-multilingual"
+          - "dbcls-species-japanese"
+          - "dbcls-scientific-ja-en"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Acquire raw bytes and source-lock evidence
+        run: |
+          python tools/public_source_harvest.py acquire \
+            --manifest config/public_source_harvest_wave2.json \
+            --source-id "${{ matrix.source_id }}" \
+            --output-root work/source-harvest
+      - name: Upload raw source and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-harvest-wave2-${{ matrix.source_id }}-${{ github.sha }}
           path: work/source-harvest/${{ matrix.source_id }}/
           if-no-files-found: warn
           retention-days: 30
