@@ -2,6 +2,7 @@
   "schema_version": "1.0.0",
   "change_unit": "CU-RAW-COLLECTION-WAVE4-20260811-01",
   "phase": "ACQUISITION_ONLY",
+  "run_revision": 2,
   "policy": {
     "normalize": false,
     "semantic_enrichment": false,
