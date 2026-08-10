@@ -1,0 +1,93 @@
+name: Public Domain Terminology Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_domain_terminology_sources.json"
+      - "tools/public_domain_terminology_sources.py"
+      - ".github/workflows/public-domain-terminology-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  normalize-domain-terminology:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate syntax and adapter self-test
+        run: |
+          python -m py_compile tools/public_domain_terminology_sources.py
+          python tools/public_domain_terminology_sources.py --self-test
+      - name: Acquire NBDC official terminology ZIPs
+        run: |
+          mkdir -p work/public-domain-terminology/raw work/public-domain-terminology/normalized reports
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-domain-terminology/raw/nbdc-jst-thesaurus-2015-mecab-v2.zip \
+            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Thesaurus2015.dic.zip
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-domain-terminology/raw/nbdc-jglobal-mesh-mecab-v2.zip \
+            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/JSTMeSH.dic.zip
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-domain-terminology/raw/nbdc-nikkaji-mecab-v2.zip \
+            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Nikkaji.dic.zip
+      - name: Normalize every terminology record
+        run: |
+          python tools/public_domain_terminology_sources.py \
+            --manifest config/public_domain_terminology_sources.json \
+            --source-root work/public-domain-terminology/raw \
+            --output-root work/public-domain-terminology/normalized \
+            --report reports/public-domain-terminology-report.json \
+            --lock reports/public-domain-terminology-lock.json
+      - name: Verify terminology source preservation and semantic boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-domain-terminology-report.json').read_text(encoding='utf-8'))
+          locks = json.loads(Path('reports/public-domain-terminology-lock.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'NORMALIZED' or report.get('source_count') != 3:
+              raise SystemExit('DOMAIN_TERMINOLOGY_NOT_COMPLETE')
+          if report.get('field_count') != 21:
+              raise SystemExit(f"DOMAIN_FIELD_LOSS:{report.get('field_count')}")
+          if report.get('definition_fabricated') is not False or report.get('term_relations_fabricated') is not False:
+              raise SystemExit('DOMAIN_SEMANTIC_FABRICATION')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('DOMAIN_SOURCE_BOUNDARY_VIOLATION')
+          if len(locks.get('sources') or []) != 3:
+              raise SystemExit('DOMAIN_SOURCE_LOCK_COUNT_MISMATCH')
+          by_id = {item['source_id']: item for item in report['sources']}
+          jst = by_id['nbdc-jst-thesaurus-2015-mecab-v2']
+          if not 120000 <= int(jst['records']) <= 140000:
+              raise SystemExit(f"JST_RECORD_COUNT_SUSPICIOUS:{jst['records']}")
+          for item in report['sources']:
+              if len(str(item.get('source_sha256') or '')) != 64 or len(str(item.get('normalized_sha256') or '')) != 64:
+                  raise SystemExit(f"DOMAIN_DIGEST_MISSING:{item.get('source_id')}")
+          print({
+              item['source_id']: {
+                  'records': item['records'],
+                  'empty_reading': item['empty_reading_records'],
+                  'source_sha256': item['source_sha256'],
+                  'normalized_sha256': item['normalized_sha256'],
+                  'source_dictionary_counts': item['source_dictionary_counts'],
+              }
+              for item in report['sources']
+          })
+          PY
+          rm -rf work/public-domain-terminology/raw
+      - name: Upload normalized terminology packs and source locks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-domain-terminology-${{ github.sha }}
+          path: |
+            work/public-domain-terminology/normalized/*.jsonl
+            reports/public-domain-terminology-report.json
+            reports/public-domain-terminology-lock.json
+          if-no-files-found: warn
+          retention-days: 30
