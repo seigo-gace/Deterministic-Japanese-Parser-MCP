@@ -2,8 +2,9 @@
 
 The classifier is intentionally narrow. It does not provide legal advice and it does not
 rewrite upstream licenses. Its purpose is to prevent obviously non-commercial,
-no-derivatives, unknown, or pending source data from being silently compiled into the
-public distributable canonical dictionary. Exact upstream license text remains evidence.
+no-derivatives, reference-only, unknown, or pending source data from being silently
+compiled into the default public-distributable canonical dictionary. Exact upstream
+license text remains evidence.
 """
 from __future__ import annotations
 
@@ -27,12 +28,20 @@ def _fold(value: Any) -> str:
 
 
 def classify_data_license(value: Any) -> dict[str, Any]:
-    """Classify one declared data license without changing the license itself."""
+    """Classify one declared data-license string without rewriting it."""
     raw = str(value or "").strip()
     folded = _fold(raw)
     if not folded or any(
         marker in folded
-        for marker in ("unknown", "unlicensed", "pending", "tbd", "確認中")
+        for marker in (
+            "unknown",
+            "unlicensed",
+            "pending",
+            "tbd",
+            "確認中",
+            "license required",
+            "license-required",
+        )
     ):
         return {
             "license": raw,
@@ -41,7 +50,27 @@ def classify_data_license(value: Any) -> dict[str, Any]:
             "reason": "license-declaration-required",
         }
 
-    # NoDerivatives material must not be transformed into the canonical dictionary.
+    # Descriptions such as "project reference" or "reference only" are not
+    # redistribution licences. Preserve them internally, but do not ship them.
+    if any(
+        marker in folded
+        for marker in (
+            "reference-only",
+            "reference only",
+            "project reference",
+            "internal reference",
+            "参照専用",
+            "参考資料",
+        )
+    ):
+        return {
+            "license": raw,
+            "tier": "reference-only",
+            "public_dictionary_allowed": False,
+            "reason": "reference-only-source",
+        }
+
+    # NoDerivatives material must not be transformed into the public dictionary.
     if any(
         marker in folded
         for marker in (
@@ -59,9 +88,8 @@ def classify_data_license(value: Any) -> dict[str, Any]:
             "reason": "no-derivatives-source",
         }
 
-    # NonCommercial data is preserved as evidence but excluded from the default
-    # public-distributable dictionary. An explicit separate NC build can be added
-    # later if Master chooses that distribution boundary.
+    # NonCommercial evidence can remain in the internal master dictionary, but
+    # it is excluded from the default public-distributable view.
     if any(
         marker in folded
         for marker in (
@@ -79,6 +107,8 @@ def classify_data_license(value: Any) -> dict[str, Any]:
             "reason": "noncommercial-source",
         }
 
+    # ShareAlike material remains eligible only as a separately tracked data
+    # licence tier. The classifier never relabels it as MIT/permissive.
     if any(
         marker in folded
         for marker in (
