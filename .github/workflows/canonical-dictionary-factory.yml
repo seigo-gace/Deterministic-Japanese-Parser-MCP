@@ -6,7 +6,9 @@ on:
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "tests/test_canonical_dictionary.py"
+      - "tests/test_canonical_distribution.py"
       - "tests/test_canonical_runtime_projection.py"
+      - "pyproject.toml"
       - ".github/workflows/canonical-dictionary-factory.yml"
   workflow_dispatch:
 
@@ -29,11 +31,16 @@ jobs:
       - name: Syntax check
         run: |
           python -m py_compile tools/unified_semantic_data/canonical_dictionary.py
+          python -m py_compile tools/unified_semantic_data/license_policy.py
+          python -m py_compile tools/unified_semantic_data/canonical_distribution.py
           python -m py_compile tools/unified_semantic_data/canonical_runtime_projection.py
           python -m py_compile tools/unified_semantic_data_pipeline.py
       - name: Canonical dictionary unit tests
         run: |
-          pytest -q tests/test_canonical_dictionary.py tests/test_canonical_runtime_projection.py
+          pytest -q \
+            tests/test_canonical_dictionary.py \
+            tests/test_canonical_distribution.py \
+            tests/test_canonical_runtime_projection.py
       - name: Existing semantic factory regression tests
         run: |
           pytest -q tests/test_semantic_labeler.py tests/test_unified_semantic_data_pipeline.py
