@@ -86,34 +86,33 @@ def _semantic_sense_view(graph: Any) -> list[dict[str, Any]]:
 
 
 def _lexical_resolution_view(graph: Any) -> list[dict[str, Any]]:
-    return [
-        {
-            "surface": item.surface,
-            "normalized": item.normalized,
-            "reading": item.reading,
-            "status": item.status.value,
-            "selected_record_id": item.selected_record_id,
-            "resolution_reason": item.resolution_reason,
-            "resolution_confidence": item.resolution_confidence,
-            "candidate_scores": item.candidate_scores,
-            "candidate_evidence": item.candidate_evidence,
-            "candidates": [
-                {
-                    "record_id": candidate.record_id,
-                    "lemma": candidate.lemma,
-                    "matched_text": candidate.matched_text,
-                    "match_type": candidate.match_type,
-                    "readings": candidate.readings,
-                    "part_of_speech": candidate.part_of_speech,
-                    "domains": candidate.domains,
-                    "usage_labels": candidate.usage_labels,
-                    "source_dataset": candidate.source_dataset,
-                }
+    values: list[dict[str, Any]] = []
+    for item in graph.lexical_nodes:
+        selected = next(
+            (
+                candidate
                 for candidate in item.candidates
-            ],
-        }
-        for item in graph.lexical_nodes
-    ]
+                if candidate.record_id == item.selected_record_id
+            ),
+            None,
+        )
+        values.append(
+            {
+                "surface": item.surface,
+                "normalized": item.normalized,
+                "reading": item.reading,
+                "status": item.status.value,
+                "selected_record_id": item.selected_record_id,
+                "selected_lemma": selected.lemma if selected else None,
+                "selected_source_dataset": (
+                    selected.source_dataset if selected else None
+                ),
+                "resolution_reason": item.resolution_reason,
+                "resolution_confidence": item.resolution_confidence,
+                "candidate_count": len(item.candidates),
+            }
+        )
+    return values
 
 
 def analyze_story(
