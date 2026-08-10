@@ -418,12 +418,17 @@ def compile_canonical_dictionary(
     domain_index: dict[str, set[str]] = defaultdict(set)
     sense_index: dict[str, str] = {}
     source_record_index: dict[str, str] = {}
+    record_locator: dict[str, dict[str, int]] = {}
     dataset_counts: Counter[str] = Counter()
     source_evidence_count = 0
     sense_count = 0
 
-    for record in records:
+    for number, record in enumerate(records):
         dictionary_id = record["dictionary_id"]
+        record_locator[dictionary_id] = {
+            "shard": number // shard_size,
+            "line": number % shard_size + 1,
+        }
         lemma_index[normalize_key(record["lemma"])].add(dictionary_id)
         for value in record["normalized_surfaces"]:
             surface_index[normalize_key(value)].add(dictionary_id)
@@ -460,6 +465,7 @@ def compile_canonical_dictionary(
         },
         "sense-index.json.gz": dict(sorted(sense_index.items())),
         "source-record-index.json.gz": dict(sorted(source_record_index.items())),
+        "record-locator.json.gz": dict(sorted(record_locator.items())),
     }
     for name, mapping in indexes.items():
         payload = (_json_line(mapping) + "\n").encode("utf-8")
@@ -507,4 +513,60 @@ def compile_canonical_dictionary(
         encoding="utf-8",
         newline="\n",
     )
+    validate_compiled_dictionary_root(output_root)
+    return manifest
+
+
+def validate_compiled_dictionary_root(root: Path) -> dict[str, Any]:
+    """Validate the compiled dictionary as a standalone searchable artifact."""
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(manifest_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("mode") != "mcp-canonical-dictionary":
+        raise ValueError("canonical dictionary manifest mode mismatch")
+    boundaries = manifest.get("boundaries") or {}
+    required_boundaries = {
+        "canonical_project_dictionary_schema": True,
+        "upstream_sources_are_evidence_not_runtime_dependencies": True,
+        "runtime_external_dictionary_lookup": False,
+        "automatic_meaning_generation": False,
+        "approved_meaning_only": True,
+        "preserve_multiple_senses": True,
+        "preserve_source_provenance_and_license": True,
+    }
+    for key, expected in required_boundaries.items():
+        if boundaries.get(key) is not expected:
+            raise ValueError(f"canonical dictionary boundary mismatch: {key}")
+    for output in manifest.get("outputs") or []:
+        path = root / str(output.get("path") or "")
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        expected_sha = str(output.get("sha256") or "")
+        if expected_sha and _sha256_file(path) != expected_sha:
+            raise ValueError(f"canonical dictionary output digest mismatch: {path}")
+    required_indexes = {
+        "surface-index.json.gz",
+        "reading-index.json.gz",
+        "lemma-index.json.gz",
+        "pos-index.json.gz",
+        "domain-index.json.gz",
+        "sense-index.json.gz",
+        "source-record-index.json.gz",
+        "record-locator.json.gz",
+    }
+    missing = [
+        name for name in sorted(required_indexes)
+        if not (root / "indexes" / name).is_file()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            "canonical dictionary indexes incomplete: " + ", ".join(missing)
+        )
+    with gzip.open(
+        root / "indexes/record-locator.json.gz", "rt", encoding="utf-8"
+    ) as handle:
+        locator = json.load(handle)
+    if len(locator) != int(manifest.get("record_count", 0)):
+        raise ValueError("canonical dictionary locator count mismatch")
     return manifest
