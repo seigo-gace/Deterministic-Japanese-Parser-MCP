@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "id": "j-ono-json-collection",
+      "title": "J-Ono Japanese Onomatopoeia and Mimetic Word JSON Collection",
+      "status": "enabled",
+      "data_url": "https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/json/j-ono-data.json",
+      "source_records_url": "https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/json/j-ono-source.json",
+      "license_url": "https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/LICENSE.md",
+      "homepage": "https://j-ono.com/",
+      "repository": "https://github.com/ObakeConstructs/j-ono-data",
+      "license": "MIT License for JSON Collection",
+      "copyright": "Copyright (c) 2022 Chinchbug",
+      "exclude_image_payloads": true,
+      "type_map": {
+        "o": "onomatopoeic / 擬音語",
+        "v": "voiced-vocal / 擬声語",
+        "s": "state-condition / 擬態語",
+        "m": "motion-movement / 擬容語",
+        "e": "emotion-feeling / 擬情語",
+        "c": "meta-visual-cue / 記号的オノマトペ"
+      },
+      "meaning_policy": "Preserve source-authored meaning and refer relationships. Resolve refer only by source-defined target record/index; never generate or paraphrase a missing meaning. Image payloads are excluded because the image license is separate."
+    }
+  ]
+}
