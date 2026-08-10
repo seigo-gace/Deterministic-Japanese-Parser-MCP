@@ -12,9 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  inspect-parallel-sources:
+  normalize-parallel-sources:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,11 +22,11 @@ jobs:
           python-version: "3.12"
       - name: Install legacy XLS reader
         run: pip install xlrd==2.0.2
-      - name: Validate inspector syntax
+      - name: Validate normalizer syntax
         run: python -m py_compile tools/public_parallel_sources.py
       - name: Acquire official NICT parallel resources
         run: |
-          mkdir -p work/public-parallel-sources/raw work/public-parallel-sources/sample reports
+          mkdir -p work/public-parallel-sources/raw work/public-parallel-sources/sample work/public-parallel-sources/normalized reports
           curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
             --output work/public-parallel-sources/raw/JEC_basic_sentence_v1-2.xls \
             https://alaginrc.nict.go.jp/jecbs/src/JEC_basic_sentence_v1-2.xls
@@ -42,38 +42,83 @@ jobs:
             --source work/public-parallel-sources/raw/wiki_corpus_2.01.tar.gz \
             --report reports/kyoto-source-inspection.json \
             --sample work/public-parallel-sources/sample/kyoto-first.xml
-      - name: Verify source inspection evidence
+      - name: Verify pinned source structures
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           j = json.loads(Path('reports/jecbs-source-inspection.json').read_text(encoding='utf-8'))
           k = json.loads(Path('reports/kyoto-source-inspection.json').read_text(encoding='utf-8'))
-          if j.get('status') != 'SOURCE_ACQUIRED_STRUCTURE_INSPECTED' or not j.get('workbook_sheets'):
-              raise SystemExit('JECBS_STRUCTURE_NOT_INSPECTED')
-          if k.get('status') != 'SOURCE_ACQUIRED_STRUCTURE_INSPECTED' or int(k.get('xml_members', 0)) < 10000:
-              raise SystemExit(f"KYOTO_STRUCTURE_NOT_INSPECTED:{k.get('xml_members')}")
-          for report in (j, k):
-              if len(str(report.get('source_sha256') or '')) != 64:
-                  raise SystemExit(f"SOURCE_DIGEST_MISSING:{report.get('source_id')}")
-              if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
-                  raise SystemExit(f"SOURCE_BOUNDARY_VIOLATION:{report.get('source_id')}")
+          if j.get('source_sha256') != 'e3a40c8e80ce002e1fab10ccd20ace8760dd200731a27994fe54a1016b2aeafe':
+              raise SystemExit(f"JECBS_SOURCE_CHANGED:{j.get('source_sha256')}")
+          sheets = j.get('workbook_sheets') or []
+          if len(sheets) != 1 or sheets[0].get('name') != 'ALL_NEW' or sheets[0].get('rows') != 5304 or sheets[0].get('columns') != 4:
+              raise SystemExit(f"JECBS_STRUCTURE_CHANGED:{sheets}")
+          if k.get('source_sha256') != '456172bdd1d7a32dbe68ae3e55e0a6de25a4f40582636fd7712a5404319a10e5':
+              raise SystemExit(f"KYOTO_SOURCE_CHANGED:{k.get('source_sha256')}")
+          if k.get('xml_members') != 14111 or k.get('glossary_candidates') != ['kyoto_lexicon.csv']:
+              raise SystemExit(f"KYOTO_STRUCTURE_CHANGED:{k}")
+          print({'jecbs_rows': 5304, 'kyoto_articles': 14111, 'kyoto_glossary': 'kyoto_lexicon.csv'})
+          PY
+      - name: Normalize all sentence, article, translation-stage and glossary records
+        run: |
+          python tools/public_parallel_sources.py normalize-all \
+            --manifest config/public_parallel_sources.json \
+            --jecbs-source work/public-parallel-sources/raw/JEC_basic_sentence_v1-2.xls \
+            --kyoto-source work/public-parallel-sources/raw/wiki_corpus_2.01.tar.gz \
+            --output-root work/public-parallel-sources/normalized \
+            --report reports/public-parallel-sources-report.json \
+            --lock reports/public-parallel-sources-lock.json
+      - name: Verify full parallel-source normalization and semantic boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-parallel-sources-report.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'NORMALIZED':
+              raise SystemExit('PARALLEL_NORMALIZATION_NOT_COMPLETE')
+          j = report['jecbs']; k = report['kyoto']
+          if j.get('records') != 5304 or j.get('malformed_records') != 0:
+              raise SystemExit(f"JECBS_RECORD_LOSS:{j}")
+          if k.get('articles') != 14111:
+              raise SystemExit(f"KYOTO_ARTICLE_LOSS:{k.get('articles')}")
+          if int(k.get('translation_units', 0)) < 400000:
+              raise SystemExit(f"KYOTO_TRANSLATION_UNIT_COUNT_SUSPICIOUS:{k.get('translation_units')}")
+          if k.get('missing_translation_units') != 0:
+              raise SystemExit(f"KYOTO_TRANSLATION_MISSING:{k.get('missing_translation_units')}")
+          if int(k.get('glossary_rows', 0)) < 40000:
+              raise SystemExit(f"KYOTO_GLOSSARY_COUNT_SUSPICIOUS:{k.get('glossary_rows')}")
+          if report.get('definition_fabricated') is not False:
+              raise SystemExit('PARALLEL_DEFINITION_FABRICATION')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('PARALLEL_BOUNDARY_VIOLATION')
+          for source in (j, k):
+              if len(str(source.get('source_sha256') or '')) != 64:
+                  raise SystemExit(f"PARALLEL_SOURCE_DIGEST_MISSING:{source.get('source_id')}")
           print({
-              'jecbs_sha256': j['source_sha256'],
-              'jecbs_sheets': [(s['name'], s['rows'], s['columns']) for s in j['workbook_sheets']],
-              'kyoto_sha256': k['source_sha256'],
-              'kyoto_xml_members': k['xml_members'],
-              'kyoto_glossary_candidates': k['glossary_candidates'],
+              'jecbs_records': j['records'],
+              'kyoto_articles': k['articles'],
+              'kyoto_translation_units': k['translation_units'],
+              'kyoto_sentence_units': k['sentence_units'],
+              'kyoto_final_checked_units': k['final_checked_units'],
+              'kyoto_glossary_rows': k['glossary_rows'],
+              'kyoto_glossary_pairs': k['glossary_bilingual_pair_rows'],
+              'kyoto_unknown_elements': k['unknown_elements'],
+              'tag_counts': k['tag_counts'],
           })
           PY
-      - name: Upload structure evidence
+          rm -rf work/public-parallel-sources/raw
+      - name: Upload normalized parallel evidence packs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: public-parallel-source-inspection-${{ github.sha }}
+          name: public-parallel-sources-${{ github.sha }}
           path: |
+            work/public-parallel-sources/normalized/**/*.jsonl
+            work/public-parallel-sources/sample/kyoto-first.xml
             reports/jecbs-source-inspection.json
             reports/kyoto-source-inspection.json
-            work/public-parallel-sources/sample/kyoto-first.xml
+            reports/public-parallel-sources-report.json
+            reports/public-parallel-sources-lock.json
           if-no-files-found: warn
           retention-days: 30
