@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "sources": [
     {
       "id": "nict-jec-basic-sentence-v1.2",
@@ -8,6 +8,7 @@
       "adapter": "jec_basic_sentence_xls",
       "url": "https://alaginrc.nict.go.jp/jecbs/src/JEC_basic_sentence_v1-2.xls",
       "homepage": "https://alaginrc.nict.go.jp/jecbs/index.htm",
+      "expected_source_sha256": "e3a40c8e80ce002e1fab10ccd20ace8760dd200731a27994fe54a1016b2aeafe",
       "license": "Creative Commons Attribution 3.0 Unported",
       "license_url": "https://creativecommons.org/licenses/by/3.0/",
       "attribution": "日本語基本文データ © 京都大学黒橋・河原研究室 / 英語中国語基本文データ © NICTマスタープロジェクト多言語翻訳研究室",
@@ -21,6 +22,7 @@
       "adapter": "wiki_kyoto_tar_xml",
       "url": "https://alaginrc.nict.go.jp/WikiCorpus/src/wiki_corpus_2.01.tar.gz",
       "homepage": "https://alaginrc.nict.go.jp/WikiCorpus/",
+      "expected_source_sha256": "456172bdd1d7a32dbe68ae3e55e0a6de25a4f40582636fd7712a5404319a10e5",
       "license": "Creative Commons Attribution-ShareAlike 3.0 Unported",
       "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
       "attribution": "Wikipedia日本語文を国立研究開発法人情報通信研究機構が英訳したデータをCC BY-SA 3.0の下で使用。詳細はNICT Wikipedia日英京都関連文書対訳コーパス参照。",
