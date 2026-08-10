@@ -1,126 +1,262 @@
-name: Public Source Harvest
+name: Frozen Raw Factory Input
 
 on:
-  workflow_dispatch:
-  push:
-    paths:
-      - "config/public_source_harvest.json"
-      - "config/public_source_harvest_wave2.json"
-      - "tools/public_source_harvest.py"
-      - ".github/workflows/public-source-harvest.yml"
   pull_request:
     paths:
-      - "config/public_source_harvest.json"
-      - "config/public_source_harvest_wave2.json"
-      - "tools/public_source_harvest.py"
+      - "config/frozen_raw_factory_input.json"
+      - "tools/build_frozen_raw_factory_input.py"
       - ".github/workflows/public-source-harvest.yml"
+  workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
+concurrency:
+  group: frozen-raw-factory-input-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  validate-inventory:
+  build-frozen-raw-input:
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CONFIG_PATH: config/frozen_raw_factory_input.json
+      WORK_ROOT: work/frozen-raw-input
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Validate acquisition-only harvester and both inventories
-        run: |
-          python -m py_compile tools/public_source_harvest.py
-          python tools/public_source_harvest.py self-test
-          python tools/public_source_harvest.py list --manifest config/public_source_harvest.json
-          python tools/public_source_harvest.py list --manifest config/public_source_harvest_wave2.json
 
-  acquire-raw-source-wave1:
-    needs: validate-inventory
-    strategy:
-      fail-fast: false
-      max-parallel: 6
-      matrix:
-        source_id:
-          - "unicode-ucd17-flat"
-          - "unicode-emoji17-test"
-          - "unicode-emoji17-sequences"
-          - "unicode-emoji17-zwj"
-          - "unicode-cldr48-core"
-          - "skk-dictionary"
-          - "sudachidict-source"
-          - "kwdlc"
-          - "ner-wikipedia"
-          - "emoji-ja"
-          - "ipsj-words"
-          - "ud-japanese-gsd"
-          - "ud-japanese-pud"
-          - "ud-japanese-gsdluw"
-          - "covost2-native-ja"
-          - "visa-ambiguity"
-          - "awesome-japanese-nlp"
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Acquire raw bytes and source-lock evidence
+
+      - name: Validate frozen-input builder
         run: |
-          python tools/public_source_harvest.py acquire \
-            --manifest config/public_source_harvest.json \
-            --source-id "${{ matrix.source_id }}" \
-            --output-root work/source-harvest
-      - name: Upload raw source and evidence
-        if: always()
+          python -m py_compile tools/build_frozen_raw_factory_input.py
+          python tools/build_frozen_raw_factory_input.py self-test
+          python tools/build_frozen_raw_factory_input.py validate-config \
+            --config "$CONFIG_PATH"
+
+      - name: Select and download already-collected GitHub artifacts
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          from datetime import datetime
+          import json
+          import os
+          from pathlib import Path
+          import urllib.parse
+          import urllib.request
+
+          config = json.loads(Path(os.environ["CONFIG_PATH"]).read_text(encoding="utf-8"))
+          repository = config["repository"]
+          branch = config["branch"]
+          freeze_at = datetime.fromisoformat(config["freeze_at"].replace("Z", "+00:00"))
+          token = os.environ["GH_TOKEN"]
+          work = Path(os.environ["WORK_ROOT"])
+          downloads = work / "downloads"
+          downloads.mkdir(parents=True, exist_ok=True)
+
+          api_root = f"https://api.github.com/repos/{repository}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "deterministic-japanese-parser-mcp-frozen-raw-input",
+          }
+
+          def get_json(url: str) -> dict:
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          def download(url: str, destination: Path) -> None:
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=300) as response:
+                  with destination.open("wb") as handle:
+                      while True:
+                          chunk = response.read(1024 * 1024)
+                          if not chunk:
+                              break
+                          handle.write(chunk)
+
+          selected_runs: list[dict] = []
+          selected_artifacts: list[dict] = []
+
+          for source in config["workflow_sources"]:
+              workflow_id = int(source["workflow_id"])
+              if source["selection"] == "pinned_runs":
+                  run_ids = [int(value) for value in source["run_ids"]]
+              else:
+                  query = urllib.parse.urlencode(
+                      {
+                          "branch": branch,
+                          "status": "success",
+                          "per_page": 100,
+                      }
+                  )
+                  payload = get_json(
+                      f"{api_root}/actions/workflows/{workflow_id}/runs?{query}"
+                  )
+                  candidates = []
+                  for run in payload.get("workflow_runs", []):
+                      created = datetime.fromisoformat(
+                          run["created_at"].replace("Z", "+00:00")
+                      )
+                      if created <= freeze_at:
+                          candidates.append(run)
+                  if not candidates:
+                      selected_runs.append(
+                          {
+                              "workflow_id": workflow_id,
+                              "workflow_name": source["name"],
+                              "status": "NO_SUCCESSFUL_RUN_BEFORE_FREEZE",
+                          }
+                      )
+                      continue
+                  candidates.sort(key=lambda row: row["created_at"], reverse=True)
+                  run_ids = [int(candidates[0]["id"])]
+
+              for run_id in run_ids:
+                  artifact_payload = get_json(
+                      f"{api_root}/actions/runs/{run_id}/artifacts?per_page=100"
+                  )
+                  selected_runs.append(
+                      {
+                          "workflow_id": workflow_id,
+                          "workflow_name": source["name"],
+                          "run_id": run_id,
+                          "artifact_count": len(artifact_payload.get("artifacts", [])),
+                      }
+                  )
+                  for artifact in artifact_payload.get("artifacts", []):
+                      if artifact.get("expired"):
+                          continue
+                      selected_artifacts.append(
+                          {
+                              "id": int(artifact["id"]),
+                              "name": artifact["name"],
+                              "size_in_bytes": int(artifact.get("size_in_bytes") or 0),
+                              "digest": artifact.get("digest"),
+                              "created_at": artifact.get("created_at"),
+                              "expires_at": artifact.get("expires_at"),
+                              "workflow_id": workflow_id,
+                              "workflow_name": source["name"],
+                              "workflow_run_id": run_id,
+                          }
+                      )
+
+          by_digest: dict[str, dict] = {}
+          by_id: dict[int, dict] = {}
+          for artifact in selected_artifacts:
+              digest = str(artifact.get("digest") or "")
+              if digest:
+                  current = by_digest.get(digest)
+                  if current is None or int(artifact["id"]) > int(current["id"]):
+                      by_digest[digest] = artifact
+              else:
+                  by_id[int(artifact["id"])] = artifact
+          artifacts = [*by_digest.values(), *by_id.values()]
+          artifacts.sort(key=lambda row: (row["workflow_name"], row["name"], row["id"]))
+
+          if not artifacts:
+              raise SystemExit("NO_COLLECTED_ARTIFACTS_BEFORE_FREEZE")
+
+          selected_path = work / "selected-artifacts.json"
+          selected_path.write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0.0",
+                      "freeze_at": config["freeze_at"],
+                      "selected_runs": selected_runs,
+                      "artifacts": artifacts,
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+
+          for artifact in artifacts:
+              artifact_id = int(artifact["id"])
+              destination = downloads / f"{artifact_id}.zip"
+              download(
+                  f"{api_root}/actions/artifacts/{artifact_id}/zip",
+                  destination,
+              )
+
+          print(
+              json.dumps(
+                  {
+                      "selected_artifacts": len(artifacts),
+                      "selected_runs": len(selected_runs),
+                      "download_bytes": sum(
+                          path.stat().st_size for path in downloads.glob("*.zip")
+                      ),
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY
+
+      - name: Build one frozen raw factory-input file
+        run: |
+          mkdir -p "$WORK_ROOT/output"
+          python tools/build_frozen_raw_factory_input.py build \
+            --config "$CONFIG_PATH" \
+            --selected-artifacts "$WORK_ROOT/selected-artifacts.json" \
+            --downloads-root "$WORK_ROOT/downloads" \
+            --output "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
+            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json"
+
+      - name: Prove bundle contains unchanged artifact ZIP bytes
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import tarfile
+
+          root = Path("work/frozen-raw-input")
+          manifest = json.loads(
+              (root / "output/mcp-collected-raw-factory-input-v1.manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          with tarfile.open(
+              root / "output/mcp-collected-raw-factory-input-v1.tar", "r"
+          ) as archive:
+              for artifact in manifest["artifacts"]:
+                  member = archive.getmember(artifact["bundle_path"])
+                  data = archive.extractfile(member).read()
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest != artifact["downloaded_zip_sha256"]:
+                      raise SystemExit(
+                          f"RAW_ARTIFACT_CHANGED:{artifact['id']}:{artifact['name']}"
+                      )
+          print(
+              json.dumps(
+                  {
+                      "status": "RAW_BYTES_UNCHANGED",
+                      "artifact_count": manifest["artifact_count"],
+                      "bundle_sha256": manifest["bundle_sha256"],
+                      "bundle_bytes": manifest["bundle_bytes"],
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY
+
+      - name: Upload the single factory-input data file
         uses: actions/upload-artifact@v4
         with:
-          name: source-harvest-wave1-${{ matrix.source_id }}-${{ github.sha }}
-          path: work/source-harvest/${{ matrix.source_id }}/
-          if-no-files-found: warn
-          retention-days: 30
-          compression-level: 0
-
-  acquire-raw-source-wave2:
-    needs: validate-inventory
-    strategy:
-      fail-fast: false
-      max-parallel: 6
-      matrix:
-        source_id:
-          - "jmnedict"
-          - "wlsp"
-          - "wlsp2unidic"
-          - "wlsp-familiarity"
-          - "wlsp-antonym"
-          - "wlsp-school-grade"
-          - "tsutsuji-familiarity"
-          - "kanji-familiarity"
-          - "bccwj-wsd-frequency"
-          - "chj-wlsp"
-          - "jcola"
-          - "real-persona-chat"
-          - "dbcls-meta-scientific-terms"
-          - "dbcls-meta-species-names"
-          - "dbcls-species-multilingual"
-          - "dbcls-species-japanese"
-          - "dbcls-scientific-ja-en"
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Acquire raw bytes and source-lock evidence
-        run: |
-          python tools/public_source_harvest.py acquire \
-            --manifest config/public_source_harvest_wave2.json \
-            --source-id "${{ matrix.source_id }}" \
-            --output-root work/source-harvest
-      - name: Upload raw source and evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-harvest-wave2-${{ matrix.source_id }}-${{ github.sha }}
-          path: work/source-harvest/${{ matrix.source_id }}/
-          if-no-files-found: warn
-          retention-days: 30
+          name: mcp-collected-raw-factory-input-v1
+          path: |
+            work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.tar
+            work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.manifest.json
+          if-no-files-found: error
+          retention-days: 90
           compression-level: 0
