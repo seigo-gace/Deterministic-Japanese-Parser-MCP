@@ -10,6 +10,10 @@ from unified_semantic_data.canonical_dictionary import (
     compile_canonical_dictionary,
     validate_compiled_dictionary_root,
 )
+from unified_semantic_data.canonical_runtime_projection import (
+    compile_runtime_projection,
+    validate_runtime_projection,
+)
 from unified_semantic_data.factory_foundation import (
     FOUNDATION_VERSION,
     build_foundation_assets,
@@ -38,6 +42,9 @@ DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
 DEFAULT_CANONICAL_DICTIONARY_ROOT = (
     ROOT / "dictionaries/system/compiled/canonical_dictionary"
+)
+DEFAULT_CANONICAL_RUNTIME_ROOT = (
+    ROOT / "dictionaries/system/compiled/canonical_dictionary_runtime"
 )
 DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
 DEFAULT_SEMANTIC_REFERENCE_ROOT = ROOT / "tools/unified_semantic_data/reference"
@@ -93,6 +100,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
                 "code-canonical-dictionary",
                 ROOT / "tools/unified_semantic_data/canonical_dictionary.py",
             ),
+            (
+                "code-canonical-runtime-projection",
+                ROOT / "tools/unified_semantic_data/canonical_runtime_projection.py",
+            ),
             ("code-bulk-review", ROOT / "tools/bulk_review_station.py"),
         ]
     )
@@ -110,6 +121,17 @@ def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
     return compile_canonical_dictionary(
         args.output_root,
         args.canonical_dictionary_root,
+        shard_size=args.shard_size,
+    )
+
+
+def _compile_canonical_runtime_if_needed(args: argparse.Namespace) -> dict:
+    manifest_path = args.canonical_runtime_root / "manifest.json"
+    if manifest_path.is_file():
+        return validate_runtime_projection(args.canonical_runtime_root)
+    return compile_runtime_projection(
+        args.canonical_dictionary_root,
+        args.canonical_runtime_root,
         shard_size=args.shard_size,
     )
 
@@ -159,6 +181,15 @@ def main() -> int:
         help=(
             "MCP-owned canonical dictionary output. It is compiled only from "
             "real, explicitly approved semantic meanings."
+        ),
+    )
+    parser.add_argument(
+        "--canonical-runtime-root",
+        type=Path,
+        default=DEFAULT_CANONICAL_RUNTIME_ROOT,
+        help=(
+            "compatibility projection of the MCP canonical dictionary for the "
+            "existing SemanticDataRuntime ABI; ParserEngine cutover is separate"
         ),
     )
     parser.add_argument("--shard-size", type=int, default=10000)
@@ -246,6 +277,7 @@ def main() -> int:
                 "review_batch_size": args.review_batch_size,
                 "compile_approved": args.compile_approved,
                 "canonical_dictionary_schema": "1.0.0",
+                "canonical_runtime_projection": "1.0.0",
             },
         )
         state_path = args.output_root / ".factory-state.json"
@@ -278,6 +310,9 @@ def main() -> int:
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
                 result["canonical_dictionary"] = _compile_dictionary_if_needed(args)
+                result["canonical_runtime_projection"] = (
+                    _compile_canonical_runtime_if_needed(args)
+                )
         else:
             review = build_review_assets(
                 open_lexicon_root=args.open_lexicon_root,
@@ -314,6 +349,11 @@ def main() -> int:
                 result["canonical_dictionary"] = compile_canonical_dictionary(
                     args.output_root,
                     args.canonical_dictionary_root,
+                    shard_size=args.shard_size,
+                )
+                result["canonical_runtime_projection"] = compile_runtime_projection(
+                    args.canonical_dictionary_root,
+                    args.canonical_runtime_root,
                     shard_size=args.shard_size,
                 )
             foundation = build_foundation_assets(
