@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "id": "nict-jec-basic-sentence-v1.2",
+      "title": "日英中基本文データ Version 1.2",
+      "status": "enabled",
+      "adapter": "jec_basic_sentence_xls",
+      "url": "https://alaginrc.nict.go.jp/jecbs/src/JEC_basic_sentence_v1-2.xls",
+      "homepage": "https://alaginrc.nict.go.jp/jecbs/index.htm",
+      "license": "Creative Commons Attribution 3.0 Unported",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "attribution": "日本語基本文データ © 京都大学黒橋・河原研究室 / 英語中国語基本文データ © NICTマスタープロジェクト多言語翻訳研究室",
+      "evidence_role": ["japanese_basic_sentence", "english_translation", "chinese_translation", "usage_example"],
+      "semantic_policy": "Parallel/usage evidence. Translations are preserved but are not automatically asserted as Japanese dictionary definitions."
+    },
+    {
+      "id": "nict-wikipedia-kyoto-corpus-v2.01",
+      "title": "Wikipedia日英京都関連文書対訳コーパス Version 2.01",
+      "status": "enabled",
+      "adapter": "wiki_kyoto_tar_xml",
+      "url": "https://alaginrc.nict.go.jp/WikiCorpus/src/wiki_corpus_2.01.tar.gz",
+      "homepage": "https://alaginrc.nict.go.jp/WikiCorpus/",
+      "license": "Creative Commons Attribution-ShareAlike 3.0 Unported",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "Wikipedia日本語文を国立研究開発法人情報通信研究機構が英訳したデータをCC BY-SA 3.0の下で使用。詳細はNICT Wikipedia日英京都関連文書対訳コーパス参照。",
+      "evidence_role": ["japanese_sentence", "translation_stage_1", "translation_stage_2", "final_checked_translation", "translator_comment", "domain_category", "bilingual_glossary"],
+      "semantic_policy": "Translation/domain evidence. The attached bilingual glossary is preserved as lexical translation evidence; neither sentence translation nor glossary entry is automatically promoted to monolingual Japanese definition."
+    }
+  ]
+}
