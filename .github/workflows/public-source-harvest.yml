@@ -7,6 +7,11 @@ on:
       - "config/public_source_harvest.json"
       - "tools/public_source_harvest.py"
       - ".github/workflows/public-source-harvest.yml"
+  pull_request:
+    paths:
+      - "config/public_source_harvest.json"
+      - "tools/public_source_harvest.py"
+      - ".github/workflows/public-source-harvest.yml"
 
 permissions:
   contents: read
