@@ -1,0 +1,142 @@
+name: Story Evaluation Package
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "tests/data/story_test_corpus.jsonl"
+      - "tests/data/story_test_expected.jsonl"
+      - "scripts/story_test.py"
+      - "scripts/generate_eval_package.py"
+      - ".github/workflows/story-eval.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  story-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Restore approved real-pack artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: p0-prepared-0cf78a5eed5e093ce90f1c795801ff117d4049ba
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31355237121
+          github-token: ${{ github.token }}
+          path: .
+
+      - name: Verify approved real-pack boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("dictionaries/system/compiled/semantic_data/manifest.json")
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "record_count": 123087,
+              "runtime_record_count": 122967,
+              "approved_only": True,
+              "automatic_external_action": False,
+          }
+          for key, value in expected.items():
+              if manifest.get(key) != value:
+                  raise SystemExit(
+                      f"real-pack mismatch: {key} expected={value!r} actual={manifest.get(key)!r}"
+                  )
+          print(expected)
+          PY
+
+      - name: Compile story evaluation scripts
+        run: python -m compileall -q scripts/story_test.py scripts/generate_eval_package.py
+
+      - name: Run 60-story MCP analysis
+        run: python scripts/story_test.py
+
+      - name: Generate external-AI evaluation package
+        run: python scripts/generate_eval_package.py
+
+      - name: Validate generated outputs
+        run: |
+          mkdir -p reports
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          actual_path = Path("tests/results/mcp_actual.jsonl")
+          package_path = Path("eval_package.md")
+          records = [
+              json.loads(line)
+              for line in actual_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          expected_ids = [f"story-{index:03d}" for index in range(1, 61)]
+          actual_ids = [item.get("id") for item in records]
+          if actual_ids != expected_ids:
+              raise SystemExit("story-test output IDs are not story-001..story-060")
+
+          errors = [item["id"] for item in records if "error" in item]
+          pack_mismatches = []
+          for item in records:
+              if "error" in item:
+                  continue
+              pack = item.get("semantic_pack") or {}
+              if pack.get("semantic_data_pack_record_count") != 123087:
+                  pack_mismatches.append(item["id"])
+              if pack.get("semantic_data_runtime_record_count") != 122967:
+                  pack_mismatches.append(item["id"])
+          if pack_mismatches:
+              raise SystemExit(
+                  "story-test did not use approved real pack: "
+                  + ",".join(sorted(set(pack_mismatches)))
+              )
+
+          package = package_path.read_text(encoding="utf-8")
+          for story_id in expected_ids[:10]:
+              if f"## {story_id}" not in package:
+                  raise SystemExit(f"evaluation package missing {story_id}")
+          if "## story-011" in package:
+              raise SystemExit("evaluation package must contain only representative story-001..010")
+
+          manifest = {
+              "actual_records": len(records),
+              "error_count": len(errors),
+              "error_story_ids": errors,
+              "sample_records": 10,
+              "real_pack_record_count": 123087,
+              "real_pack_runtime_record_count": 122967,
+              "gold_status": "HUMAN_REVIEW_PENDING",
+          }
+          Path("reports/story-eval-manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(manifest, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Upload story evaluation package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-eval-package-${{ github.sha }}
+          path: |
+            tests/results/mcp_actual.jsonl
+            eval_package.md
+            reports/story-eval-manifest.json
+          if-no-files-found: warn
+          retention-days: 30
