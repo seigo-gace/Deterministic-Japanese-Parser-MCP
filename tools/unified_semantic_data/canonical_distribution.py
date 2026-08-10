@@ -1,10 +1,10 @@
 """Build the public-compatible view of the MCP canonical dictionary.
 
-The canonical master/evidence-enriched dictionary may preserve approved evidence from
-sources whose redistribution terms differ. This stage removes source evidence that is
-not eligible for the default public-distributable dictionary and drops senses/records
-that would otherwise have no distributable meaning evidence. Auxiliary evidence is
-filtered under the same rule. No meaning is generated or reinterpreted here.
+The internal canonical dictionary may preserve approved meaning and auxiliary evidence
+from sources with different redistribution terms. This stage removes source evidence
+that is not eligible for the default public-distributable dictionary. It keeps record
+origin provenance separate from the source evidence that actually supplied each meaning.
+No meaning is generated, rewritten, or reinterpreted here.
 """
 from __future__ import annotations
 
@@ -13,20 +13,25 @@ import gzip
 import json
 from pathlib import Path
 import shutil
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from .canonical_dictionary import validate_compiled_dictionary_root
 from .common import _json_line, _sha256_bytes, _sha256_file, normalize_key
 from .license_policy import classify_data_license
 
-PUBLIC_DICTIONARY_VIEW_VERSION = "1.1.0"
+PUBLIC_DICTIONARY_VIEW_VERSION = "1.2.0"
 
 
 def _stable_unique(values: Iterable[Any]) -> list[str]:
     return sorted({str(value or "").strip() for value in values if str(value or "").strip()})
 
 
-def _iter_master_records(root: Path) -> Iterable[dict[str, Any]]:
+def _stable_objects(values: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_signature = {_json_line(value): value for value in values}
+    return [by_signature[key] for key in sorted(by_signature)]
+
+
+def _iter_master_records(root: Path) -> Iterator[dict[str, Any]]:
     manifest = validate_compiled_dictionary_root(root)
     for shard in range(int(manifest.get("record_shards", 0))):
         path = root / "records" / f"dictionary-{shard:04d}.jsonl.gz"
@@ -57,69 +62,52 @@ def _allowed_evidence(
             allowed.append(item)
         else:
             excluded.append(item)
-    allowed.sort(key=_json_line)
-    excluded.sort(key=_json_line)
-    return allowed, excluded
+    return _stable_objects(allowed), _stable_objects(excluded)
 
 
-def _filter_auxiliary_evidence(
+def _exclusion(
+    *,
+    kind: str,
     record: dict[str, Any],
-) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
-    result: dict[str, list[dict[str, Any]]] = {}
-    excluded_rows: list[dict[str, Any]] = []
-    for role, rows in sorted((record.get("auxiliary_evidence") or {}).items()):
-        allowed_role: list[dict[str, Any]] = []
-        for evidence in rows or []:
-            source = evidence.get("source") or {}
-            classification = classify_data_license(source.get("license"))
-            copied = dict(evidence)
-            copied["distribution_license"] = classification
-            if classification["public_dictionary_allowed"] is True:
-                allowed_role.append(copied)
-            else:
-                excluded_rows.append(
-                    {
-                        "kind": "auxiliary-evidence",
-                        "dictionary_id": record.get("dictionary_id"),
-                        "sense_id": None,
-                        "evidence_id": evidence.get("evidence_id"),
-                        "source_role": role,
-                        "source_record_id": source.get("source_id"),
-                        "dataset": source.get("dataset"),
-                        "license": source.get("license"),
-                        "tier": classification["tier"],
-                        "reason": classification["reason"],
-                    }
-                )
-        if allowed_role:
-            allowed_role.sort(key=lambda row: row["evidence_id"])
-            result[role] = allowed_role
-    return dict(sorted(result.items())), sorted(excluded_rows, key=_json_line)
+    source: dict[str, Any],
+    sense_id: str | None = None,
+    evidence_id: str | None = None,
+    source_role: str | None = None,
+) -> dict[str, Any]:
+    classification = source.get("distribution_license") or classify_data_license(
+        source.get("license")
+    )
+    return {
+        "kind": kind,
+        "dictionary_id": record.get("dictionary_id"),
+        "sense_id": sense_id,
+        "evidence_id": evidence_id,
+        "source_role": source_role,
+        "source_record_id": source.get("source_record_id") or source.get("source_id"),
+        "dataset": source.get("dataset"),
+        "license": source.get("license"),
+        "tier": classification["tier"],
+        "reason": classification["reason"],
+    }
 
 
-def public_record_view(
+def _filter_senses(
     record: dict[str, Any],
-) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    excluded_rows: list[dict[str, Any]] = []
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     senses: list[dict[str, Any]] = []
-    allowed_source_ids: set[str] = set()
-
+    meaning_sources: list[dict[str, Any]] = []
+    exclusions: list[dict[str, Any]] = []
     for sense in record.get("senses") or []:
         allowed, excluded = _allowed_evidence(sense.get("source_evidence") or [])
-        for row in excluded:
-            excluded_rows.append(
-                {
-                    "kind": "meaning-source-evidence",
-                    "dictionary_id": record.get("dictionary_id"),
-                    "sense_id": sense.get("sense_id"),
-                    "evidence_id": None,
-                    "source_role": "meaning",
-                    "source_record_id": row.get("source_record_id"),
-                    "dataset": row.get("dataset"),
-                    "license": row.get("license"),
-                    "tier": row["distribution_license"]["tier"],
-                    "reason": row["distribution_license"]["reason"],
-                }
+        for source in excluded:
+            exclusions.append(
+                _exclusion(
+                    kind="meaning-source-evidence",
+                    record=record,
+                    sense_id=str(sense.get("sense_id") or ""),
+                    source_role="meaning",
+                    source=source,
+                )
             )
         if not allowed:
             continue
@@ -127,79 +115,128 @@ def public_record_view(
         copied["source_evidence"] = allowed
         copied["evidence_count"] = len(allowed)
         senses.append(copied)
-        allowed_source_ids.update(
-            str(row.get("source_record_id"))
-            for row in allowed
-            if row.get("source_record_id")
+        meaning_sources.extend(allowed)
+    senses.sort(key=lambda item: str(item.get("sense_id") or ""))
+    return senses, _stable_objects(meaning_sources), _stable_objects(exclusions)
+
+
+def _filter_record_origins(
+    record: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    allowed, excluded = _allowed_evidence(record.get("source_evidence") or [])
+    exclusions = [
+        _exclusion(
+            kind="record-origin-evidence",
+            record=record,
+            source_role="lexical-origin",
+            source=source,
         )
-
-    if not senses:
-        return None, sorted(excluded_rows, key=_json_line)
-
-    record_evidence, record_excluded = _allowed_evidence(
-        record.get("source_evidence") or []
-    )
-    for row in record_excluded:
-        source_record_id = str(row.get("source_record_id") or "")
-        if not any(
-            item.get("source_record_id") == source_record_id
-            and item.get("kind") == "meaning-source-evidence"
-            for item in excluded_rows
-        ):
-            excluded_rows.append(
-                {
-                    "kind": "meaning-source-evidence",
-                    "dictionary_id": record.get("dictionary_id"),
-                    "sense_id": None,
-                    "evidence_id": None,
-                    "source_role": "meaning",
-                    "source_record_id": source_record_id,
-                    "dataset": row.get("dataset"),
-                    "license": row.get("license"),
-                    "tier": row["distribution_license"]["tier"],
-                    "reason": row["distribution_license"]["reason"],
-                }
-            )
-    record_evidence = [
-        row
-        for row in record_evidence
-        if str(row.get("source_record_id") or "") in allowed_source_ids
+        for source in excluded
     ]
-    if not record_evidence:
-        return None, sorted(excluded_rows, key=_json_line)
+    return allowed, _stable_objects(exclusions)
 
-    auxiliary, auxiliary_excluded = _filter_auxiliary_evidence(record)
-    excluded_rows.extend(auxiliary_excluded)
-    tiers = _stable_unique(
-        (row.get("distribution_license") or {}).get("tier")
-        for row in record_evidence
+
+def _filter_auxiliary_evidence(
+    record: dict[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    result: dict[str, list[dict[str, Any]]] = {}
+    exclusions: list[dict[str, Any]] = []
+    for role, rows in sorted((record.get("auxiliary_evidence") or {}).items()):
+        allowed_role: list[dict[str, Any]] = []
+        for evidence in rows or []:
+            source = dict(evidence.get("source") or {})
+            classification = classify_data_license(source.get("license"))
+            copied = dict(evidence)
+            copied["distribution_license"] = classification
+            if classification["public_dictionary_allowed"] is True:
+                allowed_role.append(copied)
+            else:
+                source["distribution_license"] = classification
+                exclusions.append(
+                    _exclusion(
+                        kind="auxiliary-evidence",
+                        record=record,
+                        evidence_id=str(evidence.get("evidence_id") or ""),
+                        source_role=role,
+                        source=source,
+                    )
+                )
+        if allowed_role:
+            result[role] = sorted(
+                allowed_role,
+                key=lambda item: str(item.get("evidence_id") or ""),
+            )
+    return dict(sorted(result.items())), _stable_objects(exclusions)
+
+
+def public_record_view(
+    record: dict[str, Any],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Return the distributable view of one canonical record.
+
+    A record is retained when at least one sense still has distributable meaning
+    evidence. Record-origin evidence is useful provenance, but it is not incorrectly
+    required to be the same source that supplied the definition: enrichment can derive
+    a reviewed sense from a different semantic reference source.
+    """
+    senses, meaning_sources, sense_exclusions = _filter_senses(record)
+    record_origins, origin_exclusions = _filter_record_origins(record)
+    auxiliary, auxiliary_exclusions = _filter_auxiliary_evidence(record)
+    exclusions = _stable_objects(
+        [*sense_exclusions, *origin_exclusions, *auxiliary_exclusions]
+    )
+    if not senses or not meaning_sources:
+        return None, exclusions
+
+    all_public_sources = _stable_objects([*meaning_sources, *record_origins])
+    source_record_ids = _stable_unique(
+        source.get("source_record_id") or source.get("source_id")
+        for source in all_public_sources
+    )
+    meaning_tiers = _stable_unique(
+        (source.get("distribution_license") or {}).get("tier")
+        for source in meaning_sources
+    )
+    origin_tiers = _stable_unique(
+        (source.get("distribution_license") or {}).get("tier")
+        for source in record_origins
     )
     auxiliary_tiers = _stable_unique(
         (item.get("distribution_license") or {}).get("tier")
         for values in auxiliary.values()
         for item in values
     )
+
     public = dict(record)
     public["senses"] = senses
-    public["source_evidence"] = record_evidence
-    public["source_record_ids"] = sorted(allowed_source_ids)
-    public["source_evidence_count"] = len(record_evidence)
+    public["meaning_source_evidence"] = meaning_sources
+    public["record_source_evidence"] = record_origins
+    # Compatibility field used by existing indexes/packaging; it is the stable union,
+    # while the two explicit fields above preserve provenance semantics.
+    public["source_evidence"] = all_public_sources
+    public["source_record_ids"] = source_record_ids
+    public["source_evidence_count"] = len(all_public_sources)
     public["auxiliary_evidence"] = auxiliary
-    public["auxiliary_evidence_count"] = sum(len(values) for values in auxiliary.values())
+    public["auxiliary_evidence_count"] = sum(
+        len(values) for values in auxiliary.values()
+    )
     public["distribution"] = {
         "view": "public-compatible",
-        "meaning_license_tiers": tiers,
+        "meaning_license_tiers": meaning_tiers,
+        "record_origin_license_tiers": origin_tiers,
         "auxiliary_license_tiers": auxiliary_tiers,
         "contains_noncommercial_source": False,
         "contains_no_derivatives_source": False,
-        "excluded_source_evidence_count": len(excluded_rows),
+        "excluded_source_evidence_count": len(exclusions),
     }
     public["boundaries"] = {
         **dict(public.get("boundaries") or {}),
         "public_distribution_view": True,
         "license_incompatible_evidence_excluded": True,
+        "meaning_source_and_record_origin_provenance_separated": True,
+        "distributable_meaning_source_required": True,
     }
-    return public, sorted(excluded_rows, key=_json_line)
+    return public, exclusions
 
 
 def _write_gzip(path: Path, payload: bytes) -> dict[str, Any]:
@@ -239,7 +276,7 @@ def compile_public_dictionary_view(
         if public is not None:
             records.append(public)
     records.sort(key=lambda row: row["dictionary_id"])
-    exclusions.sort(key=_json_line)
+    exclusions = _stable_objects(exclusions)
 
     if output_root.exists():
         shutil.rmtree(output_root)
@@ -251,9 +288,10 @@ def compile_public_dictionary_view(
     pos_index: dict[str, set[str]] = defaultdict(set)
     domain_index: dict[str, set[str]] = defaultdict(set)
     sense_index: dict[str, str] = {}
-    source_record_index: dict[str, str] = {}
+    source_record_index: dict[str, set[str]] = defaultdict(set)
     record_locator: dict[str, dict[str, int]] = {}
     tier_counts: Counter[str] = Counter()
+    origin_tier_counts: Counter[str] = Counter()
     auxiliary_tier_counts: Counter[str] = Counter()
     dataset_counts: Counter[str] = Counter()
     auxiliary_role_counts: Counter[str] = Counter()
@@ -280,17 +318,28 @@ def compile_public_dictionary_view(
             sense_index[sense["sense_id"]] = dictionary_id
             sense_count += 1
         for source in record["source_evidence"]:
-            source_record_index[source["source_record_id"]] = dictionary_id
-            classification = source.get("distribution_license") or {}
-            tier_counts[str(classification.get("tier") or "unknown")] += 1
+            source_id = str(
+                source.get("source_record_id") or source.get("source_id") or ""
+            )
+            if source_id:
+                source_record_index[source_id].add(dictionary_id)
             dataset_counts[str(source.get("dataset") or "")] += 1
             source_evidence_count += 1
+        for source in record.get("meaning_source_evidence") or []:
+            tier_counts[
+                str((source.get("distribution_license") or {}).get("tier") or "unknown")
+            ] += 1
+        for source in record.get("record_source_evidence") or []:
+            origin_tier_counts[
+                str((source.get("distribution_license") or {}).get("tier") or "unknown")
+            ] += 1
         for role, values in (record.get("auxiliary_evidence") or {}).items():
             auxiliary_role_counts[role] += len(values)
             auxiliary_evidence_count += len(values)
             for item in values:
-                classification = item.get("distribution_license") or {}
-                auxiliary_tier_counts[str(classification.get("tier") or "unknown")] += 1
+                auxiliary_tier_counts[
+                    str((item.get("distribution_license") or {}).get("tier") or "unknown")
+                ] += 1
 
     outputs: list[dict[str, Any]] = []
     indexes: dict[str, Any] = {
@@ -310,7 +359,9 @@ def compile_public_dictionary_view(
             key: sorted(values) for key, values in sorted(domain_index.items())
         },
         "sense-index.json.gz": dict(sorted(sense_index.items())),
-        "source-record-index.json.gz": dict(sorted(source_record_index.items())),
+        "source-record-index.json.gz": {
+            key: sorted(values) for key, values in sorted(source_record_index.items())
+        },
         "record-locator.json.gz": dict(sorted(record_locator.items())),
     }
     for name, mapping in indexes.items():
@@ -322,8 +373,7 @@ def compile_public_dictionary_view(
     for start in range(0, len(records), shard_size):
         selected = records[start : start + shard_size]
         payload = b"".join(
-            (_json_line(item) + "\n").encode("utf-8")
-            for item in selected
+            (_json_line(item) + "\n").encode("utf-8") for item in selected
         )
         relative = f"records/dictionary-{start // shard_size:04d}.jsonl.gz"
         meta = _write_gzip(output_root / relative, payload)
@@ -353,7 +403,8 @@ def compile_public_dictionary_view(
         "source_evidence_count": source_evidence_count,
         "auxiliary_evidence_count": auxiliary_evidence_count,
         "license_exclusion_count": len(exclusions),
-        "license_tier_counts": dict(sorted(tier_counts.items())),
+        "meaning_license_tier_counts": dict(sorted(tier_counts.items())),
+        "record_origin_license_tier_counts": dict(sorted(origin_tier_counts.items())),
         "auxiliary_license_tier_counts": dict(sorted(auxiliary_tier_counts.items())),
         "auxiliary_role_counts": dict(sorted(auxiliary_role_counts.items())),
         "dataset_counts": dict(sorted(dataset_counts.items())),
@@ -376,6 +427,8 @@ def compile_public_dictionary_view(
             "noncommercial_source_auto_promotion": False,
             "no_derivatives_source_auto_promotion": False,
             "auxiliary_evidence_license_filtered": True,
+            "meaning_source_and_record_origin_provenance_separated": True,
+            "distributable_meaning_source_required": True,
         },
         "outputs": outputs,
     }
