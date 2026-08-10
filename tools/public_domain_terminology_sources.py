@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Normalize NBDC science/medical/chemical MeCab terminology dictionaries.
+"""Normalize NBDC science/medical/chemical terminology CSV distributions.
 
-These archives are domain/morphology evidence. The source explicitly says term
-relations are not present, so this adapter never manufactures synonym or definition
-edges. Empty reading/pronunciation fields remain empty and source identifiers are
-retained for later semantic evidence joins.
+The official ZIPs contain one 21-field CSV header followed by data rows. The header
+is preserved in report evidence but is never emitted as a lexical/domain record.
+These sources are domain/morphology evidence only; no definition or thesaurus edge
+is fabricated.
 """
 from __future__ import annotations
 
@@ -20,28 +20,18 @@ from typing import Any
 import zipfile
 
 FIELDS = [
-    "surface",
-    "left_context_id",
-    "right_context_id",
-    "cost",
-    "pos",
-    "pos_subcategory_1",
-    "pos_subcategory_2",
-    "pos_subcategory_3",
-    "conjugation_type",
-    "conjugation_form",
-    "base_form",
-    "reading",
-    "pronunciation",
-    "source_dictionary",
-    "source_dictionary_id",
-    "jglobal_id",
-    "headword_flag",
-    "category_code",
-    "common_word_flag_1",
-    "common_word_flag_2",
+    "surface", "left_context_id", "right_context_id", "cost", "pos",
+    "pos_subcategory_1", "pos_subcategory_2", "pos_subcategory_3",
+    "conjugation_type", "conjugation_form", "base_form", "reading",
+    "pronunciation", "source_dictionary", "source_dictionary_id", "jglobal_id",
+    "headword_flag", "category_code", "common_word_flag_1", "common_word_flag_2",
     "ipa_dictionary_analysis",
 ]
+HEADER_MARKERS = {
+    "source_dictionary": "Source dictionary",
+    "headword_flag": "Headword Flag",
+    "category_code": "Category code",
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -62,24 +52,25 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def select_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo:
     files = [info for info in archive.infolist() if not info.is_dir()]
     candidates = [
-        info
-        for info in files
-        if PurePosixPath(info.filename).suffix.casefold() in {".dic", ".csv", ".txt"}
+        info for info in files
+        if PurePosixPath(info.filename).suffix.casefold() in {".csv", ".txt"}
     ]
     if not candidates:
-        raise RuntimeError(f"no dictionary member found: {archive.namelist()}")
+        raise RuntimeError(f"no CSV/text dictionary member found: {archive.namelist()}")
     return max(candidates, key=lambda info: info.file_size)
 
 
 def decode_payload(payload: bytes) -> tuple[str, str]:
     candidates: list[tuple[int, int, str, str]] = []
-    for order, encoding in enumerate(
-        ("utf-8-sig", "utf-8", "cp932", "shift_jis", "euc_jp")
-    ):
+    for order, encoding in enumerate(("utf-8-sig", "utf-8", "cp932", "shift_jis", "euc_jp")):
         text = payload.decode(encoding, errors="replace")
         candidates.append((text.count("\ufffd"), order, encoding, text))
     _, _, encoding, text = min(candidates)
     return encoding, text
+
+
+def is_expected_header(values: dict[str, str]) -> bool:
+    return all(values[field] == expected for field, expected in HEADER_MARKERS.items())
 
 
 def normalize_one(
@@ -93,12 +84,13 @@ def normalize_one(
         member = select_member(archive)
         payload = archive.read(member)
     encoding, text = decode_payload(payload)
-    # newline="" is required by Python's csv module so CR/LF/CRLF records from
-    # the published dictionary are interpreted by the CSV parser rather than
-    # surfacing a false "new-line character seen in unquoted field" error.
     reader = csv.reader(io.StringIO(text, newline=""))
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    source_nonempty_rows = 0
     records = 0
+    header_rows = 0
+    header_fields: list[str] = []
     empty_reading = 0
     empty_pronunciation = 0
     source_dictionary_values: Counter[str] = Counter()
@@ -106,28 +98,41 @@ def normalize_one(
     category_values: Counter[str] = Counter()
     source_field_counts: Counter[int] = Counter()
     malformed: list[dict[str, Any]] = []
+
     with output_path.open("w", encoding="utf-8", newline="\n") as output:
         for source_row_number, row in enumerate(reader, 1):
             if not row or not any(cell.strip() for cell in row):
                 continue
+            source_nonempty_rows += 1
             source_field_counts[len(row)] += 1
             if len(row) != len(FIELDS):
                 if len(malformed) < 50:
-                    malformed.append(
-                        {
-                            "source_row_number": source_row_number,
-                            "field_count": len(row),
-                            "sample": row[:30],
-                        }
-                    )
+                    malformed.append({
+                        "source_row_number": source_row_number,
+                        "field_count": len(row),
+                        "sample": row[:30],
+                    })
                 continue
+
             values = {field: row[index].strip() for index, field in enumerate(FIELDS)}
+            if source_nonempty_rows == 1:
+                if not is_expected_header(values):
+                    raise RuntimeError(
+                        f"terminology CSV header changed: source={spec['id']} "
+                        f"markers={{k: values[k] for k in HEADER_MARKERS}}"
+                    )
+                header_rows = 1
+                header_fields = [cell.strip() for cell in row]
+                continue
+            if is_expected_header(values):
+                raise RuntimeError(
+                    f"duplicate terminology CSV header: source={spec['id']} row={source_row_number}"
+                )
             if not values["surface"]:
                 if len(malformed) < 50:
-                    malformed.append(
-                        {"source_row_number": source_row_number, "error": "empty surface"}
-                    )
+                    malformed.append({"source_row_number": source_row_number, "error": "empty surface"})
                 continue
+
             if not values["reading"]:
                 empty_reading += 1
             if not values["pronunciation"]:
@@ -138,6 +143,7 @@ def normalize_one(
                 for category in values["category_code"].split("|"):
                     if category.strip():
                         category_values[category.strip()] += 1
+
             record = {
                 "record_id": f"{spec['id']}:{source_row_number:09d}",
                 "source_row_number": source_row_number,
@@ -158,26 +164,29 @@ def normalize_one(
                     "definition or term-to-term relation"
                 ),
             }
-            output.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                + "\n"
-            )
+            output.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
             records += 1
+
     if malformed:
         raise RuntimeError(
             f"terminology source has malformed rows: count_at_least={len(malformed)} "
-            f"field_histogram={dict(sorted(source_field_counts.items()))} "
-            f"sample={malformed[:10]}"
+            f"field_histogram={dict(sorted(source_field_counts.items()))} sample={malformed[:10]}"
+        )
+    if header_rows != 1 or len(header_fields) != len(FIELDS):
+        raise RuntimeError(f"terminology header evidence incomplete: source={spec['id']}")
+    if source_nonempty_rows != records + header_rows:
+        raise RuntimeError(
+            f"terminology source row loss: source={spec['id']} source_rows={source_nonempty_rows} "
+            f"header={header_rows} data={records}"
         )
     if records == 0:
-        raise RuntimeError("terminology source produced no records")
+        raise RuntimeError("terminology source produced no data records")
+
     return {
         "source_id": spec["id"],
+        "source_nonempty_rows": source_nonempty_rows,
+        "header_rows": header_rows,
+        "header_fields": header_fields,
         "records": records,
         "source_sha256": source_sha,
         "source_bytes": archive_path.stat().st_size,
@@ -185,7 +194,7 @@ def normalize_one(
         "zip_member_bytes": member.file_size,
         "encoding": encoding,
         "field_count": len(FIELDS),
-        "source_field_count_histogram": dict(sorted(source_field_counts.items())),
+        "source_field_count_histogram": {str(k): v for k, v in sorted(source_field_counts.items())},
         "empty_reading_records": empty_reading,
         "empty_pronunciation_records": empty_pronunciation,
         "source_dictionary_counts": dict(sorted(source_dictionary_values.items())),
@@ -221,10 +230,13 @@ def normalize_all(
         reports.append(normalize_one(spec, license_spec, source_path, output_path))
     if not reports:
         raise RuntimeError("no enabled terminology sources")
+
     report = {
         "schema_version": manifest.get("schema_version"),
         "status": "NORMALIZED",
         "source_count": len(reports),
+        "total_source_nonempty_rows": sum(item["source_nonempty_rows"] for item in reports),
+        "total_header_rows": sum(item["header_rows"] for item in reports),
         "total_records": sum(item["records"] for item in reports),
         "field_count": len(FIELDS),
         "fields": FIELDS,
@@ -243,8 +255,10 @@ def normalize_all(
                 "source_id": item["source_id"],
                 "source_sha256": item["source_sha256"],
                 "source_bytes": item["source_bytes"],
-                "normalized_sha256": item["normalized_sha256"],
+                "source_nonempty_rows": item["source_nonempty_rows"],
+                "header_rows": item["header_rows"],
                 "records": item["records"],
+                "normalized_sha256": item["normalized_sha256"],
                 "lock_state": "computed-source-and-normalized-digest",
             }
             for item in reports
@@ -252,14 +266,8 @@ def normalize_all(
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    lock_path.write_text(
-        json.dumps(locks, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    lock_path.write_text(json.dumps(locks, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
 
 
@@ -270,71 +278,32 @@ def self_test() -> dict[str, Any]:
         source_root = root / "source"
         output_root = root / "out"
         source_root.mkdir()
-        manifest.write_text(
-            json.dumps(
-                {
-                    "schema_version": "1",
-                    "license": {
-                        "name": "CC BY-SA 4.0",
-                        "license_url": "x",
-                        "terms_url": "y",
-                        "attribution": "z",
-                    },
-                    "sources": [
-                        {
-                            "id": "test",
-                            "title": "test",
-                            "status": "enabled",
-                            "url": "x",
-                            "homepage": "y",
-                            "domain": ["science"],
-                        }
-                    ],
-                },
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
+        manifest.write_text(json.dumps({
+            "schema_version": "1",
+            "license": {"name": "CC BY-SA 4.0", "license_url": "x", "terms_url": "y", "attribution": "z"},
+            "sources": [{"id": "test", "title": "test", "status": "enabled", "url": "x", "homepage": "y", "domain": ["science"]}],
+        }, ensure_ascii=False), encoding="utf-8")
+
+        header = [f"Column {i+1}" for i in range(len(FIELDS))]
+        header[13] = "Source dictionary"
+        header[16] = "Headword Flag"
+        header[17] = "Category code"
         row = [
-            "量子",
-            "1",
-            "1",
-            "100",
-            "名詞",
-            "一般",
-            "*",
-            "*",
-            "*",
-            "*",
-            "量子",
-            "リョウシ",
-            "リョーシ",
-            "Thesaurus2015",
-            "T1",
-            "JG1",
-            "C",
-            "PA01",
-            "1",
-            "名詞",
-            "量子/名詞",
+            "量子", "1", "1", "100", "名詞", "一般", "*", "*", "*", "*", "量子",
+            "リョウシ", "リョーシ", "Thesaurus2015", "T1", "JG1", "C", "PA01", "1", "名詞", "量子/名詞",
         ]
         archive_path = source_root / "test.zip"
-        with zipfile.ZipFile(
-            archive_path, "w", compression=zipfile.ZIP_DEFLATED
-        ) as archive:
+        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             buffer = io.StringIO(newline="")
-            csv.writer(buffer, lineterminator="\r\n").writerow(row)
-            archive.writestr("test.dic", buffer.getvalue().encode("utf-8"))
-        report = normalize_all(
-            manifest,
-            source_root,
-            output_root,
-            root / "report.json",
-            root / "lock.json",
-        )
-        if report["total_records"] != 1 or report["field_count"] != 21:
+            writer = csv.writer(buffer, lineterminator="\r\n")
+            writer.writerow(header)
+            writer.writerow(row)
+            archive.writestr("test.csv", buffer.getvalue().encode("utf-8"))
+        report = normalize_all(manifest, source_root, output_root, root / "report.json", root / "lock.json")
+        item = report["sources"][0]
+        if report["total_records"] != 1 or item["header_rows"] != 1 or item["source_nonempty_rows"] != 2:
             raise RuntimeError(f"self-test failed: {report}")
-        return {"status": "PASS", "records": 1, "fields": 21}
+        return {"status": "PASS", "records": 1, "header_rows": 1, "source_rows": 2, "fields": 21}
 
 
 def main() -> int:
@@ -349,24 +318,9 @@ def main() -> int:
     if args.self_test:
         print(json.dumps(self_test(), ensure_ascii=False, sort_keys=True))
         return 0
-    if any(
-        value is None
-        for value in (
-            args.manifest,
-            args.source_root,
-            args.output_root,
-            args.report,
-            args.lock,
-        )
-    ):
+    if any(value is None for value in (args.manifest, args.source_root, args.output_root, args.report, args.lock)):
         parser.error("--manifest --source-root --output-root --report --lock are required")
-    result = normalize_all(
-        args.manifest,
-        args.source_root,
-        args.output_root,
-        args.report,
-        args.lock,
-    )
+    result = normalize_all(args.manifest, args.source_root, args.output_root, args.report, args.lock)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
 
