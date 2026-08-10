@@ -79,21 +79,26 @@ def normalize_predicate(
                 continue
             nonempty_source_lines += 1
             fields = raw.split("\t")
-            if len(fields) == 1:
-                label = fields[0].strip()
-                if not label:
-                    continue
+            label = fields[0].strip() if fields else ""
+            tail = "\t".join(fields[1:]).strip() if len(fields) >= 2 else ""
+
+            # The published predicate dictionary contains section labels in both
+            # one-field form and "label<TAB>" form.  A trailing empty field is
+            # source structure, not a malformed sentiment expression.  Preserve
+            # the exact raw line and raw fields in either representation.
+            if label and (len(fields) == 1 or not tail):
                 record = {
                     "record_type": "section",
                     "source_line_number": line_number,
                     "label": label,
+                    "raw_fields": fields,
                     "raw_line": raw,
                     "source": source_meta(spec, source_sha),
                 }
                 section_rows += 1
             elif len(fields) >= 2:
-                polarity = fields[0].strip()
-                expression = "\t".join(fields[1:]).strip()
+                polarity = label
+                expression = tail
                 if not polarity or not expression:
                     if len(malformed) < 50:
                         malformed.append(
@@ -115,7 +120,11 @@ def normalize_predicate(
                 data_records += 1
                 polarity_counts[polarity] += 1
             else:
-                raise AssertionError("unreachable")
+                if len(malformed) < 50:
+                    malformed.append(
+                        {"line": line_number, "fields": fields, "raw": raw}
+                    )
+                continue
             handle.write(
                 json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
                 + "\n"
