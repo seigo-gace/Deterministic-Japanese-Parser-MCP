@@ -1,0 +1,72 @@
+name: Public Source Harvest
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "config/public_source_harvest.json"
+      - "tools/public_source_harvest.py"
+      - ".github/workflows/public-source-harvest.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate acquisition-only harvester
+        run: |
+          python -m py_compile tools/public_source_harvest.py
+          python tools/public_source_harvest.py self-test
+          python tools/public_source_harvest.py list --manifest config/public_source_harvest.json
+
+  acquire-raw-source:
+    needs: validate-inventory
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        source_id:
+          - "unicode-ucd17-flat"
+          - "unicode-emoji17-test"
+          - "unicode-emoji17-sequences"
+          - "unicode-emoji17-zwj"
+          - "unicode-cldr48-core"
+          - "skk-dictionary"
+          - "sudachidict-source"
+          - "kwdlc"
+          - "ner-wikipedia"
+          - "emoji-ja"
+          - "ipsj-words"
+          - "ud-japanese-gsd"
+          - "ud-japanese-pud"
+          - "ud-japanese-gsdluw"
+          - "covost2-native-ja"
+          - "visa-ambiguity"
+          - "awesome-japanese-nlp"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Acquire raw bytes and source-lock evidence
+        run: |
+          python tools/public_source_harvest.py acquire \
+            --manifest config/public_source_harvest.json \
+            --source-id "${{ matrix.source_id }}" \
+            --output-root work/source-harvest
+      - name: Upload raw source and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-harvest-${{ matrix.source_id }}-${{ github.sha }}
+          path: work/source-harvest/${{ matrix.source_id }}/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 0
