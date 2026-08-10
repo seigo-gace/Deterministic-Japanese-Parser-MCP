@@ -41,6 +41,18 @@ def _json_block(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
 
 
+def _actual_for_evaluation(item: dict[str, Any]) -> dict[str, Any]:
+    """Remove evaluator-irrelevant bulk while preserving semantic outcomes."""
+    projected = json.loads(json.dumps(item, ensure_ascii=False))
+    context = projected.get("context_dependent_sense")
+    if isinstance(context, dict):
+        context.pop("lexical_resolution", None)
+    slang = projected.get("slang_meaning")
+    if isinstance(slang, dict):
+        slang.pop("semantic_senses", None)
+    return projected
+
+
 def generate_package(
     corpus_path: Path = DEFAULT_CORPUS,
     expected_path: Path = DEFAULT_EXPECTED,
@@ -147,7 +159,7 @@ def generate_package(
                 "### MCP実際出力",
                 "",
                 "```json",
-                _json_block(actual[story_id]),
+                _json_block(_actual_for_evaluation(actual[story_id])),
                 "```",
                 "",
                 "### 評価スコア（各項目0〜100点）",
