@@ -7,6 +7,7 @@ on:
       - "config/public_semantic_sources.json"
       - "tools/public_semantic_sources.py"
       - "tools/public_kanji_sources.py"
+      - "tools/public_dependency_sources.py"
       - ".github/workflows/public-semantic-sources.yml"
 
 permissions:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   acquire-and-normalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,7 +28,10 @@ jobs:
       - name: Validate source policy manifest and Python syntax
         run: |
           python tools/public_semantic_sources.py validate-manifest --manifest config/public_semantic_sources.json
-          python -m py_compile tools/public_semantic_sources.py tools/public_kanji_sources.py
+          python -m py_compile \
+            tools/public_semantic_sources.py \
+            tools/public_kanji_sources.py \
+            tools/public_dependency_sources.py
       - name: Run deterministic adapter self-test
         run: python tools/public_semantic_sources.py self-test
       - name: Prepare base-source manifest
@@ -61,6 +65,51 @@ jobs:
             --output-root work/public-semantic-sources \
             --report reports/public-semantic-sources-report.json \
             --lock reports/public-semantic-sources-lock.json
+      - name: Acquire NICT Wikipedia dependency database directly
+        timeout-minutes: 25
+        run: |
+          mkdir -p work/public-dependency-sources/raw work/public-dependency-sources/sample reports
+          curl --fail --location \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            --continue-at - \
+            --output work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz \
+            https://alaginrc.nict.go.jp/wikidep/src/DEP_WIKIPEDIA_V1.0.tar.gz
+          python tools/public_dependency_sources.py \
+            --manifest config/public_semantic_sources.json \
+            --archive work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz \
+            --report reports/public-dependency-sources-report.json \
+            --lock reports/public-dependency-sources-lock.json \
+            --sample work/public-dependency-sources/sample/DEP_WIKIPEDIA_V1.0.sample.txt
+      - name: Verify NICT dependency source acquisition boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-dependency-sources-report.json').read_text(encoding='utf-8'))
+          lock = json.loads(Path('reports/public-dependency-sources-lock.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'SOURCE_ACQUIRED_FORMAT_INSPECTED':
+              raise SystemExit('NICT_SOURCE_NOT_INSPECTED')
+          if int(report.get('source_bytes', 0)) < 500_000_000:
+              raise SystemExit(f"NICT_SOURCE_TOO_SMALL:{report.get('source_bytes')}")
+          if len(str(report.get('source_sha256') or '')) != 64:
+              raise SystemExit('NICT_SOURCE_DIGEST_MISSING')
+          if not str(report.get('body_member') or '').endswith('DEP_WIKIPEDIA_V1.0.bz2'):
+              raise SystemExit('NICT_BODY_MEMBER_MISSING')
+          if not str(report.get('readme_member') or '').endswith('DEP_WIKIPEDIA_V1.0_README.doc'):
+              raise SystemExit('NICT_README_MEMBER_MISSING')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('NICT_ACQUISITION_BOUNDARY_VIOLATION')
+          if lock.get('source_sha256') != report.get('source_sha256'):
+              raise SystemExit('NICT_SOURCE_LOCK_MISMATCH')
+          print({
+              'source_bytes': report['source_bytes'],
+              'source_sha256': report['source_sha256'],
+              'archive_members': report['archive_member_count'],
+              'sample_encoding': report['sample_encoding'],
+              'sample_lines': report['sample_lines'],
+          })
+          PY
+          rm -f work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz
       - name: Enforce meaning completeness and source lock evidence
         run: |
           python - <<'PY'
@@ -115,7 +164,10 @@ jobs:
             work/public-semantic-sources/reference/*.jsonl
             work/public-semantic-sources/unresolved/*.jsonl
             work/public-semantic-sources/licenses/*
+            work/public-dependency-sources/sample/*.txt
             reports/public-semantic-sources-report.json
             reports/public-semantic-sources-lock.json
+            reports/public-dependency-sources-report.json
+            reports/public-dependency-sources-lock.json
           if-no-files-found: warn
           retention-days: 30
