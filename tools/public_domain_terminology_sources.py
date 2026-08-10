@@ -62,7 +62,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def select_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo:
     files = [info for info in archive.infolist() if not info.is_dir()]
     candidates = [
-        info for info in files
+        info
+        for info in files
         if PurePosixPath(info.filename).suffix.casefold() in {".dic", ".csv", ".txt"}
     ]
     if not candidates:
@@ -72,7 +73,9 @@ def select_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo:
 
 def decode_payload(payload: bytes) -> tuple[str, str]:
     candidates: list[tuple[int, int, str, str]] = []
-    for order, encoding in enumerate(("utf-8-sig", "utf-8", "cp932", "shift_jis", "euc_jp")):
+    for order, encoding in enumerate(
+        ("utf-8-sig", "utf-8", "cp932", "shift_jis", "euc_jp")
+    ):
         text = payload.decode(encoding, errors="replace")
         candidates.append((text.count("\ufffd"), order, encoding, text))
     _, _, encoding, text = min(candidates)
@@ -90,7 +93,10 @@ def normalize_one(
         member = select_member(archive)
         payload = archive.read(member)
     encoding, text = decode_payload(payload)
-    reader = csv.reader(io.StringIO(text))
+    # newline="" is required by Python's csv module so CR/LF/CRLF records from
+    # the published dictionary are interpreted by the CSV parser rather than
+    # surfacing a false "new-line character seen in unquoted field" error.
+    reader = csv.reader(io.StringIO(text, newline=""))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     records = 0
     empty_reading = 0
@@ -98,11 +104,13 @@ def normalize_one(
     source_dictionary_values: Counter[str] = Counter()
     headword_flags: Counter[str] = Counter()
     category_values: Counter[str] = Counter()
+    source_field_counts: Counter[int] = Counter()
     malformed: list[dict[str, Any]] = []
     with output_path.open("w", encoding="utf-8", newline="\n") as output:
         for source_row_number, row in enumerate(reader, 1):
             if not row or not any(cell.strip() for cell in row):
                 continue
+            source_field_counts[len(row)] += 1
             if len(row) != len(FIELDS):
                 if len(malformed) < 50:
                     malformed.append(
@@ -151,13 +159,19 @@ def normalize_one(
                 ),
             }
             output.write(
-                json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                json.dumps(
+                    record,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 + "\n"
             )
             records += 1
     if malformed:
         raise RuntimeError(
             f"terminology source has malformed rows: count_at_least={len(malformed)} "
+            f"field_histogram={dict(sorted(source_field_counts.items()))} "
             f"sample={malformed[:10]}"
         )
     if records == 0:
@@ -171,6 +185,7 @@ def normalize_one(
         "zip_member_bytes": member.file_size,
         "encoding": encoding,
         "field_count": len(FIELDS),
+        "source_field_count_histogram": dict(sorted(source_field_counts.items())),
         "empty_reading_records": empty_reading,
         "empty_pronunciation_records": empty_pronunciation,
         "source_dictionary_counts": dict(sorted(source_dictionary_values.items())),
@@ -237,8 +252,14 @@ def normalize_all(
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    lock_path.write_text(json.dumps(locks, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    lock_path.write_text(
+        json.dumps(locks, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return report
 
 
@@ -275,15 +296,42 @@ def self_test() -> dict[str, Any]:
             encoding="utf-8",
         )
         row = [
-            "量子", "1", "1", "100", "名詞", "一般", "*", "*", "*", "*", "量子",
-            "リョウシ", "リョーシ", "Thesaurus2015", "T1", "JG1", "C", "PA01", "1", "名詞", "量子/名詞"
+            "量子",
+            "1",
+            "1",
+            "100",
+            "名詞",
+            "一般",
+            "*",
+            "*",
+            "*",
+            "*",
+            "量子",
+            "リョウシ",
+            "リョーシ",
+            "Thesaurus2015",
+            "T1",
+            "JG1",
+            "C",
+            "PA01",
+            "1",
+            "名詞",
+            "量子/名詞",
         ]
         archive_path = source_root / "test.zip"
-        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            buffer = io.StringIO()
-            csv.writer(buffer, lineterminator="\n").writerow(row)
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
+            buffer = io.StringIO(newline="")
+            csv.writer(buffer, lineterminator="\r\n").writerow(row)
             archive.writestr("test.dic", buffer.getvalue().encode("utf-8"))
-        report = normalize_all(manifest, source_root, output_root, root / "report.json", root / "lock.json")
+        report = normalize_all(
+            manifest,
+            source_root,
+            output_root,
+            root / "report.json",
+            root / "lock.json",
+        )
         if report["total_records"] != 1 or report["field_count"] != 21:
             raise RuntimeError(f"self-test failed: {report}")
         return {"status": "PASS", "records": 1, "fields": 21}
@@ -301,9 +349,24 @@ def main() -> int:
     if args.self_test:
         print(json.dumps(self_test(), ensure_ascii=False, sort_keys=True))
         return 0
-    if any(value is None for value in (args.manifest, args.source_root, args.output_root, args.report, args.lock)):
+    if any(
+        value is None
+        for value in (
+            args.manifest,
+            args.source_root,
+            args.output_root,
+            args.report,
+            args.lock,
+        )
+    ):
         parser.error("--manifest --source-root --output-root --report --lock are required")
-    result = normalize_all(args.manifest, args.source_root, args.output_root, args.report, args.lock)
+    result = normalize_all(
+        args.manifest,
+        args.source_root,
+        args.output_root,
+        args.report,
+        args.lock,
+    )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
 
