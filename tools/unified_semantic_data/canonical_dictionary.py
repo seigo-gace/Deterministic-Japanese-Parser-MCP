@@ -85,6 +85,7 @@ def _sense_signature(candidate: dict[str, Any]) -> dict[str, Any]:
         "glosses": _candidate_glosses(candidate),
         "part_of_speech": _stable_unique(candidate.get("part_of_speech") or []),
         "domains": _stable_unique(candidate.get("domains") or []),
+        "parameters": candidate.get("parameters") or {},
         "register": candidate.get("register") or {},
         "context": candidate.get("context") or {},
     }
@@ -131,6 +132,7 @@ def _merge_senses(
                 "glosses": item["signature"]["glosses"],
                 "part_of_speech": item["signature"]["part_of_speech"],
                 "domains": item["signature"]["domains"],
+                "parameters": item["signature"]["parameters"],
                 "register": item["signature"]["register"],
                 "context": item["signature"]["context"],
                 "evidence_count": len(evidence_rows),
@@ -220,12 +222,16 @@ def _merge_semantic_facets(records: list[dict[str, Any]]) -> dict[str, Any]:
     feature_types: set[str] = set()
     semantic_targets: set[str] = set()
     usage_labels: set[str] = set()
+    risk_classes: set[str] = set()
     for record in records:
         feature = str(record.get("feature_type") or "").strip()
         if feature:
             feature_types.add(feature)
         semantic_targets.update(_stable_unique(_as_list(record.get("semantic_targets"))))
         usage_labels.update(_stable_unique(_as_list(record.get("usage_labels"))))
+        risk_class = str(record.get("risk_class") or "").strip()
+        if risk_class:
+            risk_classes.add(risk_class)
         if "semantic" in _approved_scopes(record):
             p = str(record.get("polarity") or "unspecified")
             intensity = record.get("intensity")
@@ -241,6 +247,7 @@ def _merge_semantic_facets(records: list[dict[str, Any]]) -> dict[str, Any]:
         "feature_types": sorted(feature_types),
         "semantic_targets": sorted(semantic_targets),
         "usage_labels": sorted(usage_labels),
+        "risk_classes": sorted(risk_classes),
         "sentiment_evidence": _stable_objects(polarity),
     }
 
