@@ -6,6 +6,7 @@ on:
     paths:
       - "config/public_hatoma_sources.json"
       - "tools/public_hatoma_sources.py"
+      - "tools/public_hatoma_multifile.py"
       - ".github/workflows/public-hatoma-sources.yml"
 
 permissions:
@@ -20,10 +21,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Validate source manifest and deterministic adapter
+      - name: Validate source manifest and deterministic adapters
         run: |
-          python -m py_compile tools/public_hatoma_sources.py
+          python -m py_compile tools/public_hatoma_sources.py tools/public_hatoma_multifile.py
           python tools/public_hatoma_sources.py --self-test
+          python tools/public_hatoma_multifile.py --self-test
           python - <<'PY'
           import json
           from pathlib import Path
@@ -49,15 +51,15 @@ jobs:
               if bad:
                   raise SystemExit(f'HATOMA_ZIP_CORRUPT:{bad}')
           PY
-      - name: Normalize every TEI dictionary entry
+      - name: Normalize every entry from every TEI member
         run: |
-          python tools/public_hatoma_sources.py \
+          python tools/public_hatoma_multifile.py \
             --manifest config/public_hatoma_sources.json \
             --archive work/public-hatoma/raw/hatoma-dic-f70a118.zip \
             --output-root work/public-hatoma/normalized \
             --report reports/public-hatoma-report.json \
             --lock reports/public-hatoma-lock.json
-      - name: Enforce source preservation and meaning-evidence boundary
+      - name: Enforce all-member preservation and meaning-evidence boundary
         run: |
           python - <<'PY'
           import json
@@ -71,10 +73,12 @@ jobs:
               raise SystemExit(f'HATOMA_ENTRY_COUNT_SUSPICIOUS:{entries}')
           if entries != int(report.get('normalized_records',-1)) or entries != int(report.get('preserved_records',-1)):
               raise SystemExit('HATOMA_ENTRY_LOSS')
-          if report.get('selected_xml_sha256') != lock.get('selected_xml_sha256'):
-              raise SystemExit('HATOMA_XML_LOCK_MISMATCH')
+          if int(report.get('tei_entry_members',0)) <= 1:
+              raise SystemExit(f'HATOMA_MULTIFILE_NOT_OBSERVED:{report.get("tei_entry_members")}')
           if report.get('source_archive_sha256') != lock.get('source_archive_sha256'):
               raise SystemExit('HATOMA_ARCHIVE_LOCK_MISMATCH')
+          if len(str(lock.get('tei_members_manifest_sha256') or '')) != 64:
+              raise SystemExit('HATOMA_MEMBER_MANIFEST_LOCK_MISSING')
           if int(report.get('definition_count',0)) <= 0 or int(report.get('meaning_complete_records',0)) <= 0:
               raise SystemExit('HATOMA_NO_MEANING_EVIDENCE')
           if report.get('definition_fabricated') is not False or report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
@@ -85,6 +89,8 @@ jobs:
               if len(str(item.get('sha256') or '')) != 64:
                   raise SystemExit(f'HATOMA_OUTPUT_DIGEST_MISSING:{item.get("path")}')
           print({
+              'xml_members_inspected': report['xml_members_inspected'],
+              'tei_entry_members': report['tei_entry_members'],
               'entries': entries,
               'meaning_complete_records': report['meaning_complete_records'],
               'unresolved_entries': report['unresolved_entries'],
@@ -96,10 +102,9 @@ jobs:
               'orthographies': report['orthography_count'],
               'pronunciations': report['pronunciation_count'],
               'audio_refs': report['audio_reference_count'],
-              'selected_member': report['selected_member'],
               'source_sha256': report['source_archive_sha256'],
-              'xml_sha256': report['selected_xml_sha256'],
               'license_sha256': report['license_sha256'],
+              'member_manifest_sha256': lock['tei_members_manifest_sha256'],
           })
           PY
       - name: Upload fixed source and normalized Hatoma evidence pack
