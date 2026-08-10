@@ -80,6 +80,24 @@ where = ["src"]
   "dictionaries/system/compiled/semantic_data/user/*.json.gz",
   "dictionaries/system/compiled/semantic_data/user/*.jsonl.gz",
 ]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary" = [
+  "dictionaries/system/compiled/canonical_dictionary/manifest.json",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary/indexes" = [
+  "dictionaries/system/compiled/canonical_dictionary/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary/records" = [
+  "dictionaries/system/compiled/canonical_dictionary/records/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/manifest.json",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/indexes" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/records" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/records/*.jsonl.gz",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
   "dictionaries/sources/*.json",
 ]
