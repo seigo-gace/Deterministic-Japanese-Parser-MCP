@@ -6,13 +6,14 @@ on:
     paths:
       - "config/public_authority_sources.json"
       - "tools/public_authority_sources.py"
+      - "tools/public_authority_sparql.py"
       - ".github/workflows/public-authority-sources.yml"
 
 permissions:
   contents: read
 
 jobs:
-  ndlsh:
+  ndlsh-batch:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,7 +32,7 @@ jobs:
             --retry 5 --retry-all-errors --retry-delay 3 \
             --output work/public-authority-sources/raw/ndlsh-tsv.zip \
             https://id.ndl.go.jp/auth/data/download/ndlsh-tsv.zip
-      - name: Normalize every NDLSH record and preserve all 18 fields
+      - name: Normalize every NDLSH batch record and preserve all 18 fields
         run: |
           python tools/public_authority_sources.py \
             --manifest config/public_authority_sources.json \
@@ -39,7 +40,7 @@ jobs:
             --output work/public-authority-sources/relations/web-ndl-authorities-ndlsh.jsonl \
             --report reports/public-authority-sources-report.json \
             --lock reports/public-authority-sources-lock.json
-      - name: Verify NDLSH preservation and relation evidence
+      - name: Verify NDLSH batch preservation and relation evidence
         run: |
           python - <<'PY'
           import json
@@ -50,8 +51,11 @@ jobs:
               raise SystemExit('NDLSH_NOT_NORMALIZED')
           if report.get('column_count') != 18:
               raise SystemExit(f"NDLSH_COLUMN_LOSS:{report.get('column_count')}")
-          if int(report.get('records', 0)) < 100000:
-              raise SystemExit(f"NDLSH_RECORD_COUNT_SUSPICIOUS:{report.get('records')}")
+          # The official NDLSH batch is a subset of all Web NDL topical authorities.
+          # Remote evidence for 2026-08-10 produced 20,785 rows; do not confuse this
+          # batch with the ~152k full topicalTerm scheme collected by the SPARQL job.
+          if int(report.get('records', 0)) < 20000:
+              raise SystemExit(f"NDLSH_BATCH_RECORD_COUNT_SUSPICIOUS:{report.get('records')}")
           if int(report.get('malformed_records', -1)) != 0:
               raise SystemExit(f"NDLSH_MALFORMED:{report.get('malformed_records')}")
           if report.get('definition_fabricated') is not False:
@@ -75,14 +79,72 @@ jobs:
           })
           PY
           rm -f work/public-authority-sources/raw/ndlsh-tsv.zip
-      - name: Upload NDLSH normalized relation pack and source lock
+      - name: Upload NDLSH batch relation pack and source lock
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: public-authority-sources-${{ github.sha }}
+          name: public-authority-ndlsh-batch-${{ github.sha }}
           path: |
             work/public-authority-sources/relations/*.jsonl
             reports/public-authority-sources-report.json
             reports/public-authority-sources-lock.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  full-topical-sparql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate full topical collector syntax
+        run: python -m py_compile tools/public_authority_sparql.py
+      - name: Collect every topical authority and direct URI/literal property
+        run: |
+          mkdir -p work/public-authority-sources/full-topical reports
+          python tools/public_authority_sparql.py \
+            --output-root work/public-authority-sources/full-topical \
+            --report reports/public-authority-full-topical-report.json
+      - name: Verify full topical scheme collection
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-authority-full-topical-report.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'COMPLETE_SPARQL_COLLECTION':
+              raise SystemExit('FULL_TOPICAL_NOT_COMPLETE')
+          # Web NDL Authorities had 152,309 topical authorities on 2026-08-01.
+          # Use a conservative lower bound because the live scheme changes daily;
+          # never truncate silently below this boundary.
+          if int(report.get('topical_authorities', 0)) < 150000:
+              raise SystemExit(f"FULL_TOPICAL_COUNT_SUSPICIOUS:{report.get('topical_authorities')}")
+          if int(report.get('direct_triples', 0)) < int(report['topical_authorities']):
+              raise SystemExit('FULL_TOPICAL_DIRECT_TRIPLE_LOSS')
+          if int(report.get('pref_label_records', 0)) < int(report['topical_authorities']):
+              raise SystemExit('FULL_TOPICAL_PREF_LABEL_LOSS')
+          if report.get('definition_fabricated') is not False:
+              raise SystemExit('FULL_TOPICAL_DEFINITION_FABRICATION')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('FULL_TOPICAL_BOUNDARY_VIOLATION')
+          for item in report.get('files') or []:
+              if len(str(item.get('sha256') or '')) != 64:
+                  raise SystemExit(f"FULL_TOPICAL_DIGEST_MISSING:{item.get('path')}")
+          print({
+              'topical_authorities': report['topical_authorities'],
+              'direct_triples': report['direct_triples'],
+              'pref_label_records': report['pref_label_records'],
+              'alt_label_records': report['alt_label_records'],
+          })
+          PY
+      - name: Upload full topical authority evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-authority-full-topical-${{ github.sha }}
+          path: |
+            work/public-authority-sources/full-topical/*.jsonl
+            reports/public-authority-full-topical-report.json
           if-no-files-found: warn
           retention-days: 30
