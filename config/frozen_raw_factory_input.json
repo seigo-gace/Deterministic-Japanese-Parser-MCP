@@ -1,0 +1,80 @@
+{
+  "branch": "agent/deterministic-data-pipeline-correction-20260806",
+  "change_unit": "CU-RAW-FACTORY-INPUT-UNIFY-20260811-01",
+  "freeze_at": "2026-08-10T16:12:23Z",
+  "output": {
+    "artifact_name": "mcp-collected-raw-factory-input-v1",
+    "filename": "mcp-collected-raw-factory-input-v1.tar",
+    "manifest_filename": "mcp-collected-raw-factory-input-v1.manifest.json",
+    "retention_days": 90
+  },
+  "policy": {
+    "adapter_conversion": false,
+    "deduplicate_by_artifact_digest": true,
+    "external_source_network_enabled": false,
+    "input_origin": "already-collected-github-actions-artifacts-only",
+    "new_source_acquisition_enabled": false,
+    "normalization": false,
+    "raw_artifact_zip_bytes_preserved": true,
+    "runtime_promotion": false,
+    "semantic_enrichment": false
+  },
+  "repository": "seigo-gace/Deterministic-Japanese-Parser-MCP",
+  "schema_version": "1.0.0",
+  "workflow_sources": [
+    {
+      "name": "Public Authority Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331019382
+    },
+    {
+      "name": "Public Domain Terminology Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331023169
+    },
+    {
+      "name": "Public Hatoma Dictionary Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331102574
+    },
+    {
+      "name": "Public Legal Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331030441
+    },
+    {
+      "name": "Public Onomatopoeia Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331035676
+    },
+    {
+      "name": "Public Parallel Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331020347
+    },
+    {
+      "name": "Public Semantic Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 330976249
+    },
+    {
+      "name": "Public Sentiment Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331034304
+    },
+    {
+      "name": "Public Wiktionary Source Acquisition",
+      "selection": "latest_success_before_freeze",
+      "workflow_id": 331084548
+    },
+    {
+      "name": "Public Source Harvest",
+      "run_ids": [
+        31399480498,
+        31400186151
+      ],
+      "selection": "pinned_runs",
+      "workflow_id": 331183409
+    }
+  ]
+}
