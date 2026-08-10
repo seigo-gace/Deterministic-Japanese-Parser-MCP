@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "id": "tohoku-sentiment-predicate-v1.0",
+      "title": "日本語評価極性辞書（用言編）ver.1.0",
+      "status": "enabled",
+      "url": "https://www.cl.ecei.tohoku.ac.jp/resources/sent_lex/wago.121808.pn",
+      "homepage": "https://www.cl.ecei.tohoku.ac.jp/Open_Resources-Japanese_Sentiment_Polarity_Dictionary.html",
+      "version": "1.0 / 2008-12",
+      "author": "東北大学 乾・岡崎研究室",
+      "commercial_use": "クレジットを明記すれば商用利用可能",
+      "citation": "小林のぞみ, 乾健太郎, 松本裕治, 立石健二, 福島俊一. 意見抽出のための評価表現の収集. 自然言語処理 12(3), 203-222, 2005.",
+      "evidence_role": ["sentiment_polarity", "subjective_objective_axis", "evaluation_expression"]
+    },
+    {
+      "id": "tohoku-sentiment-noun-v1.0",
+      "title": "日本語評価極性辞書（名詞編）ver.1.0",
+      "status": "enabled",
+      "url": "https://www.cl.ecei.tohoku.ac.jp/resources/sent_lex/pn.csv.m3.120408.trim",
+      "homepage": "https://www.cl.ecei.tohoku.ac.jp/Open_Resources-Japanese_Sentiment_Polarity_Dictionary.html",
+      "version": "1.0 / 2008-12",
+      "author": "東北大学 乾・岡崎研究室",
+      "commercial_use": "クレジットを明記すれば商用利用可能",
+      "citation": "東山昌彦, 乾健太郎, 松本裕治. 述語の選択選好性に着目した名詞評価極性の獲得. 言語処理学会第14回年次大会, 584-587, 2008.",
+      "evidence_role": ["sentiment_polarity", "noun_evaluation_expression"]
+    }
+  ],
+  "semantic_policy": "Sentiment polarity is an overlay, not a lexical definition. Preserve the expression and source polarity exactly; never generate a meaning from polarity. Lexical meaning remains a separate source-locked evidence join."
+}
