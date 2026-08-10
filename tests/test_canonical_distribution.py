@@ -14,6 +14,7 @@ if str(TOOLS) not in sys.path:
 from unified_semantic_data.canonical_dictionary import compile_canonical_dictionary  # noqa: E402
 from unified_semantic_data.canonical_distribution import (  # noqa: E402
     compile_public_dictionary_view,
+    public_record_view,
 )
 from unified_semantic_data.license_policy import classify_data_license  # noqa: E402
 
@@ -94,9 +95,12 @@ def _review_root(path: Path, records: list[dict]) -> Path:
     return path
 
 
-def test_license_classifier_blocks_nc_and_nd_but_preserves_sharealike() -> None:
+def test_license_classifier_blocks_nc_nd_reference_and_preserves_sharealike() -> None:
     assert classify_data_license("CC BY-NC-SA 3.0")["public_dictionary_allowed"] is False
     assert classify_data_license("CC BY-ND 4.0")["public_dictionary_allowed"] is False
+    assert classify_data_license("Master-provided project reference")[
+        "public_dictionary_allowed"
+    ] is False
     sharealike = classify_data_license("CC BY-SA 4.0")
     assert sharealike["public_dictionary_allowed"] is True
     assert sharealike["tier"] == "sharealike"
@@ -133,7 +137,10 @@ def test_public_view_keeps_permissive_sense_and_excludes_noncommercial_sense(
         row = json.loads(next(handle))
     assert len(row["senses"]) == 1
     assert row["senses"][0]["glosses"] == ["種類ごとに分けること"]
-    assert {item["dataset"] for item in row["source_evidence"]} == {
+    assert {item["dataset"] for item in row["meaning_source_evidence"]} == {
+        "permissive-source"
+    }
+    assert {item["dataset"] for item in row["record_source_evidence"]} == {
         "permissive-source"
     }
     exclusions = [
@@ -167,3 +174,69 @@ def test_public_view_drops_record_when_only_noncommercial_meaning_exists(
     assert manifest["record_count"] == 0
     assert manifest["sense_count"] == 0
     assert manifest["license_exclusion_count"] >= 1
+
+
+def test_reference_derived_permissive_meaning_can_remain_when_target_origin_is_nc() -> None:
+    record = {
+        "dictionary_id": "CDICT-reference-derived",
+        "lemma": "めんこい",
+        "surfaces": ["めんこい"],
+        "normalized_surfaces": ["めんこい"],
+        "readings": ["めんこい"],
+        "part_of_speech": ["形容詞"],
+        "domains": ["dialect"],
+        "senses": [
+            {
+                "sense_id": "CDICT-reference-derived:S-1",
+                "glosses": ["かわいい、愛らしい"],
+                "labels": ["かわいい、愛らしい"],
+                "part_of_speech": ["形容詞"],
+                "domains": ["dialect"],
+                "parameters": {},
+                "register": {},
+                "context": {},
+                "source_evidence": [
+                    {
+                        "source_record_id": "reference:REF-1",
+                        "dataset": "permissive-reference",
+                        "version": "1",
+                        "license": "CC BY 4.0",
+                        "source_id": "REF-1",
+                        "source_url": "https://example.invalid/reference",
+                        "source_sha256": hashlib.sha256(b"ref").hexdigest(),
+                        "attribution": "reference",
+                        "meaning_evidence_type": "semantic-enrichment-reference",
+                    }
+                ],
+            }
+        ],
+        "source_evidence": [
+            {
+                "source_record_id": "TARGET-1",
+                "dataset": "nc-target-origin",
+                "version": "1",
+                "license": "CC BY-NC-SA 3.0",
+                "source_id": "TARGET-1",
+                "source_url": "https://example.invalid/target",
+                "source_sha256": hashlib.sha256(b"target").hexdigest(),
+                "attribution": "target",
+            }
+        ],
+        "auxiliary_evidence": {},
+        "boundaries": {},
+    }
+    public, exclusions = public_record_view(record)
+    assert public is not None
+    assert public["senses"][0]["glosses"] == ["かわいい、愛らしい"]
+    assert {item["dataset"] for item in public["meaning_source_evidence"]} == {
+        "permissive-reference"
+    }
+    assert public["record_source_evidence"] == []
+    assert public["boundaries"][
+        "meaning_source_and_record_origin_provenance_separated"
+    ] is True
+    assert any(
+        item["kind"] == "record-origin-evidence"
+        and item["dataset"] == "nc-target-origin"
+        for item in exclusions
+    )
