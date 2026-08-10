@@ -1,0 +1,174 @@
+name: Public Source Harvest Wave 4
+
+on:
+  pull_request:
+    paths:
+      - "config/public_source_harvest_wave4.json"
+      - ".github/workflows/public-source-harvest-wave4.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-source-harvest-wave4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collect-wave4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Collect all listed direct sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          import hashlib
+          import json
+          from pathlib import Path
+          import shutil
+          import time
+          import urllib.request
+
+          config = json.loads(Path("config/public_source_harvest_wave4.json").read_text(encoding="utf-8"))
+          root = Path("work/public-source-harvest-wave4")
+          raw_root = root / "raw"
+          raw_root.mkdir(parents=True, exist_ok=True)
+
+          def download(source: dict) -> dict:
+              sid = source["id"]
+              out_dir = raw_root / sid
+              out_dir.mkdir(parents=True, exist_ok=True)
+              target = out_dir / source["filename"]
+              temp = target.with_suffix(target.suffix + ".part")
+              last_error = None
+              for attempt in range(1, 4):
+                  try:
+                      request = urllib.request.Request(
+                          source["url"],
+                          headers={"User-Agent": "Deterministic-Japanese-Parser-MCP-raw-harvest/1.0"},
+                      )
+                      with urllib.request.urlopen(request, timeout=900) as response, temp.open("wb") as handle:
+                          shutil.copyfileobj(response, handle, length=1024 * 1024)
+                      if temp.stat().st_size <= 0:
+                          raise RuntimeError("EMPTY_DOWNLOAD")
+                      temp.replace(target)
+                      data_hash = hashlib.sha256()
+                      with target.open("rb") as handle:
+                          for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                              data_hash.update(chunk)
+                      lock = {
+                          "id": sid,
+                          "source_url": source["url"],
+                          "filename": source["filename"],
+                          "bytes": target.stat().st_size,
+                          "sha256": data_hash.hexdigest(),
+                          "attempt": attempt,
+                          "raw_bytes_preserved": True,
+                          "normalization": False,
+                          "semantic_enrichment": False,
+                          "runtime_promotion": False,
+                          "status": "COLLECTED",
+                      }
+                      (out_dir / "source-lock.json").write_text(
+                          json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8",
+                      )
+                      return lock
+                  except Exception as exc:
+                      last_error = f"{type(exc).__name__}: {exc}"
+                      if temp.exists():
+                          temp.unlink()
+                      time.sleep(attempt * 2)
+              fail = {
+                  "id": sid,
+                  "source_url": source["url"],
+                  "filename": source["filename"],
+                  "status": "FAILED",
+                  "error": last_error,
+              }
+              (out_dir / "source-lock.json").write_text(
+                  json.dumps(fail, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              return fail
+
+          results = []
+          with ThreadPoolExecutor(max_workers=8) as pool:
+              futures = [pool.submit(download, row) for row in config["sources"]]
+              for future in as_completed(futures):
+                  result = future.result()
+                  print(json.dumps(result, ensure_ascii=False, sort_keys=True), flush=True)
+                  results.append(result)
+
+          results.sort(key=lambda row: row["id"])
+          collected = [row for row in results if row["status"] == "COLLECTED"]
+          failed = [row for row in results if row["status"] != "COLLECTED"]
+          manifest = {
+              "schema_version": "1.0.0",
+              "change_unit": config["change_unit"],
+              "phase": "ACQUISITION_ONLY",
+              "requested_sources": len(config["sources"]),
+              "collected_sources": len(collected),
+              "failed_sources": len(failed),
+              "collected_bytes": sum(int(row["bytes"]) for row in collected),
+              "raw_bytes_preserved": True,
+              "normalization": False,
+              "semantic_enrichment": False,
+              "runtime_promotion": False,
+              "results": results,
+          }
+          (root / "manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps({
+              "requested": manifest["requested_sources"],
+              "collected": manifest["collected_sources"],
+              "failed": manifest["failed_sources"],
+              "bytes": manifest["collected_bytes"],
+          }, sort_keys=True))
+          PY
+
+      - name: Verify every collected source hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path("work/public-source-harvest-wave4")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          for row in manifest["results"]:
+              if row["status"] != "COLLECTED":
+                  continue
+              path = root / "raw" / row["id"] / row["filename"]
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if digest != row["sha256"]:
+                  raise SystemExit(f"HASH_MISMATCH:{row['id']}")
+          if manifest["collected_sources"] == 0:
+              raise SystemExit("NO_SOURCE_COLLECTED")
+          print("WAVE4_RAW_HASH_VALID")
+          PY
+
+      - name: Upload wave4 raw collection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-source-harvest-wave4
+          path: work/public-source-harvest-wave4/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
