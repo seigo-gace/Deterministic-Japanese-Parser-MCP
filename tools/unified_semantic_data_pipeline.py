@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 import warnings
 
-from unified_semantic_data.canonical_dictionary import compile_canonical_dictionary
+from unified_semantic_data.canonical_dictionary import (
+    compile_canonical_dictionary,
+    validate_compiled_dictionary_root,
+)
 from unified_semantic_data.factory_foundation import (
     FOUNDATION_VERSION,
     build_foundation_assets,
@@ -103,7 +106,7 @@ def _load_json(path: Path) -> dict:
 def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
     manifest_path = args.canonical_dictionary_root / "manifest.json"
     if manifest_path.is_file():
-        return _load_json(manifest_path)
+        return validate_compiled_dictionary_root(args.canonical_dictionary_root)
     return compile_canonical_dictionary(
         args.output_root,
         args.canonical_dictionary_root,
