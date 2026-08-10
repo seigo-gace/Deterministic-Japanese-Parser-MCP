@@ -50,8 +50,15 @@
       "id": "kanjidic2",
       "title": "KANJIDIC2",
       "category": ["kanji", "reading", "meaning"],
-      "status": "queued_adapter",
-      "reason": "Free redistributable data with character meanings; separate character-record adapter required."
+      "status": "enabled",
+      "adapter": "kanjidic2_xml_gz",
+      "url": "https://www.edrdg.org/kanjidic/kanjidic2.xml.gz",
+      "homepage": "https://www.edrdg.org/wiki/KANJIDIC_Project.html",
+      "version": "current KANJIDIC2 snapshot; source digest locked at acquisition",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://www.edrdg.org/edrdg/licence.html",
+      "attribution": "KANJIDIC2 © Electronic Dictionary Research and Development Group",
+      "meaning_evidence": ["english_meanings", "readings", "nanori", "character_metadata"]
     },
     {
       "id": "japanese-law-standard-bilingual-dictionary",
