@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "id": "moj-standard-legal-terms-dictionary",
+      "title": "法令用語日英標準対訳辞書",
+      "status": "endpoint_discovery_required",
+      "homepage": "https://www.japaneselawtranslation.go.jp/ja/dicts/download",
+      "dtd_page": "https://www.japaneselawtranslation.go.jp/ja/infos/dtd",
+      "current_version_observed": "18.0",
+      "current_version_year": 2025,
+      "terms_url": "https://www.japaneselawtranslation.go.jp/ja/index/terms",
+      "reuse_terms": "Public Data License 1.0 applies unless otherwise indicated; site FAQ/notice states data may be cited, reproduced or reprinted in accordance with the terms.",
+      "expected_fields": [
+        "headword",
+        "reading",
+        "translation_number",
+        "translation",
+        "translation_usage_standard",
+        "japanese_example",
+        "english_example",
+        "example_source",
+        "notes"
+      ],
+      "semantic_policy": "Legal bilingual terminology and usage evidence. Preserve every published field and source example. Do not elevate unofficial English translations to legally authoritative text."
+    }
+  ]
+}
