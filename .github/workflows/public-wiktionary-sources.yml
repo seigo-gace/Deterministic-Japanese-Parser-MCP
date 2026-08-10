@@ -1,0 +1,120 @@
+name: Public Wiktionary Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_wiktionary_sources.json"
+      - "tools/public_wiktionary_sources.py"
+      - ".github/workflows/public-wiktionary-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  normalize-jawiktionary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate source manifest and deterministic adapter
+        run: |
+          python -m py_compile tools/public_wiktionary_sources.py
+          python tools/public_wiktionary_sources.py --self-test
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('config/public_wiktionary_sources.json').read_text(encoding='utf-8'))
+          if manifest.get('dump_date') != '2026-08-04' or manifest.get('extraction_date') != '2026-08-06':
+              raise SystemExit('WIKTIONARY_VERSION_LOCK_CHANGED')
+          if set(manifest.get('target_lang_codes') or []) != {'ja', 'ojp'}:
+              raise SystemExit('WIKTIONARY_TARGET_SCOPE_CHANGED')
+          PY
+      - name: Verify moving download page still describes the locked source version
+        run: |
+          mkdir -p work/public-wiktionary/raw work/public-wiktionary/normalized reports
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-wiktionary/raw/rawdata.html \
+            https://kaikki.org/jawiktionary/rawdata.html
+          grep -F '2026-08-04' work/public-wiktionary/raw/rawdata.html
+          grep -F '2026-08-06' work/public-wiktionary/raw/rawdata.html
+          grep -F 'raw-wiktextract-data.jsonl.gz' work/public-wiktionary/raw/rawdata.html
+      - name: Acquire locked raw Wiktextract snapshot
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-wiktionary/raw/raw-wiktextract-data.jsonl.gz \
+            https://kaikki.org/jawiktionary/raw-wiktextract-data.jsonl.gz
+          test -s work/public-wiktionary/raw/raw-wiktextract-data.jsonl.gz
+          gzip -t work/public-wiktionary/raw/raw-wiktextract-data.jsonl.gz
+      - name: Normalize all Japanese and Classical Japanese target rows
+        run: |
+          python tools/public_wiktionary_sources.py \
+            --manifest config/public_wiktionary_sources.json \
+            --source work/public-wiktionary/raw/raw-wiktextract-data.jsonl.gz \
+            --output-root work/public-wiktionary/normalized \
+            --report reports/public-wiktionary-report.json \
+            --lock reports/public-wiktionary-lock.json
+      - name: Enforce preservation and evidence boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-wiktionary-report.json').read_text(encoding='utf-8'))
+          lock = json.loads(Path('reports/public-wiktionary-lock.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'NORMALIZED':
+              raise SystemExit(f"WIKTIONARY_NORMALIZATION_NOT_COMPLETE:{report.get('status')}")
+          if report.get('raw_preservation_complete') is not True:
+              raise SystemExit('WIKTIONARY_TARGET_ROW_LOSS')
+          if int(report.get('malformed_records', -1)) != 0:
+              raise SystemExit(f"WIKTIONARY_MALFORMED_SOURCE:{report.get('malformed_records')}")
+          target = int(report.get('target_records', 0))
+          if target <= 0 or target != int(report.get('normalized_records', -1)) or target != int(report.get('preserved_records', -1)):
+              raise SystemExit('WIKTIONARY_TARGET_COUNT_MISMATCH')
+          target_counts = report.get('target_language_counts') or {}
+          if int(target_counts.get('ja', 0)) <= 0 or int(target_counts.get('ojp', 0)) <= 0:
+              raise SystemExit(f"WIKTIONARY_TARGET_LANGUAGE_MISSING:{target_counts}")
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('WIKTIONARY_SOURCE_BOUNDARY_VIOLATION')
+          if report.get('runtime_promotion') is not False:
+              raise SystemExit('WIKTIONARY_RUNTIME_PROMOTION_FORBIDDEN')
+          if len(str(report.get('source_sha256') or '')) != 64 or lock.get('source_sha256') != report.get('source_sha256'):
+              raise SystemExit('WIKTIONARY_SOURCE_LOCK_MISSING')
+          for item in report.get('output_files') or []:
+              if len(str(item.get('sha256') or '')) != 64:
+                  raise SystemExit(f"WIKTIONARY_OUTPUT_DIGEST_MISSING:{item.get('path')}")
+          print({
+              'source_lines': report['source_lines'],
+              'target_records': report['target_records'],
+              'target_language_counts': report['target_language_counts'],
+              'unique_target_words': report['unique_target_words'],
+              'meaning_complete_records': report['meaning_complete_records'],
+              'missing_gloss_records': report['missing_gloss_records'],
+              'gloss_count': report['gloss_count'],
+              'sense_count': report['sense_count'],
+              'example_count': report['example_count'],
+              'form_count': report['form_count'],
+              'translation_count': report['translation_count'],
+              'source_sha256': report['source_sha256'],
+              'meaning_complete': report['meaning_complete'],
+          })
+          PY
+      - name: Upload raw source lock, normalized references, preservation copy, and unresolved evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-wiktionary-${{ github.sha }}
+          path: |
+            work/public-wiktionary/raw/rawdata.html
+            work/public-wiktionary/raw/raw-wiktextract-data.jsonl.gz
+            work/public-wiktionary/normalized/reference/*.jsonl.gz
+            work/public-wiktionary/normalized/preserved/*.jsonl.gz
+            work/public-wiktionary/normalized/unresolved/*.jsonl.gz
+            work/public-wiktionary/normalized/inventory/*.jsonl.gz
+            reports/public-wiktionary-report.json
+            reports/public-wiktionary-lock.json
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 0
