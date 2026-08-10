@@ -1,0 +1,65 @@
+name: Public Legal Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_legal_sources.json"
+      - "tools/public_legal_source_discovery.py"
+      - ".github/workflows/public-legal-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover-standard-legal-dictionary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate discovery tool syntax
+        run: python -m py_compile tools/public_legal_source_discovery.py
+      - name: Capture official download-page and script evidence
+        run: |
+          mkdir -p work/public-legal-sources/discovery reports
+          python tools/public_legal_source_discovery.py \
+            --report reports/public-legal-source-discovery.json \
+            --evidence-root work/public-legal-sources/discovery
+      - name: Verify no guessed endpoint or false acquisition claim
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-legal-source-discovery.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'DOWNLOAD_ENDPOINT_DISCOVERY_EVIDENCE_CAPTURED':
+              raise SystemExit('LEGAL_DISCOVERY_NOT_CAPTURED')
+          if report.get('source_endpoint_locked') is not False:
+              raise SystemExit('LEGAL_ENDPOINT_FALSELY_LOCKED')
+          if report.get('url_guessing_used') is not False:
+              raise SystemExit('LEGAL_URL_GUESSING_DETECTED')
+          if not report.get('pages'):
+              raise SystemExit('LEGAL_PAGE_EVIDENCE_MISSING')
+          for page in report['pages']:
+              if len(str(page.get('sha256') or '')) != 64:
+                  raise SystemExit(f"LEGAL_PAGE_DIGEST_MISSING:{page.get('url')}")
+          print({
+              'version_18_seen_in_controls': report['version_18_seen_in_controls'],
+              'forms': report['forms'],
+              'selects': report['selects'],
+              'candidate_urls_from_html': report['candidate_urls_from_html'],
+              'same_origin_script_count': len(report['same_origin_scripts']),
+          })
+          PY
+      - name: Upload legal source-discovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-legal-source-discovery-${{ github.sha }}
+          path: |
+            reports/public-legal-source-discovery.json
+            work/public-legal-sources/discovery/*
+          if-no-files-found: warn
+          retention-days: 30
