@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import warnings
 
+from unified_semantic_data.canonical_dictionary import compile_canonical_dictionary
 from unified_semantic_data.factory_foundation import (
     FOUNDATION_VERSION,
     build_foundation_assets,
@@ -32,6 +33,9 @@ DEFAULT_PACK_ROOTS = (
 )
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
+DEFAULT_CANONICAL_DICTIONARY_ROOT = (
+    ROOT / "dictionaries/system/compiled/canonical_dictionary"
+)
 DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
 DEFAULT_SEMANTIC_REFERENCE_ROOT = ROOT / "tools/unified_semantic_data/reference"
 
@@ -82,6 +86,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
                 "code-semantic-labeler",
                 ROOT / "tools/unified_semantic_data/semantic_labeler.py",
             ),
+            (
+                "code-canonical-dictionary",
+                ROOT / "tools/unified_semantic_data/canonical_dictionary.py",
+            ),
             ("code-bulk-review", ROOT / "tools/bulk_review_station.py"),
         ]
     )
@@ -90,6 +98,17 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
+    manifest_path = args.canonical_dictionary_root / "manifest.json"
+    if manifest_path.is_file():
+        return _load_json(manifest_path)
+    return compile_canonical_dictionary(
+        args.output_root,
+        args.canonical_dictionary_root,
+        shard_size=args.shard_size,
+    )
 
 
 def main() -> int:
@@ -129,6 +148,15 @@ def main() -> int:
         "--compiled-root",
         type=Path,
         default=DEFAULT_COMPILED_ROOT,
+    )
+    parser.add_argument(
+        "--canonical-dictionary-root",
+        type=Path,
+        default=DEFAULT_CANONICAL_DICTIONARY_ROOT,
+        help=(
+            "MCP-owned canonical dictionary output. It is compiled only from "
+            "real, explicitly approved semantic meanings."
+        ),
     )
     parser.add_argument("--shard-size", type=int, default=10000)
     parser.add_argument(
@@ -214,6 +242,7 @@ def main() -> int:
                 "bulk_review": args.bulk_review,
                 "review_batch_size": args.review_batch_size,
                 "compile_approved": args.compile_approved,
+                "canonical_dictionary_schema": "1.0.0",
             },
         )
         state_path = args.output_root / ".factory-state.json"
@@ -245,6 +274,7 @@ def main() -> int:
             if args.compile_approved:
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
+                result["canonical_dictionary"] = _compile_dictionary_if_needed(args)
         else:
             review = build_review_assets(
                 open_lexicon_root=args.open_lexicon_root,
@@ -270,11 +300,17 @@ def main() -> int:
             }
             if args.compile_approved:
                 # Master boundary: data without a real, approved semantic meaning
-                # must not silently reach the runtime compiled pack.
+                # must not silently reach either runtime semantic data or the
+                # MCP-owned canonical dictionary.
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = compile_approved(
                     args.output_root,
                     args.compiled_root,
+                    shard_size=args.shard_size,
+                )
+                result["canonical_dictionary"] = compile_canonical_dictionary(
+                    args.output_root,
+                    args.canonical_dictionary_root,
                     shard_size=args.shard_size,
                 )
             foundation = build_foundation_assets(
