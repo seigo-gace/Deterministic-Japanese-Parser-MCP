@@ -6,6 +6,7 @@ on:
     paths:
       - "config/public_parallel_sources.json"
       - "tools/public_parallel_sources.py"
+      - "tools/public_parallel_xml_runner.py"
       - ".github/workflows/public-parallel-sources.yml"
 
 permissions:
@@ -22,8 +23,10 @@ jobs:
           python-version: "3.12"
       - name: Install legacy XLS reader
         run: pip install xlrd==2.0.2
-      - name: Validate normalizer syntax
-        run: python -m py_compile tools/public_parallel_sources.py
+      - name: Validate normalizer and XML repair runner syntax
+        run: |
+          python -m py_compile tools/public_parallel_sources.py
+          python -m py_compile tools/public_parallel_xml_runner.py
       - name: Acquire official NICT parallel resources
         run: |
           mkdir -p work/public-parallel-sources/raw work/public-parallel-sources/sample work/public-parallel-sources/normalized reports
@@ -60,21 +63,22 @@ jobs:
               raise SystemExit(f"KYOTO_STRUCTURE_CHANGED:{k}")
           print({'jecbs_rows': 5304, 'kyoto_articles': 14111, 'kyoto_glossary': 'kyoto_lexicon.csv'})
           PY
-      - name: Normalize all sentence, article, translation-stage and glossary records
+      - name: Normalize all source records with auditable in-memory XML repair
         run: |
-          python tools/public_parallel_sources.py normalize-all \
+          python tools/public_parallel_xml_runner.py normalize-all \
             --manifest config/public_parallel_sources.json \
             --jecbs-source work/public-parallel-sources/raw/JEC_basic_sentence_v1-2.xls \
             --kyoto-source work/public-parallel-sources/raw/wiki_corpus_2.01.tar.gz \
             --output-root work/public-parallel-sources/normalized \
             --report reports/public-parallel-sources-report.json \
             --lock reports/public-parallel-sources-lock.json
-      - name: Verify full parallel-source normalization and semantic boundary
+      - name: Verify full normalization, repair evidence, and semantic boundary
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           report = json.loads(Path('reports/public-parallel-sources-report.json').read_text(encoding='utf-8'))
+          repairs = json.loads(Path('reports/public-parallel-xml-repairs.json').read_text(encoding='utf-8'))
           if report.get('status') != 'NORMALIZED':
               raise SystemExit('PARALLEL_NORMALIZATION_NOT_COMPLETE')
           j = report['jecbs']; k = report['kyoto']
@@ -88,6 +92,15 @@ jobs:
               raise SystemExit(f"KYOTO_TRANSLATION_MISSING:{k.get('missing_translation_units')}")
           if int(k.get('glossary_rows', 0)) < 40000:
               raise SystemExit(f"KYOTO_GLOSSARY_COUNT_SUSPICIOUS:{k.get('glossary_rows')}")
+          if repairs.get('failed_repairs') != 0 or repairs.get('source_archive_modified') is not False:
+              raise SystemExit(f"PARALLEL_XML_REPAIR_BOUNDARY_FAILURE:{repairs}")
+          for item in repairs.get('repairs') or []:
+              if item.get('repair_status') != 'REPAIRED_IN_MEMORY':
+                  raise SystemExit(f"PARALLEL_XML_REPAIR_STATUS_INVALID:{item}")
+              if len(str(item.get('source_payload_sha256') or '')) != 64 or len(str(item.get('repaired_payload_sha256') or '')) != 64:
+                  raise SystemExit(f"PARALLEL_XML_REPAIR_DIGEST_MISSING:{item}")
+              if not item.get('archive_member') or not item.get('replacements'):
+                  raise SystemExit(f"PARALLEL_XML_REPAIR_EVIDENCE_MISSING:{item}")
           if report.get('definition_fabricated') is not False:
               raise SystemExit('PARALLEL_DEFINITION_FABRICATION')
           if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
@@ -104,7 +117,8 @@ jobs:
               'kyoto_glossary_rows': k['glossary_rows'],
               'kyoto_glossary_pairs': k['glossary_bilingual_pair_rows'],
               'kyoto_unknown_elements': k['unknown_elements'],
-              'tag_counts': k['tag_counts'],
+              'xml_repair_count': repairs.get('repair_count'),
+              'xml_repairs': repairs.get('repairs'),
           })
           PY
           rm -rf work/public-parallel-sources/raw
@@ -120,5 +134,6 @@ jobs:
             reports/kyoto-source-inspection.json
             reports/public-parallel-sources-report.json
             reports/public-parallel-sources-lock.json
+            reports/public-parallel-xml-repairs.json
           if-no-files-found: warn
           retention-days: 30
