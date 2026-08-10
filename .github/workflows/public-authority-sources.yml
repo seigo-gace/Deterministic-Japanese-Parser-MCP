@@ -1,0 +1,88 @@
+name: Public Authority Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_authority_sources.json"
+      - "tools/public_authority_sources.py"
+      - ".github/workflows/public-authority-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ndlsh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate adapter syntax and self-test
+        run: |
+          python -m py_compile tools/public_authority_sources.py
+          python tools/public_authority_sources.py --self-test
+      - name: Acquire official NDLSH batch ZIP
+        run: |
+          mkdir -p work/public-authority-sources/raw work/public-authority-sources/relations reports
+          curl --fail --location \
+            --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-authority-sources/raw/ndlsh-tsv.zip \
+            https://id.ndl.go.jp/auth/data/download/ndlsh-tsv.zip
+      - name: Normalize every NDLSH record and preserve all 18 fields
+        run: |
+          python tools/public_authority_sources.py \
+            --manifest config/public_authority_sources.json \
+            --archive work/public-authority-sources/raw/ndlsh-tsv.zip \
+            --output work/public-authority-sources/relations/web-ndl-authorities-ndlsh.jsonl \
+            --report reports/public-authority-sources-report.json \
+            --lock reports/public-authority-sources-lock.json
+      - name: Verify NDLSH preservation and relation evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-authority-sources-report.json').read_text(encoding='utf-8'))
+          lock = json.loads(Path('reports/public-authority-sources-lock.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'NORMALIZED':
+              raise SystemExit('NDLSH_NOT_NORMALIZED')
+          if report.get('column_count') != 18:
+              raise SystemExit(f"NDLSH_COLUMN_LOSS:{report.get('column_count')}")
+          if int(report.get('records', 0)) < 100000:
+              raise SystemExit(f"NDLSH_RECORD_COUNT_SUSPICIOUS:{report.get('records')}")
+          if int(report.get('malformed_records', -1)) != 0:
+              raise SystemExit(f"NDLSH_MALFORMED:{report.get('malformed_records')}")
+          if report.get('definition_fabricated') is not False:
+              raise SystemExit('NDLSH_DEFINITION_FABRICATION')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('NDLSH_BOUNDARY_VIOLATION')
+          if lock.get('source_sha256') != report.get('source_sha256'):
+              raise SystemExit('NDLSH_SOURCE_LOCK_MISMATCH')
+          if lock.get('normalized_sha256') != report.get('normalized_sha256'):
+              raise SystemExit('NDLSH_NORMALIZED_LOCK_MISMATCH')
+          print({
+              'records': report['records'],
+              'source_sha256': report['source_sha256'],
+              'normalized_sha256': report['normalized_sha256'],
+              'synonyms': report['synonym_values'],
+              'broader': report['broader_term_values'],
+              'narrower': report['narrower_term_values'],
+              'related': report['related_term_values'],
+              'encoding': report['encoding'],
+              'zip_member': report['zip_member'],
+          })
+          PY
+          rm -f work/public-authority-sources/raw/ndlsh-tsv.zip
+      - name: Upload NDLSH normalized relation pack and source lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-authority-sources-${{ github.sha }}
+          path: |
+            work/public-authority-sources/relations/*.jsonl
+            reports/public-authority-sources-report.json
+            reports/public-authority-sources-lock.json
+          if-no-files-found: warn
+          retention-days: 30
