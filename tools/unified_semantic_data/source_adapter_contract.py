@@ -1,9 +1,11 @@
 """Universal build-time source-adapter contract for the MCP dictionary factory.
 
-Source-specific parsers must emit adapter records into this contract. Records that carry
-source-authored definitions/glosses become semantic-reference rows. Classification,
-translation, familiarity, entity, sentiment, syntax and other non-definition material
-becomes canonical auxiliary evidence. This module never invents a definition.
+Source-specific parsers emit adapter records into this contract. Source-authored
+definitions/glosses are routed two ways: (1) semantic-reference evidence for resolving
+existing words and (2) lexical candidates so newly discovered words can enter the MCP's
+own review/decision pipeline. Classification, translation, familiarity, entity,
+sentiment, syntax and other non-definition material becomes canonical auxiliary
+evidence. This module never invents a definition and never auto-approves a candidate.
 """
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ import unicodedata
 
 from .canonical_evidence import ALLOWED_SOURCE_ROLES
 
-ADAPTER_SCHEMA_VERSION = "1.0.0"
+ADAPTER_SCHEMA_VERSION = "1.1.0"
 MEANING_ROLE = "lexical-definition"
 ALLOWED_ADAPTER_ROLES = {MEANING_ROLE, *ALLOWED_SOURCE_ROLES}
 
@@ -72,37 +74,42 @@ def _validate_source(source: dict[str, Any], record_id: str) -> dict[str, Any]:
 
 
 def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> dict[str, Any]:
-    record_id = _normalize_text(raw.get("adapter_record_id") or raw.get("record_id") or raw.get("id"))
+    record_id = _normalize_text(
+        raw.get("adapter_record_id") or raw.get("record_id") or raw.get("id")
+    )
     if not record_id:
         raise ValueError(f"adapter record id required: {path}:{line}")
     role = _normalize_text(raw.get("source_role") or raw.get("role"))
     if role not in ALLOWED_ADAPTER_ROLES:
         raise ValueError(f"adapter source_role invalid: {record_id}:{role}")
-    surfaces = _stable_unique([
-        raw.get("surface"),
-        raw.get("lemma"),
-        *_as_list(raw.get("surfaces")),
-    ])
+    surfaces = _stable_unique(
+        [raw.get("surface"), raw.get("lemma"), *_as_list(raw.get("surfaces"))]
+    )
     if not surfaces:
         raise ValueError(f"adapter surface required: {record_id}")
     readings = _stable_unique([raw.get("reading"), *_as_list(raw.get("readings"))])
-    pos = _stable_unique([
-        raw.get("part_of_speech"), raw.get("pos"),
-        *_as_list(raw.get("part_of_speech_list")),
-    ])
+    pos = _stable_unique(
+        [
+            raw.get("part_of_speech"),
+            raw.get("pos"),
+            *_as_list(raw.get("part_of_speech_list")),
+        ]
+    )
     domains = _stable_unique([raw.get("domain"), *_as_list(raw.get("domains"))])
     source = raw.get("source") or {}
     if not isinstance(source, dict):
         raise ValueError(f"adapter source object required: {record_id}")
     source = _validate_source(source, record_id)
 
-    meanings = _stable_unique([
-        raw.get("meaning"),
-        raw.get("gloss"),
-        *_as_list(raw.get("meanings")),
-        *_as_list(raw.get("glosses")),
-        *_as_list(raw.get("definitions")),
-    ])
+    meanings = _stable_unique(
+        [
+            raw.get("meaning"),
+            raw.get("gloss"),
+            *_as_list(raw.get("meanings")),
+            *_as_list(raw.get("glosses")),
+            *_as_list(raw.get("definitions")),
+        ]
+    )
     payload = raw.get("payload")
     if role == MEANING_ROLE:
         if not meanings:
@@ -175,6 +182,56 @@ def semantic_reference_row(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
+    """Create a new-word candidate for the MCP-owned dictionary review lane."""
+    if record["source_role"] != MEANING_ROLE:
+        raise ValueError("lexical_candidate_row requires lexical-definition role")
+    source = record["source"]
+    adapter_id = record["adapter_record_id"]
+    candidates = [
+        {
+            "candidate_id": f"{adapter_id}:source-sense:{index:03d}",
+            "label": meaning,
+            "glosses": [meaning],
+            "part_of_speech": record["part_of_speech"],
+            "domains": record["domains"],
+            "parameters": {},
+            "register": {},
+            "context": {},
+            "evidence_ids": [f"source:{source['source_id']}"],
+            "review_status": "needs-evidence",
+            "meaning_source": "source-authored-adapter-record",
+        }
+        for index, meaning in enumerate(record["meanings"], 1)
+    ]
+    return {
+        "record_id": f"ADAPTER-{adapter_id}",
+        "source_kind": "open_lexicon",
+        "lemma": record["surfaces"][0],
+        "surfaces": record["surfaces"],
+        "readings": record["readings"],
+        "part_of_speech": record["part_of_speech"],
+        "domains": record["domains"],
+        "meaning_candidates": candidates,
+        "semantic_targets": ["lexicon"],
+        "review_status": "needs-evidence",
+        "approval_scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "needs-evidence",
+            "task": "needs-evidence",
+            "external_action": "needs-evidence",
+        },
+        "source": {
+            **source,
+            "evidence_scope": "dictionary_source_candidate",
+        },
+        "adapter_record_id": adapter_id,
+        "automatic_approval": False,
+        "automatic_runtime_promotion": False,
+    }
+
+
 def canonical_evidence_row(record: dict[str, Any]) -> dict[str, Any]:
     if record["source_role"] == MEANING_ROLE:
         raise ValueError("canonical_evidence_row requires auxiliary role")
@@ -201,18 +258,30 @@ def compile_adapter_contract(
         for record in records
         if record["source_role"] == MEANING_ROLE
     ]
+    lexical_rows = [
+        lexical_candidate_row(record)
+        for record in records
+        if record["source_role"] == MEANING_ROLE
+    ]
     evidence_rows = [
         canonical_evidence_row(record)
         for record in records
         if record["source_role"] != MEANING_ROLE
     ]
     semantic_rows.sort(key=lambda row: row["id"])
+    lexical_rows.sort(key=lambda row: row["record_id"])
     evidence_rows.sort(key=lambda row: row["evidence_id"])
     output_root.mkdir(parents=True, exist_ok=True)
     semantic_path = output_root / "semantic-reference.jsonl"
+    lexical_path = output_root / "lexical-candidates.jsonl"
     evidence_path = output_root / "canonical-evidence.jsonl"
     semantic_path.write_text(
         "".join(_json_line(row) + "\n" for row in semantic_rows),
+        encoding="utf-8",
+        newline="\n",
+    )
+    lexical_path.write_text(
+        "".join(_json_line(row) + "\n" for row in lexical_rows),
         encoding="utf-8",
         newline="\n",
     )
@@ -227,10 +296,13 @@ def compile_adapter_contract(
         "mode": "mcp-universal-source-adapter-contract",
         "adapter_record_count": len(records),
         "semantic_reference_record_count": len(semantic_rows),
+        "lexical_candidate_record_count": len(lexical_rows),
         "canonical_evidence_record_count": len(evidence_rows),
         "source_role_counts": dict(sorted(role_counts.items())),
         "boundaries": {
             "source_authored_definition_required_for_meaning_reference": True,
+            "definition_sources_create_new_word_candidates": True,
+            "new_word_candidates_require_decision_ledger_review": True,
             "auxiliary_evidence_never_becomes_definition": True,
             "automatic_approval": False,
             "runtime_promotion": False,
@@ -239,6 +311,10 @@ def compile_adapter_contract(
             semantic_path.name: {
                 "bytes": semantic_path.stat().st_size,
                 "sha256": _sha256_file(semantic_path),
+            },
+            lexical_path.name: {
+                "bytes": lexical_path.stat().st_size,
+                "sha256": _sha256_file(lexical_path),
             },
             evidence_path.name: {
                 "bytes": evidence_path.stat().st_size,
