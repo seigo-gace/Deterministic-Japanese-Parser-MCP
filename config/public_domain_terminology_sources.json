@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "license": {
     "name": "CC BY-SA 4.0",
     "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
@@ -11,7 +11,9 @@
       "id": "nbdc-jst-thesaurus-2015-mecab-v2",
       "title": "MeCab用形態素解析辞書：JSTシソーラス見出し語・同義語",
       "status": "enabled",
-      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Thesaurus2015.dic.zip",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_thesaurus.zip",
+      "distribution_format": "csv",
+      "encoding": "Shift-JIS",
       "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-1.html",
       "source_dictionary": "Thesaurus2015",
       "domain": ["science", "technology"],
@@ -21,20 +23,26 @@
       "id": "nbdc-jglobal-mesh-mecab-v2",
       "title": "MeCab用形態素解析辞書：J-GLOBAL MeSH",
       "status": "enabled",
-      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/JSTMeSH.dic.zip",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_jstmesh.zip",
+      "distribution_format": "csv",
+      "encoding": "Shift-JIS",
       "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-2.html",
       "source_dictionary": "MeSH",
-      "domain": ["medicine", "life-science"]
+      "domain": ["medicine", "life-science"],
+      "expected_records_approx": 15425
     },
     {
       "id": "nbdc-nikkaji-mecab-v2",
       "title": "MeCab用形態素解析辞書：日化辞",
       "status": "enabled",
-      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/Nikkaji.dic.zip",
+      "url": "https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_nikkaji.zip",
+      "distribution_format": "csv",
+      "encoding": "Shift-JIS",
       "homepage": "https://dbarchive.biosciencedbc.jp/jp/mecab/data-3.html",
       "source_dictionary": "Nikkaji",
-      "domain": ["chemistry", "chemical-substance"]
+      "domain": ["chemistry", "chemical-substance"],
+      "expected_records_approx": 82922
     }
   ],
-  "semantic_policy": "Morphology/domain terminology evidence only. The archive explicitly does not encode term-to-term thesaurus relations. Do not fabricate definitions or synonym edges. Preserve empty readings/pronunciations and source identifiers for later evidence joins."
+  "semantic_policy": "Morphology/domain terminology evidence only. The official source explicitly says term-to-term thesaurus relations are not encoded in the dictionary. Do not fabricate definitions or synonym edges. Preserve empty readings/pronunciations and source identifiers for later evidence joins."
 }
