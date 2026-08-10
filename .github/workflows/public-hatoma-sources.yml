@@ -1,0 +1,120 @@
+name: Public Hatoma Dictionary Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_hatoma_sources.json"
+      - "tools/public_hatoma_sources.py"
+      - ".github/workflows/public-hatoma-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  normalize-hatoma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate source manifest and deterministic adapter
+        run: |
+          python -m py_compile tools/public_hatoma_sources.py
+          python tools/public_hatoma_sources.py --self-test
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('config/public_hatoma_sources.json').read_text(encoding='utf-8'))
+          if manifest.get('upstream_commit') != 'f70a118276f5e72598dfbb0c625c2caff8f1abf2':
+              raise SystemExit('HATOMA_SOURCE_COMMIT_CHANGED')
+          if manifest.get('tei_edition') != '20260428':
+              raise SystemExit('HATOMA_TEI_EDITION_CHANGED')
+          if (manifest.get('license') or {}).get('name') != 'CC BY-SA 4.0':
+              raise SystemExit('HATOMA_LICENSE_CHANGED')
+          PY
+      - name: Acquire fixed upstream repository snapshot
+        run: |
+          mkdir -p work/public-hatoma/raw work/public-hatoma/normalized reports
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            --output work/public-hatoma/raw/hatoma-dic-f70a118.zip \
+            https://codeload.github.com/yf-wang-ninjal/hatoma-dic/zip/f70a118276f5e72598dfbb0c625c2caff8f1abf2
+          python - <<'PY'
+          import zipfile
+          path='work/public-hatoma/raw/hatoma-dic-f70a118.zip'
+          with zipfile.ZipFile(path) as z:
+              bad=z.testzip()
+              if bad:
+                  raise SystemExit(f'HATOMA_ZIP_CORRUPT:{bad}')
+          PY
+      - name: Normalize every TEI dictionary entry
+        run: |
+          python tools/public_hatoma_sources.py \
+            --manifest config/public_hatoma_sources.json \
+            --archive work/public-hatoma/raw/hatoma-dic-f70a118.zip \
+            --output-root work/public-hatoma/normalized \
+            --report reports/public-hatoma-report.json \
+            --lock reports/public-hatoma-lock.json
+      - name: Enforce source preservation and meaning-evidence boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('reports/public-hatoma-report.json').read_text(encoding='utf-8'))
+          lock=json.loads(Path('reports/public-hatoma-lock.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'NORMALIZED':
+              raise SystemExit('HATOMA_NOT_NORMALIZED')
+          entries=int(report.get('entries',0))
+          if entries < 15000:
+              raise SystemExit(f'HATOMA_ENTRY_COUNT_SUSPICIOUS:{entries}')
+          if entries != int(report.get('normalized_records',-1)) or entries != int(report.get('preserved_records',-1)):
+              raise SystemExit('HATOMA_ENTRY_LOSS')
+          if report.get('selected_xml_sha256') != lock.get('selected_xml_sha256'):
+              raise SystemExit('HATOMA_XML_LOCK_MISMATCH')
+          if report.get('source_archive_sha256') != lock.get('source_archive_sha256'):
+              raise SystemExit('HATOMA_ARCHIVE_LOCK_MISMATCH')
+          if int(report.get('definition_count',0)) <= 0 or int(report.get('meaning_complete_records',0)) <= 0:
+              raise SystemExit('HATOMA_NO_MEANING_EVIDENCE')
+          if report.get('definition_fabricated') is not False or report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('HATOMA_EVIDENCE_BOUNDARY_VIOLATION')
+          if report.get('runtime_promotion') is not False:
+              raise SystemExit('HATOMA_RUNTIME_PROMOTION_FORBIDDEN')
+          for item in report.get('output_files') or []:
+              if len(str(item.get('sha256') or '')) != 64:
+                  raise SystemExit(f'HATOMA_OUTPUT_DIGEST_MISSING:{item.get("path")}')
+          print({
+              'entries': entries,
+              'meaning_complete_records': report['meaning_complete_records'],
+              'unresolved_entries': report['unresolved_entries'],
+              'sense_count': report['sense_count'],
+              'definition_count': report['definition_count'],
+              'examples': report['example_count'],
+              'example_translations': report['example_translation_count'],
+              'forms': report['form_count'],
+              'orthographies': report['orthography_count'],
+              'pronunciations': report['pronunciation_count'],
+              'audio_refs': report['audio_reference_count'],
+              'selected_member': report['selected_member'],
+              'source_sha256': report['source_archive_sha256'],
+              'xml_sha256': report['selected_xml_sha256'],
+              'license_sha256': report['license_sha256'],
+          })
+          PY
+      - name: Upload fixed source and normalized Hatoma evidence pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-hatoma-${{ github.sha }}
+          path: |
+            work/public-hatoma/raw/hatoma-dic-f70a118.zip
+            work/public-hatoma/normalized/source/*
+            work/public-hatoma/normalized/reference/*.jsonl
+            work/public-hatoma/normalized/preserved/*.jsonl
+            work/public-hatoma/normalized/unresolved/*.jsonl
+            reports/public-hatoma-report.json
+            reports/public-hatoma-lock.json
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 0

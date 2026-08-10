@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "id": "ninjal-hatoma-tei-lex0-20260428",
+  "title": "TEI Lex-0版 鳩間方言辞典",
+  "publisher": "国立国語研究所",
+  "official_dataset_page": "https://mmsrv.ninjal.ac.jp/hatoma/en/index.html",
+  "online_dictionary": "https://ninda.ninjal.ac.jp/s/hatoma/",
+  "upstream_repository": "https://github.com/yf-wang-ninjal/hatoma-dic",
+  "upstream_commit": "f70a118276f5e72598dfbb0c625c2caff8f1abf2",
+  "source_url": "https://codeload.github.com/yf-wang-ninjal/hatoma-dic/zip/f70a118276f5e72598dfbb0c625c2caff8f1abf2",
+  "tei_edition": "20260428",
+  "source_language": "rys-x-hatoma",
+  "meaning_language": "ja",
+  "license": {
+    "name": "CC BY-SA 4.0",
+    "license_file": "LICENSE.txt",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "attribution": "TEI Lex-0版 鳩間方言辞典 / 国立国語研究所。原資料・編者情報、固定GitHub commit、CC BY-SA 4.0、変換を行った旨を保持する。"
+  },
+  "semantic_policy": {
+    "meaning_evidence": "TEI sense/def の共通語記述のみを語彙Meaning Evidenceとして採用する。",
+    "missing_definition": "senseのdef欠損、またはMeaning EvidenceゼロのentryをSilent Dropせずneeds-evidence inventoryへ保持する。",
+    "source_preservation": "固定commit ZIP、選択TEI XML原文、LICENSE.txt、entry subtree serialization SHAをEvidenceとして保持する。",
+    "runtime": "Reference-only。Decision Ledgerの自動承認やRuntime Promotionを行わない。"
+  }
+}
