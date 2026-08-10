@@ -8,6 +8,7 @@ on:
       - "tools/public_semantic_sources.py"
       - "tools/public_kanji_sources.py"
       - "tools/public_dependency_sources.py"
+      - "tools/public_dependency_normalizer.py"
       - ".github/workflows/public-semantic-sources.yml"
 
 permissions:
@@ -16,7 +17,7 @@ permissions:
 jobs:
   acquire-and-normalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,11 +32,13 @@ jobs:
           python -m py_compile \
             tools/public_semantic_sources.py \
             tools/public_kanji_sources.py \
-            tools/public_dependency_sources.py
+            tools/public_dependency_sources.py \
+            tools/public_dependency_normalizer.py
       - name: Run deterministic adapter self-tests
         run: |
           python tools/public_semantic_sources.py self-test
           python tools/public_dependency_sources.py --self-test
+          python tools/public_dependency_normalizer.py --self-test
       - name: Prepare base-source manifest
         run: |
           mkdir -p work
@@ -91,10 +94,11 @@ jobs:
           lock = json.loads(Path('reports/public-dependency-sources-lock.json').read_text(encoding='utf-8'))
           if report.get('status') != 'SOURCE_ACQUIRED_FORMAT_INSPECTED':
               raise SystemExit('NICT_SOURCE_NOT_INSPECTED')
-          if int(report.get('source_bytes', 0)) < 500_000_000:
-              raise SystemExit(f"NICT_SOURCE_TOO_SMALL:{report.get('source_bytes')}")
-          if len(str(report.get('source_sha256') or '')) != 64:
-              raise SystemExit('NICT_SOURCE_DIGEST_MISSING')
+          if int(report.get('source_bytes', 0)) != 596_594_102:
+              raise SystemExit(f"NICT_SOURCE_SIZE_CHANGED:{report.get('source_bytes')}")
+          expected_sha = '354da517d97ad9cf3529ceabdabd4497f25f83f99b0a681e336a4d0e91ae0f77'
+          if report.get('source_sha256') != expected_sha:
+              raise SystemExit(f"NICT_SOURCE_DIGEST_CHANGED:{report.get('source_sha256')}")
           if not str(report.get('body_member') or '').endswith('DEP_WIKIPEDIA_V1.0.bz2'):
               raise SystemExit('NICT_BODY_MEMBER_MISSING')
           if report.get('readme_detected') is not True:
@@ -104,6 +108,8 @@ jobs:
           analysis = report.get('sample_analysis') or {}
           if int(analysis.get('nonempty_lines', 0)) <= 0:
               raise SystemExit('NICT_SAMPLE_EMPTY')
+          if report.get('sample_encoding') != 'utf-8':
+              raise SystemExit(f"NICT_ENCODING_CHANGED:{report.get('sample_encoding')}")
           if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
               raise SystemExit('NICT_ACQUISITION_BOUNDARY_VIOLATION')
           if lock.get('source_sha256') != report.get('source_sha256'):
@@ -116,7 +122,49 @@ jobs:
               'sample_encoding': report['sample_encoding'],
               'sample_lines': report['sample_lines'],
               'format_guess': analysis.get('format_guess'),
-              'tab_field_histogram': analysis.get('tab_field_histogram'),
+          })
+          PY
+      - name: Normalize every NICT dependency row and join available meaning evidence
+        timeout-minutes: 45
+        run: |
+          python tools/public_dependency_normalizer.py \
+            --archive work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz \
+            --output-root work/public-dependency-sources/normalized \
+            --semantic-reference-root work/public-semantic-sources/reference \
+            --source-sha256 354da517d97ad9cf3529ceabdabd4497f25f83f99b0a681e336a4d0e91ae0f77 \
+            --shard-size 1000000 \
+            > reports/public-dependency-normalization-run.json
+      - name: Verify full NICT normalization
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('work/public-dependency-sources/normalized/manifest.json').read_text(encoding='utf-8'))
+          if manifest.get('source_sha256') != '354da517d97ad9cf3529ceabdabd4497f25f83f99b0a681e336a4d0e91ae0f77':
+              raise SystemExit('NICT_NORMALIZED_SOURCE_DIGEST_MISMATCH')
+          if int(manifest.get('source_lines', -1)) <= 0:
+              raise SystemExit('NICT_NO_SOURCE_ROWS')
+          if manifest.get('source_lines') != manifest.get('normalized_records'):
+              raise SystemExit('NICT_SOURCE_ROW_LOSS')
+          if int(manifest.get('malformed_records', -1)) != 0:
+              raise SystemExit(f"NICT_MALFORMED_ROWS:{manifest.get('malformed_records')}")
+          shards = manifest.get('shards') or []
+          if not shards or sum(int(item['records']) for item in shards) != manifest['normalized_records']:
+              raise SystemExit('NICT_SHARD_COUNT_MISMATCH')
+          for item in shards:
+              if len(str(item.get('sha256') or '')) != 64:
+                  raise SystemExit(f"NICT_SHARD_DIGEST_MISSING:{item.get('path')}")
+          semantic = manifest.get('semantic_join') or {}
+          print({
+              'source_lines': manifest['source_lines'],
+              'normalized_records': manifest['normalized_records'],
+              'malformed_records': manifest['malformed_records'],
+              'shards': len(shards),
+              'total_observed_frequency': manifest['total_observed_frequency'],
+              'dependent_meaning_match_occurrences': semantic.get('dependent_meaning_match_occurrences'),
+              'dependent_unresolved_occurrences': semantic.get('dependent_unresolved_occurrences'),
+              'head_meaning_match_occurrences': semantic.get('head_meaning_match_occurrences'),
+              'head_unresolved_occurrences': semantic.get('head_unresolved_occurrences'),
           })
           PY
           rm -f work/public-dependency-sources/raw/DEP_WIKIPEDIA_V1.0.tar.gz
@@ -175,9 +223,13 @@ jobs:
             work/public-semantic-sources/unresolved/*.jsonl
             work/public-semantic-sources/licenses/*
             work/public-dependency-sources/sample/*.txt
+            work/public-dependency-sources/normalized/manifest.json
+            work/public-dependency-sources/normalized/relations/*.tsv.gz
             reports/public-semantic-sources-report.json
             reports/public-semantic-sources-lock.json
             reports/public-dependency-sources-report.json
             reports/public-dependency-sources-lock.json
+            reports/public-dependency-normalization-run.json
           if-no-files-found: warn
+          compression-level: 0
           retention-days: 30
