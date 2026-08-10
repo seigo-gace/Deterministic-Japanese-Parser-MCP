@@ -10,6 +10,9 @@ from unified_semantic_data.canonical_dictionary import (
     compile_canonical_dictionary,
     validate_compiled_dictionary_root,
 )
+from unified_semantic_data.canonical_distribution import (
+    compile_public_dictionary_view,
+)
 from unified_semantic_data.canonical_runtime_projection import (
     compile_runtime_projection,
     validate_runtime_projection,
@@ -42,6 +45,9 @@ DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
 DEFAULT_CANONICAL_DICTIONARY_ROOT = (
     ROOT / "dictionaries/system/compiled/canonical_dictionary"
+)
+DEFAULT_PUBLIC_DICTIONARY_ROOT = (
+    ROOT / "dictionaries/system/compiled/canonical_dictionary_public"
 )
 DEFAULT_CANONICAL_RUNTIME_ROOT = (
     ROOT / "dictionaries/system/compiled/canonical_dictionary_runtime"
@@ -101,6 +107,14 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
                 ROOT / "tools/unified_semantic_data/canonical_dictionary.py",
             ),
             (
+                "code-license-policy",
+                ROOT / "tools/unified_semantic_data/license_policy.py",
+            ),
+            (
+                "code-canonical-distribution",
+                ROOT / "tools/unified_semantic_data/canonical_distribution.py",
+            ),
+            (
                 "code-canonical-runtime-projection",
                 ROOT / "tools/unified_semantic_data/canonical_runtime_projection.py",
             ),
@@ -125,12 +139,26 @@ def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
     )
 
 
+def _compile_public_dictionary_if_needed(args: argparse.Namespace) -> dict:
+    manifest_path = args.public_dictionary_root / "manifest.json"
+    if manifest_path.is_file():
+        manifest = validate_compiled_dictionary_root(args.public_dictionary_root)
+        if manifest.get("distribution_view") != "public-compatible":
+            raise ValueError("canonical public dictionary distribution view mismatch")
+        return manifest
+    return compile_public_dictionary_view(
+        args.canonical_dictionary_root,
+        args.public_dictionary_root,
+        shard_size=args.shard_size,
+    )
+
+
 def _compile_canonical_runtime_if_needed(args: argparse.Namespace) -> dict:
     manifest_path = args.canonical_runtime_root / "manifest.json"
     if manifest_path.is_file():
         return validate_runtime_projection(args.canonical_runtime_root)
     return compile_runtime_projection(
-        args.canonical_dictionary_root,
+        args.public_dictionary_root,
         args.canonical_runtime_root,
         shard_size=args.shard_size,
     )
@@ -179,8 +207,19 @@ def main() -> int:
         type=Path,
         default=DEFAULT_CANONICAL_DICTIONARY_ROOT,
         help=(
-            "MCP-owned canonical dictionary output. It is compiled only from "
-            "real, explicitly approved semantic meanings."
+            "internal MCP-owned canonical master dictionary. It is compiled only "
+            "from real, explicitly approved semantic meanings and preserves "
+            "upstream source/license evidence."
+        ),
+    )
+    parser.add_argument(
+        "--public-dictionary-root",
+        type=Path,
+        default=DEFAULT_PUBLIC_DICTIONARY_ROOT,
+        help=(
+            "public-compatible canonical dictionary view. NonCommercial, "
+            "NoDerivatives, unknown, and pending source evidence is excluded "
+            "without inventing replacement meanings."
         ),
     )
     parser.add_argument(
@@ -188,8 +227,9 @@ def main() -> int:
         type=Path,
         default=DEFAULT_CANONICAL_RUNTIME_ROOT,
         help=(
-            "compatibility projection of the MCP canonical dictionary for the "
-            "existing SemanticDataRuntime ABI; ParserEngine cutover is separate"
+            "compatibility projection of the public-compatible MCP canonical "
+            "dictionary for the existing SemanticDataRuntime ABI; ParserEngine "
+            "cutover is a separate validated step"
         ),
     )
     parser.add_argument("--shard-size", type=int, default=10000)
@@ -277,6 +317,7 @@ def main() -> int:
                 "review_batch_size": args.review_batch_size,
                 "compile_approved": args.compile_approved,
                 "canonical_dictionary_schema": "1.0.0",
+                "public_dictionary_view": "1.0.0",
                 "canonical_runtime_projection": "1.0.0",
             },
         )
@@ -310,6 +351,7 @@ def main() -> int:
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
                 result["canonical_dictionary"] = _compile_dictionary_if_needed(args)
+                result["public_dictionary"] = _compile_public_dictionary_if_needed(args)
                 result["canonical_runtime_projection"] = (
                     _compile_canonical_runtime_if_needed(args)
                 )
@@ -338,8 +380,7 @@ def main() -> int:
             }
             if args.compile_approved:
                 # Master boundary: data without a real, approved semantic meaning
-                # must not silently reach either runtime semantic data or the
-                # MCP-owned canonical dictionary.
+                # must not silently reach any runtime or dictionary output.
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = compile_approved(
                     args.output_root,
@@ -351,8 +392,13 @@ def main() -> int:
                     args.canonical_dictionary_root,
                     shard_size=args.shard_size,
                 )
-                result["canonical_runtime_projection"] = compile_runtime_projection(
+                result["public_dictionary"] = compile_public_dictionary_view(
                     args.canonical_dictionary_root,
+                    args.public_dictionary_root,
+                    shard_size=args.shard_size,
+                )
+                result["canonical_runtime_projection"] = compile_runtime_projection(
+                    args.public_dictionary_root,
                     args.canonical_runtime_root,
                     shard_size=args.shard_size,
                 )
