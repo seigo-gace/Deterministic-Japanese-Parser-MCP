@@ -83,9 +83,8 @@ def normalize_predicate(
             tail = "\t".join(fields[1:]).strip() if len(fields) >= 2 else ""
 
             # The published predicate dictionary contains section labels in both
-            # one-field form and "label<TAB>" form.  A trailing empty field is
-            # source structure, not a malformed sentiment expression.  Preserve
-            # the exact raw line and raw fields in either representation.
+            # one-field form and "label<TAB>" form. A trailing empty field is
+            # source structure, not a malformed sentiment expression.
             if label and (len(fields) == 1 or not tail):
                 record = {
                     "record_type": "section",
@@ -161,6 +160,7 @@ def normalize_noun(
     reader = csv.reader(io.StringIO(text, newline=""), delimiter="\t")
     nonempty_source_rows = 0
     records = 0
+    unlabeled_records = 0
     field_counts: Counter[int] = Counter()
     polarity_counts: Counter[str] = Counter()
     category_counts: Counter[str] = Counter()
@@ -179,25 +179,39 @@ def normalize_noun(
                     )
                 continue
             term, polarity, semantic_category = values
-            if not term or not polarity:
+            if not term:
                 if len(malformed) < 50:
                     malformed.append(
-                        {"row": row_number, "error": "term/polarity empty", "fields": values}
+                        {"row": row_number, "error": "term empty", "fields": values}
                     )
                 continue
+
+            if polarity:
+                record_type = "noun_sentiment"
+                review_status = "source-labeled"
+                polarity_counts[polarity] += 1
+            else:
+                # The published noun dictionary contains a source-authored row
+                # with an empty polarity field. Preserve it exactly rather than
+                # dropping it or inventing a polarity label.
+                record_type = "noun_unlabeled"
+                review_status = "needs-evidence"
+                unlabeled_records += 1
+
             record = {
-                "record_type": "noun_sentiment",
+                "record_type": record_type,
                 "record_id": f"NOUN-{row_number:06d}",
                 "source_row_number": row_number,
                 "term": term,
                 "polarity_label": polarity,
                 "semantic_category": semantic_category,
                 "raw_fields": values,
+                "review_status": review_status,
                 "evidence_role": spec["evidence_role"],
                 "source": source_meta(spec, source_sha),
                 "semantic_policy": (
                     "sentiment and published semantic-category overlay only; "
-                    "not a standalone lexical definition"
+                    "not a standalone lexical definition; empty source polarity is preserved and never inferred"
                 ),
             }
             handle.write(
@@ -205,7 +219,6 @@ def normalize_noun(
                 + "\n"
             )
             records += 1
-            polarity_counts[polarity] += 1
             category_counts[semantic_category] += 1
     if malformed:
         raise RuntimeError(
@@ -223,6 +236,7 @@ def normalize_noun(
         "encoding": encoding,
         "nonempty_source_rows": nonempty_source_rows,
         "records": records,
+        "unlabeled_records": unlabeled_records,
         "field_count_histogram": {str(k): v for k, v in sorted(field_counts.items())},
         "polarity_counts": dict(sorted(polarity_counts.items())),
         "semantic_category_counts": dict(sorted(category_counts.items())),
