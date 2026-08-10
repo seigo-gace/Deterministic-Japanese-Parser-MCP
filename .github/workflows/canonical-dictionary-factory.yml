@@ -1,0 +1,37 @@
+name: Canonical Dictionary Factory
+
+on:
+  pull_request:
+    paths:
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "tests/test_canonical_dictionary.py"
+      - ".github/workflows/canonical-dictionary-factory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-dictionary-factory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest PyYAML
+      - name: Syntax check
+        run: |
+          python -m py_compile tools/unified_semantic_data/canonical_dictionary.py
+          python -m py_compile tools/unified_semantic_data_pipeline.py
+      - name: Canonical dictionary unit tests
+        run: |
+          pytest -q tests/test_canonical_dictionary.py
+      - name: Existing semantic factory regression tests
+        run: |
+          pytest -q tests/test_semantic_labeler.py tests/test_unified_semantic_data_pipeline.py
