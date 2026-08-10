@@ -18,6 +18,10 @@ from unified_semantic_data.pipeline import (
     check_determinism,
     compile_approved,
 )
+from unified_semantic_data.semantic_labeler import (
+    build_semantic_enrichment_queue,
+    require_all_meanings_complete,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPEN_LEXICON_ROOT = ROOT / "dictionaries/system/lexicon.d"
@@ -29,6 +33,7 @@ DEFAULT_PACK_ROOTS = (
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
 DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
+DEFAULT_SEMANTIC_REFERENCE_ROOT = ROOT / "tools/unified_semantic_data/reference"
 
 
 def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Path]]:
@@ -45,6 +50,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
     inputs.extend(
         (f"pack-{index:02d}", path)
         for index, path in enumerate(args.pack_root, 1)
+    )
+    inputs.extend(
+        (f"semantic-reference-{index:02d}", path)
+        for index, path in enumerate(args.semantic_reference_root, 1)
     )
     inputs.append(("decision-ledger", args.decision_root))
 
@@ -69,6 +78,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
                 "code-factory-foundation",
                 ROOT / "tools/unified_semantic_data/factory_foundation.py",
             ),
+            (
+                "code-semantic-labeler",
+                ROOT / "tools/unified_semantic_data/semantic_labeler.py",
+            ),
             ("code-bulk-review", ROOT / "tools/bulk_review_station.py"),
         ]
     )
@@ -92,6 +105,16 @@ def main() -> int:
         default=DEFAULT_CONTEXT_ROOT,
     )
     parser.add_argument("--pack-root", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--semantic-reference-root",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "build-time semantic reference root; all JSONL files are loaded "
+            "recursively and future domain/user reference packs use the same stage"
+        ),
+    )
     parser.add_argument(
         "--system-root",
         type=Path,
@@ -155,6 +178,8 @@ def main() -> int:
     args = parser.parse_args()
     if not args.pack_root:
         args.pack_root = list(DEFAULT_PACK_ROOTS)
+    if not args.semantic_reference_root:
+        args.semantic_reference_root = [DEFAULT_SEMANTIC_REFERENCE_ROOT]
     if args.shard_size < 100:
         raise ValueError("shard-size must be at least 100")
     if not 1 <= args.foundation_partitions <= 4096:
@@ -207,13 +232,18 @@ def main() -> int:
             foundation = _load_json(
                 args.output_root / "factory-foundation/manifest.json"
             )
+            semantic_enrichment = _load_json(
+                args.output_root / "semantic-enrichment-report.json"
+            )
             result = {
                 "status": "REUSED",
                 "input_fingerprint": fingerprint,
                 "review": review,
+                "semantic_enrichment": semantic_enrichment,
                 "factory_foundation": foundation,
             }
             if args.compile_approved:
+                require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
         else:
             review = build_review_assets(
@@ -227,12 +257,21 @@ def main() -> int:
                 review_seed=args.review_seed,
                 bulk_review=args.bulk_review,
             )
+            semantic_enrichment = build_semantic_enrichment_queue(
+                args.output_root / "review-records.jsonl",
+                args.output_root,
+                reference_roots=args.semantic_reference_root,
+            )
             result = {
                 "status": "WRITTEN",
                 "input_fingerprint": fingerprint,
                 "review": review,
+                "semantic_enrichment": semantic_enrichment,
             }
             if args.compile_approved:
+                # Master boundary: data without a real, approved semantic meaning
+                # must not silently reach the runtime compiled pack.
+                require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = compile_approved(
                     args.output_root,
                     args.compiled_root,
