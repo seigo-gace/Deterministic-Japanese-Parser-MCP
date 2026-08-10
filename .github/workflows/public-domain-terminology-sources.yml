@@ -1,118 +1,13 @@
-name: Public Domain Terminology Source Acquisition
+name: Public Domain Terminology Source Acquisition — Disabled
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "config/public_domain_terminology_sources.json"
-      - "tools/public_domain_terminology_sources.py"
-      - ".github/workflows/public-domain-terminology-sources.yml"
 
 permissions:
   contents: read
 
 jobs:
-  normalize-domain-terminology:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Validate syntax and adapter self-test
-        run: |
-          python -m py_compile tools/public_domain_terminology_sources.py
-          python tools/public_domain_terminology_sources.py --self-test
-      - name: Acquire NBDC official CSV terminology ZIPs
-        run: |
-          mkdir -p work/public-domain-terminology/raw work/public-domain-terminology/normalized reports
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-domain-terminology/raw/nbdc-jst-thesaurus-2015-mecab-v2.zip \
-            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_thesaurus.zip
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-domain-terminology/raw/nbdc-jglobal-mesh-mecab-v2.zip \
-            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_jstmesh.zip
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-domain-terminology/raw/nbdc-nikkaji-mecab-v2.zip \
-            https://dbarchive.biosciencedbc.jp/data/mecab/LATEST/mecab_nikkaji.zip
-      - name: Normalize every terminology data record and preserve CSV header evidence
-        run: |
-          python tools/public_domain_terminology_sources.py \
-            --manifest config/public_domain_terminology_sources.json \
-            --source-root work/public-domain-terminology/raw \
-            --output-root work/public-domain-terminology/normalized \
-            --report reports/public-domain-terminology-report.json \
-            --lock reports/public-domain-terminology-lock.json
-      - name: Verify exact data counts, header separation, and semantic boundary
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          report = json.loads(Path('reports/public-domain-terminology-report.json').read_text(encoding='utf-8'))
-          locks = json.loads(Path('reports/public-domain-terminology-lock.json').read_text(encoding='utf-8'))
-          if report.get('status') != 'NORMALIZED' or report.get('source_count') != 3:
-              raise SystemExit('DOMAIN_TERMINOLOGY_NOT_COMPLETE')
-          if report.get('field_count') != 21:
-              raise SystemExit(f"DOMAIN_FIELD_LOSS:{report.get('field_count')}")
-          if report.get('definition_fabricated') is not False or report.get('term_relations_fabricated') is not False:
-              raise SystemExit('DOMAIN_SEMANTIC_FABRICATION')
-          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
-              raise SystemExit('DOMAIN_SOURCE_BOUNDARY_VIOLATION')
-          if len(locks.get('sources') or []) != 3:
-              raise SystemExit('DOMAIN_SOURCE_LOCK_COUNT_MISMATCH')
-
-          by_id = {item['source_id']: item for item in report['sources']}
-          expected = {
-              'nbdc-jst-thesaurus-2015-mecab-v2': 127214,
-              'nbdc-jglobal-mesh-mecab-v2': 15425,
-              'nbdc-nikkaji-mecab-v2': 82922,
-          }
-          for source_id, expected_records in expected.items():
-              item = by_id[source_id]
-              if int(item['records']) != expected_records:
-                  raise SystemExit(f"DOMAIN_RECORD_COUNT_MISMATCH:{source_id}:{item['records']}:{expected_records}")
-              if int(item.get('header_rows', 0)) != 1:
-                  raise SystemExit(f"DOMAIN_HEADER_COUNT_MISMATCH:{source_id}:{item.get('header_rows')}")
-              if int(item.get('source_nonempty_rows', 0)) != expected_records + 1:
-                  raise SystemExit(f"DOMAIN_SOURCE_ROW_COUNT_MISMATCH:{source_id}:{item.get('source_nonempty_rows')}")
-              if item.get('source_field_count_histogram') != {'21': expected_records + 1}:
-                  raise SystemExit(f"DOMAIN_FIELD_STRUCTURE_CHANGED:{source_id}:{item.get('source_field_count_histogram')}")
-              header = item.get('header_fields') or []
-              if len(header) != 21 or header[13] != 'Source dictionary' or header[16] != 'Headword Flag' or header[17] != 'Category code':
-                  raise SystemExit(f"DOMAIN_HEADER_STRUCTURE_CHANGED:{source_id}:{header}")
-              if 'Source dictionary' in (item.get('source_dictionary_counts') or {}):
-                  raise SystemExit(f"DOMAIN_HEADER_LEAK_SOURCE_DICTIONARY:{source_id}")
-              if 'Headword Flag' in (item.get('headword_flag_counts') or {}):
-                  raise SystemExit(f"DOMAIN_HEADER_LEAK_HEADWORD:{source_id}")
-              if 'Category code' in (item.get('category_code_counts') or {}):
-                  raise SystemExit(f"DOMAIN_HEADER_LEAK_CATEGORY:{source_id}")
-              if len(str(item.get('source_sha256') or '')) != 64 or len(str(item.get('normalized_sha256') or '')) != 64:
-                  raise SystemExit(f"DOMAIN_DIGEST_MISSING:{source_id}")
-
-          if report.get('total_records') != sum(expected.values()) or report.get('total_header_rows') != 3:
-              raise SystemExit(f"DOMAIN_TOTAL_COUNT_MISMATCH:{report.get('total_records')}:{report.get('total_header_rows')}")
-          print({
-              item['source_id']: {
-                  'source_rows': item['source_nonempty_rows'],
-                  'header_rows': item['header_rows'],
-                  'records': item['records'],
-                  'empty_reading': item['empty_reading_records'],
-                  'source_sha256': item['source_sha256'],
-                  'normalized_sha256': item['normalized_sha256'],
-              }
-              for item in report['sources']
-          })
-          PY
-          rm -rf work/public-domain-terminology/raw
-      - name: Upload normalized terminology packs and source locks
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-domain-terminology-${{ github.sha }}
-          path: |
-            work/public-domain-terminology/normalized/*.jsonl
-            reports/public-domain-terminology-report.json
-            reports/public-domain-terminology-lock.json
-          if-no-files-found: warn
-          retention-days: 30
+      - run: echo "External source acquisition is disabled. Use the frozen collected raw factory input."

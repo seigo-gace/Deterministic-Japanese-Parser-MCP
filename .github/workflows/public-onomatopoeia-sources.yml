@@ -1,91 +1,13 @@
-name: Public Onomatopoeia Source Acquisition
+name: Public Onomatopoeia Source Acquisition — Disabled
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "config/public_onomatopoeia_sources.json"
-      - "tools/public_onomatopoeia_sources.py"
-      - ".github/workflows/public-onomatopoeia-sources.yml"
 
 permissions:
   contents: read
 
 jobs:
-  normalize-j-ono:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Validate normalizer syntax
-        run: python -m py_compile tools/public_onomatopoeia_sources.py
-      - name: Acquire JSON Collection and MIT license only
-        run: |
-          mkdir -p work/public-onomatopoeia/raw work/public-onomatopoeia/normalized reports
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-onomatopoeia/raw/j-ono-data.json \
-            https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/json/j-ono-data.json
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-onomatopoeia/raw/j-ono-source.json \
-            https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/json/j-ono-source.json
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-onomatopoeia/raw/LICENSE.md \
-            https://raw.githubusercontent.com/ObakeConstructs/j-ono-data/main/LICENSE.md
-      - name: Normalize source-authored meanings and refer graph
-        run: |
-          python tools/public_onomatopoeia_sources.py \
-            --manifest config/public_onomatopoeia_sources.json \
-            --data work/public-onomatopoeia/raw/j-ono-data.json \
-            --sources work/public-onomatopoeia/raw/j-ono-source.json \
-            --license work/public-onomatopoeia/raw/LICENSE.md \
-            --output work/public-onomatopoeia/normalized/j-ono-definitions.jsonl \
-            --source-output work/public-onomatopoeia/normalized/j-ono-example-sources.jsonl \
-            --report reports/public-onomatopoeia-report.json \
-            --lock reports/public-onomatopoeia-lock.json
-      - name: Verify meaning completeness and image-license boundary
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          report = json.loads(Path('reports/public-onomatopoeia-report.json').read_text(encoding='utf-8'))
-          if report.get('status') != 'NORMALIZED':
-              raise SystemExit('J_ONO_NOT_NORMALIZED')
-          if report.get('normalized_records') != report.get('definition_children'):
-              raise SystemExit('J_ONO_DEFINITION_LOSS')
-          if int(report.get('resolved_meaning_empty', -1)) != 0:
-              raise SystemExit(f"J_ONO_MEANING_INCOMPLETE:{report.get('resolved_meaning_empty')}")
-          if report.get('image_payloads_included') is not False:
-              raise SystemExit('J_ONO_IMAGE_LICENSE_BOUNDARY_VIOLATION')
-          if report.get('definition_fabricated') is not False:
-              raise SystemExit('J_ONO_MEANING_FABRICATION')
-          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
-              raise SystemExit('J_ONO_ACQUISITION_BOUNDARY_VIOLATION')
-          for key in ('data_sha256','source_records_sha256','license_sha256','normalized_sha256'):
-              if len(str(report.get(key) or '')) != 64:
-                  raise SystemExit(f"J_ONO_DIGEST_MISSING:{key}")
-          print({
-              'definition_records': report['source_definition_records'],
-              'definition_children': report['definition_children'],
-              'surface_variants': report['surface_variant_count'],
-              'refer_edges': report['refer_edges'],
-              'type_counts': report['type_counts'],
-              'examples': report['example_metadata_records'],
-              'data_sha256': report['data_sha256'],
-              'normalized_sha256': report['normalized_sha256'],
-          })
-          PY
-          rm -rf work/public-onomatopoeia/raw
-      - name: Upload semantic onomatopoeia pack and source lock
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-onomatopoeia-${{ github.sha }}
-          path: |
-            work/public-onomatopoeia/normalized/*.jsonl
-            reports/public-onomatopoeia-report.json
-            reports/public-onomatopoeia-lock.json
-          if-no-files-found: warn
-          retention-days: 30
+      - run: echo "External source acquisition is disabled. Use the frozen collected raw factory input."

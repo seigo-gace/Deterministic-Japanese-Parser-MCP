@@ -1,86 +1,13 @@
-name: Public Sentiment Source Acquisition
+name: Public Sentiment Source Acquisition — Disabled
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "config/public_sentiment_sources.json"
-      - "tools/public_sentiment_sources.py"
-      - ".github/workflows/public-sentiment-sources.yml"
 
 permissions:
   contents: read
 
 jobs:
-  normalize-sentiment:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Validate normalizer syntax
-        run: python -m py_compile tools/public_sentiment_sources.py
-      - name: Acquire official Tohoku sentiment files
-        run: |
-          mkdir -p work/public-sentiment/raw work/public-sentiment/normalized reports
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-sentiment/raw/wago.121808.pn \
-            https://www.cl.ecei.tohoku.ac.jp/resources/sent_lex/wago.121808.pn
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            --output work/public-sentiment/raw/pn.csv.m3.120408.trim \
-            https://www.cl.ecei.tohoku.ac.jp/resources/sent_lex/pn.csv.m3.120408.trim
-      - name: Normalize every non-empty source row
-        run: |
-          python tools/public_sentiment_sources.py \
-            --manifest config/public_sentiment_sources.json \
-            --predicate-source work/public-sentiment/raw/wago.121808.pn \
-            --noun-source work/public-sentiment/raw/pn.csv.m3.120408.trim \
-            --output-root work/public-sentiment/normalized \
-            --report reports/public-sentiment-report.json \
-            --lock reports/public-sentiment-lock.json
-      - name: Verify row preservation and sentiment-only boundary
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          report = json.loads(Path('reports/public-sentiment-report.json').read_text(encoding='utf-8'))
-          if report.get('status') != 'NORMALIZED':
-              raise SystemExit('SENTIMENT_NOT_NORMALIZED')
-          p = report['predicate']; n = report['noun']
-          if p['data_records'] + p['section_rows'] != p['nonempty_source_lines']:
-              raise SystemExit('PREDICATE_SOURCE_LINE_LOSS')
-          if n['records'] != n['nonempty_source_rows']:
-              raise SystemExit('NOUN_SOURCE_ROW_LOSS')
-          if p['malformed_records'] != 0 or n['malformed_records'] != 0:
-              raise SystemExit('SENTIMENT_MALFORMED_SOURCE_ROWS')
-          if n['field_count_histogram'] != {'3': n['records']}:
-              raise SystemExit(f"NOUN_SOURCE_STRUCTURE_CHANGED:{n['field_count_histogram']}")
-          if report.get('definition_fabricated') is not False:
-              raise SystemExit('SENTIMENT_DEFINITION_FABRICATION')
-          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
-              raise SystemExit('SENTIMENT_BOUNDARY_VIOLATION')
-          print({
-              'predicate_source_lines': p['nonempty_source_lines'],
-              'predicate_records': p['data_records'],
-              'predicate_sections': p['section_rows'],
-              'predicate_polarity': p['polarity_counts'],
-              'predicate_source_sha256': p['source_sha256'],
-              'noun_records': n['records'],
-              'noun_polarity': n['polarity_counts'],
-              'noun_source_sha256': n['source_sha256'],
-          })
-          PY
-          rm -rf work/public-sentiment/raw
-      - name: Upload normalized sentiment overlays and source locks
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-sentiment-sources-${{ github.sha }}
-          path: |
-            work/public-sentiment/normalized/*.jsonl
-            reports/public-sentiment-report.json
-            reports/public-sentiment-lock.json
-          if-no-files-found: warn
-          retention-days: 30
+      - run: echo "External source acquisition is disabled. Use the frozen collected raw factory input."
