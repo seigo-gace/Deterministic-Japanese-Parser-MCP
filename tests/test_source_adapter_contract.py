@@ -27,7 +27,9 @@ def _source(dataset: str) -> dict:
     }
 
 
-def test_adapter_contract_separates_definition_from_auxiliary_evidence(tmp_path: Path) -> None:
+def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "adapter.jsonl"
     rows = [
         {
@@ -57,10 +59,21 @@ def test_adapter_contract_separates_definition_from_auxiliary_evidence(tmp_path:
     manifest = compile_adapter_contract([source], output)
     assert manifest["adapter_record_count"] == 2
     assert manifest["semantic_reference_record_count"] == 1
+    assert manifest["lexical_candidate_record_count"] == 1
     assert manifest["canonical_evidence_record_count"] == 1
+    assert manifest["boundaries"]["definition_sources_create_new_word_candidates"] is True
+    assert manifest["boundaries"]["new_word_candidates_require_decision_ledger_review"] is True
+
     semantic = [
         json.loads(line)
         for line in (output / "semantic-reference.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    lexical = [
+        json.loads(line)
+        for line in (output / "lexical-candidates.jsonl").read_text(
             encoding="utf-8"
         ).splitlines()
         if line.strip()
@@ -74,6 +87,15 @@ def test_adapter_contract_separates_definition_from_auxiliary_evidence(tmp_path:
     ]
     assert semantic[0]["meanings"] == ["預金や融資などを扱う金融機関"]
     assert semantic[0]["meaning_origin"] == "source-authored"
+    assert lexical[0]["record_id"] == "ADAPTER-DEF-1"
+    assert lexical[0]["source_kind"] == "open_lexicon"
+    assert lexical[0]["meaning_candidates"][0]["glosses"] == [
+        "預金や融資などを扱う金融機関"
+    ]
+    assert lexical[0]["meaning_candidates"][0]["review_status"] == "needs-evidence"
+    assert lexical[0]["approval_scopes"]["semantic"] == "needs-evidence"
+    assert lexical[0]["automatic_approval"] is False
+    assert lexical[0]["automatic_runtime_promotion"] is False
     assert evidence[0]["source_role"] == "translation"
     assert evidence[0]["payload"]["value"] == "bank"
     assert evidence[0]["automatic_meaning_generation"] is False
