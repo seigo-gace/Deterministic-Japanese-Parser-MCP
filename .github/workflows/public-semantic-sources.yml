@@ -1,0 +1,69 @@
+name: Public Semantic Source Acquisition
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "config/public_semantic_sources.json"
+      - "tools/public_semantic_sources.py"
+      - ".github/workflows/public-semantic-sources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-and-normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install acquisition-only parser dependency
+        run: pip install openpyxl==3.1.5
+      - name: Validate source policy manifest
+        run: python tools/public_semantic_sources.py validate-manifest --manifest config/public_semantic_sources.json
+      - name: Run deterministic adapter self-test
+        run: python tools/public_semantic_sources.py self-test
+      - name: Acquire and normalize public semantic sources
+        run: |
+          python tools/public_semantic_sources.py acquire \
+            --manifest config/public_semantic_sources.json \
+            --output-root work/public-semantic-sources \
+            --report reports/public-semantic-sources-report.json \
+            --lock reports/public-semantic-sources-lock.json
+      - name: Enforce meaning completeness and source lock evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('reports/public-semantic-sources-report.json').read_text(encoding='utf-8'))
+          locks = json.loads(Path('reports/public-semantic-sources-lock.json').read_text(encoding='utf-8'))
+          if report.get('meaning_complete') is not True:
+              raise SystemExit('MEANING_EVIDENCE_INCOMPLETE')
+          if report.get('llm_api_used') is not False or report.get('web_scraping_used') is not False:
+              raise SystemExit('ACQUISITION_BOUNDARY_VIOLATION')
+          if report.get('total_records', 0) <= 0:
+              raise SystemExit('NO_NORMALIZED_RECORDS')
+          if len(locks.get('sources', [])) != report.get('enabled_source_count'):
+              raise SystemExit('SOURCE_LOCK_COUNT_MISMATCH')
+          for item in locks['sources']:
+              if len(str(item.get('source_sha256') or '')) != 64:
+                  raise SystemExit(f"SOURCE_DIGEST_MISSING:{item.get('source_id')}")
+              if len(str(item.get('normalized_sha256') or '')) != 64:
+                  raise SystemExit(f"NORMALIZED_DIGEST_MISSING:{item.get('source_id')}")
+          print({'enabled_sources': report['enabled_source_count'], 'records': report['total_records'], 'meaning_complete': report['meaning_complete']})
+          PY
+      - name: Upload normalized meaning references and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-semantic-sources-${{ github.sha }}
+          path: |
+            work/public-semantic-sources/reference/*.jsonl
+            work/public-semantic-sources/licenses/*
+            reports/public-semantic-sources-report.json
+            reports/public-semantic-sources-lock.json
+          if-no-files-found: error
+          retention-days: 30
