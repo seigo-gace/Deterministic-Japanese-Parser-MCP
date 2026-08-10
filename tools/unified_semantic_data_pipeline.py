@@ -13,6 +13,9 @@ from unified_semantic_data.canonical_dictionary import (
 from unified_semantic_data.canonical_distribution import (
     compile_public_dictionary_view,
 )
+from unified_semantic_data.canonical_evidence import (
+    compile_evidence_enriched_dictionary,
+)
 from unified_semantic_data.canonical_runtime_projection import (
     compile_runtime_projection,
     validate_runtime_projection,
@@ -46,6 +49,10 @@ DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
 DEFAULT_CANONICAL_DICTIONARY_ROOT = (
     ROOT / "dictionaries/system/compiled/canonical_dictionary"
 )
+DEFAULT_CANONICAL_EVIDENCE_ROOT = ROOT / "research/canonical_evidence"
+DEFAULT_ENRICHED_DICTIONARY_ROOT = (
+    ROOT / "dictionaries/system/compiled/canonical_dictionary_enriched"
+)
 DEFAULT_PUBLIC_DICTIONARY_ROOT = (
     ROOT / "dictionaries/system/compiled/canonical_dictionary_public"
 )
@@ -74,6 +81,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
     inputs.extend(
         (f"semantic-reference-{index:02d}", path)
         for index, path in enumerate(args.semantic_reference_root, 1)
+    )
+    inputs.extend(
+        (f"canonical-evidence-{index:02d}", path)
+        for index, path in enumerate(args.canonical_evidence_root, 1)
     )
     inputs.append(("decision-ledger", args.decision_root))
 
@@ -105,6 +116,10 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
             (
                 "code-canonical-dictionary",
                 ROOT / "tools/unified_semantic_data/canonical_dictionary.py",
+            ),
+            (
+                "code-canonical-evidence",
+                ROOT / "tools/unified_semantic_data/canonical_evidence.py",
             ),
             (
                 "code-license-policy",
@@ -139,6 +154,21 @@ def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
     )
 
 
+def _compile_enriched_dictionary_if_needed(args: argparse.Namespace) -> dict:
+    manifest_path = args.enriched_dictionary_root / "manifest.json"
+    if manifest_path.is_file():
+        manifest = validate_compiled_dictionary_root(args.enriched_dictionary_root)
+        if manifest.get("dictionary_view") != "evidence-enriched":
+            raise ValueError("canonical evidence-enriched dictionary view mismatch")
+        return manifest
+    return compile_evidence_enriched_dictionary(
+        args.canonical_dictionary_root,
+        args.canonical_evidence_root,
+        args.enriched_dictionary_root,
+        shard_size=args.shard_size,
+    )
+
+
 def _compile_public_dictionary_if_needed(args: argparse.Namespace) -> dict:
     manifest_path = args.public_dictionary_root / "manifest.json"
     if manifest_path.is_file():
@@ -147,7 +177,7 @@ def _compile_public_dictionary_if_needed(args: argparse.Namespace) -> dict:
             raise ValueError("canonical public dictionary distribution view mismatch")
         return manifest
     return compile_public_dictionary_view(
-        args.canonical_dictionary_root,
+        args.enriched_dictionary_root,
         args.public_dictionary_root,
         shard_size=args.shard_size,
     )
@@ -188,6 +218,17 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--canonical-evidence-root",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "build-time auxiliary evidence roots in canonical evidence JSONL "
+            "format. Classification, translation, familiarity, entity, syntax, "
+            "sentiment and similar evidence is joined without becoming a meaning."
+        ),
+    )
+    parser.add_argument(
         "--system-root",
         type=Path,
         default=ROOT / "dictionaries/system",
@@ -210,6 +251,15 @@ def main() -> int:
             "internal MCP-owned canonical master dictionary. It is compiled only "
             "from real, explicitly approved semantic meanings and preserves "
             "upstream source/license evidence."
+        ),
+    )
+    parser.add_argument(
+        "--enriched-dictionary-root",
+        type=Path,
+        default=DEFAULT_ENRICHED_DICTIONARY_ROOT,
+        help=(
+            "canonical master dictionary plus deterministically joined auxiliary "
+            "evidence. Auxiliary evidence never becomes a definition automatically."
         ),
     )
     parser.add_argument(
@@ -282,6 +332,8 @@ def main() -> int:
         args.pack_root = list(DEFAULT_PACK_ROOTS)
     if not args.semantic_reference_root:
         args.semantic_reference_root = [DEFAULT_SEMANTIC_REFERENCE_ROOT]
+    if not args.canonical_evidence_root:
+        args.canonical_evidence_root = [DEFAULT_CANONICAL_EVIDENCE_ROOT]
     if args.shard_size < 100:
         raise ValueError("shard-size must be at least 100")
     if not 1 <= args.foundation_partitions <= 4096:
@@ -317,7 +369,8 @@ def main() -> int:
                 "review_batch_size": args.review_batch_size,
                 "compile_approved": args.compile_approved,
                 "canonical_dictionary_schema": "1.0.0",
-                "public_dictionary_view": "1.0.0",
+                "canonical_evidence_schema": "1.0.0",
+                "public_dictionary_view": "1.1.0",
                 "canonical_runtime_projection": "1.0.0",
             },
         )
@@ -351,6 +404,9 @@ def main() -> int:
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
                 result["canonical_dictionary"] = _compile_dictionary_if_needed(args)
+                result["canonical_dictionary_enriched"] = (
+                    _compile_enriched_dictionary_if_needed(args)
+                )
                 result["public_dictionary"] = _compile_public_dictionary_if_needed(args)
                 result["canonical_runtime_projection"] = (
                     _compile_canonical_runtime_if_needed(args)
@@ -392,8 +448,16 @@ def main() -> int:
                     args.canonical_dictionary_root,
                     shard_size=args.shard_size,
                 )
+                result["canonical_dictionary_enriched"] = (
+                    compile_evidence_enriched_dictionary(
+                        args.canonical_dictionary_root,
+                        args.canonical_evidence_root,
+                        args.enriched_dictionary_root,
+                        shard_size=args.shard_size,
+                    )
+                )
                 result["public_dictionary"] = compile_public_dictionary_view(
-                    args.canonical_dictionary_root,
+                    args.enriched_dictionary_root,
                     args.public_dictionary_root,
                     shard_size=args.shard_size,
                 )
