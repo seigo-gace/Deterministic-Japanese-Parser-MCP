@@ -3,12 +3,12 @@
 When a record without a definition receives a reviewed candidate from an approved record
 or local semantic reference pack, the canonical sense must point to the source that
 actually supplied that definition. This stage replaces fallback target-record evidence
-with the recorded reference evidence when the approved sense gloss exactly matches the
+with recorded reference evidence when the approved sense gloss exactly matches the
 proposal. It never changes the meaning text itself.
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 import gzip
 import json
 from pathlib import Path
@@ -18,7 +18,7 @@ from typing import Any, Iterable, Iterator
 from .canonical_dictionary import validate_compiled_dictionary_root
 from .common import _json_line, _sha256_bytes, _sha256_file, normalize_key
 
-MEANING_PROVENANCE_VERSION = "1.0.0"
+MEANING_PROVENANCE_VERSION = "1.1.0"
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -68,25 +68,72 @@ def _iter_dictionary_records(root: Path) -> Iterator[dict[str, Any]]:
                 yield value
 
 
+def _reference_file_row(
+    path_value: Any,
+    source_id: str,
+    cache: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, Any]:
+    path_text = str(path_value or "").strip()
+    key = (path_text, source_id)
+    if key in cache:
+        return cache[key]
+    if not path_text or not source_id:
+        cache[key] = {}
+        return {}
+    path = Path(path_text)
+    if not path.is_file() or path.suffix != ".jsonl":
+        cache[key] = {}
+        return {}
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                continue
+            row_source_id = str(
+                value.get("source_id") or value.get("id") or value.get("record_id") or ""
+            )
+            if row_source_id == source_id:
+                cache[key] = value
+                return value
+    cache[key] = {}
+    return {}
+
+
 def _reference_source_evidence(
     evidence: dict[str, Any],
     *,
     target_record_id: str,
+    reference_cache: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, Any]:
-    source = evidence.get("source") or {}
+    source = dict(evidence.get("source") or {})
     reference_record_id = str(evidence.get("reference_record_id") or "")
     source_record_id = str(
         source.get("source_id") or reference_record_id or "reference-unknown"
     )
+    details = _reference_file_row(
+        source.get("path"), source_record_id, reference_cache
+    )
+    detail_source = details.get("source") if isinstance(details.get("source"), dict) else {}
+
+    def select(name: str, default: str = "") -> str:
+        return str(
+            source.get(name)
+            or details.get(name)
+            or detail_source.get(name)
+            or default
+        ).strip()
+
     return {
         "source_record_id": reference_record_id or source_record_id,
-        "dataset": str(source.get("dataset") or "semantic-reference"),
-        "version": str(source.get("version") or ""),
-        "license": str(source.get("license") or ""),
+        "dataset": select("dataset", "semantic-reference"),
+        "version": select("version"),
+        "license": select("license"),
         "source_id": source_record_id,
-        "source_url": str(source.get("source_url") or ""),
-        "source_sha256": str(source.get("source_sha256") or ""),
-        "attribution": str(source.get("attribution") or ""),
+        "source_url": select("source_url"),
+        "source_sha256": select("source_sha256").lower(),
+        "attribution": select("attribution"),
         "reference_path": str(source.get("path") or ""),
         "reference_score": evidence.get("score"),
         "derivation_target_record_id": target_record_id,
@@ -94,11 +141,14 @@ def _reference_source_evidence(
     }
 
 
-def load_semantic_provenance(review_root: Path) -> dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]]:
+def load_semantic_provenance(
+    review_root: Path,
+) -> dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]]:
     queue_path = review_root / "semantic-enrichment-queue.jsonl"
     if not queue_path.is_file():
         return {}
     result: dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]] = defaultdict(list)
+    reference_cache: dict[tuple[str, str], dict[str, Any]] = {}
     with queue_path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             if not line.strip():
@@ -127,14 +177,15 @@ def load_semantic_provenance(review_root: Path) -> dict[tuple[str, tuple[str, ..
                     if value in evidence_by_id
                 ]
                 if not selected:
-                    # Backward-compatible queue rows did not bind evidence per candidate.
-                    # Use all selected-reference evidence, but still only when glosses match.
+                    # Older queue rows did not bind evidence per candidate. Use all
+                    # selected-reference evidence, but still only on exact gloss match.
                     selected = list(evidence_by_id.values())
                 for evidence in selected:
                     result[(target_record_id, signature)].append(
                         _reference_source_evidence(
                             evidence,
                             target_record_id=target_record_id,
+                            reference_cache=reference_cache,
                         )
                     )
     return {
@@ -276,7 +327,9 @@ def compile_meaning_provenance_view(
 
     for start in range(0, len(records), shard_size):
         selected = records[start : start + shard_size]
-        payload = b"".join((_json_line(item) + "\n").encode("utf-8") for item in selected)
+        payload = b"".join(
+            (_json_line(item) + "\n").encode("utf-8") for item in selected
+        )
         relative = f"records/dictionary-{start // shard_size:04d}.jsonl.gz"
         meta = _write_gzip(output_root / relative, payload)
         meta["path"] = relative
@@ -294,8 +347,12 @@ def compile_meaning_provenance_view(
         "provenance_candidate_keys": len(provenance),
         "sense_source_replacement_count": total_replacements,
         "record_shard_size": shard_size,
-        "record_shards": ((len(records) + shard_size - 1) // shard_size if records else 0),
-        "master_dictionary_manifest_sha256": _sha256_file(canonical_root / "manifest.json"),
+        "record_shards": (
+            (len(records) + shard_size - 1) // shard_size if records else 0
+        ),
+        "master_dictionary_manifest_sha256": _sha256_file(
+            canonical_root / "manifest.json"
+        ),
         "semantic_enrichment_queue_sha256": (
             _sha256_file(review_root / "semantic-enrichment-queue.jsonl")
             if (review_root / "semantic-enrichment-queue.jsonl").is_file()
@@ -311,6 +368,7 @@ def compile_meaning_provenance_view(
             "preserve_source_provenance_and_license": True,
             "sense_level_meaning_provenance": True,
             "meaning_text_unchanged_by_provenance_stage": True,
+            "reference_pack_metadata_recovered_when_available": True,
         },
         "outputs": outputs,
     }
