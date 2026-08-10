@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import shutil
 import warnings
 
 from unified_semantic_data.canonical_dictionary import (
@@ -12,9 +14,7 @@ from unified_semantic_data.canonical_dictionary import (
 )
 from unified_semantic_data.canonical_distribution import compile_public_dictionary_view
 from unified_semantic_data.canonical_evidence import compile_evidence_enriched_dictionary
-from unified_semantic_data.canonical_meaning_provenance import (
-    compile_meaning_provenance_view,
-)
+from unified_semantic_data.canonical_meaning_provenance import compile_meaning_provenance_view
 from unified_semantic_data.canonical_runtime_projection import (
     compile_runtime_projection,
     validate_runtime_projection,
@@ -26,11 +26,7 @@ from unified_semantic_data.factory_foundation import (
     content_fingerprint,
     write_factory_state,
 )
-from unified_semantic_data.pipeline import (
-    build_review_assets,
-    check_determinism,
-    compile_approved,
-)
+from unified_semantic_data.pipeline import build_review_assets, check_determinism, compile_approved
 from unified_semantic_data.semantic_labeler import (
     build_semantic_enrichment_queue,
     require_all_meanings_complete,
@@ -45,24 +41,68 @@ DEFAULT_PACK_ROOTS = (
 )
 DEFAULT_OUTPUT_ROOT = ROOT / "reports/unified-semantic-data"
 DEFAULT_COMPILED_ROOT = ROOT / "dictionaries/system/compiled/semantic_data"
-DEFAULT_CANONICAL_DICTIONARY_ROOT = (
-    ROOT / "dictionaries/system/compiled/canonical_dictionary"
-)
-DEFAULT_PROVENANCE_DICTIONARY_ROOT = (
-    ROOT / "dictionaries/system/compiled/canonical_dictionary_provenance"
-)
+DEFAULT_CANONICAL_DICTIONARY_ROOT = ROOT / "dictionaries/system/compiled/canonical_dictionary"
+DEFAULT_PROVENANCE_DICTIONARY_ROOT = ROOT / "dictionaries/system/compiled/canonical_dictionary_provenance"
 DEFAULT_CANONICAL_EVIDENCE_ROOT = ROOT / "research/canonical_evidence"
-DEFAULT_ENRICHED_DICTIONARY_ROOT = (
-    ROOT / "dictionaries/system/compiled/canonical_dictionary_enriched"
-)
-DEFAULT_PUBLIC_DICTIONARY_ROOT = (
-    ROOT / "dictionaries/system/compiled/canonical_dictionary_public"
-)
-DEFAULT_CANONICAL_RUNTIME_ROOT = (
-    ROOT / "dictionaries/system/compiled/canonical_dictionary_runtime"
-)
+DEFAULT_ENRICHED_DICTIONARY_ROOT = ROOT / "dictionaries/system/compiled/canonical_dictionary_enriched"
+DEFAULT_PUBLIC_DICTIONARY_ROOT = ROOT / "dictionaries/system/compiled/canonical_dictionary_public"
+DEFAULT_CANONICAL_RUNTIME_ROOT = ROOT / "dictionaries/system/compiled/canonical_dictionary_runtime"
 DEFAULT_DECISION_LEDGER = ROOT / "research/semantic_decisions"
 DEFAULT_SEMANTIC_REFERENCE_ROOT = ROOT / "tools/unified_semantic_data/reference"
+
+
+def _adapter_paths(args: argparse.Namespace, filename: str) -> list[Path]:
+    return [root / filename for root in args.adapter_output_root if (root / filename).is_file()]
+
+
+def _semantic_reference_inputs(args: argparse.Namespace) -> list[Path]:
+    return [*args.semantic_reference_root, *_adapter_paths(args, "semantic-reference.jsonl")]
+
+
+def _canonical_evidence_inputs(args: argparse.Namespace) -> list[Path]:
+    return [*args.canonical_evidence_root, *_adapter_paths(args, "canonical-evidence.jsonl")]
+
+
+def _adapter_lexical_inputs(args: argparse.Namespace) -> list[Path]:
+    return _adapter_paths(args, "lexical-candidates.jsonl")
+
+
+def _link_or_copy(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
+
+
+def _stage_open_lexicon_root(args: argparse.Namespace) -> Path:
+    """Stage existing open lexicon with adapter-generated new-word candidates."""
+    adapter_files = _adapter_lexical_inputs(args)
+    if not adapter_files:
+        return args.open_lexicon_root
+    if args.review_seed is not None:
+        raise ValueError(
+            "ADAPTER_LEXICAL_REVIEW_BOUNDARY: --review-seed cannot be combined with "
+            "adapter lexical candidates; new words must pass the normal lexical and "
+            "semantic Decision Ledger review lane"
+        )
+    stage = args.output_root / ".factory-inputs" / "open-lexicon"
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True, exist_ok=True)
+    if args.open_lexicon_root.exists():
+        base_paths = sorted(
+            [
+                *args.open_lexicon_root.rglob("*.jsonl"),
+                *args.open_lexicon_root.rglob("*.jsonl.gz"),
+            ],
+            key=str,
+        )
+        for path in base_paths:
+            _link_or_copy(path, stage / "base" / path.relative_to(args.open_lexicon_root))
+    for index, path in enumerate(sorted(adapter_files, key=str), 1):
+        _link_or_copy(path, stage / "adapter" / f"{index:03d}-{path.name}")
+    return stage
 
 
 def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Path]]:
@@ -70,16 +110,8 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
     if args.review_seed:
         inputs.append(("review-seed", args.review_seed))
     else:
-        inputs.extend(
-            [
-                ("open-lexicon", args.open_lexicon_root),
-                ("context", args.context_root),
-            ]
-        )
-    inputs.extend(
-        (f"pack-{index:02d}", path)
-        for index, path in enumerate(args.pack_root, 1)
-    )
+        inputs.extend([("open-lexicon", args.open_lexicon_root), ("context", args.context_root)])
+    inputs.extend((f"pack-{index:02d}", path) for index, path in enumerate(args.pack_root, 1))
     inputs.extend(
         (f"semantic-reference-{index:02d}", path)
         for index, path in enumerate(args.semantic_reference_root, 1)
@@ -88,61 +120,30 @@ def _pipeline_fingerprint_inputs(args: argparse.Namespace) -> list[tuple[str, Pa
         (f"canonical-evidence-{index:02d}", path)
         for index, path in enumerate(args.canonical_evidence_root, 1)
     )
+    inputs.extend(
+        (f"adapter-output-{index:02d}", path)
+        for index, path in enumerate(args.adapter_output_root, 1)
+    )
     inputs.append(("decision-ledger", args.decision_root))
-
-    # build_review_assets() links these existing deterministic resources.
     inputs.extend(
         [
             ("baseline-metaphors", args.system_root / "metaphors"),
             ("baseline-synonyms", args.system_root / "synonyms.yaml"),
             ("baseline-synonyms-d", args.system_root / "synonyms.d"),
             ("baseline-language-features", args.system_root / "language_features.d"),
-        ]
-    )
-
-    # Code is part of the content address. A transform change must invalidate reuse.
-    inputs.extend(
-        [
             ("code-entrypoint", Path(__file__)),
             ("code-common", ROOT / "tools/unified_semantic_data/common.py"),
             ("code-pipeline", ROOT / "tools/unified_semantic_data/pipeline.py"),
             ("code-review", ROOT / "tools/unified_semantic_data/review.py"),
-            (
-                "code-factory-foundation",
-                ROOT / "tools/unified_semantic_data/factory_foundation.py",
-            ),
-            (
-                "code-semantic-labeler",
-                ROOT / "tools/unified_semantic_data/semantic_labeler.py",
-            ),
-            (
-                "code-canonical-dictionary",
-                ROOT / "tools/unified_semantic_data/canonical_dictionary.py",
-            ),
-            (
-                "code-canonical-meaning-provenance",
-                ROOT / "tools/unified_semantic_data/canonical_meaning_provenance.py",
-            ),
-            (
-                "code-canonical-evidence",
-                ROOT / "tools/unified_semantic_data/canonical_evidence.py",
-            ),
-            (
-                "code-license-policy",
-                ROOT / "tools/unified_semantic_data/license_policy.py",
-            ),
-            (
-                "code-canonical-distribution",
-                ROOT / "tools/unified_semantic_data/canonical_distribution.py",
-            ),
-            (
-                "code-canonical-runtime-projection",
-                ROOT / "tools/unified_semantic_data/canonical_runtime_projection.py",
-            ),
-            (
-                "code-source-adapter-contract",
-                ROOT / "tools/unified_semantic_data/source_adapter_contract.py",
-            ),
+            ("code-factory-foundation", ROOT / "tools/unified_semantic_data/factory_foundation.py"),
+            ("code-semantic-labeler", ROOT / "tools/unified_semantic_data/semantic_labeler.py"),
+            ("code-canonical-dictionary", ROOT / "tools/unified_semantic_data/canonical_dictionary.py"),
+            ("code-canonical-meaning-provenance", ROOT / "tools/unified_semantic_data/canonical_meaning_provenance.py"),
+            ("code-canonical-evidence", ROOT / "tools/unified_semantic_data/canonical_evidence.py"),
+            ("code-license-policy", ROOT / "tools/unified_semantic_data/license_policy.py"),
+            ("code-canonical-distribution", ROOT / "tools/unified_semantic_data/canonical_distribution.py"),
+            ("code-canonical-runtime-projection", ROOT / "tools/unified_semantic_data/canonical_runtime_projection.py"),
+            ("code-source-adapter-contract", ROOT / "tools/unified_semantic_data/source_adapter_contract.py"),
             ("code-bulk-review", ROOT / "tools/bulk_review_station.py"),
         ]
     )
@@ -154,19 +155,13 @@ def _load_json(path: Path) -> dict:
 
 
 def _compile_dictionary_if_needed(args: argparse.Namespace) -> dict:
-    manifest_path = args.canonical_dictionary_root / "manifest.json"
-    if manifest_path.is_file():
+    if (args.canonical_dictionary_root / "manifest.json").is_file():
         return validate_compiled_dictionary_root(args.canonical_dictionary_root)
-    return compile_canonical_dictionary(
-        args.output_root,
-        args.canonical_dictionary_root,
-        shard_size=args.shard_size,
-    )
+    return compile_canonical_dictionary(args.output_root, args.canonical_dictionary_root, shard_size=args.shard_size)
 
 
 def _compile_provenance_dictionary_if_needed(args: argparse.Namespace) -> dict:
-    manifest_path = args.provenance_dictionary_root / "manifest.json"
-    if manifest_path.is_file():
+    if (args.provenance_dictionary_root / "manifest.json").is_file():
         manifest = validate_compiled_dictionary_root(args.provenance_dictionary_root)
         if manifest.get("dictionary_view") != "meaning-provenance-refined":
             raise ValueError("canonical meaning-provenance dictionary view mismatch")
@@ -180,172 +175,65 @@ def _compile_provenance_dictionary_if_needed(args: argparse.Namespace) -> dict:
 
 
 def _compile_enriched_dictionary_if_needed(args: argparse.Namespace) -> dict:
-    manifest_path = args.enriched_dictionary_root / "manifest.json"
-    if manifest_path.is_file():
+    if (args.enriched_dictionary_root / "manifest.json").is_file():
         manifest = validate_compiled_dictionary_root(args.enriched_dictionary_root)
         if manifest.get("dictionary_view") != "evidence-enriched":
             raise ValueError("canonical evidence-enriched dictionary view mismatch")
         return manifest
     return compile_evidence_enriched_dictionary(
         args.provenance_dictionary_root,
-        args.canonical_evidence_root,
+        _canonical_evidence_inputs(args),
         args.enriched_dictionary_root,
         shard_size=args.shard_size,
     )
 
 
 def _compile_public_dictionary_if_needed(args: argparse.Namespace) -> dict:
-    manifest_path = args.public_dictionary_root / "manifest.json"
-    if manifest_path.is_file():
+    if (args.public_dictionary_root / "manifest.json").is_file():
         manifest = validate_compiled_dictionary_root(args.public_dictionary_root)
         if manifest.get("distribution_view") != "public-compatible":
             raise ValueError("canonical public dictionary distribution view mismatch")
         return manifest
-    return compile_public_dictionary_view(
-        args.enriched_dictionary_root,
-        args.public_dictionary_root,
-        shard_size=args.shard_size,
-    )
+    return compile_public_dictionary_view(args.enriched_dictionary_root, args.public_dictionary_root, shard_size=args.shard_size)
 
 
 def _compile_canonical_runtime_if_needed(args: argparse.Namespace) -> dict:
-    manifest_path = args.canonical_runtime_root / "manifest.json"
-    if manifest_path.is_file():
+    if (args.canonical_runtime_root / "manifest.json").is_file():
         return validate_runtime_projection(args.canonical_runtime_root)
-    return compile_runtime_projection(
-        args.public_dictionary_root,
-        args.canonical_runtime_root,
-        shard_size=args.shard_size,
-    )
+    return compile_runtime_projection(args.public_dictionary_root, args.canonical_runtime_root, shard_size=args.shard_size)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--open-lexicon-root",
-        type=Path,
-        default=DEFAULT_OPEN_LEXICON_ROOT,
-    )
-    parser.add_argument(
-        "--context-root",
-        type=Path,
-        default=DEFAULT_CONTEXT_ROOT,
-    )
+    parser.add_argument("--open-lexicon-root", type=Path, default=DEFAULT_OPEN_LEXICON_ROOT)
+    parser.add_argument("--context-root", type=Path, default=DEFAULT_CONTEXT_ROOT)
     parser.add_argument("--pack-root", type=Path, action="append", default=[])
+    parser.add_argument("--semantic-reference-root", type=Path, action="append", default=[])
+    parser.add_argument("--canonical-evidence-root", type=Path, action="append", default=[])
     parser.add_argument(
-        "--semantic-reference-root",
+        "--adapter-output-root",
         type=Path,
         action="append",
         default=[],
         help=(
-            "build-time semantic reference root; all JSONL files are loaded "
-            "recursively and future domain/user reference packs use the same stage"
+            "output root created by source_adapter_contract.py; lexical candidates, "
+            "semantic references and canonical evidence are routed automatically"
         ),
     )
-    parser.add_argument(
-        "--canonical-evidence-root",
-        type=Path,
-        action="append",
-        default=[],
-        help=(
-            "build-time auxiliary evidence roots in canonical evidence JSONL "
-            "format. Classification, translation, familiarity, entity, syntax, "
-            "sentiment and similar evidence is joined without becoming a meaning."
-        ),
-    )
-    parser.add_argument(
-        "--system-root",
-        type=Path,
-        default=ROOT / "dictionaries/system",
-    )
-    parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=DEFAULT_OUTPUT_ROOT,
-    )
-    parser.add_argument(
-        "--compiled-root",
-        type=Path,
-        default=DEFAULT_COMPILED_ROOT,
-    )
-    parser.add_argument(
-        "--canonical-dictionary-root",
-        type=Path,
-        default=DEFAULT_CANONICAL_DICTIONARY_ROOT,
-        help=(
-            "internal MCP-owned canonical master dictionary. It is compiled only "
-            "from real, explicitly approved semantic meanings."
-        ),
-    )
-    parser.add_argument(
-        "--provenance-dictionary-root",
-        type=Path,
-        default=DEFAULT_PROVENANCE_DICTIONARY_ROOT,
-        help=(
-            "canonical master dictionary with sense-level meaning provenance refined "
-            "from semantic-enrichment evidence; meaning text is never changed here"
-        ),
-    )
-    parser.add_argument(
-        "--enriched-dictionary-root",
-        type=Path,
-        default=DEFAULT_ENRICHED_DICTIONARY_ROOT,
-        help=(
-            "provenance-refined canonical dictionary plus deterministically joined "
-            "auxiliary evidence. Auxiliary evidence never becomes a definition."
-        ),
-    )
-    parser.add_argument(
-        "--public-dictionary-root",
-        type=Path,
-        default=DEFAULT_PUBLIC_DICTIONARY_ROOT,
-        help=(
-            "public-compatible canonical dictionary view. NonCommercial, "
-            "NoDerivatives, reference-only, unknown, and pending source evidence is "
-            "excluded without inventing replacement meanings."
-        ),
-    )
-    parser.add_argument(
-        "--canonical-runtime-root",
-        type=Path,
-        default=DEFAULT_CANONICAL_RUNTIME_ROOT,
-        help=(
-            "compatibility projection of the public-compatible MCP canonical "
-            "dictionary for the existing SemanticDataRuntime ABI; ParserEngine "
-            "cutover is a separate validated step"
-        ),
-    )
+    parser.add_argument("--system-root", type=Path, default=ROOT / "dictionaries/system")
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--compiled-root", type=Path, default=DEFAULT_COMPILED_ROOT)
+    parser.add_argument("--canonical-dictionary-root", type=Path, default=DEFAULT_CANONICAL_DICTIONARY_ROOT)
+    parser.add_argument("--provenance-dictionary-root", type=Path, default=DEFAULT_PROVENANCE_DICTIONARY_ROOT)
+    parser.add_argument("--enriched-dictionary-root", type=Path, default=DEFAULT_ENRICHED_DICTIONARY_ROOT)
+    parser.add_argument("--public-dictionary-root", type=Path, default=DEFAULT_PUBLIC_DICTIONARY_ROOT)
+    parser.add_argument("--canonical-runtime-root", type=Path, default=DEFAULT_CANONICAL_RUNTIME_ROOT)
     parser.add_argument("--shard-size", type=int, default=10000)
-    parser.add_argument(
-        "--foundation-partitions",
-        type=int,
-        default=256,
-        help="stable lexical-identity partition count for incremental factory assets",
-    )
-    parser.add_argument(
-        "--force-rebuild",
-        action="store_true",
-        help="ignore content-addressed factory state and rebuild all factory stages",
-    )
-    parser.add_argument(
-        "--review-batch-size",
-        type=int,
-        default=None,
-        help=(
-            "DEPRECATED: preserve the legacy 1-20 record review-batch output. "
-            "Omit this option to use Bulk Review Station."
-        ),
-    )
-    parser.add_argument(
-        "--bulk-review",
-        action="store_true",
-        help="prepare one logical Bulk Review Station job for the review queue",
-    )
-    parser.add_argument(
-        "--review-seed",
-        type=Path,
-        help="immutable 125000-record PR #26 Review Queue input",
-    )
+    parser.add_argument("--foundation-partitions", type=int, default=256)
+    parser.add_argument("--force-rebuild", action="store_true")
+    parser.add_argument("--review-batch-size", type=int, default=None)
+    parser.add_argument("--bulk-review", action="store_true")
+    parser.add_argument("--review-seed", type=Path, help="immutable 125000-record PR #26 Review Queue input")
     parser.add_argument(
         "--decision-ledger",
         "--decision-root",
@@ -355,12 +243,9 @@ def main() -> int:
     )
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--compile-approved", action="store_true")
-    parser.add_argument(
-        "--require-review-complete",
-        action="store_true",
-        help="exit with REVIEW_REQUIRED after writing all review evidence",
-    )
+    parser.add_argument("--require-review-complete", action="store_true")
     args = parser.parse_args()
+
     if not args.pack_root:
         args.pack_root = list(DEFAULT_PACK_ROOTS)
     if not args.semantic_reference_root:
@@ -399,15 +284,15 @@ def main() -> int:
                 "bulk_review": args.bulk_review,
                 "review_batch_size": args.review_batch_size,
                 "compile_approved": args.compile_approved,
+                "source_adapter_schema": "1.1.0",
                 "canonical_dictionary_schema": "1.0.0",
-                "meaning_provenance_view": "1.0.0",
+                "meaning_provenance_view": "1.1.0",
                 "canonical_evidence_schema": "1.0.0",
                 "public_dictionary_view": "1.2.0",
                 "canonical_runtime_projection": "1.0.0",
             },
         )
         state_path = args.output_root / ".factory-state.json"
-
         if (
             not args.force_rebuild
             and can_reuse_pipeline(
@@ -419,12 +304,8 @@ def main() -> int:
             )
         ):
             review = _load_json(args.output_root / "manifest.json")
-            foundation = _load_json(
-                args.output_root / "factory-foundation/manifest.json"
-            )
-            semantic_enrichment = _load_json(
-                args.output_root / "semantic-enrichment-report.json"
-            )
+            foundation = _load_json(args.output_root / "factory-foundation/manifest.json")
+            semantic_enrichment = _load_json(args.output_root / "semantic-enrichment-report.json")
             result = {
                 "status": "REUSED",
                 "input_fingerprint": fingerprint,
@@ -436,19 +317,14 @@ def main() -> int:
                 require_all_meanings_complete(semantic_enrichment)
                 result["compiled"] = _load_json(args.compiled_root / "manifest.json")
                 result["canonical_dictionary"] = _compile_dictionary_if_needed(args)
-                result["canonical_dictionary_provenance"] = (
-                    _compile_provenance_dictionary_if_needed(args)
-                )
-                result["canonical_dictionary_enriched"] = (
-                    _compile_enriched_dictionary_if_needed(args)
-                )
+                result["canonical_dictionary_provenance"] = _compile_provenance_dictionary_if_needed(args)
+                result["canonical_dictionary_enriched"] = _compile_enriched_dictionary_if_needed(args)
                 result["public_dictionary"] = _compile_public_dictionary_if_needed(args)
-                result["canonical_runtime_projection"] = (
-                    _compile_canonical_runtime_if_needed(args)
-                )
+                result["canonical_runtime_projection"] = _compile_canonical_runtime_if_needed(args)
         else:
+            open_lexicon_root = _stage_open_lexicon_root(args)
             review = build_review_assets(
-                open_lexicon_root=args.open_lexicon_root,
+                open_lexicon_root=open_lexicon_root,
                 context_root=args.context_root,
                 pack_roots=args.pack_root,
                 output_root=args.output_root,
@@ -461,7 +337,7 @@ def main() -> int:
             semantic_enrichment = build_semantic_enrichment_queue(
                 args.output_root / "review-records.jsonl",
                 args.output_root,
-                reference_roots=args.semantic_reference_root,
+                reference_roots=_semantic_reference_inputs(args),
             )
             result = {
                 "status": "WRITTEN",
@@ -470,48 +346,30 @@ def main() -> int:
                 "semantic_enrichment": semantic_enrichment,
             }
             if args.compile_approved:
-                # No unresolved/unapproved meaning may reach any dictionary/runtime output.
                 require_all_meanings_complete(semantic_enrichment)
-                result["compiled"] = compile_approved(
-                    args.output_root,
-                    args.compiled_root,
-                    shard_size=args.shard_size,
-                )
+                result["compiled"] = compile_approved(args.output_root, args.compiled_root, shard_size=args.shard_size)
                 result["canonical_dictionary"] = compile_canonical_dictionary(
+                    args.output_root, args.canonical_dictionary_root, shard_size=args.shard_size
+                )
+                result["canonical_dictionary_provenance"] = compile_meaning_provenance_view(
                     args.output_root,
                     args.canonical_dictionary_root,
+                    args.provenance_dictionary_root,
                     shard_size=args.shard_size,
                 )
-                result["canonical_dictionary_provenance"] = (
-                    compile_meaning_provenance_view(
-                        args.output_root,
-                        args.canonical_dictionary_root,
-                        args.provenance_dictionary_root,
-                        shard_size=args.shard_size,
-                    )
-                )
-                result["canonical_dictionary_enriched"] = (
-                    compile_evidence_enriched_dictionary(
-                        args.provenance_dictionary_root,
-                        args.canonical_evidence_root,
-                        args.enriched_dictionary_root,
-                        shard_size=args.shard_size,
-                    )
+                result["canonical_dictionary_enriched"] = compile_evidence_enriched_dictionary(
+                    args.provenance_dictionary_root,
+                    _canonical_evidence_inputs(args),
+                    args.enriched_dictionary_root,
+                    shard_size=args.shard_size,
                 )
                 result["public_dictionary"] = compile_public_dictionary_view(
-                    args.enriched_dictionary_root,
-                    args.public_dictionary_root,
-                    shard_size=args.shard_size,
+                    args.enriched_dictionary_root, args.public_dictionary_root, shard_size=args.shard_size
                 )
                 result["canonical_runtime_projection"] = compile_runtime_projection(
-                    args.public_dictionary_root,
-                    args.canonical_runtime_root,
-                    shard_size=args.shard_size,
+                    args.public_dictionary_root, args.canonical_runtime_root, shard_size=args.shard_size
                 )
-            foundation = build_foundation_assets(
-                args.output_root,
-                partition_count=args.foundation_partitions,
-            )
+            foundation = build_foundation_assets(args.output_root, partition_count=args.foundation_partitions)
             result["factory_foundation"] = foundation
             write_factory_state(
                 state_path,
