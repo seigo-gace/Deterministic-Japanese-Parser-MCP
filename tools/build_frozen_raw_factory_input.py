@@ -82,6 +82,39 @@ def _manifest_bytes(value: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
+def matching_profiles(
+    artifact_name: str, profile_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    collection_matches = [
+        profile
+        for profile in profile_rows
+        if profile.get("artifact_kind") == "collection"
+        and (
+            artifact_name == str(profile["artifact_name"])
+            or artifact_name.startswith(f"{profile['artifact_name']}-")
+        )
+    ]
+    if collection_matches:
+        return collection_matches
+    harvest_matches = [
+        profile
+        for profile in profile_rows
+        if profile.get("artifact_kind", "harvest") != "collection"
+        and (
+            artifact_name == str(profile["artifact_name"])
+            or f"-{profile['artifact_name']}-" in artifact_name
+        )
+    ]
+    if not harvest_matches:
+        return []
+    longest = max(len(str(profile["artifact_name"])) for profile in harvest_matches)
+    return [
+        profile
+        for profile in harvest_matches
+        if len(str(profile["artifact_name"])) == longest
+    ]
+
+
 def build_bundle(
     *,
     config_path: Path,
@@ -106,21 +139,10 @@ def build_bundle(
         raise ValueError("config/profile expected source counts differ")
     profile_rows = list(profiles["sources"])
 
-    def matching_profiles(artifact_name: str) -> list[dict[str, Any]]:
-        matches: list[dict[str, Any]] = []
-        for profile in profile_rows:
-            key = str(profile["artifact_name"])
-            if profile.get("artifact_kind") == "collection":
-                if artifact_name == key or artifact_name.startswith(f"{key}-"):
-                    matches.append(profile)
-            elif artifact_name == key or f"-{key}-" in artifact_name:
-                matches.append(profile)
-        return matches
-
     unmatched = sorted(
         str(item.get("name") or "")
         for item in artifacts
-        if not matching_profiles(str(item.get("name") or ""))
+        if not matching_profiles(str(item.get("name") or ""), profile_rows)
     )
     if unmatched:
         raise ValueError(f"artifact has no source payload profile: {unmatched}")
@@ -156,7 +178,7 @@ def build_bundle(
         copied["bundle_path"] = (
             f"artifacts/{artifact_id}-{safe_name(str(item.get('name') or artifact_id))}.zip"
         )
-        matched = matching_profiles(str(item["name"]))
+        matched = matching_profiles(str(item["name"]), profile_rows)
         kinds = {profile.get("artifact_kind", "harvest") for profile in matched}
         if kinds == {"collection"}:
             intake_sources.extend(

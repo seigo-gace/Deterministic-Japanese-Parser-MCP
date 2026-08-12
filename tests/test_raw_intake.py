@@ -22,6 +22,7 @@ from unified_semantic_data.raw_intake import (  # noqa: E402
     validate_intake_manifest,
 )
 from unified_semantic_data.collection_intake import inspect_collection_artifact  # noqa: E402
+from build_frozen_raw_factory_input import matching_profiles  # noqa: E402
 
 
 def _open_bytes(data: bytes):
@@ -236,6 +237,18 @@ def test_intake_manifest_requires_every_source_to_be_ready() -> None:
     source["factory_ready"] = False
     with pytest.raises(ValueError, match="not factory-ready"):
         validate_intake_manifest(manifest)
+
+
+def test_artifact_matching_prefers_most_specific_harvest_source_key() -> None:
+    profiles = [
+        {"artifact_name": "wlsp"},
+        {"artifact_name": "chj-wlsp"},
+    ]
+    matches = matching_profiles(
+        "source-harvest-wave2-chj-wlsp-deadbeef",
+        profiles,
+    )
+    assert [profile["artifact_name"] for profile in matches] == ["chj-wlsp"]
 
 
 def test_production_profiles_cover_exact_inventory_and_rights_lanes() -> None:
