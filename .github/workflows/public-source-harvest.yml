@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - "config/frozen_raw_factory_input.json"
+      - "config/source_payload_profiles.json"
+      - "schemas/source_intake_manifest.schema.json"
       - "tools/build_frozen_raw_factory_input.py"
+      - "tools/unified_semantic_data/raw_intake.py"
+      - "tools/unified_semantic_data/collection_intake.py"
+      - "tests/test_raw_intake.py"
       - ".github/workflows/public-source-harvest.yml"
   workflow_dispatch:
 
@@ -22,6 +27,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CONFIG_PATH: config/frozen_raw_factory_input.json
+      PROFILES_PATH: config/source_payload_profiles.json
       WORK_ROOT: work/frozen-raw-input
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +38,14 @@ jobs:
 
       - name: Validate frozen-input builder
         run: |
+          python -m pip install "pytest>=8.3,<10"
           python -m py_compile tools/build_frozen_raw_factory_input.py
+          python -m py_compile tools/unified_semantic_data/raw_intake.py
+          python -m py_compile tools/unified_semantic_data/collection_intake.py
           python tools/build_frozen_raw_factory_input.py self-test
           python tools/build_frozen_raw_factory_input.py validate-config \
             --config "$CONFIG_PATH"
+          python -m pytest tests/test_raw_intake.py
 
       - name: Select and download already-collected GitHub artifacts
         run: |
@@ -210,7 +220,8 @@ jobs:
             --selected-artifacts "$WORK_ROOT/selected-artifacts.json" \
             --downloads-root "$WORK_ROOT/downloads" \
             --output "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
-            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json"
+            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
+            --profiles "$PROFILES_PATH"
 
       - name: Prove bundle contains unchanged artifact ZIP bytes
         run: |
@@ -240,8 +251,12 @@ jobs:
           print(
               json.dumps(
                   {
-                      "status": "RAW_BYTES_UNCHANGED",
+                      "status": "ALL_67_INPUTS_66_LOGICAL_SOURCES_FACTORY_READY",
                       "artifact_count": manifest["artifact_count"],
+                      "source_count": manifest["source_count"],
+                      "factory_ready_source_count": manifest["factory_ready_source_count"],
+                      "rights_lane_counts": manifest["rights_lane_counts"],
+                      "parser_family_counts": manifest["parser_family_counts"],
                       "bundle_sha256": manifest["bundle_sha256"],
                       "bundle_bytes": manifest["bundle_bytes"],
                   },

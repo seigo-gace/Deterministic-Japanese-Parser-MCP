@@ -12,6 +12,14 @@ import tempfile
 from typing import Any
 import zipfile
 
+from unified_semantic_data.raw_intake import (
+    INTAKE_SCHEMA_VERSION,
+    inspect_collected_artifact,
+    load_profiles,
+    validate_intake_manifest,
+)
+from unified_semantic_data.collection_intake import inspect_collection_artifact
+
 SCHEMA_VERSION = "1.0.0"
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -54,6 +62,10 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ValueError("freeze_at is required")
     if not config.get("workflow_sources"):
         raise ValueError("workflow_sources are required")
+    if int(config.get("expected_artifact_count", 0)) < 1:
+        raise ValueError("expected_artifact_count is required")
+    if int(config.get("expected_source_unit_count", 0)) < 1:
+        raise ValueError("expected_source_unit_count is required")
     output = config.get("output") or {}
     if not str(output.get("filename") or "").endswith(".tar"):
         raise ValueError("output filename must be .tar")
@@ -77,6 +89,7 @@ def build_bundle(
     downloads_root: Path,
     output_path: Path,
     manifest_path: Path,
+    profiles_path: Path,
 ) -> dict[str, Any]:
     config = load_json(config_path)
     validate_config(config)
@@ -84,8 +97,36 @@ def build_bundle(
     artifacts = selected.get("artifacts") or []
     if not isinstance(artifacts, list) or not artifacts:
         raise ValueError("selected artifact list is empty")
+    profiles = load_profiles(profiles_path)
+    expected = int(config["expected_artifact_count"])
+    if len(artifacts) != expected:
+        raise ValueError(f"artifact count mismatch: expected={expected} actual={len(artifacts)}")
+    expected_sources = int(config["expected_source_unit_count"])
+    if int(profiles["expected_source_count"]) != expected_sources:
+        raise ValueError("config/profile expected source counts differ")
+    profile_rows = list(profiles["sources"])
+
+    def matching_profiles(artifact_name: str) -> list[dict[str, Any]]:
+        matches: list[dict[str, Any]] = []
+        for profile in profile_rows:
+            key = str(profile["artifact_name"])
+            if profile.get("artifact_kind") == "collection":
+                if artifact_name == key or artifact_name.startswith(f"{key}-"):
+                    matches.append(profile)
+            elif artifact_name == key or f"-{key}-" in artifact_name:
+                matches.append(profile)
+        return matches
+
+    unmatched = sorted(
+        str(item.get("name") or "")
+        for item in artifacts
+        if not matching_profiles(str(item.get("name") or ""))
+    )
+    if unmatched:
+        raise ValueError(f"artifact has no source payload profile: {unmatched}")
 
     verified: list[dict[str, Any]] = []
+    intake_sources: list[dict[str, Any]] = []
     seen_digests: set[str] = set()
 
     for item in sorted(
@@ -115,22 +156,66 @@ def build_bundle(
         copied["bundle_path"] = (
             f"artifacts/{artifact_id}-{safe_name(str(item.get('name') or artifact_id))}.zip"
         )
+        matched = matching_profiles(str(item["name"]))
+        kinds = {profile.get("artifact_kind", "harvest") for profile in matched}
+        if kinds == {"collection"}:
+            intake_sources.extend(
+                inspect_collection_artifact(
+                    path,
+                    item,
+                    matched,
+                    profiles.get("limits") or {},
+                )
+            )
+        elif kinds == {"harvest"} and len(matched) == 1:
+            intake_sources.append(
+                inspect_collected_artifact(
+                    path,
+                    item,
+                    matched[0],
+                    profiles.get("limits") or {},
+                )
+            )
+        else:
+            raise ValueError(f"ambiguous artifact profile mapping: {item['name']}")
         verified.append(copied)
 
     if not verified:
         raise ValueError("all artifacts were deduplicated; bundle would be empty")
 
+    if len(verified) != expected or len(intake_sources) != expected_sources:
+        raise ValueError(
+            "required factory input missing: "
+            f"artifacts={len(verified)}/{expected} sources={len(intake_sources)}/{expected_sources}"
+        )
+    lane_counts: dict[str, int] = {}
+    parser_counts: dict[str, int] = {}
+    for source in intake_sources:
+        lane_counts[source["rights_lane"]] = lane_counts.get(source["rights_lane"], 0) + 1
+        parser_counts[source["parser_family"]] = parser_counts.get(source["parser_family"], 0) + 1
+
     bundle_manifest = {
         "schema_version": SCHEMA_VERSION,
+        "source_intake_schema_version": INTAKE_SCHEMA_VERSION,
         "mode": "frozen-collected-raw-factory-input",
         "change_unit": config.get("change_unit"),
         "freeze_at": config["freeze_at"],
         "repository": config.get("repository"),
         "branch": config.get("branch"),
         "artifact_count": len(verified),
+        "source_count": len(intake_sources),
+        "unique_logical_source_count": len(
+            {source.get("logical_source_id", source["source_id"]) for source in intake_sources}
+        ),
+        "factory_ready_source_count": sum(
+            1 for source in intake_sources if source["factory_ready"]
+        ),
+        "rights_lane_counts": dict(sorted(lane_counts.items())),
+        "parser_family_counts": dict(sorted(parser_counts.items())),
         "selected_runs": selected.get("selected_runs") or [],
         "policy": config["policy"],
         "artifacts": verified,
+        "sources": sorted(intake_sources, key=lambda row: row["source_id"]),
         "boundaries": {
             "external_source_network_used_by_bundle_builder": False,
             "raw_artifact_zip_bytes_preserved": True,
@@ -138,8 +223,15 @@ def build_bundle(
             "semantic_enrichment_performed": False,
             "adapter_conversion_performed": False,
             "runtime_promotion_performed": False,
+            "all_selected_payload_bytes_hashed": True,
+            "all_harvest_payload_records_parsed": True,
+            "collection_payload_parser_probe_performed": True,
+            "restricted_sources_preserved_for_internal_intake": True,
+            "public_runtime_eligibility_is_rights_lane_gated": True,
+            "automatic_approval_performed": False,
         },
     }
+    validate_intake_manifest(bundle_manifest)
     manifest_bytes = _manifest_bytes(bundle_manifest)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_bytes(manifest_bytes)
@@ -158,16 +250,16 @@ def build_bundle(
 
         for item in verified:
             source = downloads_root / f"{int(item['id'])}.zip"
-            data = source.read_bytes()
             info = tarfile.TarInfo(item["bundle_path"])
-            info.size = len(data)
+            info.size = source.stat().st_size
             info.mtime = 0
             info.uid = 0
             info.gid = 0
             info.uname = ""
             info.gname = ""
             info.mode = 0o644
-            archive.addfile(info, io.BytesIO(data))
+            with source.open("rb") as handle:
+                archive.addfile(info, handle)
 
     bundle_manifest["bundle_sha256"] = sha256_file(output_path)
     bundle_manifest["bundle_bytes"] = output_path.stat().st_size
@@ -187,8 +279,19 @@ def self_test() -> None:
             (2, "source-b", b"raw-b"),
         ):
             path = downloads / f"{artifact_id}.zip"
+            raw_digest = hashlib.sha256(content).hexdigest()
             with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as handle:
-                handle.writestr("raw.bin", content)
+                handle.writestr(
+                    "source-lock.json",
+                    json.dumps(
+                        {
+                            "source_id": name,
+                            "raw_sha256": raw_digest,
+                            "raw_bytes": len(content),
+                        }
+                    ),
+                )
+                handle.writestr("raw.txt", content)
             digest = sha256_file(path)
             payloads[artifact_id] = path.read_bytes()
             artifacts.append(
@@ -218,8 +321,33 @@ def self_test() -> None:
                 "deduplicate_by_artifact_digest": True,
             },
             "workflow_sources": [{"workflow_id": 1}],
+            "expected_artifact_count": 2,
+            "expected_source_unit_count": 2,
             "output": {"filename": "bundle.tar"},
         }
+        profiles_path = root / "profiles.json"
+        profiles_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0.0",
+                    "expected_source_count": 2,
+                    "sources": [
+                        {
+                            "artifact_name": name,
+                            "source_id": name,
+                            "rights_lane": "C",
+                            "public_runtime_eligible": True,
+                            "parser_family": "commented-sequence",
+                            "payload_globs": ["raw.txt"],
+                            "encodings": ["utf-8"],
+                            "source_roles": ["usage"],
+                        }
+                        for name in ("source-a", "source-b")
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         config_path = root / "config.json"
         selected_path = root / "selected.json"
         config_path.write_text(json.dumps(config), encoding="utf-8")
@@ -235,6 +363,7 @@ def self_test() -> None:
             downloads_root=downloads,
             output_path=output_path,
             manifest_path=manifest_path,
+            profiles_path=profiles_path,
         )
         if result["artifact_count"] != 2:
             raise AssertionError("self-test artifact count mismatch")
@@ -262,6 +391,7 @@ def main() -> int:
     build.add_argument("--downloads-root", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--manifest", type=Path, required=True)
+    build.add_argument("--profiles", type=Path, required=True)
 
     args = parser.parse_args()
     if args.command == "self-test":
@@ -279,6 +409,7 @@ def main() -> int:
         downloads_root=args.downloads_root,
         output_path=args.output,
         manifest_path=args.manifest,
+        profiles_path=args.profiles,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/schemas/source_intake_manifest.schema.json",
+  "title": "Source Intake Manifest",
+  "type": "object",
+  "required": [
+    "schema_version", "source_intake_schema_version", "artifact_count",
+    "source_count", "unique_logical_source_count", "factory_ready_source_count",
+    "sources", "boundaries"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_intake_schema_version": {"const": "1.0.0"},
+    "artifact_count": {"type": "integer", "minimum": 1},
+    "source_count": {"type": "integer", "minimum": 1},
+    "unique_logical_source_count": {"type": "integer", "minimum": 1},
+    "factory_ready_source_count": {"type": "integer", "minimum": 1},
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id", "artifact_id", "artifact_name",
+          "rights_lane", "public_runtime_eligible", "parser_family", "payloads",
+          "source_roles", "factory_ready", "automatic_approval",
+          "automatic_runtime_promotion"
+        ],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "logical_source_id": {"type": "string", "minLength": 1},
+          "artifact_id": {"type": "integer", "minimum": 1},
+          "artifact_name": {"type": "string", "minLength": 1},
+          "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "raw_bytes": {"type": "integer", "minimum": 1},
+          "rights_lane": {"enum": ["C", "S", "R", "Q", "I"]},
+          "public_runtime_eligible": {"type": "boolean"},
+          "parser_family": {"type": "string"},
+          "source_roles": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "payloads": {"type": "array", "minItems": 1},
+          "parsed_records": {"type": "integer", "minimum": 1},
+          "parser_probe_records": {"type": "integer", "minimum": 1},
+          "factory_ready": {"const": true},
+          "automatic_approval": {"const": false},
+          "automatic_runtime_promotion": {"const": false}
+        },
+        "anyOf": [
+          {"required": ["raw_sha256", "raw_bytes", "parsed_records"]},
+          {"required": ["parser_probe_records"]}
+        ],
+        "additionalProperties": true
+      }
+    },
+    "boundaries": {"type": "object"}
+  },
+  "additionalProperties": true
+}

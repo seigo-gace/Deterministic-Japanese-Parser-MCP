@@ -27,6 +27,27 @@
 
 入力形式はYAML、JSON、JSONL、gzip JSONLです。全Adapterは最終的に共通Recordへ変換されます。
 
+### 回収済み67入力・66論理SourceのRaw Intake
+
+回収済みデータは、Source Harvestの34個別Artifact、既存の正規化Collection 16入力、Pending Raw 2入力、Wave 4 Raw 15入力の合計67入力です。NDLSHはRawと正規化派生の2入力が同じSource lineageを共有するため、論理Source数は66です。`.github/workflows/public-source-harvest.yml`は、固定した11 Workflow Run・44 Artifactを一つの不変Raw Bundleへまとめます。入口の正本は`config/frozen_raw_factory_input.json`、Source別のPayload Allowlist・文字Encoding・Parser Family・権利Laneは`config/source_payload_profiles.json`、出力契約は`schemas/source_intake_manifest.schema.json`です。
+
+Builderは各Artifactについて外側ZIPのSHA-256を再検証します。個別Harvestでは`source-lock.json`が内側RawのSHA-256とByte数を証明し、Collectionでは同梱Manifest/ReportのSHA-256と照合します。内側Archiveは絶対Path・`..`・Backslash・Member数・展開Byte数・圧縮率を検査し、Allowlistに一致したPayloadだけを選択します。その後、次の10 Parser FamilyでPayloadを検査します。
+
+| Parser Family | 対象形式 |
+|---|---|
+| `commented-sequence` | Unicode Emoji Sequence/Test |
+| `delimited-table` | TSV、CSV、行指向の語彙・頻度・分類表 |
+| `streaming-xml` | UCD、CLDR、JMnedict |
+| `json-corpus` | NER、対話、曖昧性、Catalog |
+| `conllu` | Universal Dependencies |
+| `skk` | SKK辞書 |
+| `knp` | KWDLC/KNP |
+| `jsonl` | 正規化辞書、評価・感情・Wiktionary JSONL |
+| `rdf-xml` | NDLSH RDF/XML |
+| `archive-index` | 再帰展開せず後段処理へ渡す入れ子Archive/Pointer |
+
+全67入力は内部Factory Intakeの対象です。Rawと正規化派生を同一論理Sourceとして追跡し、二重投入を防ぎます。ただし公開可否は別判定で、Laneと`public_runtime_eligible`により候補を限定し、それ以外はRawと検証結果を保持したまま公開昇格を停止します。Raw Intakeは意味生成、自動承認、Runtime昇格を行いません。これらはSource Adapter、Decision Ledger、公開Gateを通る後段工程です。
+
 ## 共通Record
 
 Schemaは`schemas/unified_semantic_record.schema.json`です。出力は次を保持します。
