@@ -8,13 +8,16 @@ on:
       - "schemas/source_intake_manifest.schema.json"
       - "tools/build_frozen_raw_factory_input.py"
       - "tools/build_frozen_raw_meaning_factory.py"
+      - "tools/build_frozen_raw_role_factory.py"
       - "tools/unified_semantic_data/raw_intake.py"
       - "tools/unified_semantic_data/collection_intake.py"
       - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
+      - "tools/unified_semantic_data/frozen_raw_role_factory.py"
       - "tools/unified_semantic_data/semantic_labeler.py"
       - "tools/unified_semantic_data/source_adapter_contract.py"
       - "tests/test_raw_intake.py"
       - "tests/test_frozen_raw_meaning_factory.py"
+      - "tests/test_frozen_raw_role_factory.py"
       - "tests/test_source_adapter_contract.py"
       - ".github/workflows/public-source-harvest.yml"
   workflow_dispatch:
@@ -50,6 +53,8 @@ jobs:
           python -m py_compile tools/unified_semantic_data/collection_intake.py
           python -m py_compile tools/build_frozen_raw_meaning_factory.py
           python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
+          python -m py_compile tools/build_frozen_raw_role_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_role_factory.py
           python -m py_compile tools/unified_semantic_data/source_adapter_contract.py
           python tools/build_frozen_raw_factory_input.py self-test
           python tools/build_frozen_raw_factory_input.py validate-config \
@@ -57,6 +62,7 @@ jobs:
           python -m pytest \
             tests/test_raw_intake.py \
             tests/test_frozen_raw_meaning_factory.py \
+            tests/test_frozen_raw_role_factory.py \
             tests/test_source_adapter_contract.py
 
       - name: Select and download already-collected GitHub artifacts
@@ -308,6 +314,11 @@ jobs:
           retention-days: 90
           compression-level: 0
 
+      - name: Release downloaded artifact copies after bundle verification
+        run: |
+          test -d "$WORK_ROOT/downloads"
+          rm -rf "$WORK_ROOT/downloads"
+
       - name: Build source-authored meaning adapter lanes
         run: |
           python tools/build_frozen_raw_meaning_factory.py \
@@ -421,6 +432,71 @@ jobs:
             work/frozen-raw-input/meaning-factory/unresolved-meaning-records.jsonl
             work/frozen-raw-input/meaning-enrichment/semantic-enrichment-report.json
             work/frozen-raw-input/meaning-enrichment/semantic-enrichment-queue.jsonl
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Build all auxiliary source-role adapter lanes
+        run: |
+          python tools/build_frozen_raw_role_factory.py \
+            --bundle "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
+            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
+            --profiles "$PROFILES_PATH" \
+            --output-root "$WORK_ROOT/role-factory"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/frozen-raw-input/role-factory/role-factory-report.json")
+              .read_text(encoding="utf-8")
+          )
+          if report["processed_source_count"] != 67:
+              raise SystemExit(f"not all auxiliary sources were processed: {report}")
+          if report["input_record_count"] != (
+              report["resolved_input_record_count"]
+              + report["unresolved_input_record_count"]
+          ):
+              raise SystemExit(f"role factory input record loss: {report}")
+          if report["role_projection_count"] != (
+              report["unique_adapter_record_count"]
+              + report["exact_replay_duplicate_count"]
+          ):
+              raise SystemExit(f"role factory dedup record loss: {report}")
+          boundaries = report["boundaries"]
+          required = {
+              "all_declared_auxiliary_sources_processed": True,
+              "exact_replay_deduplication_only": True,
+              "same_surface_different_payload_preserved": True,
+              "duplicate_source_lineage_preserved": True,
+              "automatic_approval": False,
+              "automatic_runtime_promotion": False,
+          }
+          for key, expected in required.items():
+              if boundaries.get(key) is not expected:
+                  raise SystemExit(
+                      f"role factory boundary mismatch: {key}={boundaries.get(key)!r}"
+                  )
+          print(json.dumps({
+              "status": "ALL_AUXILIARY_SOURCE_ROLES_PROCESSED",
+              "processed_sources": report["processed_source_count"],
+              "input_records": report["input_record_count"],
+              "role_projections": report["role_projection_count"],
+              "unique_adapter_records": report["unique_adapter_record_count"],
+              "exact_replay_duplicates": report["exact_replay_duplicate_count"],
+              "unresolved_records": report["unresolved_input_record_count"],
+              "automatic_approval": False,
+          }, sort_keys=True))
+          PY
+
+      - name: Upload auxiliary source-role factory output
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-auxiliary-source-role-factory-v1
+          path: |
+            work/frozen-raw-input/role-factory/adapter-output/
+            work/frozen-raw-input/role-factory/role-factory-report.json
+            work/frozen-raw-input/role-factory/unresolved-source-role-records.jsonl
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

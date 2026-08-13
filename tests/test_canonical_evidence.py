@@ -112,6 +112,16 @@ def _evidence(
             "source_url": "https://example.invalid/aux",
             "source_sha256": hashlib.sha256(evidence_id.encode()).hexdigest(),
             "attribution": "aux-fixture",
+            "logical_source_id": "aux-logical",
+            "source_record_id": f"row:{evidence_id}",
+            "source_record_sha256": "b" * 64,
+            "payload_path": "source/payload.jsonl",
+            "payload_sha256": "c" * 64,
+            "artifact_id": 123,
+            "workflow_run_id": 456,
+            "rights_lane": "C",
+            "public_runtime_eligible": True,
+            "license_metadata_complete": True,
         },
     }
 
@@ -161,6 +171,13 @@ def test_auxiliary_evidence_attaches_without_becoming_new_meaning(tmp_path: Path
     assert record["senses"][0]["glosses"] == ["預金や融資などを扱う金融機関"]
     assert record["auxiliary_evidence"]["familiarity"][0]["payload"]["score"] == 6.2
     assert record["auxiliary_evidence"]["translation"][0]["payload"]["value"] == "bank"
+    source = record["auxiliary_evidence"]["translation"][0]["source"]
+    assert source["logical_source_id"] == "aux-logical"
+    assert source["source_record_sha256"] == "b" * 64
+    assert source["payload_sha256"] == "c" * 64
+    assert source["artifact_id"] == 123
+    assert source["workflow_run_id"] == 456
+    assert source["license_metadata_complete"] is True
 
 
 def test_ambiguous_surface_only_evidence_is_not_attached(tmp_path: Path) -> None:

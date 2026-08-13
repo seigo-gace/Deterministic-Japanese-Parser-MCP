@@ -56,6 +56,14 @@ Builderは各Artifactについて外側ZIPのSHA-256を再検証します。個�
 
 この工程は意味を創作・翻訳せず、Source-authored語義を`needs-evidence`候補へするだけです。自動承認とRuntime昇格は行わず、Semantic Decision Ledger、意味Provenance、License別Public Distribution Gateを引き続き必須とします。
 
+### Auxiliary Source Role Factory
+
+`tools/build_frozen_raw_role_factory.py`は、67入力すべてを完全走査し、`lexical-definition`以外の宣言済みRoleをUniversal Source Adapterの`canonical-evidence.jsonl`へ投影します。10 Parser Familyを共通設備として使用し、Sourceごとの差は`config/source_payload_profiles.json`へ固定します。中間Recordは決定的gzipの`source-role-records.jsonl.gz`へ保存します。入力Recordから明示的なSurfaceを得られない場合も削除せず、元値、Payload Path、Record番号、SHA-256、宣言Roleを`unresolved-source-role-records.jsonl`へ保持します。
+
+重複排除は同じLogical Source、同じRole、同じLexical Identity、同じ完全Payloadを持つ再投入だけが対象です。決定的FingerprintとSQLiteを用いるため入力順に依存せず、再実行しても同じID・同じ出力になります。畳まれたRecordでもArtifact、Workflow Run、Payload、Source Recordの全Lineageを保持します。表記だけの一致では統合しません。同じ表記でも読み、品詞、意味、用法、Domain、時代、Evidence Payloadのいずれかが異なれば別Recordとして残り、Canonical Dictionaryでは異なる意味Signatureが別Sense IDになります。同一Senseを複数Sourceが裏づける場合だけ、Senseを一つにして複数Source Evidenceを保持します。Semantic Enrichmentでも異なるGlossは別Proposalのまま保持し、同一Glossだけを一つのProposalへ集約して全Reference Evidence IDを残します。
+
+License式がRecordまたはSource Lockに存在しないRecordは加工結果として保持しますが、`public_runtime_eligible=false`に固定し、`LICENSE-EXPRESSION-PENDING`として公開Gateを閉じます。補助Evidenceから語義を作ること、自動承認、Runtime自動昇格は行いません。工程は入力件数＝投影済み入力件数＋未解決件数、Role投影件数＝一意Adapter件数＋完全再投入重複件数の二つの保存則を検証します。
+
 ## 共通Record
 
 Schemaは`schemas/unified_semantic_record.schema.json`です。出力は次を保持します。

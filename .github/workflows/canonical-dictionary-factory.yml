@@ -12,6 +12,7 @@ on:
       - "tests/test_canonical_runtime_projection.py"
       - "tests/test_source_adapter_contract.py"
       - "tests/test_frozen_raw_meaning_factory.py"
+      - "tests/test_frozen_raw_role_factory.py"
       - "pyproject.toml"
       - ".github/workflows/canonical-dictionary-factory.yml"
   workflow_dispatch:
@@ -43,6 +44,8 @@ jobs:
           python -m py_compile tools/unified_semantic_data/source_adapter_contract.py
           python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
           python -m py_compile tools/build_frozen_raw_meaning_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_role_factory.py
+          python -m py_compile tools/build_frozen_raw_role_factory.py
           python -m py_compile tools/unified_semantic_data_pipeline.py
       - name: Canonical dictionary unit tests
         run: |
@@ -53,7 +56,7 @@ jobs:
             tests/test_canonical_distribution.py \
             tests/test_canonical_runtime_projection.py \
             tests/test_source_adapter_contract.py
-          pytest -q tests/test_frozen_raw_meaning_factory.py
+          pytest -q tests/test_frozen_raw_meaning_factory.py tests/test_frozen_raw_role_factory.py
       - name: Existing semantic factory regression tests
         run: |
           pytest -q tests/test_semantic_labeler.py tests/test_unified_semantic_data_pipeline.py

@@ -254,11 +254,14 @@ def _proposal_candidates(
         return [], []
     scored = [(reference, _reference_score(record, reference)) for reference in compatible]
     best_score = max(score for _, score in scored)
-    selected = [reference for reference, score in scored if score == best_score][:8]
+    selected = sorted(
+        [reference for reference, score in scored if score == best_score],
+        key=lambda item: str(item.get("record_id") or ""),
+    )[:8]
 
     proposals: list[dict[str, Any]] = []
     evidence: list[dict[str, Any]] = []
-    signatures: set[tuple[str, ...]] = set()
+    proposals_by_signature: dict[tuple[str, ...], dict[str, Any]] = {}
     for reference in selected:
         evidence.append(
             {
@@ -270,17 +273,24 @@ def _proposal_candidates(
         for candidate in reference.get("candidates") or []:
             glosses = _candidate_glosses(candidate)
             signature = tuple(glosses)
-            if not glosses or signature in signatures:
+            if not glosses:
                 continue
-            signatures.add(signature)
+            reference_id = str(reference.get("record_id"))
+            existing = proposals_by_signature.get(signature)
+            if existing is not None:
+                existing["evidence_ids"] = sorted(
+                    {*existing.get("evidence_ids", []), reference_id}
+                )
+                continue
             proposal = dict(candidate)
             proposal["candidate_id"] = (
                 f"{record.get('record_id')}:semantic-enrichment:{len(proposals)+1:03d}"
             )
-            proposal["evidence_ids"] = [str(reference.get("record_id"))]
+            proposal["evidence_ids"] = [reference_id]
             proposal["review_status"] = "needs-evidence"
             proposal["meaning_source"] = "approved-record-reference"
             proposals.append(proposal)
+            proposals_by_signature[signature] = proposal
     return proposals, evidence
 
 

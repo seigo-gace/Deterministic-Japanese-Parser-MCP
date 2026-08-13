@@ -157,6 +157,8 @@ def test_same_lexeme_from_multiple_sources_becomes_one_project_dictionary_record
     assert row["readings"] == ["こころ"]
     assert row["part_of_speech"] == ["名詞"]
     assert len(row["senses"]) == 2
+    assert len({sense["sense_id"] for sense in row["senses"]}) == 2
+    assert len({tuple(sense["glosses"]) for sense in row["senses"]}) == 2
     assert row["source_record_ids"] == ["JMD-001", "WN-001"]
     assert row["source_evidence_count"] == 2
     assert {
@@ -241,7 +243,7 @@ def test_compile_writes_search_indexes_and_is_byte_deterministic(
     first = tmp_path / "first"
     second = tmp_path / "second"
     manifest1 = compile_canonical_dictionary(review, first, shard_size=100)
-    manifest2 = compile_canonical_dictionary(review, second, shard_size=100)
+    compile_canonical_dictionary(review, second, shard_size=100)
 
     assert manifest1["record_count"] == 1
     assert manifest1["sense_count"] == 2

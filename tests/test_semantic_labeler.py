@@ -174,3 +174,58 @@ def test_reference_rows_with_same_upstream_source_id_remain_distinct(tmp_path: P
     )
     assert report["external_reference_record_count"] == 2
     assert report["proposed_from_reference_packs"] == 2
+
+
+def test_same_surface_same_reading_preserves_different_meaning_proposals(tmp_path: Path) -> None:
+    review = tmp_path / "review-records.jsonl"
+    target = _record(
+        "TARGET", "はし", "pending review", semantic="needs-evidence", runtime_eligible=False
+    )
+    target["readings"] = ["はし"]
+    _write_jsonl(review, [target])
+    reference = tmp_path / "reference.jsonl"
+    _write_jsonl(
+        reference,
+        [
+            {"id": "BRIDGE", "surface": "はし", "readings": ["はし"], "meaning": "川などを渡るための構造物"},
+            {"id": "CHOPSTICKS", "surface": "はし", "readings": ["はし"], "meaning": "食べ物を挟んで取る二本一組の道具"},
+        ],
+    )
+    build_semantic_enrichment_queue(
+        review, tmp_path / "out", reference_roots=[reference]
+    )
+    row = json.loads(
+        (tmp_path / "out/semantic-enrichment-queue.jsonl").read_text(encoding="utf-8")
+    )
+    proposals = row["proposed_meaning_candidates"]
+    assert len(proposals) == 2
+    assert {tuple(item["glosses"]) for item in proposals} == {
+        ("川などを渡るための構造物",),
+        ("食べ物を挟んで取る二本一組の道具",),
+    }
+
+
+def test_identical_sense_aggregates_all_reference_evidence_ids(tmp_path: Path) -> None:
+    review = tmp_path / "review-records.jsonl"
+    _write_jsonl(
+        review,
+        [_record("TARGET", "証拠", "pending review", semantic="needs-evidence", runtime_eligible=False)],
+    )
+    reference = tmp_path / "reference.jsonl"
+    _write_jsonl(
+        reference,
+        [
+            {"id": "REF-A", "surface": "証拠", "meaning": "事実を明らかにする根拠"},
+            {"id": "REF-B", "surface": "証拠", "meaning": "事実を明らかにする根拠"},
+        ],
+    )
+    build_semantic_enrichment_queue(
+        review, tmp_path / "out", reference_roots=[reference]
+    )
+    row = json.loads(
+        (tmp_path / "out/semantic-enrichment-queue.jsonl").read_text(encoding="utf-8")
+    )
+    proposals = row["proposed_meaning_candidates"]
+    assert len(proposals) == 1
+    assert proposals[0]["evidence_ids"] == ["reference:REF-A", "reference:REF-B"]
+    assert len(row["evidence"]) == 2

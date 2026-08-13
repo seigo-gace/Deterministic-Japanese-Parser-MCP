@@ -94,7 +94,7 @@ def _validate_source(source: dict[str, Any], evidence_id: str) -> dict[str, Any]
     digest = str(source.get("source_sha256") or "").strip()
     if len(digest) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in digest):
         raise ValueError(f"canonical evidence source_sha256 invalid: {evidence_id}")
-    return {
+    normalized = {
         "dataset": str(source.get("dataset") or "").strip(),
         "version": str(source.get("version") or "").strip(),
         "license": str(source.get("license") or "").strip(),
@@ -103,6 +103,31 @@ def _validate_source(source: dict[str, Any], evidence_id: str) -> dict[str, Any]
         "source_sha256": digest.lower(),
         "attribution": str(source.get("attribution") or "").strip(),
     }
+    for key in (
+        "logical_source_id",
+        "source_record_id",
+        "source_record_sha256",
+        "payload_path",
+        "payload_sha256",
+        "rights_lane",
+    ):
+        value = str(source.get(key) or "").strip()
+        if value:
+            normalized[key] = value
+    for key in ("artifact_id", "workflow_run_id"):
+        value = source.get(key)
+        if value not in (None, ""):
+            normalized[key] = int(value)
+    for key in ("public_runtime_eligible", "license_metadata_complete"):
+        if key in source:
+            normalized[key] = bool(source.get(key))
+    for key in ("source_record_sha256", "payload_sha256"):
+        if key in normalized:
+            value = str(normalized[key]).lower()
+            if len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
+                raise ValueError(f"canonical evidence {key} invalid: {evidence_id}")
+            normalized[key] = value
+    return normalized
 
 
 def normalize_evidence_record(raw: dict[str, Any], *, path: Path, line: int) -> dict[str, Any]:

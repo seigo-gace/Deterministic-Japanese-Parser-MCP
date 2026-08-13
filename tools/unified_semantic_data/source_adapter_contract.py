@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import Counter
 import argparse
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -86,7 +87,9 @@ def _validate_source(source: dict[str, Any], record_id: str) -> dict[str, Any]:
         value = source.get(key)
         if value not in (None, ""):
             normalized[key] = int(value)
-    for key in ("public_runtime_eligible", "source_meaning_complete"):
+    for key in (
+        "public_runtime_eligible", "source_meaning_complete", "license_metadata_complete",
+    ):
         if key in source:
             normalized[key] = bool(source.get(key))
     for key in ("source_record_sha256", "payload_sha256"):
@@ -168,7 +171,8 @@ def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> d
 def iter_adapter_records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
     seen: set[str] = set()
     for path in sorted(set(paths), key=str):
-        with path.open("r", encoding="utf-8") as handle:
+        opener = gzip.open if path.name.endswith(".gz") else Path.open
+        with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[arg-type]
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
