@@ -125,9 +125,9 @@ def _extract_fields(source_id: str, row: dict[str, Any]) -> dict[str, list[str]]
         surfaces = _stable_unique(
             [
                 *surfaces,
-                row.get("hiragana"),
-                row.get("katakana"),
-                row.get("romaji"),
+                *_nested_texts(row.get("hiragana")),
+                *_nested_texts(row.get("katakana")),
+                *_nested_texts(row.get("romaji")),
             ]
         )
         resolved = row.get("resolved_meaning_evidence")
@@ -338,6 +338,9 @@ def build_frozen_raw_meaning_factory(
                 }
                 for source in sorted(selected_sources, key=lambda item: item["source_id"]):
                     source_count = 0
+                    source_input_count = 0
+                    source_unresolved_count = 0
+                    source_unresolved_reasons: Counter[str] = Counter()
                     payload_count = 0
                     for payload_index, payload in enumerate(source["payloads"], 1):
                         payload_name = _safe_member(str(payload["path"]))
@@ -362,6 +365,8 @@ def build_frozen_raw_meaning_factory(
                         payload_meta = {**payload, "sha256": payload_sha}
                         payload_count += 1
                         for line_number, row in _iter_payload_rows(payload_path):
+                            counts["input_definition_records"] += 1
+                            source_input_count += 1
                             try:
                                 adapter_row = _adapter_row(
                                     row,
@@ -371,6 +376,7 @@ def build_frozen_raw_meaning_factory(
                                     freeze_at=str(manifest.get("freeze_at") or "unknown"),
                                 )
                             except ValueError as exc:
+                                reason = str(exc).split(":", 1)[0]
                                 unresolved_output.write(
                                     _json_line(
                                         {
@@ -383,25 +389,26 @@ def build_frozen_raw_meaning_factory(
                                     + "\n"
                                 )
                                 counts["unresolved_records"] += 1
+                                source_unresolved_count += 1
+                                source_unresolved_reasons[reason] += 1
                                 continue
                             adapter_output.write(_json_line(adapter_row) + "\n")
                             counts["adapter_records"] += 1
                             source_count += 1
                         payload_path.unlink()
                     by_source[str(source["source_id"])] = {
+                        "input_records": source_input_count,
                         "adapter_records": source_count,
+                        "unresolved_records": source_unresolved_count,
+                        "unresolved_reason_counts": dict(
+                            sorted(source_unresolved_reasons.items())
+                        ),
                         "payload_count": payload_count,
                         "rights_lane": source["rights_lane"],
                         "public_runtime_eligible": source["public_runtime_eligible"],
                     }
             artifact_path.unlink()
 
-    if counts["unresolved_records"]:
-        raise RuntimeError(
-            "FROZEN_MEANING_FACTORY_INCOMPLETE: "
-            f"unresolved_records={counts['unresolved_records']}; "
-            f"inspect {unresolved_path.name}"
-        )
     empty_sources = [
         source_id
         for source_id, values in by_source.items()
@@ -410,6 +417,15 @@ def build_frozen_raw_meaning_factory(
     if empty_sources:
         raise ValueError(
             f"lexical-definition sources produced no meanings: {empty_sources}"
+        )
+    if counts["input_definition_records"] != (
+        counts["adapter_records"] + counts["unresolved_records"]
+    ):
+        raise RuntimeError(
+            "MEANING_FACTORY_RECORD_LOSS: "
+            f"input={counts['input_definition_records']} "
+            f"adapter={counts['adapter_records']} "
+            f"unresolved={counts['unresolved_records']}"
         )
 
     adapter_root = output_root / "adapter-output"
@@ -421,6 +437,7 @@ def build_frozen_raw_meaning_factory(
         "intake_source_count": int(manifest["source_count"]),
         "lexical_definition_source_count": len(definition_sources),
         "non_definition_source_count": int(manifest["source_count"]) - len(definition_sources),
+        "input_definition_record_count": counts["input_definition_records"],
         "adapter_record_count": counts["adapter_records"],
         "unresolved_record_count": counts["unresolved_records"],
         "source_counts": dict(sorted(by_source.items())),
@@ -441,6 +458,8 @@ def build_frozen_raw_meaning_factory(
             "all_declared_lexical_definition_sources_processed": True,
             "source_authored_meanings_only": True,
             "placeholder_meanings_rejected": True,
+            "unresolved_rows_never_enter_meaning_adapter": True,
+            "input_record_conservation_verified": True,
             "payload_and_artifact_checksums_verified": True,
             "source_rights_and_lineage_preserved": True,
             "automatic_definition_generation": False,

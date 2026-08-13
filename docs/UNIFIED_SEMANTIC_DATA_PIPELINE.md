@@ -52,7 +52,7 @@ Builderは各Artifactについて外側ZIPのSHA-256を再検証します。個�
 
 `tools/build_frozen_raw_meaning_factory.py`は、凍結Raw BundleのManifestで`lexical-definition`と宣言された7 Sourceだけを対象に、Artifact ZIPとPayloadのSHA-256を再検証し、Source自身が持つ見出し語・読み・品詞・語義をUniversal Source Adapterへ変換します。対象は鳩間方言辞典、J-Ono、Japanese WordNet、NINJAL沖縄語辞典、Unicode Unihan、KANJIDIC2、日本語版Wiktionaryです。その他60入力は意味を持たないEvidence Sourceとして扱い、この工程で語義へ変換しません。
 
-出力は`semantic-reference.jsonl`（既存語への語義候補照合）、`lexical-candidates.jsonl`（新出語の通常Review Lane）、`canonical-evidence.jsonl`（補助Evidence）の3 Laneです。Artifact ID、Workflow Run ID、論理Source ID、元Record ID/SHA-256、Payload Path/SHA-256、権利Lane、License、公開適格性を保持します。同一表記でも明示Readingが衝突する候補は別語として扱い、語義をコピーしません。意味欠落・Placeholder・License欠落・Checksum不一致は`unresolved-meaning-records.jsonl`へ記録してFail Closedにします。
+出力は`semantic-reference.jsonl`（既存語への語義候補照合）、`lexical-candidates.jsonl`（新出語の通常Review Lane）、`canonical-evidence.jsonl`（補助Evidence）の3 Laneです。Artifact ID、Workflow Run ID、論理Source ID、元Record ID/SHA-256、Payload Path/SHA-256、権利Lane、License、公開適格性を保持します。同一表記でも明示Readingが衝突する候補は別語として扱い、語義をコピーしません。意味欠落・Placeholder・License欠落は`unresolved-meaning-records.jsonl`へ分離し、意味Adapterへ入れません。入力件数がAdapter件数＋未解決件数と一致しなければ失敗します。Checksum不一致は工程自体を停止します。この分離により、元Sourceに意味がない行を捏造せず、未解決のまま承認・昇格を閉じます。
 
 この工程は意味を創作・翻訳せず、Source-authored語義を`needs-evidence`候補へするだけです。自動承認とRuntime昇格は行わず、Semantic Decision Ledger、意味Provenance、License別Public Distribution Gateを引き続き必須とします。
 

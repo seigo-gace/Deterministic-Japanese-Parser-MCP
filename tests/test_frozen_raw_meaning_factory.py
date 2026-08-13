@@ -141,10 +141,16 @@ def test_frozen_bundle_definitions_become_review_only_adapter_lanes(tmp_path: Pa
 def test_meaning_factory_fails_closed_on_placeholder_definition(tmp_path: Path) -> None:
     row = _meaning_row()
     row["meanings"] = ["pending review"]
-    bundle, manifest = _fixture(tmp_path, [row])
+    valid = _meaning_row()
+    valid["id"] = "WNJA-2"
+    valid["surface"] = "証拠"
+    bundle, manifest = _fixture(tmp_path, [valid, row])
     output = tmp_path / "out"
-    with pytest.raises(RuntimeError, match="FROZEN_MEANING_FACTORY_INCOMPLETE"):
-        build_frozen_raw_meaning_factory(bundle, manifest, output)
+    report = build_frozen_raw_meaning_factory(bundle, manifest, output)
+    assert report["input_definition_record_count"] == 2
+    assert report["adapter_record_count"] == 1
+    assert report["unresolved_record_count"] == 1
+    assert report["boundaries"]["unresolved_rows_never_enter_meaning_adapter"] is True
     unresolved = (output / "unresolved-meaning-records.jsonl").read_text(
         encoding="utf-8"
     )
@@ -155,15 +161,15 @@ def test_j_ono_resolved_evidence_is_not_lost() -> None:
     fields = _extract_fields(
         "j-ono-definitions",
         {
-            "hiragana": "きらきら",
-            "katakana": "キラキラ",
-            "romaji": "kirakira",
+            "hiragana": ["きらきら", "きらっきら"],
+            "katakana": ["キラキラ"],
+            "romaji": ["kirakira"],
             "resolved_meaning_evidence": [
                 {"meaning": "光が細かく繰り返し輝く様子"}
             ],
         },
     )
-    assert fields["surfaces"] == ["kirakira", "きらきら", "キラキラ"]
+    assert fields["surfaces"] == ["kirakira", "きらきら", "きらっきら", "キラキラ"]
     assert fields["meanings"] == ["光が細かく繰り返し輝く様子"]
 
 

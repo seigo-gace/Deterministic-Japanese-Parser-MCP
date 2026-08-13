@@ -327,8 +327,12 @@ jobs:
                   "unexpected lexical-definition source count: "
                   f"{report['lexical_definition_source_count']}"
               )
-          if report["adapter_record_count"] < 1 or report["unresolved_record_count"] != 0:
+          if report["adapter_record_count"] < 1:
               raise SystemExit(f"meaning factory incomplete: {report}")
+          if report["input_definition_record_count"] != (
+              report["adapter_record_count"] + report["unresolved_record_count"]
+          ):
+              raise SystemExit(f"meaning factory record loss: {report}")
           boundaries = report["boundaries"]
           required = {
               "all_declared_lexical_definition_sources_processed": True,
@@ -346,6 +350,7 @@ jobs:
               "status": "SOURCE_AUTHORED_MEANING_ADAPTER_READY",
               "lexical_definition_sources": report["lexical_definition_source_count"],
               "adapter_records": report["adapter_record_count"],
+              "input_definition_records": report["input_definition_record_count"],
               "semantic_references": report["adapter_contract"]["semantic_reference_record_count"],
               "lexical_candidates": report["adapter_contract"]["lexical_candidate_record_count"],
               "unresolved_records": report["unresolved_record_count"],
