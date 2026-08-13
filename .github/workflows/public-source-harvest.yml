@@ -7,9 +7,15 @@ on:
       - "config/source_payload_profiles.json"
       - "schemas/source_intake_manifest.schema.json"
       - "tools/build_frozen_raw_factory_input.py"
+      - "tools/build_frozen_raw_meaning_factory.py"
       - "tools/unified_semantic_data/raw_intake.py"
       - "tools/unified_semantic_data/collection_intake.py"
+      - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
+      - "tools/unified_semantic_data/semantic_labeler.py"
+      - "tools/unified_semantic_data/source_adapter_contract.py"
       - "tests/test_raw_intake.py"
+      - "tests/test_frozen_raw_meaning_factory.py"
+      - "tests/test_source_adapter_contract.py"
       - ".github/workflows/public-source-harvest.yml"
   workflow_dispatch:
 
@@ -42,10 +48,16 @@ jobs:
           python -m py_compile tools/build_frozen_raw_factory_input.py
           python -m py_compile tools/unified_semantic_data/raw_intake.py
           python -m py_compile tools/unified_semantic_data/collection_intake.py
+          python -m py_compile tools/build_frozen_raw_meaning_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
+          python -m py_compile tools/unified_semantic_data/source_adapter_contract.py
           python tools/build_frozen_raw_factory_input.py self-test
           python tools/build_frozen_raw_factory_input.py validate-config \
             --config "$CONFIG_PATH"
-          python -m pytest tests/test_raw_intake.py
+          python -m pytest \
+            tests/test_raw_intake.py \
+            tests/test_frozen_raw_meaning_factory.py \
+            tests/test_source_adapter_contract.py
 
       - name: Select and download already-collected GitHub artifacts
         run: |
@@ -295,3 +307,115 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+      - name: Build source-authored meaning adapter lanes
+        run: |
+          python tools/build_frozen_raw_meaning_factory.py \
+            --bundle "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
+            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
+            --output-root "$WORK_ROOT/meaning-factory"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/frozen-raw-input/meaning-factory/meaning-factory-report.json")
+              .read_text(encoding="utf-8")
+          )
+          if report["lexical_definition_source_count"] != 7:
+              raise SystemExit(
+                  "unexpected lexical-definition source count: "
+                  f"{report['lexical_definition_source_count']}"
+              )
+          if report["adapter_record_count"] < 1 or report["unresolved_record_count"] != 0:
+              raise SystemExit(f"meaning factory incomplete: {report}")
+          boundaries = report["boundaries"]
+          required = {
+              "all_declared_lexical_definition_sources_processed": True,
+              "source_authored_meanings_only": True,
+              "automatic_approval": False,
+              "automatic_runtime_promotion": False,
+              "decision_ledger_required": True,
+          }
+          for key, expected in required.items():
+              if boundaries.get(key) is not expected:
+                  raise SystemExit(
+                      f"meaning factory boundary mismatch: {key}={boundaries.get(key)!r}"
+                  )
+          print(json.dumps({
+              "status": "SOURCE_AUTHORED_MEANING_ADAPTER_READY",
+              "lexical_definition_sources": report["lexical_definition_source_count"],
+              "adapter_records": report["adapter_record_count"],
+              "semantic_references": report["adapter_contract"]["semantic_reference_record_count"],
+              "lexical_candidates": report["adapter_contract"]["lexical_candidate_record_count"],
+              "unresolved_records": report["unresolved_record_count"],
+          }, sort_keys=True))
+          PY
+
+      - name: Restore immutable 125000-record review queue
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31030553984
+          github-token: ${{ github.token }}
+          path: ${{ env.WORK_ROOT }}/review-seed
+
+      - name: Attach collected source meanings to review candidates
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          sys.path.insert(0, str(Path("tools").resolve()))
+          from unified_semantic_data.semantic_labeler import (
+              build_semantic_enrichment_queue,
+          )
+
+          root = Path("work/frozen-raw-input")
+          queue = root / "review-seed/unified-semantic-data/review-queue.jsonl"
+          if not queue.is_file():
+              raise SystemExit(f"immutable review queue missing: {queue}")
+          report = build_semantic_enrichment_queue(
+              queue,
+              root / "meaning-enrichment",
+              reference_roots=[
+                  Path("tools/unified_semantic_data/reference"),
+                  root / "meaning-factory/adapter-output/semantic-reference.jsonl",
+              ],
+          )
+          if report["total_records"] != 125000:
+              raise SystemExit(
+                  f"review queue count mismatch: {report['total_records']}"
+              )
+          proposed = int(report.get("proposed_from_reference_packs", 0))
+          if proposed < 1:
+              raise SystemExit(
+                  "collected source meanings did not attach to any review candidate"
+              )
+          print(json.dumps({
+              "status": "SOURCE_MEANING_CANDIDATES_ATTACHED",
+              "total_records": report["total_records"],
+              "meaning_missing_records": report.get("meaning_missing_records", 0),
+              "proposed_from_approved_records": report.get("proposed_from_approved_records", 0),
+              "proposed_from_reference_packs": proposed,
+              "unresolved_meaning_records": report.get("unresolved_meaning_records", 0),
+              "enrichment_queue_records": report.get("enrichment_queue_records", 0),
+              "automatic_approval": False,
+          }, sort_keys=True))
+          PY
+
+      - name: Upload source-authored meaning factory output
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-source-authored-meaning-factory-v1
+          path: |
+            work/frozen-raw-input/meaning-factory/adapter-output/
+            work/frozen-raw-input/meaning-factory/meaning-factory-report.json
+            work/frozen-raw-input/meaning-factory/unresolved-meaning-records.jsonl
+            work/frozen-raw-input/meaning-enrichment/semantic-enrichment-report.json
+            work/frozen-raw-input/meaning-enrichment/semantic-enrichment-queue.jsonl
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

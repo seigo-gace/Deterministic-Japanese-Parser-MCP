@@ -154,6 +154,7 @@ def _record_reference(record: dict[str, Any]) -> dict[str, Any]:
 
 def _load_external_reference(path: Path) -> Iterator[dict[str, Any]]:
     for item in _iter_jsonl(path):
+        nested_source = item.get("source") if isinstance(item.get("source"), dict) else {}
         surfaces = _stable_unique(
             [
                 str(item.get("surface") or "").strip(),
@@ -194,9 +195,14 @@ def _load_external_reference(path: Path) -> Iterator[dict[str, Any]]:
                 }
             ],
             "source": {
-                "dataset": str(item.get("dataset") or "local-semantic-reference"),
+                **nested_source,
+                "dataset": str(item.get("dataset") or nested_source.get("dataset") or "local-semantic-reference"),
+                "version": str(item.get("version") or nested_source.get("version") or ""),
                 "source_id": source_id,
-                "license": str(item.get("license") or "Master-provided project reference"),
+                "license": str(item.get("license") or nested_source.get("license") or "Master-provided project reference"),
+                "source_url": str(item.get("source_url") or nested_source.get("source_url") or ""),
+                "source_sha256": str(item.get("source_sha256") or nested_source.get("source_sha256") or ""),
+                "attribution": str(item.get("attribution") or nested_source.get("attribution") or ""),
                 "path": str(path),
             },
         }
@@ -226,7 +232,22 @@ def _proposal_candidates(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not references:
         return [], []
-    scored = [(reference, _reference_score(record, reference)) for reference in references]
+    target_readings = {
+        normalize_key(value)
+        for value in _as_list(record.get("readings"))
+        if normalize_key(value)
+    }
+    compatible: list[dict[str, Any]] = []
+    for reference in references:
+        ref_readings = set(reference.get("readings") or [])
+        # Same spelling with a contradictory explicit reading is a different lexical
+        # candidate. Preserve it as ambiguity evidence; do not copy its definition.
+        if target_readings and ref_readings and not target_readings & ref_readings:
+            continue
+        compatible.append(reference)
+    if not compatible:
+        return [], []
+    scored = [(reference, _reference_score(record, reference)) for reference in compatible]
     best_score = max(score for _, score in scored)
     selected = [reference for reference, score in scored if score == best_score][:8]
 

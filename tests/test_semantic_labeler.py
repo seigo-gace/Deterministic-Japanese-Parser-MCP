@@ -118,3 +118,35 @@ def test_compile_gate_rejects_missing_or_unapproved_runtime_meaning(tmp_path: Pa
         assert "runtime_semantic_incomplete_records=1" in str(exc)
     else:
         raise AssertionError("semantic completeness gate must fail")
+
+
+def test_same_surface_conflicting_reading_does_not_copy_wrong_meaning(tmp_path: Path) -> None:
+    review = tmp_path / "review-records.jsonl"
+    target = _record(
+        "TARGET", "生", "pending review", semantic="needs-evidence", runtime_eligible=False
+    )
+    target["readings"] = ["なま"]
+    _write_jsonl(review, [target])
+    reference = tmp_path / "reference.jsonl"
+    _write_jsonl(
+        reference,
+        [
+            {
+                "surface": "生",
+                "readings": ["せい"],
+                "meaning": "生命または生きること",
+                "source_id": "sei",
+            }
+        ],
+    )
+    report = build_semantic_enrichment_queue(
+        review, tmp_path / "out", reference_roots=[reference]
+    )
+    assert report.get("proposed_from_reference_packs", 0) == 0
+    row = json.loads(
+        (tmp_path / "out/semantic-enrichment-queue.jsonl").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert row["semantic_enrichment_status"] == "unresolved-meaning"
+    assert row["proposed_meaning_candidates"] == []

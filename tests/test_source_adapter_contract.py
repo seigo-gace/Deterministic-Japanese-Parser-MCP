@@ -27,6 +27,45 @@ def _source(dataset: str) -> dict:
     }
 
 
+def test_frozen_source_lineage_survives_adapter_compilation(tmp_path: Path) -> None:
+    source = tmp_path / "adapter.jsonl"
+    lineage = {
+        **_source("frozen-source"),
+        "logical_source_id": "logical-1",
+        "source_record_id": "row-7",
+        "source_record_sha256": "b" * 64,
+        "payload_path": "reference/definitions.jsonl",
+        "payload_sha256": "c" * 64,
+        "artifact_id": 123,
+        "workflow_run_id": 456,
+        "rights_lane": "C",
+        "public_runtime_eligible": True,
+    }
+    source.write_text(
+        json.dumps(
+            {
+                "adapter_record_id": "FROZEN-1",
+                "source_role": "lexical-definition",
+                "surface": "語",
+                "meaning": "言語を構成する単位",
+                "source": lineage,
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    compile_adapter_contract([source], tmp_path / "out")
+    semantic = json.loads(
+        (tmp_path / "out/semantic-reference.jsonl").read_text(encoding="utf-8")
+    )
+    assert semantic["source"]["logical_source_id"] == "logical-1"
+    assert semantic["source"]["source_record_sha256"] == "b" * 64
+    assert semantic["source"]["payload_sha256"] == "c" * 64
+    assert semantic["source"]["artifact_id"] == 123
+    assert semantic["source"]["public_runtime_eligible"] is True
+
+
 def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     tmp_path: Path,
 ) -> None:

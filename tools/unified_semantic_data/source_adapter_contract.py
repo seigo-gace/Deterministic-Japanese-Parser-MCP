@@ -62,7 +62,7 @@ def _validate_source(source: dict[str, Any], record_id: str) -> dict[str, Any]:
     digest = _normalize_text(source.get("source_sha256")).lower()
     if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
         raise ValueError(f"adapter source_sha256 invalid for {record_id}")
-    return {
+    normalized = {
         "dataset": _normalize_text(source.get("dataset")),
         "version": _normalize_text(source.get("version")),
         "license": _normalize_text(source.get("license")),
@@ -71,6 +71,31 @@ def _validate_source(source: dict[str, Any], record_id: str) -> dict[str, Any]:
         "source_sha256": digest,
         "attribution": _normalize_text(source.get("attribution")),
     }
+    for key in (
+        "logical_source_id",
+        "source_record_id",
+        "source_record_sha256",
+        "payload_path",
+        "payload_sha256",
+        "rights_lane",
+    ):
+        value = _normalize_text(source.get(key))
+        if value:
+            normalized[key] = value
+    for key in ("artifact_id", "workflow_run_id"):
+        value = source.get(key)
+        if value not in (None, ""):
+            normalized[key] = int(value)
+    for key in ("public_runtime_eligible", "source_meaning_complete"):
+        if key in source:
+            normalized[key] = bool(source.get(key))
+    for key in ("source_record_sha256", "payload_sha256"):
+        if key in normalized:
+            value = str(normalized[key]).lower()
+            if len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
+                raise ValueError(f"adapter {key} invalid for {record_id}")
+            normalized[key] = value
+    return normalized
 
 
 def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> dict[str, Any]:
@@ -177,6 +202,7 @@ def semantic_reference_row(record: dict[str, Any]) -> dict[str, Any]:
         "source_url": source["source_url"],
         "source_sha256": source["source_sha256"],
         "attribution": source["attribution"],
+        "source": source,
         "meaning_origin": "source-authored",
         "automatic_approval": False,
     }
@@ -252,52 +278,35 @@ def compile_adapter_contract(
     input_paths: Iterable[Path],
     output_root: Path,
 ) -> dict[str, Any]:
-    records = list(iter_adapter_records(input_paths))
-    semantic_rows = [
-        semantic_reference_row(record)
-        for record in records
-        if record["source_role"] == MEANING_ROLE
-    ]
-    lexical_rows = [
-        lexical_candidate_row(record)
-        for record in records
-        if record["source_role"] == MEANING_ROLE
-    ]
-    evidence_rows = [
-        canonical_evidence_row(record)
-        for record in records
-        if record["source_role"] != MEANING_ROLE
-    ]
-    semantic_rows.sort(key=lambda row: row["id"])
-    lexical_rows.sort(key=lambda row: row["record_id"])
-    evidence_rows.sort(key=lambda row: row["evidence_id"])
     output_root.mkdir(parents=True, exist_ok=True)
     semantic_path = output_root / "semantic-reference.jsonl"
     lexical_path = output_root / "lexical-candidates.jsonl"
     evidence_path = output_root / "canonical-evidence.jsonl"
-    semantic_path.write_text(
-        "".join(_json_line(row) + "\n" for row in semantic_rows),
-        encoding="utf-8",
-        newline="\n",
-    )
-    lexical_path.write_text(
-        "".join(_json_line(row) + "\n" for row in lexical_rows),
-        encoding="utf-8",
-        newline="\n",
-    )
-    evidence_path.write_text(
-        "".join(_json_line(row) + "\n" for row in evidence_rows),
-        encoding="utf-8",
-        newline="\n",
-    )
-    role_counts = Counter(record["source_role"] for record in records)
+    role_counts: Counter[str] = Counter()
+    counts: Counter[str] = Counter()
+    with (
+        semantic_path.open("w", encoding="utf-8", newline="\n") as semantic,
+        lexical_path.open("w", encoding="utf-8", newline="\n") as lexical,
+        evidence_path.open("w", encoding="utf-8", newline="\n") as evidence,
+    ):
+        for record in iter_adapter_records(input_paths):
+            counts["adapter"] += 1
+            role_counts[record["source_role"]] += 1
+            if record["source_role"] == MEANING_ROLE:
+                semantic.write(_json_line(semantic_reference_row(record)) + "\n")
+                lexical.write(_json_line(lexical_candidate_row(record)) + "\n")
+                counts["semantic_reference"] += 1
+                counts["lexical_candidate"] += 1
+            else:
+                evidence.write(_json_line(canonical_evidence_row(record)) + "\n")
+                counts["canonical_evidence"] += 1
     manifest = {
         "schema_version": ADAPTER_SCHEMA_VERSION,
         "mode": "mcp-universal-source-adapter-contract",
-        "adapter_record_count": len(records),
-        "semantic_reference_record_count": len(semantic_rows),
-        "lexical_candidate_record_count": len(lexical_rows),
-        "canonical_evidence_record_count": len(evidence_rows),
+        "adapter_record_count": counts["adapter"],
+        "semantic_reference_record_count": counts["semantic_reference"],
+        "lexical_candidate_record_count": counts["lexical_candidate"],
+        "canonical_evidence_record_count": counts["canonical_evidence"],
         "source_role_counts": dict(sorted(role_counts.items())),
         "boundaries": {
             "source_authored_definition_required_for_meaning_reference": True,
