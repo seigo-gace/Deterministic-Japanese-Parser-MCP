@@ -150,3 +150,27 @@ def test_same_surface_conflicting_reading_does_not_copy_wrong_meaning(tmp_path: 
     )
     assert row["semantic_enrichment_status"] == "unresolved-meaning"
     assert row["proposed_meaning_candidates"] == []
+
+
+def test_reference_rows_with_same_upstream_source_id_remain_distinct(tmp_path: Path) -> None:
+    review = tmp_path / "review-records.jsonl"
+    _write_jsonl(
+        review,
+        [
+            _record("A", "甲", "pending review", semantic="needs-evidence", runtime_eligible=False),
+            _record("B", "乙", "pending review", semantic="needs-evidence", runtime_eligible=False),
+        ],
+    )
+    reference = tmp_path / "reference.jsonl"
+    _write_jsonl(
+        reference,
+        [
+            {"id": "REF-A", "source_id": "UPSTREAM-SHARED", "surface": "甲", "meaning": "第一のもの"},
+            {"id": "REF-B", "source_id": "UPSTREAM-SHARED", "surface": "乙", "meaning": "第二のもの"},
+        ],
+    )
+    report = build_semantic_enrichment_queue(
+        review, tmp_path / "out", reference_roots=[reference]
+    )
+    assert report["external_reference_record_count"] == 2
+    assert report["proposed_from_reference_packs"] == 2

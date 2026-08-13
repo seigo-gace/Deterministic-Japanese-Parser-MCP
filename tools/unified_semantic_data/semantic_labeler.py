@@ -175,8 +175,13 @@ def _load_external_reference(path: Path) -> Iterator[dict[str, Any]]:
             or item.get("id")
             or f"{path.name}:{surfaces[0]}"
         )
+        reference_id = str(
+            item.get("id")
+            or item.get("record_id")
+            or source_id
+        )
         yield {
-            "record_id": f"reference:{source_id}",
+            "record_id": f"reference:{reference_id}",
             "surfaces": _stable_unique(normalize_key(value) for value in surfaces),
             "readings": _stable_unique(normalize_key(v) for v in _as_list(item.get("readings") or item.get("reading"))),
             "part_of_speech": _stable_unique(normalize_key(v) for v in _as_list(item.get("part_of_speech") or item.get("pos"))),
