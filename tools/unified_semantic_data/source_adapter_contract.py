@@ -22,7 +22,7 @@ import unicodedata
 
 from .canonical_evidence import ALLOWED_SOURCE_ROLES
 
-ADAPTER_SCHEMA_VERSION = "1.1.0"
+ADAPTER_SCHEMA_VERSION = "1.2.0"
 MEANING_ROLE = "lexical-definition"
 ALLOWED_ADAPTER_ROLES = {MEANING_ROLE, *ALLOWED_SOURCE_ROLES}
 
@@ -43,6 +43,23 @@ def _normalize_text(value: Any) -> str:
 
 def _stable_unique(values: Iterable[Any]) -> list[str]:
     return sorted({_normalize_text(value) for value in values if _normalize_text(value)})
+
+
+def _reading_mappings(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    output: dict[str, dict[str, Any]] = {}
+    for value in _as_list(raw.get("reading_mappings")):
+        if not isinstance(value, dict):
+            continue
+        reading = _normalize_text(value.get("reading"))
+        if not reading:
+            continue
+        mapping = {
+            "reading": reading,
+            "restricted_to": _stable_unique(value.get("restricted_to") or []),
+            "no_kanji": bool(value.get("no_kanji", False)),
+        }
+        output[_json_line(mapping)] = mapping
+    return [output[key] for key in sorted(output)]
 
 
 def _json_line(value: Any) -> str:
@@ -117,7 +134,14 @@ def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> d
     )
     if not surfaces:
         raise ValueError(f"adapter surface required: {record_id}")
-    readings = _stable_unique([raw.get("reading"), *_as_list(raw.get("readings"))])
+    reading_mappings = _reading_mappings(raw)
+    readings = _stable_unique(
+        [
+            raw.get("reading"),
+            *_as_list(raw.get("readings")),
+            *(item["reading"] for item in reading_mappings),
+        ]
+    )
     pos = _stable_unique(
         [
             raw.get("part_of_speech"),
@@ -162,6 +186,7 @@ def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> d
         "source_role": role,
         "surfaces": surfaces,
         "readings": readings,
+        "reading_mappings": reading_mappings,
         "part_of_speech": pos,
         "domains": domains,
         "meanings": meanings,
@@ -224,6 +249,7 @@ def semantic_reference_row(record: dict[str, Any]) -> dict[str, Any]:
         "surface": record["surfaces"][0],
         "surfaces": record["surfaces"],
         "readings": record["readings"],
+        "reading_mappings": record["reading_mappings"],
         "part_of_speech": record["part_of_speech"],
         "domains": record["domains"],
         "meanings": record["meanings"],
@@ -267,6 +293,7 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
         "lemma": record["surfaces"][0],
         "surfaces": record["surfaces"],
         "readings": record["readings"],
+        "reading_mappings": record["reading_mappings"],
         "part_of_speech": record["part_of_speech"],
         "domains": record["domains"],
         "meaning_candidates": candidates,
@@ -298,6 +325,7 @@ def canonical_evidence_row(record: dict[str, Any]) -> dict[str, Any]:
         "source_role": record["source_role"],
         "surfaces": record["surfaces"],
         "readings": record["readings"],
+        "reading_mappings": record["reading_mappings"],
         "part_of_speech_list": record["part_of_speech"],
         "payload": record["payload"],
         "source": record["source"],

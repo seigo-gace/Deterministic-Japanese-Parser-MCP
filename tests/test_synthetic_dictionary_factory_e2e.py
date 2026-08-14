@@ -82,6 +82,13 @@ def _definition(
         "source_role": "lexical-definition",
         "surface": surface,
         "readings": ["はし"],
+        "reading_mappings": [
+            {
+                "reading": "はし",
+                "restricted_to": [],
+                "no_kanji": True,
+            }
+        ],
         "part_of_speech": "名詞",
         "domains": ["general"],
         "meaning": meaning,
@@ -149,7 +156,7 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     )
 
 
-def _decision_patch(scope: str) -> dict:
+def _decision_patch(scope: str, record: dict) -> dict:
     if scope == "semantic":
         return {
             "polarity": "neutral",
@@ -157,11 +164,17 @@ def _decision_patch(scope: str) -> dict:
             "semantic_targets": ["lexicon"],
         }
     if scope == "pragmatic":
+        forbidden_by_source = {
+            "DEF-BRIDGE": ["机", "食べる"],
+            "DEF-CHOPSTICKS": ["机", "渡る"],
+            "DEF-EDGE": ["渡る", "食べる"],
+        }
+        source_id = str((record.get("source") or {}).get("source_id") or "")
         return {
             "context_conditions": {
                 "required_any": [],
                 "required_all": [],
-                "forbidden_any": [],
+                "forbidden_any": forbidden_by_source.get(source_id, []),
                 "required_social": [],
                 "required_discourse": [],
             },
@@ -195,7 +208,7 @@ def _write_fixture_decisions(review_root: Path, decision_root: Path) -> None:
                         "自動承認ではない。"
                     ),
                     "input_sha256": record["input_sha256"],
-                    "patch": _decision_patch(scope),
+                    "patch": _decision_patch(scope, record),
                 }
             )
     _write_jsonl(decision_root / "decision-ledger.jsonl", decisions)
@@ -323,6 +336,8 @@ def test_synthetic_data_runs_through_complete_dictionary_factory(
     assert runtime_manifest["record_count"] == 1
     assert runtime_manifest["approved_only"] is True
     assert runtime_manifest["automatic_external_action"] is False
+    assert runtime_manifest["reading_mapping_count"] == 1
+    assert runtime_manifest["contextual_candidate_count"] == 3
 
     canonical_rows = _read_jsonl(
         Path(first["canonical_root"]) / "records/dictionary-0000.jsonl.gz"
@@ -331,6 +346,13 @@ def test_synthetic_data_runs_through_complete_dictionary_factory(
     assert len(hashi_master["senses"]) == 3
     assert len({tuple(item["glosses"]) for item in hashi_master["senses"]}) == 3
     assert hashi_master["source_evidence_count"] == 3
+    assert hashi_master["reading_mappings"] == [
+        {
+            "reading": "はし",
+            "restricted_to": [],
+            "no_kanji": True,
+        }
+    ]
 
     enriched_rows = _read_jsonl(
         Path(first["enriched_root"]) / "records/dictionary-0000.jsonl.gz"
@@ -362,6 +384,21 @@ def test_synthetic_data_runs_through_complete_dictionary_factory(
         "食べ物を挟んで口へ運ぶ一対の細い道具",
         "物の中央から最も離れた端の部分",
     }
+    assert runtime_rows[0]["reading_mappings"] == hashi_master["reading_mappings"]
+    assert runtime_rows[0]["context_conditions"]["required_any"] == []
+    contexts_by_gloss = {
+        candidate["glosses"][0]: candidate["context"]
+        for candidate in runtime_rows[0]["meaning_candidates"]
+    }
+    assert contexts_by_gloss["川や谷などを越えて両側を結ぶ構造物"][
+        "forbidden_any"
+    ] == ["机", "食べる"]
+    assert contexts_by_gloss["食べ物を挟んで口へ運ぶ一対の細い道具"][
+        "forbidden_any"
+    ] == ["机", "渡る"]
+    assert contexts_by_gloss["物の中央から最も離れた端の部分"][
+        "forbidden_any"
+    ] == ["渡る", "食べる"]
 
     settings = Settings(
         system_dict_dir=ROOT / "dictionaries/system",
@@ -378,6 +415,29 @@ def test_synthetic_data_runs_through_complete_dictionary_factory(
     assert response.meaning_graph.quality_annotations[
         "semantic_data_pack_match_count"
     ] >= 1
+    assert response.meaning_graph.quality_annotations[
+        "semantic_data_pack_resolved_count"
+    ] == 0
+    assert response.meaning_graph.quality_annotations[
+        "semantic_data_pack_ambiguous_count"
+    ] >= 1
+
+    expected_senses = {
+        "はしを渡る": "川や谷などを越えて両側を結ぶ構造物",
+        "はしで食べる": "食べ物を挟んで口へ運ぶ一対の細い道具",
+        "机のはしに置く": "物の中央から最も離れた端の部分",
+    }
+    for text, expected_label in expected_senses.items():
+        contextual = engine.analyze(
+            AnalyzeRequest(original_text=text, deadline_ms=5000)
+        )
+        assert contextual.meaning_graph.quality_annotations[
+            "semantic_data_pack_resolved_count"
+        ] >= 1
+        assert any(
+            proposition.sense_label == expected_label
+            for proposition in contextual.meaning_graph.propositions
+        )
 
     # 同じ模擬入力を再実行しても、最終辞書とRuntimeはByte単位で同一。
     for key in (

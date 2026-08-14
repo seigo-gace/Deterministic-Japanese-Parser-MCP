@@ -33,7 +33,13 @@ def _source(dataset: str, record_id: str) -> dict:
     }
 
 
-def _record(record_id: str, dataset: str, gloss: str) -> dict:
+def _record(
+    record_id: str,
+    dataset: str,
+    gloss: str,
+    *,
+    required_any: list[str] | None = None,
+) -> dict:
     return {
         "record_id": record_id,
         "input_sha256": hashlib.sha256(record_id.encode()).hexdigest(),
@@ -41,6 +47,13 @@ def _record(record_id: str, dataset: str, gloss: str) -> dict:
         "surfaces": ["走る"],
         "normalized_surfaces": ["走る"],
         "readings": ["はしる"],
+        "reading_mappings": [
+            {
+                "reading": "はしる",
+                "restricted_to": ["走る"],
+                "no_kanji": False,
+            }
+        ],
         "part_of_speech": ["動詞"],
         "morphology": {
             "backend": "fixture",
@@ -69,7 +82,7 @@ def _record(record_id: str, dataset: str, gloss: str) -> dict:
         "parameters": {},
         "register": {},
         "context_conditions": {
-            "required_any": [],
+            "required_any": required_any or [],
             "required_all": [],
             "forbidden_any": [],
             "required_social": [],
@@ -111,8 +124,18 @@ def _record(record_id: str, dataset: str, gloss: str) -> dict:
 def _review_root(path: Path) -> Path:
     path.mkdir()
     records = [
-        _record("JMD-001", "jmdict", "足を交互に動かして速く移動する"),
-        _record("WN-001", "wordnet-ja", "一定の方向へ素早く移動する"),
+        _record(
+            "JMD-001",
+            "jmdict",
+            "足を交互に動かして速く移動する",
+            required_any=["移動", "足"],
+        ),
+        _record(
+            "WN-001",
+            "wordnet-ja",
+            "一定の方向へ素早く移動する",
+            required_any=["移動", "方向"],
+        ),
     ]
     (path / "approved-records.jsonl").write_text(
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in records),
@@ -143,6 +166,8 @@ def test_runtime_projection_uses_canonical_dictionary_as_sole_record_source(
     assert runtime_manifest["runtime_record_count"] == 1
     assert runtime_manifest["approved_only"] is True
     assert runtime_manifest["automatic_external_action"] is False
+    assert runtime_manifest["reading_mapping_count"] == 1
+    assert runtime_manifest["contextual_candidate_count"] == 2
     assert runtime_manifest["boundaries"]["source_is_mcp_canonical_dictionary"] is True
     assert runtime_manifest["boundaries"]["meaning_re_resolution"] is False
 
@@ -160,6 +185,24 @@ def test_runtime_projection_uses_canonical_dictionary_as_sole_record_source(
         "approved"
     }
     assert all(item["evidence_ids"] for item in row["meaning_candidates"])
+    assert row["reading_mappings"] == [
+        {
+            "reading": "はしる",
+            "restricted_to": ["走る"],
+            "no_kanji": False,
+        }
+    ]
+    assert row["context_conditions"]["required_any"] == ["移動"]
+    contexts_by_gloss = {
+        item["glosses"][0]: item["context"]
+        for item in row["meaning_candidates"]
+    }
+    assert contexts_by_gloss["足を交互に動かして速く移動する"][
+        "required_any"
+    ] == ["移動", "足"]
+    assert contexts_by_gloss["一定の方向へ素早く移動する"][
+        "required_any"
+    ] == ["方向", "移動"]
 
     settings = Settings(
         system_dict_dir=ROOT / "dictionaries/system",
@@ -169,7 +212,7 @@ def test_runtime_projection_uses_canonical_dictionary_as_sole_record_source(
     )
     engine = ParserEngine(settings)
     response = engine.analyze(
-        AnalyzeRequest(original_text="走る", deadline_ms=5000)
+        AnalyzeRequest(original_text="足で走る", deadline_ms=5000)
     )
     assert engine.semantic_data.root == runtime_root
     assert response.meaning_graph.quality_annotations[
@@ -187,6 +230,7 @@ def test_project_record_preserves_action_risk_conservatively() -> None:
         "surfaces": ["実行"],
         "normalized_surfaces": ["実行"],
         "readings": ["じっこう"],
+        "reading_mappings": [],
         "part_of_speech": ["名詞"],
         "morphology": {},
         "domains": [],
@@ -214,3 +258,10 @@ def test_project_record_preserves_action_risk_conservatively() -> None:
     projected = project_record(record)
     assert projected["risk_class"] == "action"
     assert projected["external_action_risk"] is False
+    assert projected["reading_mappings"] == [
+        {
+            "reading": "じっこう",
+            "restricted_to": [],
+            "no_kanji": False,
+        }
+    ]

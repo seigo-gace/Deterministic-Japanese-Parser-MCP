@@ -19,7 +19,15 @@ from .canonical_dictionary import (
 from .common import _json_line, _sha256_bytes, _sha256_file, normalize_key
 
 
-RUNTIME_PROJECTION_VERSION = "1.0.0"
+RUNTIME_PROJECTION_VERSION = "1.1.0"
+
+_CONTEXT_CONDITION_KEYS = (
+    "required_any",
+    "required_all",
+    "forbidden_any",
+    "required_social",
+    "required_discourse",
+)
 
 
 def _stable_unique(values: Iterable[Any]) -> list[str]:
@@ -65,6 +73,68 @@ def _feature_type(record: dict[str, Any]) -> str:
     if values:
         return "canonical_dictionary"
     return ""
+
+
+def _reading_mappings(record: dict[str, Any]) -> list[dict[str, Any]]:
+    mappings: list[dict[str, Any]] = []
+    mapped_readings: set[str] = set()
+    all_readings = set(_stable_unique(record.get("readings") or []))
+    for raw in record.get("reading_mappings") or []:
+        if not isinstance(raw, dict):
+            continue
+        reading = str(raw.get("reading") or "").strip()
+        if not reading:
+            continue
+        mapped_readings.add(reading)
+        all_readings.add(reading)
+        mappings.append(
+            {
+                "reading": reading,
+                "restricted_to": _stable_unique(raw.get("restricted_to") or []),
+                "no_kanji": bool(raw.get("no_kanji", False)),
+            }
+        )
+    for reading in sorted(all_readings - mapped_readings):
+        mappings.append(
+            {
+                "reading": reading,
+                "restricted_to": [],
+                "no_kanji": False,
+            }
+        )
+    return sorted(
+        mappings,
+        key=lambda item: (
+            item["reading"],
+            item["restricted_to"],
+            item["no_kanji"],
+        ),
+    )
+
+
+def _common_context_conditions(record: dict[str, Any]) -> dict[str, list[str]]:
+    """Project only conditions shared by every approved pragmatic source.
+
+    Sense-specific conditions are already carried by each canonical sense. A
+    union here would incorrectly require bridge, chopstick, and edge contexts at
+    once, so the record-wide projection is deliberately the stable intersection.
+    """
+    evidence = (record.get("pragmatics") or {}).get("context_evidence") or []
+    values = [
+        item.get("value") or {}
+        for item in evidence
+        if isinstance(item, dict) and isinstance(item.get("value") or {}, dict)
+    ]
+    output: dict[str, list[str]] = {}
+    for key in _CONTEXT_CONDITION_KEYS:
+        if not values:
+            output[key] = []
+            continue
+        common = set(_stable_unique(values[0].get(key) or []))
+        for value in values[1:]:
+            common.intersection_update(_stable_unique(value.get(key) or []))
+        output[key] = sorted(common)
+    return output
 
 
 def _candidate(sense: dict[str, Any]) -> dict[str, Any]:
@@ -119,7 +189,7 @@ def project_record(record: dict[str, Any]) -> dict[str, Any]:
         "surfaces": record["surfaces"],
         "normalized_surfaces": record["normalized_surfaces"],
         "readings": record["readings"],
-        "reading_mappings": [],
+        "reading_mappings": _reading_mappings(record),
         "part_of_speech": record["part_of_speech"],
         "morphology": record.get("morphology") or {},
         "domains": record.get("domains") or [],
@@ -131,13 +201,7 @@ def project_record(record: dict[str, Any]) -> dict[str, Any]:
         "semantic_targets": semantic_targets,
         "parameters": {},
         "register": {},
-        "context_conditions": {
-            "required_any": [],
-            "required_all": [],
-            "forbidden_any": [],
-            "required_social": [],
-            "required_discourse": [],
-        },
+        "context_conditions": _common_context_conditions(record),
         "task_candidates": [],
         "examples": (record.get("pragmatics") or {}).get("examples") or {
             "positive": [],
@@ -270,6 +334,18 @@ def compile_runtime_projection(
         "mode": "approved-canonical-dictionary-runtime-projection",
         "record_count": len(records),
         "runtime_record_count": len(records),
+        "reading_mapping_count": sum(
+            len(record.get("reading_mappings") or []) for record in records
+        ),
+        "contextual_candidate_count": sum(
+            1
+            for record in records
+            for candidate in record.get("meaning_candidates") or []
+            if any(
+                (candidate.get("context") or {}).get(key)
+                for key in _CONTEXT_CONDITION_KEYS
+            )
+        ),
         "record_shard_size": shard_size,
         "record_shards": (
             (len(records) + shard_size - 1) // shard_size if records else 0
@@ -290,6 +366,9 @@ def compile_runtime_projection(
             "runtime_external_dictionary_lookup": False,
             "automatic_meaning_generation": False,
             "approved_meaning_only": True,
+            "reading_mapping_projection": True,
+            "sense_context_projection": True,
+            "record_context_projection_is_common_only": True,
         },
         "outputs": outputs,
     }
@@ -318,6 +397,12 @@ def validate_runtime_projection(root: Path) -> dict[str, Any]:
         raise ValueError("canonical runtime projection source boundary invalid")
     if boundaries.get("meaning_re_resolution") is not False:
         raise ValueError("canonical runtime projection must not re-resolve meaning")
+    if boundaries.get("reading_mapping_projection") is not True:
+        raise ValueError("canonical runtime projection reading mapping boundary invalid")
+    if boundaries.get("sense_context_projection") is not True:
+        raise ValueError("canonical runtime projection sense context boundary invalid")
+    if boundaries.get("record_context_projection_is_common_only") is not True:
+        raise ValueError("canonical runtime projection record context boundary invalid")
     required = {
         "runtime-surface-index.json.gz",
         "runtime-reading-index.json.gz",

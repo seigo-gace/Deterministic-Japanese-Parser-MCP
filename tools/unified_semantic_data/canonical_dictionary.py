@@ -17,7 +17,15 @@ from typing import Any, Iterable
 from .common import _as_list, _iter_jsonl, _json_line, _sha256_bytes, _sha256_file, normalize_key
 from .semantic_labeler import candidate_has_real_meaning
 
-CANONICAL_DICTIONARY_SCHEMA_VERSION = "1.0.0"
+CANONICAL_DICTIONARY_SCHEMA_VERSION = "1.1.0"
+
+_CONTEXT_CONDITION_KEYS = (
+    "required_any",
+    "required_all",
+    "forbidden_any",
+    "required_social",
+    "required_discourse",
+)
 
 
 def _stable_unique(values: Iterable[Any]) -> list[str]:
@@ -80,14 +88,49 @@ def _candidate_glosses(candidate: dict[str, Any]) -> list[str]:
     )
 
 
-def _sense_signature(candidate: dict[str, Any]) -> dict[str, Any]:
+def _merge_context_conditions(
+    candidate_context: Any,
+    record_context: Any,
+) -> dict[str, Any]:
+    """Preserve approved record context on the sense it qualifies.
+
+    Record-level pragmatic conditions cannot be promoted to the whole canonical
+    lexeme because one lexeme may contain several senses with different contexts.
+    Folding them into the sense signature keeps those conditions attached to the
+    approved meaning without collapsing or over-constraining sibling senses.
+    """
+    output = dict(candidate_context) if isinstance(candidate_context, dict) else {}
+    source = record_context if isinstance(record_context, dict) else {}
+    for key in _CONTEXT_CONDITION_KEYS:
+        values = _stable_unique(
+            [*_as_list(output.get(key)), *_as_list(source.get(key))]
+        )
+        if values:
+            output[key] = values
+        else:
+            output.pop(key, None)
+    return output
+
+
+def _sense_signature(
+    candidate: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    record_context = (
+        record.get("context_conditions") or {}
+        if "pragmatic" in _approved_scopes(record)
+        else {}
+    )
     return {
         "glosses": _candidate_glosses(candidate),
         "part_of_speech": _stable_unique(candidate.get("part_of_speech") or []),
         "domains": _stable_unique(candidate.get("domains") or []),
         "parameters": candidate.get("parameters") or {},
         "register": candidate.get("register") or {},
-        "context": candidate.get("context") or {},
+        "context": _merge_context_conditions(
+            candidate.get("context") or {},
+            record_context,
+        ),
     }
 
 
@@ -105,7 +148,7 @@ def _merge_senses(
                 continue
             if not candidate_has_real_meaning(candidate):
                 continue
-            signature_value = _sense_signature(candidate)
+            signature_value = _sense_signature(candidate, record)
             signature = _json_line(signature_value)
             item = grouped.setdefault(
                 signature,
@@ -167,6 +210,42 @@ def _merge_morphology(records: list[dict[str, Any]]) -> dict[str, Any]:
         "forms": _stable_objects(forms),
         "conjugation_evidence": _stable_objects(conjugations),
     }
+
+
+def _merge_reading_mappings(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    mappings: list[dict[str, Any]] = []
+    mapped_readings: set[str] = set()
+    all_readings: set[str] = set()
+    for record in records:
+        all_readings.update(
+            _stable_unique(value for value in _as_list(record.get("readings")))
+        )
+        for raw in _as_list(record.get("reading_mappings")):
+            if not isinstance(raw, dict):
+                continue
+            reading = str(raw.get("reading") or "").strip()
+            if not reading:
+                continue
+            mapped_readings.add(reading)
+            all_readings.add(reading)
+            mappings.append(
+                {
+                    "reading": reading,
+                    "restricted_to": _stable_unique(
+                        _as_list(raw.get("restricted_to"))
+                    ),
+                    "no_kanji": bool(raw.get("no_kanji", False)),
+                }
+            )
+    for reading in sorted(all_readings - mapped_readings):
+        mappings.append(
+            {
+                "reading": reading,
+                "restricted_to": [],
+                "no_kanji": False,
+            }
+        )
+    return _stable_objects(mappings)
 
 
 def _merge_pragmatics(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -297,6 +376,7 @@ def _build_dictionary_record(
         "surfaces": surfaces,
         "normalized_surfaces": normalized_surfaces,
         "readings": readings,
+        "reading_mappings": _merge_reading_mappings(records),
         "part_of_speech": parts,
         "morphology": _merge_morphology(records),
         "domains": domains,
@@ -370,7 +450,15 @@ def validate_canonical_dictionary(records: list[dict[str, Any]]) -> None:
         if not dictionary_id or dictionary_id in ids:
             raise ValueError(f"duplicate or empty canonical dictionary id: {dictionary_id}")
         ids.add(dictionary_id)
-        for required in ("lemma", "surfaces", "readings", "part_of_speech", "senses", "source_evidence"):
+        for required in (
+            "lemma",
+            "surfaces",
+            "readings",
+            "reading_mappings",
+            "part_of_speech",
+            "senses",
+            "source_evidence",
+        ):
             if not record.get(required):
                 raise ValueError(f"canonical dictionary field required: {dictionary_id}:{required}")
         for sense in record["senses"]:

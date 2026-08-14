@@ -77,6 +77,13 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
             "source_role": "lexical-definition",
             "surface": "銀行",
             "readings": ["ぎんこう"],
+            "reading_mappings": [
+                {
+                    "reading": "ぎんこう",
+                    "restricted_to": ["銀行"],
+                    "no_kanji": False,
+                }
+            ],
             "part_of_speech": "名詞",
             "meaning": "預金や融資などを扱う金融機関",
             "source": _source("meaning-source"),
@@ -127,8 +134,16 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     ]
     assert semantic[0]["meanings"] == ["預金や融資などを扱う金融機関"]
     assert semantic[0]["meaning_origin"] == "source-authored"
+    assert semantic[0]["reading_mappings"] == [
+        {
+            "reading": "ぎんこう",
+            "restricted_to": ["銀行"],
+            "no_kanji": False,
+        }
+    ]
     assert lexical[0]["record_id"] == "ADAPTER-DEF-1"
     assert lexical[0]["source_kind"] == "open_lexicon"
+    assert lexical[0]["reading_mappings"] == semantic[0]["reading_mappings"]
     assert lexical[0]["meaning_candidates"][0]["glosses"] == [
         "預金や融資などを扱う金融機関"
     ]
