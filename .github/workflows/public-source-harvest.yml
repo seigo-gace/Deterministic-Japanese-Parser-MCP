@@ -33,6 +33,7 @@ concurrency:
 jobs:
   build-frozen-raw-input:
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
       CONFIG_PATH: config/frozen_raw_factory_input.json
@@ -436,12 +437,131 @@ jobs:
           retention-days: 90
           compression-level: 6
 
-      - name: Build all auxiliary source-role adapter lanes
+  build-auxiliary-role-shards:
+    needs: build-frozen-raw-input
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      PROFILES_PATH: config/source_payload_profiles.json
+      WORK_ROOT: work/frozen-raw-input
+      SHARD_COUNT: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download frozen raw factory input
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-collected-raw-factory-input-v1
+          path: ${{ env.WORK_ROOT }}/output
+
+      - name: Build assigned auxiliary source-role adapter lane shard
         run: |
           python tools/build_frozen_raw_role_factory.py \
             --bundle "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
             --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
             --profiles "$PROFILES_PATH" \
+            --output-root "$WORK_ROOT/role-shard-${{ matrix.shard }}" \
+            --shard-index "${{ matrix.shard }}" \
+            --shard-count "$SHARD_COUNT"
+          cp \
+            "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
+            "$WORK_ROOT/role-shard-${{ matrix.shard }}/"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          shard = int(os.environ["MATRIX_SHARD"])
+          report = json.loads(
+              Path(f"work/frozen-raw-input/role-shard-{shard}/role-factory-report.json")
+              .read_text(encoding="utf-8")
+          )
+          if report["shard"] != {"index": shard, "count": 8}:
+              raise SystemExit(f"role factory shard identity mismatch: {report}")
+          if report["input_record_count"] != (
+              report["resolved_input_record_count"]
+              + report["unresolved_input_record_count"]
+          ):
+              raise SystemExit(f"role factory input record loss: {report}")
+          if report["role_projection_count"] != (
+              report["unique_adapter_record_count"]
+              + report["exact_replay_duplicate_count"]
+          ):
+              raise SystemExit(f"role factory dedup record loss: {report}")
+          boundaries = report["boundaries"]
+          required = {
+              "all_assigned_auxiliary_sources_processed": True,
+              "exact_replay_deduplication_only": True,
+              "same_surface_different_payload_preserved": True,
+              "duplicate_source_lineage_preserved": True,
+              "automatic_approval": False,
+              "automatic_runtime_promotion": False,
+          }
+          for key, expected in required.items():
+              if boundaries.get(key) is not expected:
+                  raise SystemExit(
+                      f"role factory boundary mismatch: {key}={boundaries.get(key)!r}"
+                  )
+          print(json.dumps({
+              "status": "AUXILIARY_SOURCE_ROLE_SHARD_PROCESSED",
+              "shard": shard,
+              "processed_sources": report["processed_source_count"],
+              "input_records": report["input_record_count"],
+              "role_projections": report["role_projection_count"],
+              "unique_adapter_records": report["unique_adapter_record_count"],
+              "exact_replay_duplicates": report["exact_replay_duplicate_count"],
+              "unresolved_records": report["unresolved_input_record_count"],
+              "automatic_approval": False,
+          }, sort_keys=True))
+          PY
+        env:
+          MATRIX_SHARD: ${{ matrix.shard }}
+
+      - name: Upload auxiliary source-role shard checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-auxiliary-source-role-shard-${{ matrix.shard }}-v1
+          path: |
+            work/frozen-raw-input/role-shard-${{ matrix.shard }}/source-role-records.jsonl.gz
+            work/frozen-raw-input/role-shard-${{ matrix.shard }}/role-factory-report.json
+            work/frozen-raw-input/role-shard-${{ matrix.shard }}/unresolved-source-role-records.jsonl
+            work/frozen-raw-input/role-shard-${{ matrix.shard }}/mcp-collected-raw-factory-input-v1.manifest.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+  merge-auxiliary-role-factory:
+    needs: build-auxiliary-role-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      WORK_ROOT: work/frozen-raw-input
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download all auxiliary source-role shard checkpoints
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mcp-auxiliary-source-role-shard-*-v1
+          path: ${{ env.WORK_ROOT }}/role-shards
+
+      - name: Merge every shard and compile the complete adapter contract
+        run: |
+          python tools/build_frozen_raw_role_factory.py \
+            --manifest "$WORK_ROOT/role-shards/mcp-auxiliary-source-role-shard-0-v1/mcp-collected-raw-factory-input-v1.manifest.json" \
+            --shards-root "$WORK_ROOT/role-shards" \
             --output-root "$WORK_ROOT/role-factory"
           python - <<'PY'
           import json
@@ -453,6 +573,8 @@ jobs:
           )
           if report["processed_source_count"] != 67:
               raise SystemExit(f"not all auxiliary sources were processed: {report}")
+          if report["shard_merge"] != {"count": 8, "indexes": list(range(8))}:
+              raise SystemExit(f"role factory shard merge incomplete: {report}")
           if report["input_record_count"] != (
               report["resolved_input_record_count"]
               + report["unresolved_input_record_count"]
@@ -466,6 +588,7 @@ jobs:
           boundaries = report["boundaries"]
           required = {
               "all_declared_auxiliary_sources_processed": True,
+              "all_declared_shards_merged": True,
               "exact_replay_deduplication_only": True,
               "same_surface_different_payload_preserved": True,
               "duplicate_source_lineage_preserved": True,
@@ -489,7 +612,7 @@ jobs:
           }, sort_keys=True))
           PY
 
-      - name: Upload auxiliary source-role factory output
+      - name: Upload complete auxiliary source-role factory output
         uses: actions/upload-artifact@v4
         with:
           name: mcp-auxiliary-source-role-factory-v1

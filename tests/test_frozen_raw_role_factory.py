@@ -20,6 +20,7 @@ from unified_semantic_data.frozen_raw_role_factory import (  # noqa: E402
     _iter_records,
     _project_identity,
     build_frozen_raw_role_factory,
+    merge_frozen_raw_role_factory_shards,
 )
 
 
@@ -175,6 +176,55 @@ def test_missing_license_is_retained_but_not_marked_public_runtime_eligible(
     assert report["license_metadata_pending_record_count"] == 1
     assert record["source"]["public_runtime_eligible"] is False
     assert "LICENSE-EXPRESSION-PENDING" in record["source"]["license"]
+
+
+def test_deterministic_shards_merge_to_the_same_complete_factory(tmp_path: Path) -> None:
+    bridge = _usage("bridge")
+    bundle, manifest, profiles = _fixture(
+        tmp_path, [bridge, dict(bridge), _usage("chopsticks")]
+    )
+    complete = tmp_path / "complete"
+    complete_report = build_frozen_raw_role_factory(bundle, manifest, profiles, complete)
+
+    shards = tmp_path / "shards"
+    for index in range(2):
+        report = build_frozen_raw_role_factory(
+            bundle,
+            manifest,
+            profiles,
+            shards / f"shard-{index}",
+            shard_index=index,
+            shard_count=2,
+            compile_adapter=False,
+        )
+        assert report["shard"] == {"index": index, "count": 2}
+        assert report["adapter_contract"] is None
+        assert report["boundaries"]["all_assigned_auxiliary_sources_processed"] is True
+
+    merged = tmp_path / "merged"
+    merged_report = merge_frozen_raw_role_factory_shards(manifest, shards, merged)
+    for key in (
+        "processed_source_count",
+        "input_record_count",
+        "resolved_input_record_count",
+        "unresolved_input_record_count",
+        "role_projection_count",
+        "unique_adapter_record_count",
+        "exact_replay_duplicate_count",
+        "license_metadata_pending_record_count",
+        "source_counts",
+        "adapter_contract",
+    ):
+        assert merged_report[key] == complete_report[key]
+    assert merged_report["shard_merge"] == {"count": 2, "indexes": [0, 1]}
+    assert merged_report["boundaries"]["all_declared_auxiliary_sources_processed"] is True
+    for relative in (
+        "source-role-records.jsonl.gz",
+        "unresolved-source-role-records.jsonl",
+        "adapter-output/canonical-evidence.jsonl",
+        "adapter-output/manifest.json",
+    ):
+        assert (merged / relative).read_bytes() == (complete / relative).read_bytes()
 
 
 def test_record_without_lexical_surface_is_preserved_with_full_lineage(

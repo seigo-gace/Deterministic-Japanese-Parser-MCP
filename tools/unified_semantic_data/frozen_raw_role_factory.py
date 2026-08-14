@@ -113,8 +113,11 @@ def _open_decompressed(path: Path) -> BinaryIO:
 
 
 def _select_encoding(path: Path, encodings: list[str]) -> str:
+    candidates = encodings or ["utf-8-sig"]
+    if len(candidates) == 1:
+        return candidates[0]
     errors: list[str] = []
-    for encoding in encodings or ["utf-8-sig"]:
+    for encoding in candidates:
         try:
             with _open_decompressed(path) as raw, io.TextIOWrapper(
                 raw, encoding=encoding, errors="strict", newline=""
@@ -646,8 +649,21 @@ def _materialized_payloads(
 
 
 def build_frozen_raw_role_factory(
-    bundle_path: Path, manifest_path: Path, profiles_path: Path, output_root: Path,
+    bundle_path: Path,
+    manifest_path: Path,
+    profiles_path: Path,
+    output_root: Path,
+    *,
+    shard_index: int | None = None,
+    shard_count: int | None = None,
+    compile_adapter: bool = True,
 ) -> dict[str, Any]:
+    if (shard_index is None) != (shard_count is None):
+        raise ValueError("shard-index and shard-count must be specified together")
+    if shard_count is not None and shard_count < 1:
+        raise ValueError("shard-count must be positive")
+    if shard_index is not None and not 0 <= shard_index < int(shard_count):
+        raise ValueError("shard-index must be within shard-count")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     validate_intake_manifest(manifest)
     profiles = load_profiles(profiles_path)
@@ -663,8 +679,10 @@ def build_frozen_raw_role_factory(
     artifact_meta = {int(row["id"]): row for row in manifest.get("artifacts") or []}
     sources_by_artifact: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for source in manifest["sources"]:
-        if any(role != MEANING_ROLE for role in source.get("source_roles") or []):
-            sources_by_artifact[int(source["artifact_id"])].append(source)
+        artifact_id = int(source["artifact_id"])
+        assigned = shard_count is None or artifact_id % shard_count == shard_index
+        if assigned and any(role != MEANING_ROLE for role in source.get("source_roles") or []):
+            sources_by_artifact[artifact_id].append(source)
 
     counters: Counter[str] = Counter()
     by_source: dict[str, dict[str, Any]] = {}
@@ -776,8 +794,10 @@ def build_frozen_raw_role_factory(
     if counters["role_projections"] != unique_records + counters["exact_replay_duplicates"]:
         raise RuntimeError("ROLE_FACTORY_DEDUP_CONSERVATION_FAILURE")
 
-    adapter_root = output_root / "adapter-output"
-    adapter_manifest = compile_adapter_contract([records_path], adapter_root)
+    adapter_manifest: dict[str, Any] | None = None
+    if compile_adapter:
+        adapter_root = output_root / "adapter-output"
+        adapter_manifest = compile_adapter_contract([records_path], adapter_root)
     report = {
         "schema_version": ROLE_FACTORY_VERSION,
         "mode": "frozen-raw-auxiliary-role-factory",
@@ -793,8 +813,14 @@ def build_frozen_raw_role_factory(
         "license_metadata_pending_record_count": counters["license_metadata_pending_records"],
         "source_counts": dict(sorted(by_source.items())),
         "adapter_contract": adapter_manifest,
+        "shard": (
+            {"index": shard_index, "count": shard_count}
+            if shard_count is not None
+            else None
+        ),
         "boundaries": {
-            "all_declared_auxiliary_sources_processed": True,
+            "all_declared_auxiliary_sources_processed": shard_count is None,
+            "all_assigned_auxiliary_sources_processed": True,
             "input_record_conservation_verified": True,
             "role_projection_conservation_verified": True,
             "exact_replay_deduplication_only": True,
@@ -813,5 +839,171 @@ def build_frozen_raw_role_factory(
     }
     (output_root / "role-factory-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return report
+
+
+def _projection_and_lineages(
+    record: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    projection = dict(record)
+    projection.pop("adapter_record_id", None)
+    primary = projection.pop("source")
+    payload = dict(projection["payload"])
+    lineages = payload.pop("duplicate_source_lineages", None) or [primary]
+    payload.pop("exact_replay_count", None)
+    projection["payload"] = payload
+    return projection, lineages
+
+
+def merge_frozen_raw_role_factory_shards(
+    manifest_path: Path,
+    shards_root: Path,
+    output_root: Path,
+) -> dict[str, Any]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    validate_intake_manifest(manifest)
+    expected_sources = {
+        str(source["source_id"])
+        for source in manifest["sources"]
+        if any(role != MEANING_ROLE for role in source.get("source_roles") or [])
+    }
+    report_paths = sorted(shards_root.rglob("role-factory-report.json"))
+    if not report_paths:
+        raise ValueError("role factory shard reports not found")
+
+    reports: list[tuple[Path, dict[str, Any]]] = []
+    shard_count: int | None = None
+    indexes: set[int] = set()
+    bundle_sha: str | None = None
+    processed_sources: set[str] = set()
+    source_counts: dict[str, dict[str, Any]] = {}
+    counters: Counter[str] = Counter()
+    for path in report_paths:
+        report = json.loads(path.read_text(encoding="utf-8"))
+        shard = report.get("shard")
+        if not isinstance(shard, dict):
+            raise ValueError(f"not a role factory shard report: {path}")
+        index = int(shard["index"])
+        count = int(shard["count"])
+        if shard_count is None:
+            shard_count = count
+        if count != shard_count or index in indexes or not 0 <= index < count:
+            raise ValueError(f"invalid or duplicate role factory shard: {path}")
+        indexes.add(index)
+        current_bundle_sha = str(report["bundle_sha256"])
+        if bundle_sha is None:
+            bundle_sha = current_bundle_sha
+        if current_bundle_sha != bundle_sha:
+            raise ValueError("role factory shard bundle mismatch")
+        current_sources = set(report.get("source_counts") or {})
+        if processed_sources & current_sources:
+            raise ValueError("role factory source appeared in multiple shards")
+        processed_sources.update(current_sources)
+        source_counts.update(report.get("source_counts") or {})
+        counters["input_records"] += int(report["input_record_count"])
+        counters["resolved_input_records"] += int(report["resolved_input_record_count"])
+        counters["unresolved_records"] += int(report["unresolved_input_record_count"])
+        counters["role_projections"] += int(report["role_projection_count"])
+        counters["license_metadata_pending_records"] += int(
+            report["license_metadata_pending_record_count"]
+        )
+        reports.append((path, report))
+
+    if shard_count is None or indexes != set(range(shard_count)):
+        raise RuntimeError(f"ROLE_FACTORY_SHARD_SET_INCOMPLETE:{sorted(indexes)}:{shard_count}")
+    if processed_sources != expected_sources:
+        missing = sorted(expected_sources - processed_sources)
+        extra = sorted(processed_sources - expected_sources)
+        raise RuntimeError(f"ROLE_FACTORY_SOURCE_SET_MISMATCH:missing={missing}:extra={extra}")
+    expected_bundle_sha = str(manifest.get("bundle_sha256") or "").lower()
+    if expected_bundle_sha and bundle_sha != expected_bundle_sha:
+        raise ValueError("role factory shard manifest bundle mismatch")
+
+    output_root.mkdir(parents=True, exist_ok=True)
+    records_path = output_root / "source-role-records.jsonl.gz"
+    unresolved_path = output_root / "unresolved-source-role-records.jsonl"
+    with tempfile.TemporaryDirectory() as directory, unresolved_path.open(
+        "w", encoding="utf-8", newline="\n"
+    ) as unresolved:
+        temp_root = Path(directory)
+        store = _DedupStore(temp_root / "dedup.sqlite3", temp_root / "unique-records.spool")
+        try:
+            ordered_reports = sorted(reports, key=lambda item: int(item[1]["shard"]["index"]))
+            for report_path, _report in ordered_reports:
+                shard_root = report_path.parent
+                shard_records = shard_root / "source-role-records.jsonl.gz"
+                shard_unresolved = shard_root / "unresolved-source-role-records.jsonl"
+                if not shard_records.is_file() or not shard_unresolved.is_file():
+                    raise ValueError(f"role factory shard files missing: {shard_root}")
+                with gzip.open(shard_records, "rt", encoding="utf-8") as handle:
+                    for line in handle:
+                        record = json.loads(line)
+                        projection, lineages = _projection_and_lineages(record)
+                        for lineage in lineages:
+                            store.add(projection, lineage)
+                with shard_unresolved.open("r", encoding="utf-8") as handle:
+                    for line in handle:
+                        unresolved.write(line)
+            store.connection.commit()
+            unique_records = store.write(records_path)
+        finally:
+            store.close()
+
+    if counters["input_records"] != counters["resolved_input_records"] + counters["unresolved_records"]:
+        raise RuntimeError("ROLE_FACTORY_GLOBAL_RECORD_LOSS")
+    exact_replay_duplicates = counters["role_projections"] - unique_records
+    if exact_replay_duplicates < 0:
+        raise RuntimeError("ROLE_FACTORY_DEDUP_CONSERVATION_FAILURE")
+
+    adapter_root = output_root / "adapter-output"
+    adapter_manifest = compile_adapter_contract([records_path], adapter_root)
+    report = {
+        "schema_version": ROLE_FACTORY_VERSION,
+        "mode": "frozen-raw-auxiliary-role-factory",
+        "bundle_sha256": bundle_sha,
+        "intake_source_count": int(manifest["source_count"]),
+        "processed_source_count": len(processed_sources),
+        "input_record_count": counters["input_records"],
+        "resolved_input_record_count": counters["resolved_input_records"],
+        "unresolved_input_record_count": counters["unresolved_records"],
+        "role_projection_count": counters["role_projections"],
+        "unique_adapter_record_count": unique_records,
+        "exact_replay_duplicate_count": exact_replay_duplicates,
+        "license_metadata_pending_record_count": counters[
+            "license_metadata_pending_records"
+        ],
+        "source_counts": dict(sorted(source_counts.items())),
+        "adapter_contract": adapter_manifest,
+        "shard_merge": {"count": shard_count, "indexes": sorted(indexes)},
+        "boundaries": {
+            "all_declared_auxiliary_sources_processed": True,
+            "all_assigned_auxiliary_sources_processed": True,
+            "all_declared_shards_merged": True,
+            "input_record_conservation_verified": True,
+            "role_projection_conservation_verified": True,
+            "exact_replay_deduplication_only": True,
+            "same_surface_different_payload_preserved": True,
+            "multiple_readings_parts_of_speech_domains_preserved": True,
+            "duplicate_source_lineage_preserved": True,
+            "missing_license_expression_never_public_runtime_eligible": True,
+            "non_definition_sources_never_become_meanings": True,
+            "automatic_approval": False,
+            "automatic_runtime_promotion": False,
+        },
+        "files": {
+            records_path.name: {
+                "sha256": _sha256_file(records_path),
+                "bytes": records_path.stat().st_size,
+            },
+            unresolved_path.name: {
+                "sha256": _sha256_file(unresolved_path),
+                "bytes": unresolved_path.stat().st_size,
+            },
+        },
+    }
+    (output_root / "role-factory-report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     return report
