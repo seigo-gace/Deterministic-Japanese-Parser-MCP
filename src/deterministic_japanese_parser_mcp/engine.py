@@ -319,6 +319,8 @@ class ParserEngine:
                     original_text=request.original_text,
                     conversation_context=context,
                     known_entities=request.known_entities,
+                    social_context=request.social_context,
+                    discourse_state=request.discourse_state,
                     update_hash=False,
                 ),
             )

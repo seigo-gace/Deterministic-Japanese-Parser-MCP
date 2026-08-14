@@ -19,6 +19,7 @@ from .models import (
     OriginalSpan,
     Proposition,
     SenseCandidate,
+    SocialContext,
     Token,
 )
 
@@ -51,6 +52,73 @@ def _contains_all(text: str, values: Iterable[str]) -> bool:
 def _contains_any(text: str, values: Iterable[str]) -> bool:
     folded = text.casefold()
     return any(str(value).casefold() in folded for value in values if str(value))
+
+
+def _structured_markers(value: Any, *, prefix: str = "") -> set[str]:
+    """Flatten caller-supplied context into exact, normalized markers."""
+
+    markers: set[str] = set()
+    if isinstance(value, dict):
+        for key in sorted(value):
+            child_prefix = f"{prefix}:{key}" if prefix else str(key)
+            markers.update(_structured_markers(value[key], prefix=child_prefix))
+        return markers
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            markers.update(_structured_markers(item, prefix=prefix))
+        return markers
+    if value is None or value is False:
+        return markers
+    if value is True:
+        if prefix:
+            markers.add(_normalize(prefix))
+        return markers
+
+    marker = _normalize(str(value))
+    if marker:
+        markers.add(marker)
+        if prefix:
+            markers.add(_normalize(f"{prefix}:{value}"))
+    return markers
+
+
+def _social_markers(social_context: SocialContext | None) -> set[str]:
+    if social_context is None:
+        return set()
+    return _structured_markers(social_context.model_dump(mode="json"))
+
+
+def _discourse_markers(
+    graph: MeaningGraph,
+    discourse_state: dict[str, Any] | None,
+) -> set[str]:
+    markers = _structured_markers(discourse_state or {})
+    reading = graph.reading_analysis
+    for operator in reading.scope_operators:
+        markers.update({
+            _normalize(operator.operator_type),
+            _normalize(f"scope:{operator.operator_type}"),
+            _normalize(f"scope:{operator.semantic_value}"),
+        })
+    for frame in reading.attribution_frames:
+        markers.update({
+            _normalize(frame.attribution_type),
+            _normalize(f"attribution:{frame.attribution_type}"),
+        })
+    for relation in reading.discourse_relations:
+        markers.update({
+            _normalize(relation.relation),
+            _normalize(f"discourse:{relation.relation}"),
+        })
+    return {marker for marker in markers if marker}
+
+
+def _has_required_markers(
+    required: Iterable[str],
+    available: set[str],
+) -> bool:
+    normalized = {_normalize(str(value)) for value in required if str(value)}
+    return normalized.issubset(available)
 
 
 class SemanticDataRuntime:
@@ -335,6 +403,8 @@ class SemanticDataRuntime:
         *,
         token: Token,
         context_text: str,
+        social_markers: set[str],
+        discourse_markers: set[str],
     ) -> tuple[int, list[str]]:
         score = 100
         evidence = ["semantic_pack_surface_match"]
@@ -348,7 +418,13 @@ class SemanticDataRuntime:
 
         conditions = dict(record.get("context_conditions") or {})
         candidate_context = candidate.get("context") or {}
-        for key in ("required_any", "required_all", "forbidden_any"):
+        for key in (
+            "required_any",
+            "required_all",
+            "forbidden_any",
+            "required_social",
+            "required_discourse",
+        ):
             if key in candidate_context:
                 conditions[key] = [
                     *conditions.get(key, []),
@@ -369,6 +445,20 @@ class SemanticDataRuntime:
             evidence.append("semantic_pack_required_any")
         if forbidden_any and _contains_any(context_text, forbidden_any):
             return -10000, ["semantic_pack_forbidden_context"]
+
+        required_social = conditions.get("required_social", [])
+        if required_social:
+            if not _has_required_markers(required_social, social_markers):
+                return -10000, ["semantic_pack_required_social_missing"]
+            score += 15
+            evidence.append("semantic_pack_required_social")
+
+        required_discourse = conditions.get("required_discourse", [])
+        if required_discourse:
+            if not _has_required_markers(required_discourse, discourse_markers):
+                return -10000, ["semantic_pack_required_discourse_missing"]
+            score += 15
+            evidence.append("semantic_pack_required_discourse")
 
         domains = [*record.get("domains", []), *candidate.get("domains", [])]
         matched_domain = next(
@@ -435,6 +525,8 @@ class SemanticDataRuntime:
         original_text: str,
         conversation_context: list[str],
         known_entities: list[str],
+        social_context: SocialContext | None = None,
+        discourse_state: dict[str, Any] | None = None,
         update_hash: bool = True,
     ) -> MeaningGraph:
         if not self.available:
@@ -475,6 +567,8 @@ class SemanticDataRuntime:
             return updated
 
         context_text = "\n".join([original_text, *conversation_context, *known_entities])
+        social_markers = _social_markers(social_context)
+        discourse_markers = _discourse_markers(graph, discourse_state)
         propositions = list(graph.propositions)
         language_features = list(graph.language_features)
         unresolved = list(graph.unresolved)
@@ -499,6 +593,12 @@ class SemanticDataRuntime:
                 tuple[int, str, dict[str, Any], dict[str, Any], list[str]]
             ] = []
             for record in records:
+                record_discourse_markers = set(discourse_markers)
+                feature_type = record.get("feature_type") or ""
+                if feature_type:
+                    record_discourse_markers.add(
+                        _normalize(f"feature:{feature_type}")
+                    )
                 for candidate in record.get("meaning_candidates", []):
                     if candidate.get("review_status") != "approved":
                         continue
@@ -507,6 +607,8 @@ class SemanticDataRuntime:
                         candidate,
                         token=token,
                         context_text=context_text,
+                        social_markers=social_markers,
+                        discourse_markers=record_discourse_markers,
                     )
                     if score <= -10000:
                         continue
@@ -600,8 +702,11 @@ class SemanticDataRuntime:
                     })
                 propositions[index] = proposition
 
+            eligible_record_ids = {item[2]["record_id"] for item in ranked}
             for record in records:
                 if "language_feature" not in record.get("semantic_targets", []):
+                    continue
+                if record["record_id"] not in eligible_record_ids:
                     continue
                 selected_candidate = (
                     top[3]

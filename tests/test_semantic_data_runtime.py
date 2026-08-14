@@ -7,12 +7,17 @@ import sys
 import yaml
 
 from deterministic_japanese_parser_mcp.models import (
+    AnalyzeRequest,
     ItemStatus,
     MeaningGraph,
     OriginalSpan,
     Proposition,
+    SocialContext,
+    SocialParticipant,
     Token,
 )
+from deterministic_japanese_parser_mcp.config import Settings
+from deterministic_japanese_parser_mcp.engine import ParserEngine
 from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -344,6 +349,168 @@ def test_missing_compiled_pack_is_safe_noop(tmp_path: Path) -> None:
     assert runtime.available is False
     assert graph.propositions[0].sense_id is None
     assert graph.quality_annotations["semantic_data_pack_used"] is False
+
+
+def test_social_and_discourse_conditions_filter_meaning_candidates(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-CONTEXT-001",
+        "lemma": "エグい",
+        "surfaces": ["エグい"],
+        "readings": ["エグイ"],
+        "part_of_speech": ["形容詞"],
+        "feature_type": "slang",
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-CONTEXT-001:reported-friends",
+                "label": "友人間で伝聞された高評価",
+                "context": {
+                    "required_social": ["友人"],
+                    "required_discourse": ["feature:slang", "mode:reported"],
+                },
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-CONTEXT-001:formal-direct",
+                "label": "公的場面での直接評価",
+                "context": {
+                    "required_social": ["公的"],
+                    "required_discourse": ["mode:direct"],
+                },
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon", "language_feature"],
+        "positive_examples": ["友人からエグいと聞いた。"],
+        "negative_examples": ["公的な評価文である。"],
+        "boundary_examples": ["エグい。"],
+        "source": _source("SEM-CONTEXT-001"),
+        "review_status": "approved",
+    }
+    rejected_record = {
+        **record,
+        "record_id": "SEM-CONTEXT-002",
+        "context_conditions": {
+            "required_social": ["公的"],
+        },
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-CONTEXT-002:formal",
+                "label": "公的場面だけで使う評価",
+                "review_status": "approved",
+            }
+        ],
+        "source": _source("SEM-CONTEXT-002"),
+    }
+    root = _compile_pack(tmp_path, [record, rejected_record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="エグい",
+        normalized="エグい",
+        reading="エグイ",
+        pos=["形容詞"],
+        span=OriginalSpan(start=0, end=3, source_text="エグい"),
+    )
+
+    matched = runtime.enrich(
+        _graph("エグい"),
+        tokens=[token],
+        original_text="エグい",
+        conversation_context=[],
+        known_entities=[],
+        social_context=SocialContext(
+            speaker=SocialParticipant(entity_id="speaker", groups=["友人"]),
+        ),
+        discourse_state={"mode": "reported"},
+    )
+    rejected = runtime.enrich(
+        _graph("エグい"),
+        tokens=[token],
+        original_text="エグい",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    assert matched.propositions[0].sense_id == (
+        "SEM-CONTEXT-001:reported-friends"
+    )
+    assert matched.propositions[0].sense_candidates[0].evidence[-2:] == [
+        "semantic_pack_required_social",
+        "semantic_pack_required_discourse",
+    ]
+    assert [item.entry_id for item in matched.language_features] == [
+        "SEM-CONTEXT-001"
+    ]
+    assert rejected.propositions[0].sense_id is None
+    assert rejected.language_features == []
+    assert rejected.quality_annotations["semantic_data_pack_match_count"] == 0
+
+
+def test_parser_engine_passes_request_context_to_semantic_runtime(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-ENGINE-CONTEXT-001",
+        "lemma": "エグい",
+        "surfaces": ["エグい"],
+        "readings": ["エグイ"],
+        "part_of_speech": ["形容詞"],
+        "feature_type": "slang",
+        "context_conditions": {
+            "required_social": ["友人"],
+            "required_discourse": ["feature:slang", "mode:reported"],
+        },
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-ENGINE-CONTEXT-001:sense:001",
+                "label": "友人間で伝聞された高評価",
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon", "language_feature"],
+        "positive_examples": ["友人からエグいと聞いた。"],
+        "negative_examples": ["公的な評価文である。"],
+        "boundary_examples": ["エグい。"],
+        "source": _source("SEM-ENGINE-CONTEXT-001"),
+        "review_status": "approved",
+    }
+    runtime_root = _compile_pack(tmp_path, [record])
+    settings = Settings(
+        system_dict_dir=ROOT / "dictionaries/system",
+        user_dict_dir=ROOT / "dictionaries/user",
+        semantic_data_runtime_dir=runtime_root,
+        hard_deadline_ms=5000,
+    )
+    engine = ParserEngine(settings)
+
+    rejected = engine.analyze(
+        AnalyzeRequest(original_text="エグい", deadline_ms=5000)
+    )
+    matched_request = AnalyzeRequest(
+        original_text="エグい",
+        social_context={
+            "speaker": {"entity_id": "speaker", "groups": ["友人"]},
+        },
+        discourse_state={"mode": "reported"},
+        deadline_ms=5000,
+    )
+    matched = engine.analyze(matched_request)
+    repeated = engine.analyze(matched_request)
+
+    assert rejected.meaning_graph.quality_annotations[
+        "semantic_data_pack_match_count"
+    ] == 0
+    assert matched.meaning_graph.quality_annotations[
+        "semantic_data_pack_resolved_count"
+    ] >= 1
+    assert any(
+        item.sense_id == "SEM-ENGINE-CONTEXT-001:sense:001"
+        for item in matched.meaning_graph.propositions
+    )
+    assert matched.meaning_graph.model_dump_json() == (
+        repeated.meaning_graph.model_dump_json()
+    )
 
 
 def test_lexical_only_pack_never_loads_semantic_record_shards(
