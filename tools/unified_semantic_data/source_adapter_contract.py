@@ -10,12 +10,14 @@ evidence. This module never invents a definition and never auto-approves a candi
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import contextmanager
 import argparse
 import gzip
 import hashlib
+import io
 import json
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, TextIO
 import unicodedata
 
 from .canonical_evidence import ALLOWED_SOURCE_ROLES
@@ -168,8 +170,11 @@ def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> d
     }
 
 
-def iter_adapter_records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
+def iter_adapter_records(
+    paths: Iterable[Path], *, ordered_unique: bool = False
+) -> Iterator[dict[str, Any]]:
     seen: set[str] = set()
+    previous_id: str | None = None
     for path in sorted(set(paths), key=str):
         opener = gzip.open if path.name.endswith(".gz") else Path.open
         with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[arg-type]
@@ -181,10 +186,32 @@ def iter_adapter_records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
                     raise ValueError(f"adapter row must be object: {path}:{line_number}")
                 record = normalize_adapter_record(raw, path=path, line=line_number)
                 record_id = record["adapter_record_id"]
-                if record_id in seen:
-                    raise ValueError(f"duplicate adapter record id: {record_id}")
-                seen.add(record_id)
+                if ordered_unique:
+                    if previous_id is not None and record_id <= previous_id:
+                        raise ValueError(
+                            "adapter records must be strictly ordered and unique: "
+                            f"{previous_id}:{record_id}"
+                        )
+                    previous_id = record_id
+                else:
+                    if record_id in seen:
+                        raise ValueError(f"duplicate adapter record id: {record_id}")
+                    seen.add(record_id)
                 yield record
+
+
+@contextmanager
+def _text_output(path: Path, *, compressed: bool) -> Iterator[TextIO]:
+    if not compressed:
+        with path.open("w", encoding="utf-8", newline="\n") as handle:
+            yield handle
+        return
+    with path.open("wb") as raw:
+        with gzip.GzipFile(
+            filename="", mode="wb", fileobj=raw, compresslevel=6, mtime=0
+        ) as zipped:
+            with io.TextIOWrapper(zipped, encoding="utf-8", newline="\n") as handle:
+                yield handle
 
 
 def semantic_reference_row(record: dict[str, Any]) -> dict[str, Any]:
@@ -281,19 +308,23 @@ def canonical_evidence_row(record: dict[str, Any]) -> dict[str, Any]:
 def compile_adapter_contract(
     input_paths: Iterable[Path],
     output_root: Path,
+    *,
+    compressed: bool = False,
+    ordered_unique: bool = False,
 ) -> dict[str, Any]:
     output_root.mkdir(parents=True, exist_ok=True)
-    semantic_path = output_root / "semantic-reference.jsonl"
-    lexical_path = output_root / "lexical-candidates.jsonl"
-    evidence_path = output_root / "canonical-evidence.jsonl"
+    suffix = ".jsonl.gz" if compressed else ".jsonl"
+    semantic_path = output_root / f"semantic-reference{suffix}"
+    lexical_path = output_root / f"lexical-candidates{suffix}"
+    evidence_path = output_root / f"canonical-evidence{suffix}"
     role_counts: Counter[str] = Counter()
     counts: Counter[str] = Counter()
     with (
-        semantic_path.open("w", encoding="utf-8", newline="\n") as semantic,
-        lexical_path.open("w", encoding="utf-8", newline="\n") as lexical,
-        evidence_path.open("w", encoding="utf-8", newline="\n") as evidence,
+        _text_output(semantic_path, compressed=compressed) as semantic,
+        _text_output(lexical_path, compressed=compressed) as lexical,
+        _text_output(evidence_path, compressed=compressed) as evidence,
     ):
-        for record in iter_adapter_records(input_paths):
+        for record in iter_adapter_records(input_paths, ordered_unique=ordered_unique):
             counts["adapter"] += 1
             role_counts[record["source_role"]] += 1
             if record["source_role"] == MEANING_ROLE:

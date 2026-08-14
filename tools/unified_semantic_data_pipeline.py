@@ -52,7 +52,17 @@ DEFAULT_SEMANTIC_REFERENCE_ROOT = ROOT / "tools/unified_semantic_data/reference"
 
 
 def _adapter_paths(args: argparse.Namespace, filename: str) -> list[Path]:
-    return [root / filename for root in args.adapter_output_root if (root / filename).is_file()]
+    paths: list[Path] = []
+    for root in args.adapter_output_root:
+        plain = root / filename
+        compressed = root / f"{filename}.gz"
+        if plain.is_file() and compressed.is_file():
+            raise ValueError(f"adapter output is ambiguous: {plain}:{compressed}")
+        if plain.is_file():
+            paths.append(plain)
+        elif compressed.is_file():
+            paths.append(compressed)
+    return paths
 
 
 def _semantic_reference_inputs(args: argparse.Namespace) -> list[Path]:

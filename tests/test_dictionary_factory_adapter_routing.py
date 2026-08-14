@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+import gzip
 from pathlib import Path
 import sys
 
@@ -62,3 +63,20 @@ def test_adapter_new_words_cannot_use_historical_review_seed_shortcut(tmp_path: 
         assert "ADAPTER_LEXICAL_REVIEW_BOUNDARY" in str(exc)
     else:
         raise AssertionError("new adapter words must not inherit review-seed lexical approval")
+
+
+def test_compressed_adapter_outputs_route_without_plain_duplicates(tmp_path: Path) -> None:
+    args = _args(tmp_path)
+    adapter = args.adapter_output_root[0]
+    for name in (
+        "lexical-candidates.jsonl",
+        "semantic-reference.jsonl",
+        "canonical-evidence.jsonl",
+    ):
+        payload = (adapter / name).read_bytes()
+        (adapter / name).unlink()
+        with gzip.open(adapter / f"{name}.gz", "wb") as handle:
+            handle.write(payload)
+    assert factory._semantic_reference_inputs(args)[-1].name.endswith(".jsonl.gz")
+    assert factory._canonical_evidence_inputs(args)[-1].name.endswith(".jsonl.gz")
+    assert factory._adapter_lexical_inputs(args)[-1].name.endswith(".jsonl.gz")

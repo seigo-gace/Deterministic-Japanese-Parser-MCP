@@ -32,6 +32,16 @@ from .tokenizer import JapaneseTokenizer
 from .version import VERSION
 
 
+def _semantic_runtime_root(settings: Settings):
+    if settings.semantic_data_runtime_dir is not None:
+        return settings.semantic_data_runtime_dir
+    compiled = settings.system_dict_dir / "compiled"
+    canonical = compiled / "canonical_dictionary_runtime"
+    if (canonical / "manifest.json").is_file():
+        return canonical
+    return compiled / "semantic_data"
+
+
 class ParserEngine:
     def __init__(self, settings: Settings = SETTINGS):
         self.settings = settings
@@ -64,7 +74,7 @@ class ParserEngine:
             max_operators=settings.max_scope_edges,
         )
         self.semantic_data = SemanticDataRuntime(
-            settings.system_dict_dir / "compiled" / "semantic_data",
+            _semantic_runtime_root(settings),
         )
         self.lexical_graph = LexicalGraphEnricher(
             max_nodes=settings.max_graph_nodes,

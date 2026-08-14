@@ -304,6 +304,39 @@ jobs:
           )
           PY
 
+      - name: Prove deterministic balanced payload plan before full processing
+        run: |
+          python tools/build_frozen_raw_role_factory.py \
+            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
+            --output-root "$WORK_ROOT/output" \
+            --shard-count 8 \
+            --plan-only
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan = json.loads(
+              Path("work/frozen-raw-input/output/role-shard-plan.json")
+              .read_text(encoding="utf-8")
+          )
+          loads = [int(row["declared_payload_bytes"]) for row in plan["shards"]]
+          payloads = sum(int(row["payload_count"]) for row in plan["shards"])
+          if payloads != int(plan["declared_payload_count"]):
+              raise SystemExit(f"payload plan count mismatch: {plan}")
+          if len(plan["shards"]) != 8 or min(loads) < 1:
+              raise SystemExit(f"payload plan has empty shard: {plan}")
+          if max(loads) > min(loads) * 2:
+              raise SystemExit(f"payload plan is materially imbalanced: {loads}")
+          print(json.dumps({
+              "status": "AUXILIARY_PAYLOAD_PLAN_READY",
+              "algorithm": plan["algorithm"],
+              "plan_sha256": plan["plan_sha256"],
+              "payload_count": payloads,
+              "declared_payload_bytes": plan["declared_payload_bytes"],
+              "shard_declared_bytes": loads,
+          }, sort_keys=True))
+          PY
+
       - name: Upload the single factory-input data file
         uses: actions/upload-artifact@v4
         with:
@@ -311,6 +344,7 @@ jobs:
           path: |
             work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.tar
             work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.manifest.json
+            work/frozen-raw-input/output/role-shard-plan.json
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
@@ -487,8 +521,10 @@ jobs:
               Path(f"work/frozen-raw-input/role-shard-{shard}/role-factory-report.json")
               .read_text(encoding="utf-8")
           )
-          if report["shard"] != {"index": shard, "count": 8}:
+          if report["shard"]["index"] != shard or report["shard"]["count"] != 8:
               raise SystemExit(f"role factory shard identity mismatch: {report}")
+          if report["shard"]["algorithm"] != "payload-bytes-lpt-v1":
+              raise SystemExit(f"role factory shard plan mismatch: {report}")
           if report["input_record_count"] != (
               report["resolved_input_record_count"]
               + report["unresolved_input_record_count"]
@@ -579,7 +615,7 @@ jobs:
           )
           if report["processed_source_count"] != 67:
               raise SystemExit(f"not all auxiliary sources were processed: {report}")
-          if report["shard_merge"] != {"count": 8, "indexes": list(range(8))}:
+          if report["shard_merge"]["count"] != 8 or report["shard_merge"]["indexes"] != list(range(8)):
               raise SystemExit(f"role factory shard merge incomplete: {report}")
           if report["input_record_count"] != (
               report["resolved_input_record_count"]
@@ -595,6 +631,9 @@ jobs:
           required = {
               "all_declared_auxiliary_sources_processed": True,
               "all_declared_shards_merged": True,
+              "all_declared_payloads_merged_once": True,
+              "streaming_merge_without_global_spool": True,
+              "compressed_adapter_outputs": True,
               "exact_replay_deduplication_only": True,
               "same_surface_different_payload_preserved": True,
               "duplicate_source_lineage_preserved": True,

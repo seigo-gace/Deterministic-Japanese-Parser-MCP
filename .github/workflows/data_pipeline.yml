@@ -21,11 +21,18 @@ on:
       - "tools/unified_semantic_data/**"
       - "tools/unified_semantic_data_pipeline.py"
       - "src/deterministic_japanese_parser_mcp/semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/config.py"
+      - "src/deterministic_japanese_parser_mcp/engine.py"
       - "tests/gold/**"
       - "tests/test_bulk_review_station.py"
       - "tests/test_context_semantic_collection.py"
       - "tests/test_jmdict_semantic_lexicon.py"
       - "tests/test_semantic_data_runtime.py"
+      - "tests/test_canonical_dictionary.py"
+      - "tests/test_canonical_meaning_provenance.py"
+      - "tests/test_canonical_evidence.py"
+      - "tests/test_canonical_distribution.py"
+      - "tests/test_canonical_runtime_projection.py"
       - "tests/test_unified_semantic_data_pipeline.py"
       - ".github/workflows/data_pipeline.yml"
 
@@ -252,6 +259,11 @@ jobs:
         with:
           path: |
             dictionaries/system/compiled/semantic_data
+            dictionaries/system/compiled/canonical_dictionary
+            dictionaries/system/compiled/canonical_dictionary_provenance
+            dictionaries/system/compiled/canonical_dictionary_enriched
+            dictionaries/system/compiled/canonical_dictionary_public
+            dictionaries/system/compiled/canonical_dictionary_runtime
             reports/unified-semantic-data
           key: p0-compiled-py312-v1-${{ runner.os }}-${{ hashFiles('data/reviewed/bulk_review_manifest.json', 'research/semantic_sources/jmdict/source-lock.json', 'tools/bulk_review_station.py', 'tools/unified_semantic_data_pipeline.py', 'tools/unified_semantic_data/**', 'schemas/**', 'config/review_provider.yaml', 'rules/review_rules.yaml') }}
 
@@ -287,19 +299,31 @@ jobs:
           from pathlib import Path
 
           compiled = Path("dictionaries/system/compiled/semantic_data/manifest.json")
+          canonical_runtime = Path(
+              "dictionaries/system/compiled/canonical_dictionary_runtime/manifest.json"
+          )
+          canonical_public = Path(
+              "dictionaries/system/compiled/canonical_dictionary_public/manifest.json"
+          )
           pipeline = Path("reports/unified-semantic-data/manifest.json")
-          if not compiled.exists() or not pipeline.exists():
+          if not compiled.exists() or not pipeline.exists() or not canonical_runtime.exists() or not canonical_public.exists():
               raise SystemExit("compiled semantic cache/output is incomplete")
           manifest = json.loads(compiled.read_text(encoding="utf-8"))
+          runtime_manifest = json.loads(canonical_runtime.read_text(encoding="utf-8"))
           if manifest.get("approved_only") is not True:
               raise SystemExit("compiled semantic cache is not approved-only")
           if manifest.get("automatic_external_action") is not False:
               raise SystemExit("compiled semantic cache external-action boundary is invalid")
+          if runtime_manifest.get("approved_only") is not True:
+              raise SystemExit("canonical runtime projection is not approved-only")
+          if runtime_manifest.get("boundaries", {}).get("source_is_mcp_canonical_dictionary") is not True:
+              raise SystemExit("canonical runtime projection source boundary is invalid")
           print({
               "cache_hit": "${{ steps.compiled-cache.outputs.cache-hit }}",
               "record_count": manifest.get("record_count"),
               "runtime_record_count": manifest.get("runtime_record_count"),
               "approved_only": manifest.get("approved_only"),
+              "canonical_runtime_records": runtime_manifest.get("record_count"),
           })
           PY
 
@@ -311,6 +335,11 @@ jobs:
             tests/test_bulk_review_station.py \
             tests/test_unified_semantic_data_pipeline.py \
             tests/test_semantic_data_runtime.py \
+            tests/test_canonical_dictionary.py \
+            tests/test_canonical_meaning_provenance.py \
+            tests/test_canonical_evidence.py \
+            tests/test_canonical_distribution.py \
+            tests/test_canonical_runtime_projection.py \
             --junitxml=reports/data-pipeline-pytest.xml
 
       - name: Validate Open Lexicon gate
@@ -342,6 +371,8 @@ jobs:
           name: p0-prepared-${{ github.sha }}
           path: |
             dictionaries/system/compiled/semantic_data
+            dictionaries/system/compiled/canonical_dictionary_public
+            dictionaries/system/compiled/canonical_dictionary_runtime
             reports/unified-semantic-data
             reports/reviewed-ledger-rebuild.json
             reports/reviewed-ledger-rebuild.log
@@ -534,6 +565,12 @@ jobs:
 
           share = Path(sysconfig.get_path("data")) / "share/deterministic-japanese-parser-mcp"
           assert not (share / "dictionaries/system/compiled/semantic_candidates").exists()
+          canonical_runtime = json.loads(
+              (share / "dictionaries/system/compiled/canonical_dictionary_runtime/manifest.json")
+              .read_text(encoding="utf-8")
+          )
+          assert canonical_runtime["approved_only"] is True
+          assert canonical_runtime["boundaries"]["source_is_mcp_canonical_dictionary"] is True
           manifest = json.loads(
               (share / "dictionaries/system/compiled/semantic_data/manifest.json").read_text(
                   encoding="utf-8"
@@ -547,12 +584,19 @@ jobs:
                   share
                   / f"dictionaries/system/compiled/semantic_data/{namespace}/manifest.json"
               ).exists()
-          response = ParserEngine().analyze(
+          engine = ParserEngine()
+          assert engine.semantic_data.root.name == "canonical_dictionary_runtime"
+          response = engine.analyze(
               AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
           )
           assert response.meaning_graph.propositions
           assert response.meaning_graph.semantic_hash
-          print({"approved_records": manifest["record_count"], "offline": True})
+          print({
+              "approved_records": manifest["record_count"],
+              "canonical_runtime_records": canonical_runtime["record_count"],
+              "runtime_source": engine.semantic_data.root.name,
+              "offline": True,
+          })
           PY
 
       - name: Write PR summary
@@ -591,6 +635,8 @@ jobs:
             reports/data-pipeline-*.xml
             reports/unified-semantic-data
             dictionaries/system/compiled/semantic_data/manifest.json
+            dictionaries/system/compiled/canonical_dictionary_public/manifest.json
+            dictionaries/system/compiled/canonical_dictionary_runtime/manifest.json
           if-no-files-found: error
           retention-days: 30
 

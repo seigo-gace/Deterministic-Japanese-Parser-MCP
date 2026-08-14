@@ -14,11 +14,14 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 import bz2
 import csv
 import gzip
 import hashlib
+import heapq
 import io
+import itertools
 import json
 import lzma
 from pathlib import Path, PurePosixPath
@@ -75,6 +78,88 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _payload_identity(source: dict[str, Any], payload: dict[str, Any]) -> str:
+    return "\0".join(
+        (
+            str(source["source_id"]),
+            str(payload["path"]),
+            str(payload.get("sha256") or "").lower(),
+        )
+    )
+
+
+def plan_role_factory_shards(
+    manifest: dict[str, Any], shard_count: int
+) -> dict[str, Any]:
+    """Assign auxiliary payloads with deterministic longest-processing-time packing."""
+    if shard_count < 1:
+        raise ValueError("shard-count must be positive")
+    units: list[dict[str, Any]] = []
+    for source in sorted(manifest.get("sources") or [], key=lambda row: str(row["source_id"])):
+        if not any(role != MEANING_ROLE for role in source.get("source_roles") or []):
+            continue
+        payloads = list(source.get("payloads") or [])
+        if not payloads:
+            raise ValueError(f"auxiliary source has no declared payload: {source['source_id']}")
+        for payload in payloads:
+            units.append(
+                {
+                    "identity": _payload_identity(source, payload),
+                    "source_id": str(source["source_id"]),
+                    "artifact_id": int(source["artifact_id"]),
+                    "path": str(payload["path"]),
+                    "sha256": str(payload.get("sha256") or "").lower(),
+                    "bytes": int(payload.get("bytes") or 0),
+                }
+            )
+    if len({row["identity"] for row in units}) != len(units):
+        raise ValueError("auxiliary payload identity is not unique")
+
+    loads = [0] * shard_count
+    assignments: list[list[dict[str, Any]]] = [[] for _ in range(shard_count)]
+    for unit in sorted(
+        units,
+        key=lambda row: (-int(row["bytes"]), row["source_id"], row["path"], row["sha256"]),
+    ):
+        index = min(range(shard_count), key=lambda value: (loads[value], value))
+        assignments[index].append(unit)
+        loads[index] += int(unit["bytes"])
+
+    shards = [
+        {
+            "index": index,
+            "declared_payload_bytes": loads[index],
+            "payload_count": len(assignments[index]),
+            "source_ids": sorted({row["source_id"] for row in assignments[index]}),
+            "artifact_ids": sorted({row["artifact_id"] for row in assignments[index]}),
+            "payload_identities": sorted(row["identity"] for row in assignments[index]),
+        }
+        for index in range(shard_count)
+    ]
+    material = {
+        "schema_version": ROLE_FACTORY_VERSION,
+        "algorithm": "payload-bytes-lpt-v1",
+        "shard_count": shard_count,
+        "declared_payload_count": len(units),
+        "declared_payload_bytes": sum(loads),
+        "shards": shards,
+    }
+    material["plan_sha256"] = hashlib.sha256(
+        _json_line(material).encode("utf-8")
+    ).hexdigest()
+    return material
+
+
+@contextmanager
+def _deterministic_gzip_text(path: Path) -> Iterator[io.TextIOWrapper]:
+    with path.open("wb") as raw:
+        with gzip.GzipFile(
+            filename="", mode="wb", fileobj=raw, compresslevel=6, mtime=0
+        ) as zipped:
+            with io.TextIOWrapper(zipped, encoding="utf-8", newline="\n") as text:
+                yield text
 
 
 def _safe_member(name: str) -> str:
@@ -595,7 +680,9 @@ def _materialized_payloads(
         if zipfile.is_zipfile(raw_path):
             with zipfile.ZipFile(raw_path) as nested:
                 nested_infos = {_safe_member(info.filename): info for info in nested.infolist() if not info.is_dir()}
-                for number, payload in enumerate(source["payloads"], 1):
+                for number, payload in enumerate(
+                    sorted(source["payloads"], key=lambda row: str(row["path"])), 1
+                ):
                     name = _safe_member(str(payload["path"]))
                     info = nested_infos.get(name)
                     if info is None:
@@ -610,7 +697,9 @@ def _materialized_payloads(
         raw_path.unlink(missing_ok=True)
         return
 
-    for outer_number, payload in enumerate(source["payloads"], 1):
+    for outer_number, payload in enumerate(
+        sorted(source["payloads"], key=lambda row: str(row["path"])), 1
+    ):
         outer_name = _safe_member(str(payload["path"]))
         info = infos.get(outer_name)
         if info is None:
@@ -678,11 +767,30 @@ def build_frozen_raw_role_factory(
     unresolved_path = output_root / "unresolved-source-role-records.jsonl"
     artifact_meta = {int(row["id"]): row for row in manifest.get("artifacts") or []}
     sources_by_artifact: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    shard_plan = (
+        plan_role_factory_shards(manifest, int(shard_count))
+        if shard_count is not None
+        else None
+    )
+    assigned_payloads = (
+        set(shard_plan["shards"][int(shard_index)]["payload_identities"])
+        if shard_plan is not None
+        else None
+    )
     for source in manifest["sources"]:
         artifact_id = int(source["artifact_id"])
-        assigned = shard_count is None or artifact_id % shard_count == shard_index
-        if assigned and any(role != MEANING_ROLE for role in source.get("source_roles") or []):
-            sources_by_artifact[artifact_id].append(source)
+        if not any(role != MEANING_ROLE for role in source.get("source_roles") or []):
+            continue
+        selected_payloads = [
+            payload
+            for payload in source.get("payloads") or []
+            if assigned_payloads is None
+            or _payload_identity(source, payload) in assigned_payloads
+        ]
+        if selected_payloads:
+            selected_source = dict(source)
+            selected_source["payloads"] = selected_payloads
+            sources_by_artifact[artifact_id].append(selected_source)
 
     counters: Counter[str] = Counter()
     by_source: dict[str, dict[str, Any]] = {}
@@ -797,7 +905,9 @@ def build_frozen_raw_role_factory(
     adapter_manifest: dict[str, Any] | None = None
     if compile_adapter:
         adapter_root = output_root / "adapter-output"
-        adapter_manifest = compile_adapter_contract([records_path], adapter_root)
+        adapter_manifest = compile_adapter_contract(
+            [records_path], adapter_root, compressed=True, ordered_unique=True
+        )
     report = {
         "schema_version": ROLE_FACTORY_VERSION,
         "mode": "frozen-raw-auxiliary-role-factory",
@@ -814,8 +924,20 @@ def build_frozen_raw_role_factory(
         "source_counts": dict(sorted(by_source.items())),
         "adapter_contract": adapter_manifest,
         "shard": (
-            {"index": shard_index, "count": shard_count}
-            if shard_count is not None
+            {
+                "index": shard_index,
+                "count": shard_count,
+                "plan_sha256": shard_plan["plan_sha256"],
+                "algorithm": shard_plan["algorithm"],
+                "declared_payload_bytes": shard_plan["shards"][int(shard_index)][
+                    "declared_payload_bytes"
+                ],
+                "payload_count": shard_plan["shards"][int(shard_index)]["payload_count"],
+                "payload_identities": shard_plan["shards"][int(shard_index)][
+                    "payload_identities"
+                ],
+            }
+            if shard_count is not None and shard_plan is not None
             else None
         ),
         "boundaries": {
@@ -856,6 +978,29 @@ def _projection_and_lineages(
     return projection, lineages
 
 
+def _iter_jsonl(path: Path, *, compressed: bool = False) -> Iterator[dict[str, Any]]:
+    opener = gzip.open if compressed else Path.open
+    with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[arg-type]
+        for line_number, line in enumerate(handle, 1):
+            if not line.strip():
+                continue
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                raise ValueError(f"role factory row must be object: {path}:{line_number}")
+            yield value
+
+
+def _unresolved_sort_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    source = row.get("source") if isinstance(row.get("source"), dict) else {}
+    return (
+        int(source.get("artifact_id") or 0),
+        str(row.get("source_id") or ""),
+        str(row.get("payload_path") or ""),
+        int(row.get("record_number") or 0),
+        str(row.get("source_record_sha256") or ""),
+    )
+
+
 def merge_frozen_raw_role_factory_shards(
     manifest_path: Path,
     shards_root: Path,
@@ -878,6 +1023,8 @@ def merge_frozen_raw_role_factory_shards(
     bundle_sha: str | None = None
     processed_sources: set[str] = set()
     source_counts: dict[str, dict[str, Any]] = {}
+    processed_payloads: set[str] = set()
+    plan_sha: str | None = None
     counters: Counter[str] = Counter()
     for path in report_paths:
         report = json.loads(path.read_text(encoding="utf-8"))
@@ -891,16 +1038,28 @@ def merge_frozen_raw_role_factory_shards(
         if count != shard_count or index in indexes or not 0 <= index < count:
             raise ValueError(f"invalid or duplicate role factory shard: {path}")
         indexes.add(index)
+        current_plan_sha = str(shard.get("plan_sha256") or "")
+        if plan_sha is None:
+            plan_sha = current_plan_sha
+        if not current_plan_sha or current_plan_sha != plan_sha:
+            raise ValueError("role factory shard plan mismatch")
+        current_payloads = set(shard.get("payload_identities") or [])
+        if len(current_payloads) != int(shard.get("payload_count", -1)):
+            raise ValueError(f"role factory shard payload count mismatch: {path}")
+        if processed_payloads & current_payloads:
+            raise ValueError("role factory payload appeared in multiple shards")
+        processed_payloads.update(current_payloads)
         current_bundle_sha = str(report["bundle_sha256"])
         if bundle_sha is None:
             bundle_sha = current_bundle_sha
         if current_bundle_sha != bundle_sha:
             raise ValueError("role factory shard bundle mismatch")
         current_sources = set(report.get("source_counts") or {})
-        if processed_sources & current_sources:
-            raise ValueError("role factory source appeared in multiple shards")
         processed_sources.update(current_sources)
-        source_counts.update(report.get("source_counts") or {})
+        for source_id, values in (report.get("source_counts") or {}).items():
+            target = source_counts.setdefault(source_id, {})
+            for key, value in values.items():
+                target[key] = int(target.get(key, 0)) + int(value)
         counters["input_records"] += int(report["input_record_count"])
         counters["resolved_input_records"] += int(report["resolved_input_record_count"])
         counters["unresolved_records"] += int(report["unresolved_input_record_count"])
@@ -912,6 +1071,20 @@ def merge_frozen_raw_role_factory_shards(
 
     if shard_count is None or indexes != set(range(shard_count)):
         raise RuntimeError(f"ROLE_FACTORY_SHARD_SET_INCOMPLETE:{sorted(indexes)}:{shard_count}")
+    expected_plan = plan_role_factory_shards(manifest, shard_count)
+    if plan_sha != expected_plan["plan_sha256"]:
+        raise RuntimeError("ROLE_FACTORY_SHARD_PLAN_MISMATCH")
+    expected_payloads = {
+        identity
+        for shard in expected_plan["shards"]
+        for identity in shard["payload_identities"]
+    }
+    if processed_payloads != expected_payloads:
+        missing = sorted(expected_payloads - processed_payloads)
+        extra = sorted(processed_payloads - expected_payloads)
+        raise RuntimeError(
+            f"ROLE_FACTORY_PAYLOAD_SET_MISMATCH:missing={missing}:extra={extra}"
+        )
     if processed_sources != expected_sources:
         missing = sorted(expected_sources - processed_sources)
         extra = sorted(processed_sources - expected_sources)
@@ -923,32 +1096,62 @@ def merge_frozen_raw_role_factory_shards(
     output_root.mkdir(parents=True, exist_ok=True)
     records_path = output_root / "source-role-records.jsonl.gz"
     unresolved_path = output_root / "unresolved-source-role-records.jsonl"
-    with tempfile.TemporaryDirectory() as directory, unresolved_path.open(
-        "w", encoding="utf-8", newline="\n"
-    ) as unresolved:
-        temp_root = Path(directory)
-        store = _DedupStore(temp_root / "dedup.sqlite3", temp_root / "unique-records.spool")
-        try:
-            ordered_reports = sorted(reports, key=lambda item: int(item[1]["shard"]["index"]))
-            for report_path, _report in ordered_reports:
-                shard_root = report_path.parent
-                shard_records = shard_root / "source-role-records.jsonl.gz"
-                shard_unresolved = shard_root / "unresolved-source-role-records.jsonl"
-                if not shard_records.is_file() or not shard_unresolved.is_file():
-                    raise ValueError(f"role factory shard files missing: {shard_root}")
-                with gzip.open(shard_records, "rt", encoding="utf-8") as handle:
-                    for line in handle:
-                        record = json.loads(line)
-                        projection, lineages = _projection_and_lineages(record)
-                        for lineage in lineages:
-                            store.add(projection, lineage)
-                with shard_unresolved.open("r", encoding="utf-8") as handle:
-                    for line in handle:
-                        unresolved.write(line)
-            store.connection.commit()
-            unique_records = store.write(records_path)
-        finally:
-            store.close()
+    ordered_reports = sorted(reports, key=lambda item: int(item[1]["shard"]["index"]))
+    shard_roots = [path.parent for path, _report in ordered_reports]
+    shard_record_paths = [root / "source-role-records.jsonl.gz" for root in shard_roots]
+    shard_unresolved_paths = [root / "unresolved-source-role-records.jsonl" for root in shard_roots]
+    missing_files = [
+        path
+        for path in [*shard_record_paths, *shard_unresolved_paths]
+        if not path.is_file()
+    ]
+    if missing_files:
+        raise ValueError(f"role factory shard files missing: {missing_files}")
+
+    unique_records = 0
+    record_stream = heapq.merge(
+        *(_iter_jsonl(path, compressed=True) for path in shard_record_paths),
+        key=lambda row: str(row.get("adapter_record_id") or ""),
+    )
+    with _deterministic_gzip_text(records_path) as output:
+        for record_id, grouped in itertools.groupby(
+            record_stream, key=lambda row: str(row.get("adapter_record_id") or "")
+        ):
+            if not record_id:
+                raise ValueError("role factory shard record id missing")
+            projection_text: str | None = None
+            projection: dict[str, Any] | None = None
+            lineages: dict[str, dict[str, Any]] = {}
+            for record in grouped:
+                candidate, candidate_lineages = _projection_and_lineages(record)
+                candidate_text = _json_line(candidate)
+                if projection_text is None:
+                    projection_text = candidate_text
+                    projection = candidate
+                elif candidate_text != projection_text:
+                    raise RuntimeError(f"ROLE_FACTORY_ADAPTER_ID_COLLISION:{record_id}")
+                for lineage in candidate_lineages:
+                    lineage_text = _json_line(lineage)
+                    signature = hashlib.sha256(lineage_text.encode("utf-8")).hexdigest()
+                    lineages[signature] = lineage
+            if projection is None or not lineages:
+                raise RuntimeError(f"ROLE_FACTORY_EMPTY_MERGE_GROUP:{record_id}")
+            ordered_lineages = [lineages[key] for key in sorted(lineages)]
+            projection["adapter_record_id"] = record_id
+            projection["source"] = dict(ordered_lineages[0])
+            if len(ordered_lineages) > 1:
+                projection["payload"]["duplicate_source_lineages"] = ordered_lineages
+            projection["payload"]["exact_replay_count"] = len(ordered_lineages)
+            output.write(_json_line(projection) + "\n")
+            unique_records += 1
+
+    unresolved_stream = heapq.merge(
+        *(_iter_jsonl(path) for path in shard_unresolved_paths),
+        key=_unresolved_sort_key,
+    )
+    with unresolved_path.open("w", encoding="utf-8", newline="\n") as unresolved:
+        for row in unresolved_stream:
+            unresolved.write(_json_line(row) + "\n")
 
     if counters["input_records"] != counters["resolved_input_records"] + counters["unresolved_records"]:
         raise RuntimeError("ROLE_FACTORY_GLOBAL_RECORD_LOSS")
@@ -957,7 +1160,9 @@ def merge_frozen_raw_role_factory_shards(
         raise RuntimeError("ROLE_FACTORY_DEDUP_CONSERVATION_FAILURE")
 
     adapter_root = output_root / "adapter-output"
-    adapter_manifest = compile_adapter_contract([records_path], adapter_root)
+    adapter_manifest = compile_adapter_contract(
+        [records_path], adapter_root, compressed=True, ordered_unique=True
+    )
     report = {
         "schema_version": ROLE_FACTORY_VERSION,
         "mode": "frozen-raw-auxiliary-role-factory",
@@ -975,11 +1180,21 @@ def merge_frozen_raw_role_factory_shards(
         ],
         "source_counts": dict(sorted(source_counts.items())),
         "adapter_contract": adapter_manifest,
-        "shard_merge": {"count": shard_count, "indexes": sorted(indexes)},
+        "shard_merge": {
+            "count": shard_count,
+            "indexes": sorted(indexes),
+            "algorithm": expected_plan["algorithm"],
+            "plan_sha256": expected_plan["plan_sha256"],
+            "declared_payload_count": expected_plan["declared_payload_count"],
+            "declared_payload_bytes": expected_plan["declared_payload_bytes"],
+        },
         "boundaries": {
             "all_declared_auxiliary_sources_processed": True,
             "all_assigned_auxiliary_sources_processed": True,
             "all_declared_shards_merged": True,
+            "all_declared_payloads_merged_once": True,
+            "streaming_merge_without_global_spool": True,
+            "compressed_adapter_outputs": True,
             "input_record_conservation_verified": True,
             "role_projection_conservation_verified": True,
             "exact_replay_deduplication_only": True,

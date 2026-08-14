@@ -13,6 +13,9 @@ on:
       - "tests/test_source_adapter_contract.py"
       - "tests/test_frozen_raw_meaning_factory.py"
       - "tests/test_frozen_raw_role_factory.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/config.py"
+      - "src/deterministic_japanese_parser_mcp/engine.py"
       - "pyproject.toml"
       - ".github/workflows/canonical-dictionary-factory.yml"
   workflow_dispatch:
@@ -56,7 +59,7 @@ jobs:
             tests/test_canonical_distribution.py \
             tests/test_canonical_runtime_projection.py \
             tests/test_source_adapter_contract.py
-          pytest -q tests/test_frozen_raw_meaning_factory.py tests/test_frozen_raw_role_factory.py
+          pytest -q tests/test_frozen_raw_meaning_factory.py tests/test_frozen_raw_role_factory.py tests/test_semantic_data_runtime.py
       - name: Existing semantic factory regression tests
         run: |
           pytest -q tests/test_semantic_labeler.py tests/test_unified_semantic_data_pipeline.py

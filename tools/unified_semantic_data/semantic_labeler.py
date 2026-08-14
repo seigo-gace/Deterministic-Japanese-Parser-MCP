@@ -9,6 +9,7 @@ approval.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -54,7 +55,8 @@ def _stable_unique(values: Iterable[str]) -> list[str]:
 
 
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
-    with path.open("r", encoding="utf-8") as handle:
+    opener = gzip.open if path.name.endswith(".gz") else Path.open
+    with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[arg-type]
         for line_number, raw in enumerate(handle, 1):
             if not raw.strip():
                 continue

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import gzip
 import json
 from pathlib import Path
 import sys
@@ -138,6 +139,45 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     assert evidence[0]["source_role"] == "translation"
     assert evidence[0]["payload"]["value"] == "bank"
     assert evidence[0]["automatic_meaning_generation"] is False
+
+
+def test_compressed_ordered_adapter_output_is_deterministic(tmp_path: Path) -> None:
+    source = tmp_path / "adapter.jsonl"
+    rows = [
+        {
+            "adapter_record_id": f"AUX-{index}",
+            "source_role": "translation",
+            "surface": f"語{index}",
+            "payload": {"value": f"word-{index}"},
+            "source": _source(f"source-{index}"),
+        }
+        for index in range(2)
+    ]
+    source.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    manifest = compile_adapter_contract(
+        [source], first, compressed=True, ordered_unique=True
+    )
+    compile_adapter_contract(
+        [source], second, compressed=True, ordered_unique=True
+    )
+    path = first / "canonical-evidence.jsonl.gz"
+    assert manifest["outputs"][path.name]["bytes"] == path.stat().st_size
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        assert [json.loads(line)["evidence_id"] for line in handle] == [
+            "AUX-0",
+            "AUX-1",
+        ]
+    for name in (
+        "semantic-reference.jsonl.gz",
+        "lexical-candidates.jsonl.gz",
+        "canonical-evidence.jsonl.gz",
+    ):
+        assert (first / name).read_bytes() == (second / name).read_bytes()
 
 
 def test_auxiliary_role_cannot_smuggle_definition_into_meaning_pipeline(tmp_path: Path) -> None:

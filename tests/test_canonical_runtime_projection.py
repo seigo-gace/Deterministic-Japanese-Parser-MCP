@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 import sys
 
+from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.config import Settings
+
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
 if str(TOOLS) not in sys.path:
@@ -157,6 +160,24 @@ def test_runtime_projection_uses_canonical_dictionary_as_sole_record_source(
         "approved"
     }
     assert all(item["evidence_ids"] for item in row["meaning_candidates"])
+
+    settings = Settings(
+        system_dict_dir=ROOT / "dictionaries/system",
+        user_dict_dir=ROOT / "dictionaries/user",
+        semantic_data_runtime_dir=runtime_root,
+        hard_deadline_ms=5000,
+    )
+    engine = ParserEngine(settings)
+    response = engine.analyze(
+        AnalyzeRequest(original_text="走る", deadline_ms=5000)
+    )
+    assert engine.semantic_data.root == runtime_root
+    assert response.meaning_graph.quality_annotations[
+        "semantic_data_pack_used"
+    ] is True
+    assert response.meaning_graph.quality_annotations[
+        "semantic_data_pack_match_count"
+    ] >= 1
 
 
 def test_project_record_preserves_action_risk_conservatively() -> None:

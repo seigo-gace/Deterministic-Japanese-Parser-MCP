@@ -31,6 +31,11 @@ class Settings:
     user_dict_dir: Path = Path(
         os.getenv("DJPMCP_USER_DICT_DIR", str(DEFAULT_DICT_ROOT / "user"))
     )
+    semantic_data_runtime_dir: Path | None = (
+        Path(os.environ["DJPMCP_SEMANTIC_DATA_RUNTIME_DIR"])
+        if os.getenv("DJPMCP_SEMANTIC_DATA_RUNTIME_DIR")
+        else None
+    )
 
     def __post_init__(self) -> None:
         if self.target_latency_ms < 1:

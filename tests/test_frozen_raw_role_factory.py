@@ -21,6 +21,7 @@ from unified_semantic_data.frozen_raw_role_factory import (  # noqa: E402
     _project_identity,
     build_frozen_raw_role_factory,
     merge_frozen_raw_role_factory_shards,
+    plan_role_factory_shards,
 )
 
 
@@ -29,14 +30,23 @@ def _sha(value: bytes) -> str:
 
 
 def _fixture(tmp_path: Path, rows: list[dict]) -> tuple[Path, Path, Path]:
-    payload = b"".join(
-        json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
-        for row in rows
-    )
-    payload_path = "collection/usage.jsonl"
+    return _fixture_payloads(tmp_path, {"collection/usage.jsonl": rows})
+
+
+def _fixture_payloads(
+    tmp_path: Path, payload_rows: dict[str, list[dict]]
+) -> tuple[Path, Path, Path]:
+    payload_values = {
+        path: b"".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
+            for row in rows
+        )
+        for path, rows in payload_rows.items()
+    }
     artifact_buffer = io.BytesIO()
     with zipfile.ZipFile(artifact_buffer, "w", compression=zipfile.ZIP_STORED) as archive:
-        archive.writestr(payload_path, payload)
+        for path, payload in sorted(payload_values.items()):
+            archive.writestr(path, payload)
     artifact = artifact_buffer.getvalue()
     member = "artifacts/321-role-collection.zip"
     source = {
@@ -49,11 +59,16 @@ def _fixture(tmp_path: Path, rows: list[dict]) -> tuple[Path, Path, Path]:
         "public_runtime_eligible": True,
         "parser_family": "jsonl",
         "source_roles": ["usage"],
-        "payloads": [{
-            "path": payload_path, "bytes": len(payload), "sha256": _sha(payload),
-            "probe_records": len(rows),
-        }],
-        "parser_probe_records": len(rows),
+        "payloads": [
+            {
+                "path": path,
+                "bytes": len(payload),
+                "sha256": _sha(payload),
+                "probe_records": len(payload_rows[path]),
+            }
+            for path, payload in sorted(payload_values.items())
+        ],
+        "parser_probe_records": sum(len(rows) for rows in payload_rows.values()),
         "factory_ready": True,
         "full_processing_performed": False,
         "automatic_approval": False,
@@ -96,7 +111,7 @@ def _fixture(tmp_path: Path, rows: list[dict]) -> tuple[Path, Path, Path]:
             "rights_lane": "C",
             "public_runtime_eligible": True,
             "parser_family": "jsonl",
-            "payload_globs": [payload_path],
+            "payload_globs": sorted(payload_values),
             "source_roles": ["usage"],
             "encodings": ["utf-8"],
         }],
@@ -142,9 +157,11 @@ def test_exact_replay_is_deduplicated_but_same_surface_different_evidence_surviv
     assert all(row["surfaces"] == ["はし"] for row in records)
     evidence = [
         json.loads(line)
-        for line in (output / "adapter-output/canonical-evidence.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for line in gzip.open(
+            output / "adapter-output/canonical-evidence.jsonl.gz",
+            "rt",
+            encoding="utf-8",
+        )
     ]
     assert all(row["source"]["artifact_id"] == 321 for row in evidence)
     assert all(row["source"]["payload_sha256"] for row in evidence)
@@ -156,7 +173,7 @@ def test_exact_replay_is_deduplicated_but_same_surface_different_evidence_surviv
     for relative in (
         "source-role-records.jsonl.gz",
         "unresolved-source-role-records.jsonl",
-        "adapter-output/canonical-evidence.jsonl",
+        "adapter-output/canonical-evidence.jsonl.gz",
         "adapter-output/manifest.json",
         "role-factory-report.json",
     ):
@@ -197,7 +214,10 @@ def test_deterministic_shards_merge_to_the_same_complete_factory(tmp_path: Path)
             shard_count=2,
             compile_adapter=False,
         )
-        assert report["shard"] == {"index": index, "count": 2}
+        assert report["shard"]["index"] == index
+        assert report["shard"]["count"] == 2
+        assert report["shard"]["algorithm"] == "payload-bytes-lpt-v1"
+        assert report["shard"]["plan_sha256"]
         assert report["adapter_contract"] is None
         assert report["boundaries"]["all_assigned_auxiliary_sources_processed"] is True
 
@@ -216,12 +236,75 @@ def test_deterministic_shards_merge_to_the_same_complete_factory(tmp_path: Path)
         "adapter_contract",
     ):
         assert merged_report[key] == complete_report[key]
-    assert merged_report["shard_merge"] == {"count": 2, "indexes": [0, 1]}
+    assert merged_report["shard_merge"]["count"] == 2
+    assert merged_report["shard_merge"]["indexes"] == [0, 1]
+    assert merged_report["shard_merge"]["algorithm"] == "payload-bytes-lpt-v1"
     assert merged_report["boundaries"]["all_declared_auxiliary_sources_processed"] is True
     for relative in (
         "source-role-records.jsonl.gz",
         "unresolved-source-role-records.jsonl",
-        "adapter-output/canonical-evidence.jsonl",
+        "adapter-output/canonical-evidence.jsonl.gz",
+        "adapter-output/manifest.json",
+    ):
+        assert (merged / relative).read_bytes() == (complete / relative).read_bytes()
+
+
+def test_payload_plan_splits_one_source_and_stream_merge_deduplicates_across_shards(
+    tmp_path: Path,
+) -> None:
+    bridge = _usage("bridge")
+    bundle, manifest_path, profiles = _fixture_payloads(
+        tmp_path,
+        {
+            "collection/a.jsonl": [bridge, _usage("chopsticks")],
+            "collection/b.jsonl": [dict(bridge), _usage("riverbank")],
+        },
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    plan = plan_role_factory_shards(manifest, 2)
+    assert plan["algorithm"] == "payload-bytes-lpt-v1"
+    assert plan["declared_payload_count"] == 2
+    assert [row["payload_count"] for row in plan["shards"]] == [1, 1]
+
+    complete = tmp_path / "complete-split"
+    complete_report = build_frozen_raw_role_factory(
+        bundle, manifest_path, profiles, complete
+    )
+    shards = tmp_path / "split-shards"
+    for index in range(2):
+        report = build_frozen_raw_role_factory(
+            bundle,
+            manifest_path,
+            profiles,
+            shards / f"shard-{index}",
+            shard_index=index,
+            shard_count=2,
+            compile_adapter=False,
+        )
+        assert report["processed_source_count"] == 1
+        assert report["shard"]["payload_count"] == 1
+
+    merged = tmp_path / "merged-split"
+    report = merge_frozen_raw_role_factory_shards(manifest_path, shards, merged)
+    assert report["processed_source_count"] == 1
+    assert report["input_record_count"] == 4
+    assert report["unique_adapter_record_count"] == 3
+    assert report["exact_replay_duplicate_count"] == 1
+    for key in (
+        "payloads",
+        "input_records",
+        "resolved_input_records",
+        "role_projections",
+    ):
+        assert report["source_counts"]["role-source"][key] == complete_report[
+            "source_counts"
+        ]["role-source"][key]
+    assert report["boundaries"]["all_declared_payloads_merged_once"] is True
+    assert report["boundaries"]["streaming_merge_without_global_spool"] is True
+    for relative in (
+        "source-role-records.jsonl.gz",
+        "unresolved-source-role-records.jsonl",
+        "adapter-output/canonical-evidence.jsonl.gz",
         "adapter-output/manifest.json",
     ):
         assert (merged / relative).read_bytes() == (complete / relative).read_bytes()

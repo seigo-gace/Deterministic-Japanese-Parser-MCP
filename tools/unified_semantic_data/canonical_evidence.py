@@ -76,10 +76,13 @@ def _iter_dictionary_records(root: Path) -> Iterator[dict[str, Any]]:
 def _iter_evidence_paths(roots: Iterable[Path]) -> Iterator[Path]:
     paths: list[Path] = []
     for root in roots:
-        if root.is_file() and root.suffix == ".jsonl":
+        if root.is_file() and (
+            root.suffix == ".jsonl" or root.name.endswith(".jsonl.gz")
+        ):
             paths.append(root)
         elif root.is_dir():
             paths.extend(sorted(root.rglob("*.jsonl"), key=str))
+            paths.extend(sorted(root.rglob("*.jsonl.gz"), key=str))
     for path in sorted(set(paths), key=str):
         yield path
 
@@ -181,7 +184,8 @@ def load_evidence_records(roots: Iterable[Path]) -> list[dict[str, Any]]:
     values: list[dict[str, Any]] = []
     ids: set[str] = set()
     for path in _iter_evidence_paths(roots):
-        with path.open("r", encoding="utf-8") as handle:
+        opener = gzip.open if path.name.endswith(".gz") else Path.open
+        with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[arg-type]
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
