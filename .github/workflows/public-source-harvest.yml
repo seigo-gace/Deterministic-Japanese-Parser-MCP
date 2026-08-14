@@ -456,6 +456,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install factory runtime dependency
+        run: python -m pip install "PyYAML>=6,<7"
+
       - name: Download frozen raw factory input
         uses: actions/download-artifact@v4
         with:
@@ -550,6 +553,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install factory runtime dependency
+        run: python -m pip install "PyYAML>=6,<7"
 
       - name: Download all auxiliary source-role shard checkpoints
         uses: actions/download-artifact@v4
