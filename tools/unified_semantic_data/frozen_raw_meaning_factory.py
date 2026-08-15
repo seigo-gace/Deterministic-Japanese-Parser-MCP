@@ -24,7 +24,7 @@ from .semantic_labeler import candidate_has_real_meaning
 from .source_adapter_contract import compile_adapter_contract
 
 
-MEANING_FACTORY_VERSION = "1.0.0"
+MEANING_FACTORY_VERSION = "1.1.0"
 MEANING_ROLE = "lexical-definition"
 
 
@@ -222,6 +222,76 @@ def _adapter_row(
     }
 
 
+def _completion_base_row(
+    row: dict[str, Any],
+    *,
+    source: dict[str, Any],
+    payload: dict[str, Any],
+    line_number: int,
+    freeze_at: str,
+) -> tuple[dict[str, Any], list[str]]:
+    """Preserve an unresolved row in the same adapter shape for completion."""
+    source_id = str(source["source_id"])
+    fields = _extract_fields(source_id, row)
+    row_id = _source_value(row, "record_id", "id", "entry_id", "source_id")
+    row_sha = hashlib.sha256(_json_line(row).encode("utf-8")).hexdigest()
+    missing: list[str] = []
+    if not fields["surfaces"]:
+        missing.append("surfaces")
+    if not candidate_has_real_meaning({"glosses": fields["meanings"]}):
+        fields["meanings"] = []
+        missing.append("meanings")
+    license_name = _source_value(row, "license")
+    if not license_name:
+        missing.append("source.license")
+    version = _source_value(
+        row, "version", "source_version", "dump_date", "extraction_date",
+        "upstream_commit", "tei_edition",
+    ) or f"frozen@{freeze_at}"
+    upstream_sha = _source_value(
+        row, "source_sha256", "source_archive_sha256", "source_xml_sha256",
+        "data_sha256",
+    )
+    return {
+        "adapter_record_id": f"FROZEN-{source_id}-{row_sha[:24]}",
+        "source_role": MEANING_ROLE,
+        "surfaces": fields["surfaces"],
+        "readings": fields["readings"],
+        "part_of_speech_list": fields["part_of_speech"],
+        "domains": fields["domains"],
+        "meanings": fields["meanings"],
+        "source": {
+            "dataset": _source_value(row, "dataset") or source_id,
+            "version": version,
+            "license": license_name,
+            "source_id": f"{source_id}:{row_id or line_number}",
+            "source_url": _source_value(
+                row, "source_url", "source_page_url", "official_dataset_page",
+                "upstream_repository", "repository", "data_url", "homepage",
+            ),
+            "source_sha256": upstream_sha or str(payload["sha256"]),
+            "attribution": _source_value(row, "attribution", "copyright", "publisher"),
+            "logical_source_id": source.get("logical_source_id", source_id),
+            "source_record_id": row_id or f"{payload['path']}:{line_number}",
+            "source_record_sha256": _source_value(row, "source_record_sha256") or row_sha,
+            "artifact_id": int(source["artifact_id"]),
+            "workflow_run_id": int(source.get("workflow_run_id", 0)),
+            "payload_path": str(payload["path"]),
+            "payload_sha256": str(payload["sha256"]),
+            "rights_lane": str(source["rights_lane"]),
+            "public_runtime_eligible": bool(source["public_runtime_eligible"]),
+            "source_meaning_complete": False,
+        },
+        "payload": {
+            "meaning_factory_version": MEANING_FACTORY_VERSION,
+            "source_fields_preserved": sorted(
+                (row.get("source") or {}).keys()
+                if isinstance(row.get("source"), dict) else []
+            ),
+        },
+    }, sorted(missing)
+
+
 def _copy_stream(source: BinaryIO, destination: Path, *, expected_bytes: int) -> str:
     digest = hashlib.sha256()
     size = 0
@@ -377,13 +447,30 @@ def build_frozen_raw_meaning_factory(
                                 )
                             except ValueError as exc:
                                 reason = str(exc).split(":", 1)[0]
+                                base_record, missing_fields = _completion_base_row(
+                                    row,
+                                    source=source,
+                                    payload=payload_meta,
+                                    line_number=line_number,
+                                    freeze_at=str(manifest.get("freeze_at") or "unknown"),
+                                )
                                 unresolved_output.write(
                                     _json_line(
                                         {
                                             "source_id": source["source_id"],
+                                            "logical_source_id": source.get(
+                                                "logical_source_id", source["source_id"]
+                                            ),
                                             "payload_path": payload_name,
                                             "line": line_number,
                                             "reason": str(exc),
+                                            "missing_required_fields": missing_fields,
+                                            "source_record_sha256": base_record["source"][
+                                                "source_record_sha256"
+                                            ],
+                                            "source_roles": [MEANING_ROLE],
+                                            "base_adapter_record": base_record,
+                                            "value": row,
                                         }
                                     )
                                     + "\n"

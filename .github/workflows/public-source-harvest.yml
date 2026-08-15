@@ -6,16 +6,20 @@ on:
       - "config/frozen_raw_factory_input.json"
       - "config/source_payload_profiles.json"
       - "schemas/source_intake_manifest.schema.json"
+      - "schemas/factory_input_supplement.schema.json"
       - "tools/build_frozen_raw_factory_input.py"
+      - "tools/build_factory_input_preprocessor.py"
       - "tools/build_frozen_raw_meaning_factory.py"
       - "tools/build_frozen_raw_role_factory.py"
       - "tools/unified_semantic_data/raw_intake.py"
       - "tools/unified_semantic_data/collection_intake.py"
+      - "tools/unified_semantic_data/factory_input_preprocessor.py"
       - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
       - "tools/unified_semantic_data/frozen_raw_role_factory.py"
       - "tools/unified_semantic_data/semantic_labeler.py"
       - "tools/unified_semantic_data/source_adapter_contract.py"
       - "tests/test_raw_intake.py"
+      - "tests/test_factory_input_preprocessor.py"
       - "tests/test_frozen_raw_meaning_factory.py"
       - "tests/test_frozen_raw_role_factory.py"
       - "tests/test_source_adapter_contract.py"
@@ -50,8 +54,10 @@ jobs:
         run: |
           python -m pip install "pytest>=8.3,<10" "PyYAML>=6,<7"
           python -m py_compile tools/build_frozen_raw_factory_input.py
+          python -m py_compile tools/build_factory_input_preprocessor.py
           python -m py_compile tools/unified_semantic_data/raw_intake.py
           python -m py_compile tools/unified_semantic_data/collection_intake.py
+          python -m py_compile tools/unified_semantic_data/factory_input_preprocessor.py
           python -m py_compile tools/build_frozen_raw_meaning_factory.py
           python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
           python -m py_compile tools/build_frozen_raw_role_factory.py
@@ -62,6 +68,7 @@ jobs:
             --config "$CONFIG_PATH"
           python -m pytest \
             tests/test_raw_intake.py \
+            tests/test_factory_input_preprocessor.py \
             tests/test_frozen_raw_meaning_factory.py \
             tests/test_frozen_raw_role_factory.py \
             tests/test_source_adapter_contract.py
@@ -463,6 +470,7 @@ jobs:
           name: mcp-source-authored-meaning-factory-v1
           path: |
             work/frozen-raw-input/meaning-factory/adapter-output/
+            work/frozen-raw-input/meaning-factory/source-adapter-records.jsonl
             work/frozen-raw-input/meaning-factory/meaning-factory-report.json
             work/frozen-raw-input/meaning-factory/unresolved-meaning-records.jsonl
             work/frozen-raw-input/meaning-enrichment/semantic-enrichment-report.json
@@ -593,6 +601,12 @@ jobs:
       - name: Install factory runtime dependency
         run: python -m pip install "PyYAML>=6,<7"
 
+      - name: Download source-authored meaning factory checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-source-authored-meaning-factory-v1
+          path: ${{ env.WORK_ROOT }}/meaning-artifact
+
       - name: Download all auxiliary source-role shard checkpoints
         uses: actions/download-artifact@v4
         with:
@@ -657,12 +671,70 @@ jobs:
           }, sort_keys=True))
           PY
 
+      - name: Start deterministic pre-factory input completion
+        run: |
+          python tools/build_factory_input_preprocessor.py \
+            --adapter-input "$WORK_ROOT/meaning-artifact/meaning-factory/source-adapter-records.jsonl" \
+            --adapter-input "$WORK_ROOT/role-factory/source-role-records.jsonl.gz" \
+            --unresolved-input "$WORK_ROOT/meaning-artifact/meaning-factory/unresolved-meaning-records.jsonl" \
+            --unresolved-input "$WORK_ROOT/role-factory/unresolved-source-role-records.jsonl" \
+            --output-root "$WORK_ROOT/factory-input-preprocessor"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/frozen-raw-input/factory-input-preprocessor/factory-input-preprocessor-report.json")
+              .read_text(encoding="utf-8")
+          )
+          if report["validated_adapter_record_count"] < 1:
+              raise SystemExit(f"no common-shape factory inputs validated: {report}")
+          if report["completion_item_count"] != report["remaining_completion_item_count"]:
+              raise SystemExit(f"queue-only preprocessing lost completion items: {report}")
+          if report["completion_item_count"] == 0 and report["status"] != "READY_FOR_FACTORY":
+              raise SystemExit(f"empty completion queue did not open the factory gate: {report}")
+          if report["completion_item_count"] > 0 and report["status"] != "COMPLETION_REQUIRED":
+              raise SystemExit(f"incomplete data did not close the factory gate: {report}")
+          boundaries = report["boundaries"]
+          for key in (
+              "common_adapter_shape_validated",
+              "original_record_preserved_in_completion_queue",
+              "evidence_required_for_supplement",
+              "only_missing_required_fields_may_be_supplemented",
+              "incomplete_records_blocked_from_factory",
+          ):
+              if boundaries.get(key) is not True:
+                  raise SystemExit(f"pre-factory boundary mismatch: {key}={boundaries.get(key)!r}")
+          if boundaries.get("automatic_approval") is not False:
+              raise SystemExit("pre-factory completion must not approve records")
+          print(json.dumps({
+              "status": report["status"],
+              "validated_adapter_records": report["validated_adapter_record_count"],
+              "completion_items": report["completion_item_count"],
+              "unresolved_required_fields": report["unresolved_required_fields"],
+              "factory_input_complete": report["factory_input_complete"],
+          }, sort_keys=True))
+          PY
+
+      - name: Upload pre-factory completion queue
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-prefactory-input-completion-v1
+          path: |
+            work/frozen-raw-input/factory-input-preprocessor/factory-input-completion-queue.jsonl
+            work/frozen-raw-input/factory-input-preprocessor/supplemented-adapter-records.jsonl
+            work/frozen-raw-input/factory-input-preprocessor/factory-input-preprocessor-report.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
       - name: Upload complete auxiliary source-role factory output
         uses: actions/upload-artifact@v4
         with:
           name: mcp-auxiliary-source-role-factory-v1
           path: |
             work/frozen-raw-input/role-factory/adapter-output/
+            work/frozen-raw-input/role-factory/source-role-records.jsonl.gz
             work/frozen-raw-input/role-factory/role-factory-report.json
             work/frozen-raw-input/role-factory/unresolved-source-role-records.jsonl
           if-no-files-found: error

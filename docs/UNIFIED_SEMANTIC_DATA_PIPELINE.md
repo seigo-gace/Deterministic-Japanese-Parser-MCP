@@ -10,7 +10,7 @@
 
 | 主体 | 行うこと | 行わないこと |
 |---|---|---|
-| GPTアプリ | 利用者の一括指示を受ける、125,000件のReview Batchを読む、Decision Ledgerを作る、PR結果を説明する | Runtime内推論、GitHub Actions内からのAPI推論、自動承認、JMdict意味候補の上書き |
+| GPTアプリ | 利用者の一括指示を受ける、加工前Completion Queueへ根拠付き補足を作る、125,000件のReview Batchを読む、Decision Ledgerを作る、PR結果を説明する | Runtime内推論、GitHub Actions内からのAPI推論、自動承認、既存の確定値・JMdict意味候補の上書き |
 | GitHub Actions + Python | Schema化、正規化、重複・衝突・Source・License検査、Ledger適用、承認Scope限定Compile、品質・安全・速度Gate | 意味の創作、判断の代行、BranchへのCommit・Push |
 | MCP Runtime | Wheelに同梱された承認済みPackをオフラインで決定論的に参照する | 未承認候補の読込、外部API呼出し、辞書からの外部操作生成 |
 
@@ -47,6 +47,27 @@ Builderは各Artifactについて外側ZIPのSHA-256を再検証します。個�
 | `archive-index` | 再帰展開せず後段処理へ渡す入れ子Archive/Pointer |
 
 全67入力は内部Factory Intakeの対象です。Rawと正規化派生を同一論理Sourceとして追跡し、二重投入を防ぎます。ただし公開可否は別判定で、Laneと`public_runtime_eligible`により候補を限定し、それ以外はRawと検証結果を保持したまま公開昇格を停止します。Raw Intakeは意味生成、自動承認、Runtime昇格を行いません。これらはSource Adapter、Decision Ledger、公開Gateを通る後段工程です。
+
+### 加工前データ完成Gate
+
+加工工場へ渡す前に、全Source RecordをUniversal Source Adapterの同一Schemaへそろえます。同形化後に必須Fieldの欠落、空値、型不一致、項目間矛盾を全件検出し、未解決Recordは元Recordを失わず`factory-input-completion-queue.jsonl`へ送ります。
+
+`tools/build_factory_input_preprocessor.py`は、すでに解決済みのAdapter Recordを正式Contractで再検証し、未解決のMeaning/Role Recordを共通Completion Itemへ変換します。GPTアプリが作る補足は`schemas/factory_input_supplement.schema.json`へ従い、`completion_id`、補足対象Field、Evidence、Rationaleを必須とします。補足できるのは実際に不足していた必須Fieldだけです。既存値の上書き、根拠なしPlaceholder、自動承認、Runtime昇格は拒否します。
+
+補足適用後はUniversal Source Adapterで再検証します。合格Recordだけを`factory_input_record_count`へ加え、未補足RecordはCompletion Queueへ残します。加工前データの完成条件は`unresolved_required_fields = 0`です。`--require-complete`を指定した実投入時は、この条件を満たさなければ非0終了し、加工工場へ渡しません。
+
+```bash
+python tools/build_factory_input_preprocessor.py \
+  --adapter-input meaning-factory/source-adapter-records.jsonl \
+  --adapter-input role-factory/source-role-records.jsonl.gz \
+  --unresolved-input meaning-factory/unresolved-meaning-records.jsonl \
+  --unresolved-input role-factory/unresolved-source-role-records.jsonl \
+  --supplements factory-input-supplements.jsonl \
+  --output-root work/factory-input-preprocessor \
+  --require-complete
+```
+
+GitHub Actionsの最初の実行はQueue生成までを行い、`mcp-prefactory-input-completion-v1` Artifactとして保存します。GPTアプリがその全件を根拠付きで補足した後、`--require-complete` Gateを通った入力だけを加工工場へ接続します。
 
 ### Source-authored Meaning Factory
 

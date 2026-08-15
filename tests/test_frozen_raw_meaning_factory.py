@@ -155,6 +155,11 @@ def test_meaning_factory_fails_closed_on_placeholder_definition(tmp_path: Path) 
         encoding="utf-8"
     )
     assert "SOURCE_AUTHORED_MEANING_REQUIRED" in unresolved
+    unresolved_row = json.loads(unresolved)
+    assert unresolved_row["value"]["meanings"] == ["pending review"]
+    assert unresolved_row["missing_required_fields"] == ["meanings"]
+    assert unresolved_row["base_adapter_record"]["surfaces"] == ["銀行"]
+    assert unresolved_row["source_record_sha256"]
 
 
 def test_j_ono_resolved_evidence_is_not_lost() -> None:
