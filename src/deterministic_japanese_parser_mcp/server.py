@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 import json
+from time import perf_counter
 from typing import Any
 
 import mcp.server.stdio as mcp_stdio
@@ -11,7 +13,13 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
-from .models import AnalysisDepth, AnalyzeRequest, AnalyzeResponse, ExecutionMode
+from .models import (
+    AnalysisDepth,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    ExecutionMode,
+    OverallStatus,
+)
 from .normalizer import normalize_with_map
 
 SERVER_NAME = "deterministic-japanese-parser"
@@ -21,6 +29,8 @@ TOOL_NAME = "analyze_japanese"
 server = Server(SERVER_NAME)
 mcp = server
 _engine: ParserEngine | None = None
+_RESPONSE_CACHE_MAX_ENTRIES = 128
+_response_cache: OrderedDict[tuple[object, str], AnalyzeResponse] = OrderedDict()
 
 
 def engine() -> ParserEngine:
@@ -28,6 +38,87 @@ def engine() -> ParserEngine:
     if _engine is None:
         _engine = ParserEngine()
     return _engine
+
+
+def _response_cache_key(
+    request: AnalyzeRequest,
+    instance: ParserEngine,
+) -> tuple[object, str]:
+    """Bind a cached response to every semantic input and the engine snapshot.
+
+    Requested deadlines at or above the configured hard limit are semantically
+    equivalent because ParserEngine clamps them to that limit. The original
+    requested value remains request-specific diagnostic data and is refreshed
+    on a cache hit.
+    """
+    payload = request.model_dump(mode="json")
+    payload["deadline_ms"] = min(
+        request.deadline_ms,
+        instance.settings.hard_deadline_ms,
+    )
+    return (
+        instance,
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
+
+
+def _get_cached_response(
+    request: AnalyzeRequest,
+    instance: ParserEngine,
+) -> AnalyzeResponse | None:
+    key = _response_cache_key(request, instance)
+    cached = _response_cache.get(key)
+    if cached is not None:
+        _response_cache.move_to_end(key)
+    return cached
+
+
+def _store_cached_response(
+    request: AnalyzeRequest,
+    instance: ParserEngine,
+    response: AnalyzeResponse,
+) -> None:
+    if (
+        response.overall_status != OverallStatus.COMPLETE
+        or not response.metrics.get("hard_deadline_met")
+    ):
+        return
+    key = _response_cache_key(request, instance)
+    _response_cache[key] = response
+    _response_cache.move_to_end(key)
+    while len(_response_cache) > _RESPONSE_CACHE_MAX_ENTRIES:
+        _response_cache.popitem(last=False)
+
+
+def _cache_hit_response(
+    response: AnalyzeResponse,
+    request: AnalyzeRequest,
+    instance: ParserEngine,
+    started: float,
+) -> AnalyzeResponse:
+    elapsed_ms = round((perf_counter() - started) * 1000, 3)
+    metrics = {
+        **{
+            key: (0.0 if key.endswith("_ms") else value)
+            for key, value in response.metrics.items()
+        },
+        "requested_deadline_ms": request.deadline_ms,
+        "effective_deadline_ms": min(
+            request.deadline_ms,
+            instance.settings.hard_deadline_ms,
+        ),
+        "response_cache_hit": 1,
+        "total_ms": elapsed_ms,
+        "elapsed_ms": elapsed_ms,
+        "target_met": elapsed_ms <= instance.settings.target_latency_ms,
+        "hard_deadline_met": elapsed_ms <= instance.settings.hard_deadline_ms,
+    }
+    return response.model_copy(update={"metrics": metrics})
 
 
 def analyze_japanese(
@@ -66,16 +157,19 @@ def prewarm() -> ParserEngine:
     AnalyzeRequest.model_json_schema()
     AnalyzeResponse.model_json_schema()
 
-    response = analyze_japanese(
+    request = AnalyzeRequest(
         original_text=sample,
-        deadline_ms=50,
+        execution_mode=ExecutionMode.EXTERNAL_ACTION,
+        deadline_ms=instance.settings.hard_deadline_ms,
     )
+    response = instance.analyze(request)
     if not response.meaning_graph.propositions:
         raise RuntimeError("parser prewarm produced no MeaningGraph")
     if not response.task_graph.tasks:
         raise RuntimeError("parser prewarm produced no action TaskGraph")
     if not response.metrics.get("hard_deadline_met"):
         raise RuntimeError("parser prewarm exceeded the runtime hard deadline")
+    _store_cached_response(request, instance, response)
     return instance
 
 
@@ -117,7 +211,25 @@ async def call_tool(
             isError=True,
         )
 
-    response = engine().analyze(request)
+    instance = engine()
+    cache_started = perf_counter()
+    response = _get_cached_response(request, instance)
+    if response is None:
+        response = instance.analyze(request)
+        response = response.model_copy(update={
+            "metrics": {
+                **response.metrics,
+                "response_cache_hit": 0,
+            },
+        })
+        _store_cached_response(request, instance, response)
+    else:
+        response = _cache_hit_response(
+            response,
+            request,
+            instance,
+            cache_started,
+        )
     structured = response.model_dump(mode="json")
     summary = {
         "overall_status": structured["overall_status"],
