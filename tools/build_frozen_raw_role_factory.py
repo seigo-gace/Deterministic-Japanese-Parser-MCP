@@ -12,6 +12,7 @@ from unified_semantic_data.raw_intake import validate_intake_manifest
 
 
 _NICT_DEPENDENCY_SOURCE_ID = "nict-wikipedia-dependency-v1.0"
+_NICT_NORMALIZED_COLUMN_COUNT = 6
 _BASE_ITER_RECORDS = role_factory._iter_records
 
 
@@ -38,7 +39,7 @@ def _iter_nict_dependency_records(
             if not payload:
                 continue
             columns = payload.split("\t")
-            if len(columns) != 6:
+            if len(columns) != _NICT_NORMALIZED_COLUMN_COUNT:
                 raise ValueError(
                     f"NICT_DEPENDENCY_COLUMN_COUNT:{path}:{line_number}:{len(columns)}"
                 )
