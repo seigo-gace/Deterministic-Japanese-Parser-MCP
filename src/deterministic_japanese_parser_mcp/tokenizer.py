@@ -1,7 +1,6 @@
 import re
 
 from .config import SETTINGS
-from .final_runtime_bridge import FinalRuntimeLexicon
 from .models import Token
 from .normalizer import span_to_original
 from .open_lexicon_runtime import get_default_open_lexicon
@@ -14,63 +13,21 @@ except ImportError:  # development fallback; production package installs Sudachi
 
 
 class JapaneseTokenizer:
-    def __init__(self, open_lexicon=None, final_runtime=None):
+    def __init__(self, open_lexicon=None):
         self.backend = "fallback"
         self._tok = None
         self._mode = None
         self.open_lexicon = open_lexicon or get_default_open_lexicon()
-        self.final_runtime = final_runtime or FinalRuntimeLexicon.from_env()
         if dictionary is not None:
             self._tok = dictionary.Dictionary(dict="core").create()
             self._mode = sudachi_tokenizer.Tokenizer.SplitMode.C
             self.backend = "sudachi-core"
 
     def _annotate(self, tokens: list[Token]) -> list[Token]:
-        max_candidates = SETTINGS.max_candidates
-        if not self.final_runtime.available:
-            return self.open_lexicon.annotate_tokens(
-                tokens,
-                max_candidates=max_candidates,
-            )
-
-        annotated: list[Token] = []
-        for token in tokens:
-            direct = self.final_runtime.lookup_token(
-                token,
-                max_candidates=max_candidates,
-            )
-            if not self.open_lexicon.available:
-                annotated.append(direct)
-                continue
-            legacy = self.open_lexicon.lookup_token(
-                token,
-                max_candidates=max_candidates,
-            )
-            merged = []
-            seen: set[str] = set()
-            for candidate in [
-                *direct.lexical_candidates,
-                *legacy.lexical_candidates,
-            ]:
-                if candidate.record_id in seen:
-                    continue
-                seen.add(candidate.record_id)
-                merged.append(candidate)
-                if len(merged) >= max_candidates:
-                    break
-            total = direct.lexical_candidate_total + legacy.lexical_candidate_total
-            if total == 0:
-                status = "NO_MATCH"
-            elif total == 1:
-                status = "MATCHED"
-            else:
-                status = "AMBIGUOUS"
-            annotated.append(token.model_copy(update={
-                "lexical_candidates": merged,
-                "lexical_candidate_total": total,
-                "lexical_status": status,
-            }))
-        return annotated
+        return self.open_lexicon.annotate_tokens(
+            tokens,
+            max_candidates=SETTINGS.max_candidates,
+        )
 
     def tokenize(self, normalized: str, mapping, original: str) -> list[Token]:
         result: list[Token] = []
