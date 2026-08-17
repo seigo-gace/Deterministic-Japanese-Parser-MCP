@@ -1,7 +1,7 @@
 import re
 
 from .config import SETTINGS
-from .final_runtime import FinalRuntimeLexicon
+from .final_runtime_bridge import FinalRuntimeLexicon
 from .models import Token
 from .normalizer import span_to_original
 from .open_lexicon_runtime import get_default_open_lexicon

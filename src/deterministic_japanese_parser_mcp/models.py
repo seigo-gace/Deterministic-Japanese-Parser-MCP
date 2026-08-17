@@ -91,6 +91,7 @@ class LexicalCandidate(BaseModel):
     source_dataset: str | None = None
     source_version: str | None = None
     source_license: str | None = None
+    runtime_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class Token(BaseModel):
