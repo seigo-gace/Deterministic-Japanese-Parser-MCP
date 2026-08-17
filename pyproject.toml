@@ -49,6 +49,7 @@ where = ["src"]
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon" = [
   "dictionaries/system/compiled/open_lexicon/manifest.json",
+  "dictionaries/system/compiled/open_lexicon/*.sqlite3",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon/indexes" = [
   "dictionaries/system/compiled/open_lexicon/indexes/*.json.gz",
