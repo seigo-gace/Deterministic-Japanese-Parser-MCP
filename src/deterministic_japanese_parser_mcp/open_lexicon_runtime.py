@@ -5,11 +5,13 @@ import gzip
 import json
 from pathlib import Path
 import re
+import sqlite3
 from typing import Any
 
 from .models import LexicalCandidate, Token
 
 _KANJI = re.compile(r"[一-龥々〆ヵヶ]")
+_SQLITE_BACKEND = "sqlite-index-v1"
 
 
 def _katakana_to_hiragana(value: str) -> str:
@@ -37,12 +39,14 @@ def _load_gzip_json(path: Path) -> Any:
 
 
 class OpenLexiconRuntime:
-    """Exact-only lookup over the compiled 120k open lexicon.
+    """Exact-only lookup over the compiled open lexicon.
 
-    The runtime never infers senses, intents, tasks, pragmatic meanings, or
-    executable actions. It exposes lexical candidates and preserves ambiguity.
-    All record shards are preloaded before readiness so request-time lookup does
-    not perform disk I/O or gzip expansion.
+    The public API and semantic boundaries are unchanged from the original
+    compiled-lexicon runtime. Existing gzip/index snapshots continue to work.
+    Direct-final large datasets may use the disk-backed ``sqlite-index-v1``
+    storage backend so the runtime does not materialize millions of records at
+    startup. Neither backend infers senses, intents, tasks, pragmatic meanings,
+    or executable actions.
     """
 
     _UNAVAILABLE: "OpenLexiconRuntime | None" = None
@@ -57,6 +61,7 @@ class OpenLexiconRuntime:
         self.record_locator: dict[str, dict[str, int]] = {}
         self.shard_cache_size = max(1, shard_cache_size)
         self._shard_cache: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
+        self._sqlite: sqlite3.Connection | None = None
 
         manifest_path = self.root / "manifest.json"
         if not manifest_path.exists():
@@ -75,6 +80,11 @@ class OpenLexiconRuntime:
                     f"compiled open lexicon safety flag mismatch: {name}"
                 )
 
+        self.manifest = manifest
+        if manifest.get("lookup_backend") == _SQLITE_BACKEND:
+            self._open_sqlite_backend()
+            return
+
         index_root = self.root / "indexes"
         required_paths = {
             "surface": index_root / "surface-index.json.gz",
@@ -87,12 +97,42 @@ class OpenLexiconRuntime:
                 "compiled open lexicon indexes are incomplete: " + ", ".join(missing)
             )
 
-        self.manifest = manifest
         self.surface_index = _load_gzip_json(required_paths["surface"])
         self.reading_index = _load_gzip_json(required_paths["reading"])
         self.record_locator = _load_gzip_json(required_paths["locator"])
         if len(self.record_locator) != manifest.get("record_count"):
             raise ValueError("compiled open lexicon record locator count mismatch")
+        self.available = True
+
+    def _open_sqlite_backend(self) -> None:
+        db_path = self.root / "lexicon.sqlite3"
+        if not db_path.is_file():
+            raise FileNotFoundError(db_path)
+        uri = f"file:{db_path.resolve().as_posix()}?mode=ro&immutable=1"
+        connection = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        connection.execute("PRAGMA query_only=ON")
+        required_tables = {"records", "surface_lookup", "reading_lookup"}
+        actual_tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        missing = sorted(required_tables - actual_tables)
+        if missing:
+            connection.close()
+            raise ValueError(
+                "compiled open lexicon sqlite tables are incomplete: "
+                + ", ".join(missing)
+            )
+        count = int(connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
+        if count != self.record_count:
+            connection.close()
+            raise ValueError(
+                "compiled open lexicon sqlite record count mismatch: "
+                f"manifest={self.record_count} sqlite={count}"
+            )
+        self._sqlite = connection
         self.available = True
 
     @classmethod
@@ -108,6 +148,7 @@ class OpenLexiconRuntime:
             instance.record_locator = {}
             instance.shard_cache_size = 1
             instance._shard_cache = OrderedDict()
+            instance._sqlite = None
             cls._UNAVAILABLE = instance
         return cls._UNAVAILABLE
 
@@ -120,9 +161,26 @@ class OpenLexiconRuntime:
         versions = self.manifest.get("source_versions", [])
         return "+".join(versions) if versions else "0"
 
+    @property
+    def lookup_backend(self) -> str:
+        if self._sqlite is not None:
+            return _SQLITE_BACKEND
+        return "compiled-index" if self.available else "unavailable"
+
     def preload_records(self) -> None:
-        """Expand every compact record shard before the server becomes ready."""
+        """Finish readiness without changing the request-time lookup contract.
+
+        Legacy gzip snapshots retain the historical preload behavior. The
+        disk-backed direct-final backend verifies readability but deliberately
+        keeps records on disk; preloading millions of rows would negate the
+        purpose of the existing shard/index architecture.
+        """
         if not self.available or self.records_preloaded:
+            return
+        if self._sqlite is not None:
+            if self._sqlite.execute("SELECT 1").fetchone() != (1,):
+                raise ValueError("compiled open lexicon sqlite readiness failed")
+            self.records_preloaded = True
             return
         shard_count = int(self.manifest.get("record_shards", 0))
         if shard_count < 1:
@@ -139,6 +197,8 @@ class OpenLexiconRuntime:
         self.records_preloaded = True
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
+        if self._sqlite is not None:
+            raise RuntimeError("sqlite open lexicon does not expose gzip shards")
         cached = self._shard_cache.get(number)
         if cached is not None:
             self._shard_cache.move_to_end(number)
@@ -164,6 +224,18 @@ class OpenLexiconRuntime:
         return records
 
     def _record(self, record_id: str) -> dict[str, Any]:
+        if self._sqlite is not None:
+            row = self._sqlite.execute(
+                "SELECT payload_json FROM records WHERE record_id = ?",
+                (record_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"compiled sqlite record missing: {record_id}")
+            value = json.loads(row[0])
+            if value.get("record_id") != record_id:
+                raise ValueError(f"compiled sqlite record id mismatch: {record_id}")
+            return value
+
         location = self.record_locator.get(record_id)
         if location is None:
             raise KeyError(f"compiled record locator missing: {record_id}")
@@ -198,6 +270,35 @@ class OpenLexiconRuntime:
             source_license=source.get("license"),
         )
 
+    def _sqlite_surface_lookup(
+        self,
+        text: str,
+        *,
+        match_type: str,
+        max_candidates: int,
+    ) -> tuple[list[LexicalCandidate], int]:
+        assert self._sqlite is not None
+        rows = self._sqlite.execute(
+            """
+            SELECT r.payload_json, COUNT(*) OVER () AS total
+            FROM surface_lookup AS s
+            JOIN records AS r ON r.record_id = s.record_id
+            WHERE s.surface = ?
+            ORDER BY s.record_id
+            LIMIT ?
+            """,
+            (text, max(1, max_candidates)),
+        ).fetchall()
+        total = int(rows[0][1]) if rows else 0
+        return [
+            self._candidate(
+                json.loads(payload),
+                matched_text=text,
+                match_type=match_type,
+            )
+            for payload, _ in rows
+        ], total
+
     def exact_lookup(
         self,
         text: str,
@@ -207,6 +308,12 @@ class OpenLexiconRuntime:
     ) -> tuple[list[LexicalCandidate], int]:
         if not self.available or not text:
             return [], 0
+        if self._sqlite is not None:
+            return self._sqlite_surface_lookup(
+                text,
+                match_type=match_type,
+                max_candidates=max_candidates,
+            )
         record_ids = self.surface_index.get(text, [])
         total = len(record_ids)
         selected = record_ids[: max(1, max_candidates)]
@@ -219,6 +326,60 @@ class OpenLexiconRuntime:
             for record_id in selected
         ], total
 
+    def _sqlite_reading_lookup(
+        self,
+        reading: str,
+        *,
+        surface: str | None,
+        normalized: str | None,
+        max_candidates: int,
+    ) -> tuple[list[LexicalCandidate], int]:
+        assert self._sqlite is not None
+        allowed_surfaces = {value for value in (surface, normalized) if value}
+        lookup_values = [reading]
+        hiragana = _katakana_to_hiragana(reading)
+        if hiragana != reading:
+            lookup_values.append(hiragana)
+
+        selected_rows: list[tuple[str, str, bool, str]] = []
+        total = 0
+        for lookup_reading in lookup_values:
+            rows = self._sqlite.execute(
+                """
+                SELECT r.payload_json, l.restricted_to_json, l.no_kanji
+                FROM reading_lookup AS l
+                JOIN records AS r ON r.record_id = l.record_id
+                WHERE l.reading = ?
+                ORDER BY l.record_id, l.restricted_to_json, l.no_kanji
+                """,
+                (lookup_reading,),
+            ).fetchall()
+            if not rows:
+                continue
+            for payload, restricted_json, raw_no_kanji in rows:
+                restricted_to = set(json.loads(restricted_json))
+                no_kanji = bool(raw_no_kanji)
+                if restricted_to and not restricted_to.intersection(allowed_surfaces):
+                    continue
+                if no_kanji and surface and _KANJI.search(surface):
+                    continue
+                total += 1
+                if len(selected_rows) < max(1, max_candidates):
+                    selected_rows.append(
+                        (payload, restricted_json, no_kanji, lookup_reading)
+                    )
+            break
+        return [
+            self._candidate(
+                json.loads(payload),
+                matched_text=matched_reading,
+                match_type="reading",
+                restricted_to=list(json.loads(restricted_json)),
+                no_kanji=no_kanji,
+            )
+            for payload, restricted_json, no_kanji, matched_reading in selected_rows
+        ], total
+
     def reading_lookup(
         self,
         reading: str,
@@ -229,6 +390,13 @@ class OpenLexiconRuntime:
     ) -> tuple[list[LexicalCandidate], int]:
         if not self.available or not reading:
             return [], 0
+        if self._sqlite is not None:
+            return self._sqlite_reading_lookup(
+                reading,
+                surface=surface,
+                normalized=normalized,
+                max_candidates=max_candidates,
+            )
         allowed_surfaces = {value for value in (surface, normalized) if value}
         mappings: list[dict[str, Any]] = []
         lookup_reading = (
