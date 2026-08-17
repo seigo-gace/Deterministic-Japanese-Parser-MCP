@@ -13,6 +13,8 @@ from unified_semantic_data.raw_intake import validate_intake_manifest
 
 _NICT_DEPENDENCY_SOURCE_ID = "nict-wikipedia-dependency-v1.0"
 _NICT_NORMALIZED_COLUMN_COUNT = 6
+_TATOEBA_TRANSCRIPTION_SOURCE_ID = "tatoeba-jpn-transcriptions"
+_TATOEBA_TRANSCRIPTION_COLUMN_COUNT = 5
 _BASE_ITER_RECORDS = role_factory._iter_records
 
 
@@ -74,11 +76,57 @@ def _iter_nict_dependency_records(
             }
 
 
+def _iter_tatoeba_transcription_records(
+    path: Path, profile: dict[str, Any]
+) -> Iterator[dict[str, Any]]:
+    """Read Tatoeba transcription TSV with quotes preserved as ordinary text."""
+    encodings = list(profile.get("encodings") or ["utf-8"])
+    if encodings != ["utf-8"]:
+        raise ValueError(
+            f"Tatoeba transcription input must be strict UTF-8: {encodings}"
+        )
+    delimiter = str(profile.get("delimiter") or "")
+    if delimiter != "\t":
+        raise ValueError(
+            f"Tatoeba transcription input must use literal tab delimiter: {delimiter!r}"
+        )
+
+    with role_factory._open_decompressed(path) as raw, io.TextIOWrapper(
+        raw, encoding="utf-8", errors="strict", newline=""
+    ) as text:
+        pending_columns: list[str] | None = None
+        pending_line_number = 0
+        for line_number, line in enumerate(text, 1):
+            payload = line.rstrip("\r\n")
+            if not payload:
+                continue
+            columns = payload.split("\t")
+            if len(columns) == _TATOEBA_TRANSCRIPTION_COLUMN_COUNT:
+                if pending_columns is not None:
+                    yield {"columns": pending_columns}
+                pending_columns = columns
+                pending_line_number = line_number
+                continue
+            if len(columns) == 1 and pending_columns is not None:
+                pending_columns[-1] += columns[0]
+                continue
+            raise ValueError(
+                "TATOEBA_TRANSCRIPTION_COLUMN_COUNT:"
+                f"{path}:{line_number}:{len(columns)}:pending={pending_line_number}"
+            )
+        if pending_columns is not None:
+            yield {"columns": pending_columns}
+
+
 def _iter_factory_ready_records(
     path: Path, profile: dict[str, Any]
 ) -> Iterator[dict[str, Any]]:
-    if str(profile.get("source_id") or "") == _NICT_DEPENDENCY_SOURCE_ID:
+    source_id = str(profile.get("source_id") or "")
+    if source_id == _NICT_DEPENDENCY_SOURCE_ID:
         yield from _iter_nict_dependency_records(path, profile)
+        return
+    if source_id == _TATOEBA_TRANSCRIPTION_SOURCE_ID:
+        yield from _iter_tatoeba_transcription_records(path, profile)
         return
     yield from _BASE_ITER_RECORDS(path, profile)
 
