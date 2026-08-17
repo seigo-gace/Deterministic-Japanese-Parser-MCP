@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from deterministic_japanese_parser_mcp.final_runtime import (
+    FINAL_RUNTIME_INDEX_ENV,
     FinalRuntimeLexicon,
+    _main,
     build_final_runtime_index,
 )
 from deterministic_japanese_parser_mcp.models import OriginalSpan, Token
@@ -199,3 +201,28 @@ def test_hash_mismatch_rejects_untrusted_final_part(tmp_path: Path):
 
     assert not index.exists()
     assert not (tmp_path / "runtime-index.sqlite3.tmp").exists()
+
+
+def test_from_env_opens_built_index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    manifest = _fixture_manifest(tmp_path)
+    index = tmp_path / "runtime-index.sqlite3"
+    build_final_runtime_index(manifest, index)
+    monkeypatch.setenv(FINAL_RUNTIME_INDEX_ENV, str(index))
+
+    runtime = FinalRuntimeLexicon.from_env()
+
+    assert runtime.available is True
+    assert runtime.record_count == 3
+
+
+def test_cli_build_uses_supplied_argv(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    manifest = _fixture_manifest(tmp_path)
+    index = tmp_path / "runtime-index-cli.sqlite3"
+
+    exit_code = _main(["build", "--manifest", str(manifest), "--output", str(index)])
+
+    assert exit_code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "PASS"
+    assert result["record_count"] == 3
+    assert index.is_file()
