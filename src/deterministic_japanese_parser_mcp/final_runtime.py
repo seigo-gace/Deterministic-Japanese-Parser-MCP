@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .models import LexicalCandidate, Token
 
 FINAL_RUNTIME_INDEX_ENV = "DJPMCP_FINAL_RUNTIME_INDEX"
-INDEX_SCHEMA_VERSION = "djpmcp.final-runtime-index.v1"
+INDEX_SCHEMA_VERSION = "djpmcp.final-runtime-index.v2"
 EXPECTED_TARGET = "Deterministic-Japanese-Parser-MCP"
 _REQUIRED_SAFETY = {
     "factory_used": False,
@@ -289,7 +289,7 @@ def build_final_runtime_index(
         if inserted != expected_total:
             raise ValueError(
                 f"final runtime total count mismatch: expected={expected_total} actual={inserted}"
-                )
+            )
         connection.executescript(
             """
             CREATE INDEX entries_surface_idx ON entries(surface);
@@ -305,6 +305,7 @@ def build_final_runtime_index(
                 "target": manifest["target"],
                 "source_manifest_sha256": manifest_hash,
                 "source_manifest_date": manifest.get("date"),
+                "rich_fields_preserved": True,
                 "record_count": inserted,
                 "support_record_count": support_inserted,
                 "part_count": len(manifest["parts"]),
@@ -366,6 +367,7 @@ class FinalRuntimeLexicon:
             "schema_version": INDEX_SCHEMA_VERSION,
             "target": EXPECTED_TARGET,
             "factory_used": False,
+            "rich_fields_preserved": True,
             "exact_lookup_only": True,
             "semantic_auto_promotion": False,
             "intent_auto_promotion": False,
@@ -392,7 +394,7 @@ class FinalRuntimeLexicon:
 
     @classmethod
     def from_env(cls) -> "FinalRuntimeLexicon":
-        value = os.getenv(FINAL_RUNTIME_INDEX)
+        value = os.getenv(FINAL_RUNTIME_INDEX_ENV)
         return cls(value) if value else cls.unavailable()
 
     @property
@@ -577,7 +579,7 @@ def _main(argv: list[str] | None = None) -> int:
     build.add_argument("--manifest", required=True)
     build.add_argument("--output", required=True)
     build.add_argument("--skip-hash-verification", action="store_true")
-    args = parser.parse_args(arvy)
+    args = parser.parse_args(argv)
     if args.command == "build":
         result = build_final_runtime_index(
             args.manifest,
