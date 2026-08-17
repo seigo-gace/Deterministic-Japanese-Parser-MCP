@@ -1,0 +1,97 @@
+name: Export Collected Prefactory Remainder
+
+on:
+  push:
+    branches:
+      - agent/deterministic-data-pipeline-correction-20260806
+    paths:
+      - .github/workflows/export-collected-prefactory-remainder.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  export-collected-remainder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download already-collected semantic source artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: public-semantic-sources-041cc70807bd7c340e72b6d298e6c8781fa91ece
+          path: collected
+          github-token: ${{ github.token }}
+          run-id: 31408372690
+
+      - name: Select only remaining collected source payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export/small export/nict/{0,1,2,3}
+
+          okinawa="$(find collected -type f -path '*/reference/ninjal-okinawa-dictionary-main.jsonl' -print -quit)"
+          unihan="$(find collected -type f -path '*/reference/unicode-unihan-17.0.0.jsonl' -print -quit)"
+          kanjidic="$(find collected -type f -path '*/reference/kanjidic2.jsonl' -print -quit)"
+          test -n "$okinawa" && test -n "$unihan" && test -n "$kanjidic"
+          cp "$okinawa" export/small/
+          cp "$unihan" export/small/
+          cp "$kanjidic" export/small/
+
+          mapfile -t nict_files < <(find collected -type f -path '*/normalized/relations/*.tsv.gz' | sort)
+          test "${#nict_files[@]}" -eq 80
+          for i in "${!nict_files[@]}"; do
+            shard=$(( i / 20 ))
+            cp "${nict_files[$i]}" "export/nict/${shard}/"
+          done
+
+          (
+            cd export
+            find small nict -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > export/sha256sums.txt
+          printf 'small_files=%s\nnict_files=%s\n' "$(find export/small -type f | wc -l)" "$(find export/nict -type f | wc -l)" > export/counts.txt
+          cat export/counts.txt
+
+      - name: Upload small collected semantic payloads
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefactory-remainder-semantic-small
+          path: |
+            export/small/
+            export/sha256sums.txt
+            export/counts.txt
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload NICT shard 0
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefactory-remainder-nict-0
+          path: export/nict/0/
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload NICT shard 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefactory-remainder-nict-1
+          path: export/nict/1/
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload NICT shard 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefactory-remainder-nict-2
+          path: export/nict/2/
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload NICT shard 3
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefactory-remainder-nict-3
+          path: export/nict/3/
+          compression-level: 0
+          retention-days: 30
