@@ -61,6 +61,16 @@ def _fixture_manifest(root: Path) -> Path:
             "source_datasets": ["bccwj-wsd-frequency"],
             "entry_types": ["lexical"],
             "rights_lanes": ["R"],
+            "senses": ["蛍石の意味候補"],
+            "aliases": ["フローライト"],
+            "examples": ["蛍石を観察する。"],
+            "translations": ["fluorite"],
+            "relations": ["related:mineral"],
+            "metrics": ["frequency=10"],
+            "source_roles": ["lexical-evidence"],
+            "evidence_count": 2,
+            "evidence_occurrences": 3,
+            "evidence_samples": ["蛍石"],
         },
     ]
     support_rows = [
@@ -161,6 +171,20 @@ def test_token_lookup_maps_completed_runtime_fields_without_semantic_promotion(t
     assert candidate.part_of_speech == ["名詞-普通名詞-一般"]
     assert candidate.domains == ["frequency"]
     assert candidate.source_dataset == "bccwj-wsd-frequency"
+    payload = runtime.record_payload("DJPMCP-3")
+    assert payload is not None
+    assert payload["senses"] == ["蛍石の意味候補"]
+    assert payload["aliases"] == ["フローライト"]
+    assert payload["examples"] == ["蛍石を観察する。"]
+    assert payload["translations"] == ["fluorite"]
+    assert payload["relations"] == ["related:mineral"]
+    assert payload["metrics"] == ["frequency=10"]
+    assert payload["source_roles"] == ["lexical-evidence"]
+    assert payload["rights_lanes"] == ["R"]
+    assert payload["evidence_count"] == 2
+    assert payload["evidence_occurrences"] == 3
+    assert payload["evidence_samples"] == ["蛍石"]
+    assert payload["entry_types"] == ["lexical"]
 
 
 def test_hash_mismatch_rejects_untrusted_final_part(tmp_path: Path):

@@ -17,6 +17,20 @@ EXPECTED_TARGET = "Deterministic-Japanese-Parser-MCP"
 _REQUIRED_SAFETY = {
     "factory_used": False,
 }
+_RICH_FIELDS = (
+    "senses",
+    "aliases",
+    "examples",
+    "translations",
+    "relations",
+    "metrics",
+    "source_roles",
+    "rights_lanes",
+    "evidence_count",
+    "evidence_occurrences",
+    "evidence_samples",
+    "entry_types",
+)
 
 
 def _json_list(value: Any) -> list[str]:
@@ -29,6 +43,17 @@ def _json_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
     return [str(value)]
+
+
+def _rich_payload(row: dict[str, Any]) -> str | None:
+    rich = {
+        field: row[field]
+        for field in _RICH_FIELDS
+        if field in row and row[field] not in (None, "", [], {})
+    }
+    if not rich:
+        return None
+    return json.dumps(rich, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def _sha256(path: Path) -> str:
@@ -107,6 +132,7 @@ def _create_schema(connection: sqlite3.Connection) -> None:
             cost INTEGER,
             domains_json TEXT NOT NULL,
             source_datasets_json TEXT NOT NULL,
+            rich_payload_json TEXT,
             source_part TEXT NOT NULL,
             source_line INTEGER NOT NULL
         ) WITHOUT ROWID;
@@ -186,6 +212,7 @@ def build_final_runtime_index(
                         row.get("cost") if isinstance(row.get("cost"), int) else None,
                         json.dumps(_json_list(row.get("domains")), ensure_ascii=False, separators=(",", ":")),
                         json.dumps(_json_list(row.get("source_datasets")), ensure_ascii=False, separators=(",", ":")),
+                        _rich_payload(row),
                         name,
                         line_number,
                     )
@@ -196,8 +223,8 @@ def build_final_runtime_index(
                         INSERT INTO entries(
                             entry_id, surface, lemma, reading, pos_json,
                             dictionary_name, cost, domains_json,
-                            source_datasets_json, source_part, source_line
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            source_datasets_json, rich_payload_json, source_part, source_line
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         batch,
                     )
@@ -210,8 +237,8 @@ def build_final_runtime_index(
                     INSERT INTO entries(
                         entry_id, surface, lemma, reading, pos_json,
                         dictionary_name, cost, domains_json,
-                        source_datasets_json, source_part, source_line
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        source_datasets_json, rich_payload_json, source_part, source_line
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     batch,
                 )
@@ -262,7 +289,7 @@ def build_final_runtime_index(
         if inserted != expected_total:
             raise ValueError(
                 f"final runtime total count mismatch: expected={expected_total} actual={inserted}"
-            )
+                )
         connection.executescript(
             """
             CREATE INDEX entries_surface_idx ON entries(surface);
@@ -365,7 +392,7 @@ class FinalRuntimeLexicon:
 
     @classmethod
     def from_env(cls) -> "FinalRuntimeLexicon":
-        value = os.getenv(FINAL_RUNTIME_INDEX_ENV)
+        value = os.getenv(FINAL_RUNTIME_INDEX)
         return cls(value) if value else cls.unavailable()
 
     @property
@@ -397,8 +424,8 @@ class FinalRuntimeLexicon:
         rows = self._connection.execute(
             f"""
             SELECT entry_id, surface, lemma, reading, pos_json,
-                   dictionary_name, domains_json, source_datasets_json,
-                   COUNT(*) OVER() AS total_count
+                   dictionary_name, cost, domains_json, source_datasets_json,
+                   rich_payload_json, COUNT(*) OVER() AS total_count
             FROM entries
             WHERE {field} = ?
             ORDER BY entry_id
@@ -408,6 +435,38 @@ class FinalRuntimeLexicon:
         ).fetchall()
         total = int(rows[0]["total_count"]) if rows else 0
         return rows, total
+
+    def record_payload(self, record_id: str) -> dict[str, Any] | None:
+        """Return source-backed fields for one final-runtime record.
+
+        Rich fields remain data, not automatically promoted semantic decisions.
+        """
+        if not self.available or self._connection is None or not record_id:
+            return None
+        row = self._connection.execute(
+            """
+            SELECT entry_id, surface, lemma, reading, pos_json, dictionary_name,
+                   cost, domains_json, source_datasets_json, rich_payload_json
+            FROM entries WHERE entry_id = ?
+            """,
+            (record_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        payload: dict[str, Any] = {
+            "entry_id": row["entry_id"],
+            "surface": row["surface"],
+            "lemma": row["lemma"],
+            "reading": row["reading"],
+            "pos": json.loads(row["pos_json"]),
+            "dictionary": row["dictionary_name"],
+            "cost": row["cost"],
+            "domains": json.loads(row["domains_json"]),
+            "source_datasets": json.loads(row["source_datasets_json"]),
+        }
+        if row["rich_payload_json"]:
+            payload.update(json.loads(row["rich_payload_json"]))
+        return payload
 
     @staticmethod
     def _candidate(row: sqlite3.Row, *, matched_text: str, match_type: str) -> LexicalCandidate:
@@ -518,7 +577,7 @@ def _main(argv: list[str] | None = None) -> int:
     build.add_argument("--manifest", required=True)
     build.add_argument("--output", required=True)
     build.add_argument("--skip-hash-verification", action="store_true")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arvy)
     if args.command == "build":
         result = build_final_runtime_index(
             args.manifest,
