@@ -103,6 +103,12 @@ where = ["src"]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/records" = [
   "dictionaries/system/compiled/canonical_dictionary_runtime/records/*.jsonl.gz",
 ]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/direct_final_support" = [
+  "dictionaries/system/compiled/direct_final_support/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = [
+  "dictionaries/system/compiled/*.json",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
   "dictionaries/sources/*.json",
 ]
