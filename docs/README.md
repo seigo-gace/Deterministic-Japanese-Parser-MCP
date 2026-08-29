@@ -38,6 +38,7 @@ Discussion Category Form：
 - [`CONTEXT_V3_STAGE3_REVIEW.md`](CONTEXT_V3_STAGE3_REVIEW.md) — Context v3 5,000件の第3段階Evidence Review（日本語）
 - [`CONTEXT_V3_STAGE3_REVIEW_EN.md`](CONTEXT_V3_STAGE3_REVIEW_EN.md) — Context v3 Stage 3 evidence review (English)
 - [`PUBLIC_RELEASE_CHECKLIST.md`](PUBLIC_RELEASE_CHECKLIST.md) — Public Releaseの必須Gate
+- [`DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](DIRECT_FINAL_RUNTIME_DEPLOYMENT.md) — Drive完成版Runtime bundleを既存ABIへ投影する手順と境界
 
 ## Dictionary expansion / 辞書拡張
 
