@@ -132,6 +132,60 @@ def test_discourse_relation_connects_adjacent_clauses(engine):
     assert relation.source_clause_id != relation.target_clause_id
 
 
+def test_in_sentence_reason_marker_connects_predicate_clauses(engine):
+    response = _analyze(engine, "雨が降ったので試合は延期された。")
+    reading = response.meaning_graph.reading_analysis
+    relation = reading.discourse_relations[0]
+
+    assert [frame.predicate for frame in reading.predicate_frames] == [
+        "降る",
+        "延期する",
+    ]
+    assert relation.relation == "causes"
+    assert relation.marker == "ので"
+    assert relation.source_clause_id != relation.target_clause_id
+
+
+def test_in_sentence_contrast_marker_connects_predicate_clauses(engine):
+    response = _analyze(engine, "A案は速いが、B案は安全だ。")
+    reading = response.meaning_graph.reading_analysis
+    relation = reading.discourse_relations[0]
+
+    assert [frame.predicate for frame in reading.predicate_frames] == [
+        "速い",
+        "安全",
+    ]
+    assert relation.relation == "contrasts_with"
+    assert relation.marker in {"が", "が、"}
+    assert relation.source_clause_id != relation.target_clause_id
+
+
+def test_passive_agent_marker_is_not_a_predicate(engine):
+    response = _analyze(engine, "設定が開発者によって変更された。")
+    frame = response.meaning_graph.reading_analysis.predicate_frames[0]
+
+    assert frame.predicate == "変更する"
+    assert frame.voice == ["passive"]
+    assert {(item.role, item.value, item.case_marker) for item in frame.arguments} == {
+        ("patient", "設定", "が"),
+        ("agent", "開発者", "によって"),
+    }
+
+
+def test_honorific_request_creates_executable_task(engine):
+    response = _analyze(
+        engine,
+        "田中さんが資料をご確認ください。",
+        external=True,
+    )
+
+    assert response.execution_allowed
+    assert response.task_graph.tasks
+    task = response.task_graph.tasks[0]
+    assert task.intent_type == "request"
+    assert task.target == "資料"
+
+
 def test_conditional_external_action_is_blocked_until_condition_is_evaluated(
     engine,
 ):

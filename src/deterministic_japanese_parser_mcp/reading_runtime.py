@@ -100,6 +100,10 @@ _DISCOURSE_MARKERS = (
     (re.compile(r"^(?:また|さらに|加えて)"), "adds"),
     (re.compile(r"^(?:したがって|以上のことから|結論として)"), "concludes"),
 )
+_PREVIOUS_TAIL_DISCOURSE_MARKERS = (
+    (re.compile(r"(?:ので|ため)$"), "causes"),
+    (re.compile(r"(?:のに|けれども|けれど|けど|が、?)$"), "contrasts_with"),
+)
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
@@ -155,6 +159,18 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
                 and previous.surface in {"て", "で"}
             ):
                 continue
+            next_token = (
+                tokens[indices[position + 1]]
+                if position + 1 < len(indices)
+                else None
+            )
+            if previous is not None and previous.surface == "に":
+                if token.surface in {"よって", "因って", "依って"}:
+                    continue
+                if token.normalized in {"よる", "因る", "依る"} and (
+                    next_token is not None and next_token.surface == "て"
+                ):
+                    continue
             heads.append(index)
             continue
         if _pos0(token) == "名詞" and position + 1 < len(indices):
@@ -215,12 +231,32 @@ def _arguments_before(
 ) -> list[tuple[Argument, int]]:
     output: list[tuple[Argument, int]] = []
     buffer: list[int] = []
-    for index in indices:
+    for position, index in enumerate(indices):
         token = tokens[index]
         if _is_punctuation(token):
             buffer = []
             continue
         role = _CASE_ROLES.get(token.surface)
+        marker = token.surface
+        next_token = (
+            tokens[indices[position + 1]]
+            if position + 1 < len(indices)
+            else None
+        )
+        following_token = (
+            tokens[indices[position + 2]]
+            if position + 2 < len(indices)
+            else None
+        )
+        if token.surface == "に" and next_token is not None:
+            if next_token.surface in {"よって", "因って", "依って"}:
+                role = "agent"
+                marker = "によって"
+            elif next_token.normalized in {"よる", "因る", "依る"} and (
+                following_token is not None and following_token.surface == "て"
+            ):
+                role = "agent"
+                marker = "によって"
         if role is None:
             if _pos0(token) not in {"助詞", "助動詞"}:
                 buffer.append(index)
@@ -236,7 +272,7 @@ def _arguments_before(
             output.append((Argument(
                 role=role,
                 value=value,
-                case_marker=token.surface,
+                case_marker=marker,
                 explicit=True,
                 span=_span(start, end, original),
             ), end_index))
@@ -274,11 +310,41 @@ def _voice(text: str) -> list[str]:
         return ["causative_passive"]
     if re.search(r"(?:させる|せる)", text):
         return ["causative"]
+    if re.search(r"(?:された|される|されて|られた|られる|られて)", text):
+        return ["passive"]
     if re.search(r"(?:られる|れる)", text):
         return ["passive_or_potential"]
     if re.search(r"(?:できる|可能だ|可能です)", text):
         return ["potential"]
     return ["active"]
+
+
+def _has_passive_voice(voice: list[str]) -> bool:
+    return any(
+        value in {"passive", "passive_or_potential", "causative_passive"}
+        for value in voice
+    )
+
+
+def _arguments_for_voice(
+    arguments: list[Argument],
+    voice: list[str],
+) -> list[Argument]:
+    if not _has_passive_voice(voice):
+        return arguments
+    updated: list[Argument] = []
+    for argument in arguments:
+        if argument.case_marker == "によって":
+            updated.append(argument.model_copy(update={"role": "agent"}))
+            continue
+        if (
+            argument.role in {"agent", "topic"}
+            and argument.case_marker in {"が", "は"}
+        ):
+            updated.append(argument.model_copy(update={"role": "patient"}))
+            continue
+        updated.append(argument)
+    return updated
 
 
 def _modalities(text: str) -> list[str]:
@@ -448,6 +514,24 @@ def _discourse_relations(clauses: list[Clause]) -> list[DiscourseRelation]:
     ordered = sorted(clauses, key=lambda item: item.source_span.start)
     for previous, current in zip(ordered, ordered[1:]):
         stripped = current.text.lstrip()
+        previous_stripped = previous.text.rstrip(" \t\r\n、。！？!?")
+        matched = False
+        for pattern, relation in _PREVIOUS_TAIL_DISCOURSE_MARKERS:
+            match = pattern.search(previous_stripped)
+            if not match:
+                continue
+            output.append(DiscourseRelation(
+                relation_id=f"DR-{len(output) + 1:03d}",
+                source_clause_id=previous.clause_id,
+                target_clause_id=current.clause_id,
+                relation=relation,
+                marker=match.group(0),
+                confidence=0.98,
+            ))
+            matched = True
+            break
+        if matched:
+            continue
         for pattern, relation in _DISCOURSE_MARKERS:
             match = pattern.search(stripped)
             if not match:
@@ -1365,13 +1449,18 @@ class DeterministicReadingRuntime:
                     indices,
                     tokens,
                 )
+                voice = _voice(clause.text)
+                arguments = _arguments_for_voice(
+                    [item[0] for item in arguments_with_heads],
+                    voice,
+                )
                 frame = PredicateFrame(
                     frame_id=f"PF-{len(frames) + 1:03d}",
                     clause_id=clause.clause_id,
                     predicate=predicate,
                     surface_predicate=surface,
                     predicate_token_index=head_index,
-                    arguments=[item[0] for item in arguments_with_heads],
+                    arguments=arguments,
                     polarity=(
                         "negative"
                         if _has_semantic_negation(clause.text)
@@ -1379,7 +1468,7 @@ class DeterministicReadingRuntime:
                     ),
                     tense=_tense(clause.text),
                     aspect=_aspect(clause.text),
-                    voice=_voice(clause.text),
+                    voice=voice,
                     modality=_modalities(clause.text),
                     source_span=_span(start, end, original_text),
                 )
@@ -1433,7 +1522,17 @@ class DeterministicReadingRuntime:
                     "voice": _voice(local_text),
                     "modality": _modalities(local_text),
                 })
-        frames = [frame_updates.get(frame.frame_id, frame) for frame in frames]
+        frames = [
+            (updated := frame_updates.get(frame.frame_id, frame)).model_copy(
+                update={
+                    "arguments": _arguments_for_voice(
+                        updated.arguments,
+                        updated.voice,
+                    )
+                }
+            )
+            for frame in frames
+        ]
 
         frame_by_clause = {}
         for frame in frames:

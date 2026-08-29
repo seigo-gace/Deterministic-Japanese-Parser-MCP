@@ -30,7 +30,7 @@ server = Server(SERVER_NAME)
 mcp = server
 _engine: ParserEngine | None = None
 _RESPONSE_CACHE_MAX_ENTRIES = 128
-_response_cache: OrderedDict[tuple[object, str], AnalyzeResponse] = OrderedDict()
+_response_cache: OrderedDict[tuple[object, str], dict[str, Any]] = OrderedDict()
 
 
 def engine() -> ParserEngine:
@@ -70,7 +70,7 @@ def _response_cache_key(
 def _get_cached_response(
     request: AnalyzeRequest,
     instance: ParserEngine,
-) -> AnalyzeResponse | None:
+) -> dict[str, Any] | None:
     key = _response_cache_key(request, instance)
     cached = _response_cache.get(key)
     if cached is not None:
@@ -82,6 +82,7 @@ def _store_cached_response(
     request: AnalyzeRequest,
     instance: ParserEngine,
     response: AnalyzeResponse,
+    structured: dict[str, Any] | None = None,
 ) -> None:
     if (
         response.overall_status != OverallStatus.COMPLETE
@@ -89,23 +90,25 @@ def _store_cached_response(
     ):
         return
     key = _response_cache_key(request, instance)
-    _response_cache[key] = response
+    if structured is None:
+        structured = response.model_dump(mode="json")
+    _response_cache[key] = structured
     _response_cache.move_to_end(key)
     while len(_response_cache) > _RESPONSE_CACHE_MAX_ENTRIES:
         _response_cache.popitem(last=False)
 
 
 def _cache_hit_response(
-    response: AnalyzeResponse,
+    structured: dict[str, Any],
     request: AnalyzeRequest,
     instance: ParserEngine,
     started: float,
-) -> AnalyzeResponse:
+) -> dict[str, Any]:
     elapsed_ms = round((perf_counter() - started) * 1000, 3)
     metrics = {
         **{
             key: (0.0 if key.endswith("_ms") else value)
-            for key, value in response.metrics.items()
+            for key, value in structured.get("metrics", {}).items()
         },
         "requested_deadline_ms": request.deadline_ms,
         "effective_deadline_ms": min(
@@ -118,7 +121,7 @@ def _cache_hit_response(
         "target_met": elapsed_ms <= instance.settings.target_latency_ms,
         "hard_deadline_met": elapsed_ms <= instance.settings.hard_deadline_ms,
     }
-    return response.model_copy(update={"metrics": metrics})
+    return {**structured, "metrics": metrics}
 
 
 def analyze_japanese(
@@ -213,8 +216,8 @@ async def call_tool(
 
     instance = engine()
     cache_started = perf_counter()
-    response = _get_cached_response(request, instance)
-    if response is None:
+    structured = _get_cached_response(request, instance)
+    if structured is None:
         response = instance.analyze(request)
         response = response.model_copy(update={
             "metrics": {
@@ -222,15 +225,15 @@ async def call_tool(
                 "response_cache_hit": 0,
             },
         })
-        _store_cached_response(request, instance, response)
+        structured = response.model_dump(mode="json")
+        _store_cached_response(request, instance, response, structured)
     else:
-        response = _cache_hit_response(
-            response,
+        structured = _cache_hit_response(
+            structured,
             request,
             instance,
             cache_started,
         )
-    structured = response.model_dump(mode="json")
     summary = {
         "overall_status": structured["overall_status"],
         "execution_allowed": structured["execution_allowed"],

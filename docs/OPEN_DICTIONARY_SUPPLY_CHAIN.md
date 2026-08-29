@@ -209,7 +209,7 @@ Promotion対象File、Manifest、README、Versionを事前Backupする。書込�
 - [ ] Private Log昇格拒否成功
 - [ ] License別Pack分離成功
 - [ ] Runtime Lexicon Provenance成功
-- [ ] Existing 452 Metaphor／339 Rule／649 Gold回帰成功
+- [ ] Existing 452 Metaphor／340 Rule／649 Gold回帰成功
 - [ ] Python 3.10／3.12成功
 - [ ] Offline WheelでLexicon Pack読込成功
 - [ ] 20倍辞書性能成功

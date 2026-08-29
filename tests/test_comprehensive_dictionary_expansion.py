@@ -70,7 +70,7 @@ def test_comprehensive_dictionary_totals_are_fixed():
         if item.get("intent") == "workflow"
     )
     assert len(engine.bundle.metaphors["entries"]) == 452
-    assert len(engine.rules.compiled) == 339
+    assert len(engine.rules.compiled) == 340
     assert _project_authored_synonym_count() == 100
     assert len(engine.bundle.synonyms["groups"]) >= 100
     assert len(engine.bundle.templates["templates"]) == 63

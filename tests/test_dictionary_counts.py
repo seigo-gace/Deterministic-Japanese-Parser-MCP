@@ -55,7 +55,7 @@ def test_expanded_dictionary_volume_is_exact():
     ]
 
     assert len(engine.bundle.metaphors["entries"]) == 452
-    assert rules == 339
+    assert rules == 340
     assert _effective_gold_count() == 649
     assert _project_authored_synonym_count() == 100
     assert len(engine.bundle.templates["templates"]) == 63

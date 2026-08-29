@@ -66,7 +66,7 @@ def test_sync_metadata_updates_bilingual_counts_versions_and_notice(tmp_path):
     }
     counts = {
         "metaphors": 452,
-        "rules": 339,
+        "rules": 340,
         "synonym_groups": 101,
         "templates": 63,
         "workflows": 42,
