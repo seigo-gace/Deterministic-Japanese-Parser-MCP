@@ -85,8 +85,8 @@ where = ["src"]
 # approved evidence with redistribution terms that are not suitable for the default
 # public Wheel. Only the license-filtered public view and its runtime projection ship.
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public" = [
-  "dictionaries/system/compiled/canonical_dictionary_public/manifest.json",
-  "dictionaries/system/compiled/canonical_dictionary_public/license-exclusions.jsonl",
+  "dictionaries/system/compiled/canonical_dictionary_public/*.json",
+  "dictionaries/system/compiled/canonical_dictionary_public/*.jsonl",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/indexes" = [
   "dictionaries/system/compiled/canonical_dictionary_public/indexes/*.json.gz",
@@ -95,7 +95,7 @@ where = ["src"]
   "dictionaries/system/compiled/canonical_dictionary_public/records/*.jsonl.gz",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime" = [
-  "dictionaries/system/compiled/canonical_dictionary_runtime/manifest.json",
+  "dictionaries/system/compiled/canonical_dictionary_runtime/*.json",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/indexes" = [
   "dictionaries/system/compiled/canonical_dictionary_runtime/indexes/*.json.gz",
