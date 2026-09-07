@@ -189,7 +189,7 @@ When an external action cannot be allowed, the response includes `execution_allo
 |---|---:|---|
 | Open Lexicon | 120,000 | Lexical identity such as surface, reading, and part of speech; meanings are not auto-approved |
 | Metaphor, idiom, and pragmatic expressions | 452 | Fixed-expression interpretation |
-| Deterministic intent rules | 339 | Requests, prohibitions, conditions, and related decisions |
+| Deterministic intent rules | 340 | Requests, prohibitions, conditions, and related decisions |
 | Intent types | 21 | Classification of detected intent |
 | Synonym groups | 100 | Surface and semantic normalization |
 | Task Templates | 63 | Task structure generation |
@@ -197,6 +197,8 @@ When an external action cannot be allowed, the response includes `execution_allo
 | Gold Cases | 649 | Regression and quality validation |
 
 The Open Lexicon contains JMdict-derived lexical information split into twelve shards for lexical identification only. The runtime loads the shards as one dictionary and retains all homograph candidates instead of collapsing them. This does not imply complete semantic, pragmatic, or executable-intent understanding of all 120,000 records.
+
+For completed semantic runtime deployment, compile the Drive-hosted Direct Final Runtime Bundle into the existing ABIs with `tools/compile_direct_final_runtime.py` and deploy only artifacts that pass `scripts/direct_final_deployment_contract.py --require-direct-final`. The process and boundaries are documented in [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md).
 
 For the processing pipeline, the 120,000 records already enriched with JMdict meaning candidates by PR #26 are combined with approximately 5,000 special-vocabulary, dialect, onomatopoeia, and youth-language records in one digest-locked 125,000-record Review Queue. The pipeline neither prioritizes only the 5,000 records nor excludes the 120,000 records from review. Unapproved meaning candidates are never loaded by the default runtime.
 

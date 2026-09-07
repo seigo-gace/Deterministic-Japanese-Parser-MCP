@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.config import Settings
 
 
 DEFAULT_CORPUS = Path("tests/data/story_test_corpus.jsonl")
@@ -166,7 +167,7 @@ def run_story_test(
     deadline_ms: int = 5000,
 ) -> list[dict[str, Any]]:
     corpus = load_jsonl(corpus_path)
-    engine = ParserEngine()
+    engine = ParserEngine(Settings(hard_deadline_ms=max(50, deadline_ms)))
     results: list[dict[str, Any]] = []
     errors = 0
 

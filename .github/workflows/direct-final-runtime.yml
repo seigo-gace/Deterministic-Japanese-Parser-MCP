@@ -1,0 +1,151 @@
+name: Direct Final Runtime Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact-run-id:
+        description: "GitHub Actions run ID containing the direct-final runtime artifact"
+        required: true
+      artifact-name:
+        description: "Artifact name containing manifest.json and mcp-runtime-final parts"
+        required: true
+        default: "mcp-runtime-direct-final-v1"
+      bundle-root:
+        description: "Directory inside the downloaded artifact; leave empty to auto-detect"
+        required: false
+        default: ""
+      expected-records:
+        description: "Expected direct-final runtime records"
+        required: true
+        default: "9852513"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compile-and-verify-direct-final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build
+
+      - name: Download direct-final runtime artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: ${{ inputs.artifact-run-id }}
+          github-token: ${{ github.token }}
+          path: work/direct-final-input
+
+      - name: Compile direct-final runtime into existing ABIs
+        run: |
+          set -euo pipefail
+          mkdir -p reports work/direct-final-runtime
+          BUNDLE_ROOT="${{ inputs.bundle-root }}"
+          if [ -n "$BUNDLE_ROOT" ]; then
+            INPUT_ROOT="work/direct-final-input/$BUNDLE_ROOT"
+          else
+            MANIFEST="$(find work/direct-final-input -name manifest.json -print -quit)"
+            if [ -z "$MANIFEST" ]; then
+              echo "manifest.json not found in downloaded artifact" >&2
+              exit 1
+            fi
+            INPUT_ROOT="$(dirname "$MANIFEST")"
+          fi
+          test -f "$INPUT_ROOT/manifest.json"
+          python tools/compile_direct_final_runtime.py \
+            --manifest "$INPUT_ROOT/manifest.json" \
+            --input-root "$INPUT_ROOT" \
+            --system-root dictionaries/system \
+            --work-root work/direct-final-runtime \
+            | tee reports/direct-final-compile.json
+
+      - name: Enforce completed semantic deployment contract
+        run: |
+          python scripts/direct_final_deployment_contract.py \
+            --require-direct-final \
+            --expected-source-records "${{ inputs.expected-records }}" \
+            --output reports/direct-final-deployment-contract.json
+
+      - name: Verify parser, dictionaries and runtime safety
+        run: |
+          python -m pytest \
+            tests/test_direct_final_runtime_integration.py \
+            tests/test_direct_final_deployment_contract.py \
+            tests/test_semantic_data_runtime.py
+          python tools/validator.py --global-only
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/direct-final-semantic-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/direct-final-semantic-holdout.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/direct-final-astera-latency.json
+          python -m compileall -q src tools scripts tests
+
+      - name: Build wheel with direct-final runtime
+        run: python -m build --wheel --outdir dist
+
+      - name: Verify direct-final wheel outside repository
+        env:
+          EXPECTED_RECORDS: ${{ inputs.expected-records }}
+        run: |
+          python -m venv --system-site-packages /tmp/djpmcp-direct-final-wheel
+          /tmp/djpmcp-direct-final-wheel/bin/pip install \
+            --no-index \
+            --no-deps \
+            --force-reinstall \
+            dist/*.whl
+          cd /tmp
+          /tmp/djpmcp-direct-final-wheel/bin/python - <<'PY'
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          import os
+
+          engine = ParserEngine()
+          assert engine.bundle.open_lexicon.lookup_backend == "sqlite-index-v1"
+          assert engine.bundle.open_lexicon.record_count == int(os.environ["EXPECTED_RECORDS"])
+          assert engine.semantic_data.root.name == "canonical_dictionary_runtime"
+          assert engine.semantic_data.record_count > 0
+          response = engine.analyze(
+              AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
+          )
+          assert response.meaning_graph.semantic_hash
+          print({
+              "installed_wheel": "OK",
+              "open_lexicon_records": engine.bundle.open_lexicon.record_count,
+              "semantic_records": engine.semantic_data.record_count,
+          })
+          PY
+
+      - name: Upload direct-final runtime release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-final-runtime-release-${{ github.sha }}
+          path: |
+            dist
+            reports
+            dictionaries/system/compiled/open_lexicon
+            dictionaries/system/compiled/canonical_dictionary_runtime
+            dictionaries/system/compiled/direct_final_integration.json
+            dictionaries/system/compiled/direct_final_support
+          if-no-files-found: error
+          retention-days: 30

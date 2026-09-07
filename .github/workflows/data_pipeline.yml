@@ -41,7 +41,62 @@ permissions:
   contents: read
 
 jobs:
+  legacy-pr-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit checked-in lexical snapshot boundary
+        run: |
+          mkdir -p reports
+          python scripts/direct_final_deployment_contract.py \
+            --output reports/data-pipeline-legacy-runtime-contract.json
+          python - <<PY
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path(
+                  "reports/data-pipeline-legacy-runtime-contract.json"
+              ).read_text(encoding="utf-8")
+          )
+          if report.get("status") != "PASS":
+              raise SystemExit(report)
+          if report.get("completed_semantic_deployable") is not False:
+              raise SystemExit(
+                  "PR Data Pipeline must not treat the checked-in lexical "
+                  "snapshot as completed semantic runtime"
+              )
+          if report.get("direct_final_runtime") is not False:
+              raise SystemExit(
+                  "Direct Final runtime promotion belongs to "
+                  "direct-final-runtime.yml, not the legacy PR pipeline"
+              )
+          print({
+              "legacy_runtime_audit": "pass",
+              "open_lexicon_records": report.get("open_lexicon_records"),
+              "completed_semantic_deployable": report.get(
+                  "completed_semantic_deployable"
+              ),
+          })
+          PY
+
+      - name: Upload legacy runtime boundary evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-pipeline-legacy-runtime-contract-${{ github.sha }}
+          path: reports/data-pipeline-legacy-runtime-contract.json
+          if-no-files-found: error
+          retention-days: 30
+
   prepare-pipeline:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:

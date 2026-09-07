@@ -189,7 +189,7 @@ flowchart TD
 |---|---:|---|
 | Open Lexicon | 120,000 | 表記・読み・品詞などの語彙同定。意味は自動承認していない |
 | 比喩・慣用・語用表現 | 452 | 固定表現の解釈 |
-| 決定論的な意図規則 | 339 | 要求・禁止・条件などの判定 |
+| 決定論的な意図規則 | 340 | 要求・禁止・条件などの判定 |
 | 意図種別 | 21 | 判定結果の分類 |
 | 類義語グループ | 100 | 表記・意味の正規化 |
 | Task Template | 63 | 作業構造の生成 |
@@ -197,6 +197,8 @@ flowchart TD
 | Gold Case | 649 | 回帰・品質検証 |
 
 Open LexiconはJMdict由来の語彙情報を、語彙同定専用として12 Shardへ分割したものです。すべてのShardを一つの辞書として読み込み、同形異義語は一候補へ潰さず保持します。これは12万語すべての意味・語用・実行意図を理解できるという意味ではありません。
+
+完成版の意味つきRuntimeとしてデプロイする場合は、Driveに保存されたDirect Final Runtime Bundleを`tools/compile_direct_final_runtime.py`で既存ABIへCompileし、`scripts/direct_final_deployment_contract.py --require-direct-final`を通過した成果物だけを使用します。手順と境界条件は[`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)に記載しています。
 
 加工パイプラインでは、PR #26でJMdict意味候補を付与済みの12万件を、特殊語彙・方言・擬音語・若者言葉など約5,000件と合わせた125,000件の固定Review Queueとして扱います。5,000件だけを優先したり、12万件をReviewから除外したりしません。未承認の意味候補は標準Runtimeへ入りません。
 
@@ -251,6 +253,7 @@ pytest
 python scripts/benchmark.py --check
 python scripts/performance_contract.py --check --max-ready-ms 10
 python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
+python scripts/direct_final_deployment_contract.py
 python -m compileall -q src tools scripts tests
 ```
 
