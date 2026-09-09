@@ -27,7 +27,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -35,14 +34,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-frozen-raw-input:
+  frozen-raw-pr-contract:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 15
     env:
-      GH_TOKEN: ${{ github.token }}
       CONFIG_PATH: config/frozen_raw_factory_input.json
-      PROFILES_PATH: config/source_payload_profiles.json
-      WORK_ROOT: work/frozen-raw-input
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +47,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate frozen-input builder
+      - name: Validate frozen raw contracts without large artifact generation
         run: |
           python -m pip install "pytest>=8.3,<10" "PyYAML>=6,<7"
           python -m py_compile tools/build_frozen_raw_factory_input.py
@@ -73,424 +70,25 @@ jobs:
             tests/test_frozen_raw_role_factory.py \
             tests/test_source_adapter_contract.py
 
-      - name: Select and download already-collected GitHub artifacts
+      - name: Report legacy frozen raw boundary
         run: |
           python - <<'PY'
-          from __future__ import annotations
-
-          from datetime import datetime
           import json
-          import os
-          from pathlib import Path
-          import urllib.parse
-          import urllib.error
-          import urllib.request
-
-          config = json.loads(Path(os.environ["CONFIG_PATH"]).read_text(encoding="utf-8"))
-          repository = config["repository"]
-          branch = config["branch"]
-          freeze_at = datetime.fromisoformat(config["freeze_at"].replace("Z", "+00:00"))
-          token = os.environ["GH_TOKEN"]
-          work = Path(os.environ["WORK_ROOT"])
-          downloads = work / "downloads"
-          downloads.mkdir(parents=True, exist_ok=True)
-
-          api_root = f"https://api.github.com/repos/{repository}"
-          headers = {
-              "Accept": "application/vnd.github+json",
-              "Authorization": f"Bearer {token}",
-              "X-GitHub-Api-Version": "2022-11-28",
-              "User-Agent": "deterministic-japanese-parser-mcp-frozen-raw-input",
-          }
-
-          def get_json(url: str) -> dict:
-              request = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  return json.load(response)
-
-          def download(url: str, destination: Path) -> None:
-              class NoCrossHostAuthorizationRedirect(urllib.request.HTTPRedirectHandler):
-                  def redirect_request(self, req, fp, code, msg, headers, newurl):
-                      return None
-
-              request = urllib.request.Request(url, headers=headers)
-              opener = urllib.request.build_opener(NoCrossHostAuthorizationRedirect)
-              try:
-                  response = opener.open(request, timeout=300)
-              except urllib.error.HTTPError as exc:
-                  if exc.code not in {301, 302, 303, 307, 308}:
-                      raise
-                  location = exc.headers.get("Location")
-                  exc.close()
-                  if not location:
-                      raise RuntimeError("artifact download redirect omitted Location")
-                  redirected = urllib.request.Request(
-                      location,
-                      headers={"User-Agent": headers["User-Agent"]},
-                  )
-                  response = urllib.request.urlopen(redirected, timeout=300)
-              with response:
-                  with destination.open("wb") as handle:
-                      while True:
-                          chunk = response.read(1024 * 1024)
-                          if not chunk:
-                              break
-                          handle.write(chunk)
-
-          selected_runs: list[dict] = []
-          selected_artifacts: list[dict] = []
-
-          for source in config["workflow_sources"]:
-              workflow_id = int(source["workflow_id"])
-              if source["selection"] == "pinned_runs":
-                  run_ids = [int(value) for value in source["run_ids"]]
-              else:
-                  query = urllib.parse.urlencode(
-                      {
-                          "branch": branch,
-                          "status": "success",
-                          "per_page": 100,
-                      }
-                  )
-                  payload = get_json(
-                      f"{api_root}/actions/workflows/{workflow_id}/runs?{query}"
-                  )
-                  candidates = []
-                  for run in payload.get("workflow_runs", []):
-                      created = datetime.fromisoformat(
-                          run["created_at"].replace("Z", "+00:00")
-                      )
-                      if created <= freeze_at:
-                          candidates.append(run)
-                  if not candidates:
-                      selected_runs.append(
-                          {
-                              "workflow_id": workflow_id,
-                              "workflow_name": source["name"],
-                              "status": "NO_SUCCESSFUL_RUN_BEFORE_FREEZE",
-                          }
-                      )
-                      continue
-                  candidates.sort(key=lambda row: row["created_at"], reverse=True)
-                  run_ids = [int(candidates[0]["id"])]
-
-              for run_id in run_ids:
-                  artifact_payload = get_json(
-                      f"{api_root}/actions/runs/{run_id}/artifacts?per_page=100"
-                  )
-                  selected_runs.append(
-                      {
-                          "workflow_id": workflow_id,
-                          "workflow_name": source["name"],
-                          "run_id": run_id,
-                          "artifact_count": len(artifact_payload.get("artifacts", [])),
-                      }
-                  )
-                  for artifact in artifact_payload.get("artifacts", []):
-                      if artifact.get("expired"):
-                          continue
-                      selected_artifacts.append(
-                          {
-                              "id": int(artifact["id"]),
-                              "name": artifact["name"],
-                              "size_in_bytes": int(artifact.get("size_in_bytes") or 0),
-                              "digest": artifact.get("digest"),
-                              "created_at": artifact.get("created_at"),
-                              "expires_at": artifact.get("expires_at"),
-                              "workflow_id": workflow_id,
-                              "workflow_name": source["name"],
-                              "workflow_run_id": run_id,
-                          }
-                      )
-
-          by_digest: dict[str, dict] = {}
-          by_id: dict[int, dict] = {}
-          for artifact in selected_artifacts:
-              digest = str(artifact.get("digest") or "")
-              if digest:
-                  current = by_digest.get(digest)
-                  if current is None or int(artifact["id"]) > int(current["id"]):
-                      by_digest[digest] = artifact
-              else:
-                  by_id[int(artifact["id"])] = artifact
-          artifacts = [*by_digest.values(), *by_id.values()]
-          artifacts.sort(key=lambda row: (row["workflow_name"], row["name"], row["id"]))
-
-          if not artifacts:
-              raise SystemExit("NO_COLLECTED_ARTIFACTS_BEFORE_FREEZE")
-
-          selected_path = work / "selected-artifacts.json"
-          selected_path.write_text(
-              json.dumps(
-                  {
-                      "schema_version": "1.0.0",
-                      "freeze_at": config["freeze_at"],
-                      "selected_runs": selected_runs,
-                      "artifacts": artifacts,
-                  },
-                  ensure_ascii=False,
-                  indent=2,
-                  sort_keys=True,
-              )
-              + "\n",
-              encoding="utf-8",
-          )
-
-          for artifact in artifacts:
-              artifact_id = int(artifact["id"])
-              destination = downloads / f"{artifact_id}.zip"
-              download(
-                  f"{api_root}/actions/artifacts/{artifact_id}/zip",
-                  destination,
-              )
-
-          print(
-              json.dumps(
-                  {
-                      "selected_artifacts": len(artifacts),
-                      "selected_runs": len(selected_runs),
-                      "download_bytes": sum(
-                          path.stat().st_size for path in downloads.glob("*.zip")
-                      ),
-                  },
-                  sort_keys=True,
-              )
-          )
-          PY
-
-      - name: Build one frozen raw factory-input file
-        run: |
-          mkdir -p "$WORK_ROOT/output"
-          python tools/build_frozen_raw_factory_input.py build \
-            --config "$CONFIG_PATH" \
-            --selected-artifacts "$WORK_ROOT/selected-artifacts.json" \
-            --downloads-root "$WORK_ROOT/downloads" \
-            --output "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
-            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
-            --profiles "$PROFILES_PATH"
-
-      - name: Prove bundle contains unchanged artifact ZIP bytes
-        run: |
-          python - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-          import tarfile
-
-          root = Path("work/frozen-raw-input")
-          manifest = json.loads(
-              (root / "output/mcp-collected-raw-factory-input-v1.manifest.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-          with tarfile.open(
-              root / "output/mcp-collected-raw-factory-input-v1.tar", "r"
-          ) as archive:
-              for artifact in manifest["artifacts"]:
-                  member = archive.getmember(artifact["bundle_path"])
-                  data = archive.extractfile(member).read()
-                  digest = hashlib.sha256(data).hexdigest()
-                  if digest != artifact["downloaded_zip_sha256"]:
-                      raise SystemExit(
-                          f"RAW_ARTIFACT_CHANGED:{artifact['id']}:{artifact['name']}"
-                      )
-          print(
-              json.dumps(
-                  {
-                      "status": "ALL_67_INPUTS_66_LOGICAL_SOURCES_FACTORY_READY",
-                      "artifact_count": manifest["artifact_count"],
-                      "source_count": manifest["source_count"],
-                      "factory_ready_source_count": manifest["factory_ready_source_count"],
-                      "rights_lane_counts": manifest["rights_lane_counts"],
-                      "parser_family_counts": manifest["parser_family_counts"],
-                      "bundle_sha256": manifest["bundle_sha256"],
-                      "bundle_bytes": manifest["bundle_bytes"],
-                  },
-                  sort_keys=True,
-              )
-          )
-          PY
-
-      - name: Prove deterministic balanced payload plan before full processing
-        run: |
-          python tools/build_frozen_raw_role_factory.py \
-            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
-            --output-root "$WORK_ROOT/output" \
-            --shard-count 8 \
-            --plan-only
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          plan = json.loads(
-              Path("work/frozen-raw-input/output/role-shard-plan.json")
-              .read_text(encoding="utf-8")
-          )
-          loads = [int(row["declared_payload_bytes"]) for row in plan["shards"]]
-          payloads = sum(int(row["payload_count"]) for row in plan["shards"])
-          if payloads != int(plan["declared_payload_count"]):
-              raise SystemExit(f"payload plan count mismatch: {plan}")
-          if len(plan["shards"]) != 8 or min(loads) < 1:
-              raise SystemExit(f"payload plan has empty shard: {plan}")
-          if max(loads) > min(loads) * 2:
-              raise SystemExit(f"payload plan is materially imbalanced: {loads}")
           print(json.dumps({
-              "status": "AUXILIARY_PAYLOAD_PLAN_READY",
-              "algorithm": plan["algorithm"],
-              "plan_sha256": plan["plan_sha256"],
-              "payload_count": payloads,
-              "declared_payload_bytes": plan["declared_payload_bytes"],
-              "shard_declared_bytes": loads,
+              "status": "FROZEN_RAW_PR_CONTRACT_ONLY",
+              "large_artifact_download": False,
+              "auxiliary_role_shard_generation": False,
+              "runtime_promotion": False,
+              "direct_final_runtime_required_for_completed_deployment": True,
           }, sort_keys=True))
           PY
 
-      - name: Upload the single factory-input data file
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-collected-raw-factory-input-v1
-          path: |
-            work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.tar
-            work/frozen-raw-input/output/mcp-collected-raw-factory-input-v1.manifest.json
-            work/frozen-raw-input/output/role-shard-plan.json
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 0
-
-      - name: Release downloaded artifact copies after bundle verification
-        run: |
-          test -d "$WORK_ROOT/downloads"
-          rm -rf "$WORK_ROOT/downloads"
-
-      - name: Build source-authored meaning adapter lanes
-        run: |
-          python tools/build_frozen_raw_meaning_factory.py \
-            --bundle "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
-            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
-            --output-root "$WORK_ROOT/meaning-factory"
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          report = json.loads(
-              Path("work/frozen-raw-input/meaning-factory/meaning-factory-report.json")
-              .read_text(encoding="utf-8")
-          )
-          if report["lexical_definition_source_count"] != 7:
-              raise SystemExit(
-                  "unexpected lexical-definition source count: "
-                  f"{report['lexical_definition_source_count']}"
-              )
-          if report["adapter_record_count"] < 1:
-              raise SystemExit(f"meaning factory incomplete: {report}")
-          if report["input_definition_record_count"] != (
-              report["adapter_record_count"] + report["unresolved_record_count"]
-          ):
-              raise SystemExit(f"meaning factory record loss: {report}")
-          boundaries = report["boundaries"]
-          required = {
-              "all_declared_lexical_definition_sources_processed": True,
-              "source_authored_meanings_only": True,
-              "automatic_approval": False,
-              "automatic_runtime_promotion": False,
-              "decision_ledger_required": True,
-          }
-          for key, expected in required.items():
-              if boundaries.get(key) is not expected:
-                  raise SystemExit(
-                      f"meaning factory boundary mismatch: {key}={boundaries.get(key)!r}"
-                  )
-          print(json.dumps({
-              "status": "SOURCE_AUTHORED_MEANING_ADAPTER_READY",
-              "lexical_definition_sources": report["lexical_definition_source_count"],
-              "adapter_records": report["adapter_record_count"],
-              "input_definition_records": report["input_definition_record_count"],
-              "semantic_references": report["adapter_contract"]["semantic_reference_record_count"],
-              "lexical_candidates": report["adapter_contract"]["lexical_candidate_record_count"],
-              "unresolved_records": report["unresolved_record_count"],
-          }, sort_keys=True))
-          PY
-
-      - name: Restore immutable 125000-record review queue
-        uses: actions/download-artifact@v4
-        with:
-          name: unified-data-supply-processing-evidence
-          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
-          run-id: 31030553984
-          github-token: ${{ github.token }}
-          path: ${{ env.WORK_ROOT }}/review-seed
-
-      - name: Attach collected source meanings to review candidates
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          sys.path.insert(0, str(Path("tools").resolve()))
-          from unified_semantic_data.semantic_labeler import (
-              build_semantic_enrichment_queue,
-          )
-
-          root = Path("work/frozen-raw-input")
-          queue = root / "review-seed/unified-semantic-data/review-queue.jsonl"
-          if not queue.is_file():
-              raise SystemExit(f"immutable review queue missing: {queue}")
-          report = build_semantic_enrichment_queue(
-              queue,
-              root / "meaning-enrichment",
-              reference_roots=[
-                  Path("tools/unified_semantic_data/reference"),
-                  root / "meaning-factory/adapter-output/semantic-reference.jsonl",
-              ],
-          )
-          if report["total_records"] != 125000:
-              raise SystemExit(
-                  f"review queue count mismatch: {report['total_records']}"
-              )
-          proposed = int(report.get("proposed_from_reference_packs", 0))
-          if proposed < 1:
-              raise SystemExit(
-                  "collected source meanings did not attach to any review candidate"
-              )
-          print(json.dumps({
-              "status": "SOURCE_MEANING_CANDIDATES_ATTACHED",
-              "total_records": report["total_records"],
-              "meaning_missing_records": report.get("meaning_missing_records", 0),
-              "proposed_from_approved_records": report.get("proposed_from_approved_records", 0),
-              "proposed_from_reference_packs": proposed,
-              "unresolved_meaning_records": report.get("unresolved_meaning_records", 0),
-              "enrichment_queue_records": report.get("enrichment_queue_records", 0),
-              "automatic_approval": False,
-          }, sort_keys=True))
-          PY
-
-      - name: Upload source-authored meaning factory output
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-source-authored-meaning-factory-v1
-          path: |
-            work/frozen-raw-input/meaning-factory/adapter-output/
-            work/frozen-raw-input/meaning-factory/source-adapter-records.jsonl
-            work/frozen-raw-input/meaning-factory/meaning-factory-report.json
-            work/frozen-raw-input/meaning-factory/unresolved-meaning-records.jsonl
-            work/frozen-raw-input/meaning-enrichment/semantic-enrichment-report.json
-            work/frozen-raw-input/meaning-enrichment/semantic-enrichment-queue.jsonl
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 6
-
-  build-auxiliary-role-shards:
-    needs: build-frozen-raw-input
+  legacy-frozen-raw-manual-boundary:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    timeout-minutes: 15
     env:
-      PROFILES_PATH: config/source_payload_profiles.json
-      WORK_ROOT: work/frozen-raw-input
-      SHARD_COUNT: 8
+      CONFIG_PATH: config/frozen_raw_factory_input.json
     steps:
       - uses: actions/checkout@v4
 
@@ -498,245 +96,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install factory runtime dependency
-        run: python -m pip install "PyYAML>=6,<7"
-
-      - name: Download frozen raw factory input
-        uses: actions/download-artifact@v4
-        with:
-          name: mcp-collected-raw-factory-input-v1
-          path: ${{ env.WORK_ROOT }}/output
-
-      - name: Build assigned auxiliary source-role adapter lane shard
+      - name: Validate legacy frozen raw contracts
         run: |
-          python tools/build_frozen_raw_role_factory.py \
-            --bundle "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.tar" \
-            --manifest "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
-            --profiles "$PROFILES_PATH" \
-            --output-root "$WORK_ROOT/role-shard-${{ matrix.shard }}" \
-            --shard-index "${{ matrix.shard }}" \
-            --shard-count "$SHARD_COUNT"
-          cp \
-            "$WORK_ROOT/output/mcp-collected-raw-factory-input-v1.manifest.json" \
-            "$WORK_ROOT/role-shard-${{ matrix.shard }}/"
+          python -m pip install "pytest>=8.3,<10" "PyYAML>=6,<7"
+          python tools/build_frozen_raw_factory_input.py self-test
+          python tools/build_frozen_raw_factory_input.py validate-config \
+            --config "$CONFIG_PATH"
+          python -m pytest \
+            tests/test_raw_intake.py \
+            tests/test_factory_input_preprocessor.py \
+            tests/test_frozen_raw_meaning_factory.py \
+            tests/test_frozen_raw_role_factory.py \
+            tests/test_source_adapter_contract.py
+
+      - name: Report superseded deployment path
+        run: |
           python - <<'PY'
           import json
-          import os
-          from pathlib import Path
-
-          shard = int(os.environ["MATRIX_SHARD"])
-          report = json.loads(
-              Path(f"work/frozen-raw-input/role-shard-{shard}/role-factory-report.json")
-              .read_text(encoding="utf-8")
-          )
-          if report["shard"]["index"] != shard or report["shard"]["count"] != 8:
-              raise SystemExit(f"role factory shard identity mismatch: {report}")
-          if report["shard"]["algorithm"] != "payload-bytes-lpt-v1":
-              raise SystemExit(f"role factory shard plan mismatch: {report}")
-          if report["input_record_count"] != (
-              report["resolved_input_record_count"]
-              + report["unresolved_input_record_count"]
-          ):
-              raise SystemExit(f"role factory input record loss: {report}")
-          if report["role_projection_count"] != (
-              report["unique_adapter_record_count"]
-              + report["exact_replay_duplicate_count"]
-          ):
-              raise SystemExit(f"role factory dedup record loss: {report}")
-          boundaries = report["boundaries"]
-          required = {
-              "all_assigned_auxiliary_sources_processed": True,
-              "exact_replay_deduplication_only": True,
-              "same_surface_different_payload_preserved": True,
-              "duplicate_source_lineage_preserved": True,
-              "automatic_approval": False,
-              "automatic_runtime_promotion": False,
-          }
-          for key, expected in required.items():
-              if boundaries.get(key) is not expected:
-                  raise SystemExit(
-                      f"role factory boundary mismatch: {key}={boundaries.get(key)!r}"
-                  )
           print(json.dumps({
-              "status": "AUXILIARY_SOURCE_ROLE_SHARD_PROCESSED",
-              "shard": shard,
-              "processed_sources": report["processed_source_count"],
-              "input_records": report["input_record_count"],
-              "role_projections": report["role_projection_count"],
-              "unique_adapter_records": report["unique_adapter_record_count"],
-              "exact_replay_duplicates": report["exact_replay_duplicate_count"],
-              "unresolved_records": report["unresolved_input_record_count"],
-              "automatic_approval": False,
+              "status": "LEGACY_FROZEN_RAW_FACTORY_SUPERSEDED_FOR_DEPLOYMENT",
+              "reason": "Direct Final Drive bundle is the completed semantic runtime source.",
+              "use_workflow": "Direct Final Runtime From Drive",
+              "notion_runtime": False,
+              "runtime_promotion": False,
           }, sort_keys=True))
           PY
-        env:
-          MATRIX_SHARD: ${{ matrix.shard }}
-
-      - name: Upload auxiliary source-role shard checkpoint
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-auxiliary-source-role-shard-${{ matrix.shard }}-v1
-          path: |
-            work/frozen-raw-input/role-shard-${{ matrix.shard }}/source-role-records.jsonl.gz
-            work/frozen-raw-input/role-shard-${{ matrix.shard }}/role-factory-report.json
-            work/frozen-raw-input/role-shard-${{ matrix.shard }}/unresolved-source-role-records.jsonl
-            work/frozen-raw-input/role-shard-${{ matrix.shard }}/mcp-collected-raw-factory-input-v1.manifest.json
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 6
-
-  merge-auxiliary-role-factory:
-    needs: build-auxiliary-role-shards
-    runs-on: ubuntu-24.04
-    timeout-minutes: 330
-    env:
-      WORK_ROOT: work/frozen-raw-input
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install factory runtime dependency
-        run: python -m pip install "PyYAML>=6,<7"
-
-      - name: Download source-authored meaning factory checkpoint
-        uses: actions/download-artifact@v4
-        with:
-          name: mcp-source-authored-meaning-factory-v1
-          path: ${{ env.WORK_ROOT }}/meaning-artifact
-
-      - name: Download all auxiliary source-role shard checkpoints
-        uses: actions/download-artifact@v4
-        with:
-          pattern: mcp-auxiliary-source-role-shard-*-v1
-          path: ${{ env.WORK_ROOT }}/role-shards
-
-      - name: Merge every shard and compile the complete adapter contract
-        run: |
-          python tools/build_frozen_raw_role_factory.py \
-            --manifest "$WORK_ROOT/role-shards/mcp-auxiliary-source-role-shard-0-v1/mcp-collected-raw-factory-input-v1.manifest.json" \
-            --shards-root "$WORK_ROOT/role-shards" \
-            --output-root "$WORK_ROOT/role-factory"
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          report = json.loads(
-              Path("work/frozen-raw-input/role-factory/role-factory-report.json")
-              .read_text(encoding="utf-8")
-          )
-          if report["processed_source_count"] != 67:
-              raise SystemExit(f"not all auxiliary sources were processed: {report}")
-          if report["shard_merge"]["count"] != 8 or report["shard_merge"]["indexes"] != list(range(8)):
-              raise SystemExit(f"role factory shard merge incomplete: {report}")
-          if report["input_record_count"] != (
-              report["resolved_input_record_count"]
-              + report["unresolved_input_record_count"]
-          ):
-              raise SystemExit(f"role factory input record loss: {report}")
-          if report["role_projection_count"] != (
-              report["unique_adapter_record_count"]
-              + report["exact_replay_duplicate_count"]
-          ):
-              raise SystemExit(f"role factory dedup record loss: {report}")
-          boundaries = report["boundaries"]
-          required = {
-              "all_declared_auxiliary_sources_processed": True,
-              "all_declared_shards_merged": True,
-              "all_declared_payloads_merged_once": True,
-              "streaming_merge_without_global_spool": True,
-              "compressed_adapter_outputs": True,
-              "exact_replay_deduplication_only": True,
-              "same_surface_different_payload_preserved": True,
-              "duplicate_source_lineage_preserved": True,
-              "automatic_approval": False,
-              "automatic_runtime_promotion": False,
-          }
-          for key, expected in required.items():
-              if boundaries.get(key) is not expected:
-                  raise SystemExit(
-                      f"role factory boundary mismatch: {key}={boundaries.get(key)!r}"
-                  )
-          print(json.dumps({
-              "status": "ALL_AUXILIARY_SOURCE_ROLES_PROCESSED",
-              "processed_sources": report["processed_source_count"],
-              "input_records": report["input_record_count"],
-              "role_projections": report["role_projection_count"],
-              "unique_adapter_records": report["unique_adapter_record_count"],
-              "exact_replay_duplicates": report["exact_replay_duplicate_count"],
-              "unresolved_records": report["unresolved_input_record_count"],
-              "automatic_approval": False,
-          }, sort_keys=True))
-          PY
-
-      - name: Start deterministic pre-factory input completion
-        run: |
-          python tools/build_factory_input_preprocessor.py \
-            --adapter-input "$WORK_ROOT/meaning-artifact/meaning-factory/source-adapter-records.jsonl" \
-            --adapter-input "$WORK_ROOT/role-factory/source-role-records.jsonl.gz" \
-            --unresolved-input "$WORK_ROOT/meaning-artifact/meaning-factory/unresolved-meaning-records.jsonl" \
-            --unresolved-input "$WORK_ROOT/role-factory/unresolved-source-role-records.jsonl" \
-            --output-root "$WORK_ROOT/factory-input-preprocessor"
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          report = json.loads(
-              Path("work/frozen-raw-input/factory-input-preprocessor/factory-input-preprocessor-report.json")
-              .read_text(encoding="utf-8")
-          )
-          if report["validated_adapter_record_count"] < 1:
-              raise SystemExit(f"no common-shape factory inputs validated: {report}")
-          if report["completion_item_count"] != report["remaining_completion_item_count"]:
-              raise SystemExit(f"queue-only preprocessing lost completion items: {report}")
-          if report["completion_item_count"] == 0 and report["status"] != "READY_FOR_FACTORY":
-              raise SystemExit(f"empty completion queue did not open the factory gate: {report}")
-          if report["completion_item_count"] > 0 and report["status"] != "COMPLETION_REQUIRED":
-              raise SystemExit(f"incomplete data did not close the factory gate: {report}")
-          boundaries = report["boundaries"]
-          for key in (
-              "common_adapter_shape_validated",
-              "original_record_preserved_in_completion_queue",
-              "evidence_required_for_supplement",
-              "only_missing_required_fields_may_be_supplemented",
-              "incomplete_records_blocked_from_factory",
-          ):
-              if boundaries.get(key) is not True:
-                  raise SystemExit(f"pre-factory boundary mismatch: {key}={boundaries.get(key)!r}")
-          if boundaries.get("automatic_approval") is not False:
-              raise SystemExit("pre-factory completion must not approve records")
-          print(json.dumps({
-              "status": report["status"],
-              "validated_adapter_records": report["validated_adapter_record_count"],
-              "completion_items": report["completion_item_count"],
-              "unresolved_required_fields": report["unresolved_required_fields"],
-              "factory_input_complete": report["factory_input_complete"],
-          }, sort_keys=True))
-          PY
-
-      - name: Upload pre-factory completion queue
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-prefactory-input-completion-v1
-          path: |
-            work/frozen-raw-input/factory-input-preprocessor/factory-input-completion-queue.jsonl
-            work/frozen-raw-input/factory-input-preprocessor/supplemented-adapter-records.jsonl
-            work/frozen-raw-input/factory-input-preprocessor/factory-input-preprocessor-report.json
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 6
-
-      - name: Upload complete auxiliary source-role factory output
-        uses: actions/upload-artifact@v4
-        with:
-          name: mcp-auxiliary-source-role-factory-v1
-          path: |
-            work/frozen-raw-input/role-factory/adapter-output/
-            work/frozen-raw-input/role-factory/source-role-records.jsonl.gz
-            work/frozen-raw-input/role-factory/role-factory-report.json
-            work/frozen-raw-input/role-factory/unresolved-source-role-records.jsonl
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 6
