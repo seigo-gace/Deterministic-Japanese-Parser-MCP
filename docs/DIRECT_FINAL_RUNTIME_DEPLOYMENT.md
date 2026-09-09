@@ -1,9 +1,9 @@
 # Direct Final Runtime Deployment
 
-The Drive-hosted direct-final runtime data is the practical deployment data path
-for the completed MCP dictionary. It is separate from the historical 120k Open
-Lexicon snapshot: the 120k snapshot is lexical identity only and must not be
-treated as meaning-complete runtime data.
+The direct-final runtime data is the practical deployment data path for the
+completed MCP dictionary. It is separate from the historical 120k Open Lexicon
+snapshot: the 120k snapshot is lexical identity only and must not be treated as
+meaning-complete runtime data.
 
 ## Boundary
 
@@ -21,53 +21,49 @@ treated as meaning-complete runtime data.
 
 ## Expected Input
 
-Place these files in one local input directory:
+Place the direct-final files in one local input directory:
 
 - `manifest.json`
-- `mcp-runtime-final-part-001.jsonl.gz` through
-  `mcp-runtime-final-part-016.jsonl.gz`
+- `mcp-runtime-final-part-001.jsonl.gz` through the manifest-declared final part
+  count
 - `mcp-runtime-support.jsonl.gz`
 
 The manifest schema must be `djpmcp.direct-runtime-final.manifest.v1` and the
 target must be `Deterministic-Japanese-Parser-MCP`.
 
-The known completed Drive bundle from 2026-08-18 declares:
+The manifest is the authority for:
 
-- Runtime entries: `9,852,513`
-- Runtime source datasets: `55`
-- Support-only datasets: `3`
-- Final part count: `16`
-- Missing required core fields: `0`
-- Gzip integrity: `PASS`
+- runtime record count
+- source dataset count
+- support-only dataset count
+- final part count
+- per-file size and SHA-256 values
+- gzip integrity status
+- missing required core field count
 
-## Verified Drive Bundle
+Do not copy private source identifiers, Drive folder IDs, file IDs, or complete
+manifest metadata into public PR text or repository documentation.
 
-As of 2026-09-09, the direct-final bundle is located in Google Drive:
+## Private Source Handling
 
-- Folder: `MCP完成版データ_2026-08-18`
-- Folder ID: `13VJ9E5fbVHIJZWddiOGWAw_l7rQJmIES`
-- Manifest file ID: `1DBhSxQD8nZE-QZ-roCviC1v7b8CTkr5r`
-- Manifest modified time: `2026-08-17T17:16:20.327Z`
+The direct-final source bundle is stored outside the public repository. Its
+location and manifest details must be handled as private deployment
+configuration, not as public project metadata.
 
-Folder listing was verified to contain:
+Before a GitHub Actions deployment run:
 
-- `manifest.json`
-- `mcp-runtime-final-part-001.jsonl.gz` through
-  `mcp-runtime-final-part-016.jsonl.gz`
-- `mcp-runtime-support.jsonl.gz`
-- `README.txt`
-
-The Drive folder is shared and the current connected user can share it. The
-observed folder permissions on 2026-09-09 were owner/writer user permissions;
-no service-account reader was visible from the available metadata. Before a
-GitHub Actions deployment run, share the folder with the service account whose
-JSON is stored in the `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` repository secret.
+- create or verify the `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` repository secret
+- share the private source folder with that service account
+- keep Drive access readonly for the deployment job
+- pass the source folder and expected runtime count through workflow inputs or
+  repository/environment configuration
 
 ## GitHub Actions Deployment
 
 Use `.github/workflows/direct-final-runtime-from-drive.yml` for deployment from
-Drive. It is intentionally `workflow_dispatch` only so private Drive data is not
-automatically exported to GitHub artifacts by ordinary PR or push activity.
+private Drive-backed source data. It is intentionally `workflow_dispatch` only so
+private source data is not automatically exported to GitHub artifacts by ordinary
+PR or push activity.
 
 Required repository secret:
 
@@ -78,9 +74,9 @@ GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON
 Required workflow inputs:
 
 ```text
-drive-folder-id = 13VJ9E5fbVHIJZWddiOGWAw_l7rQJmIES
-artifact-name = mcp-runtime-direct-final-v1
-expected-records = 9852513
+drive-folder-id = <private source folder id>
+expected-records = <manifest expected runtime count>
+artifact-name = <release artifact name>
 ```
 
 The workflow performs these gates before upload/release evidence:
@@ -130,15 +126,15 @@ export DJPMCP_SYSTEM_DICT_DIR=/absolute/path/to/dictionaries/system
 
 ## Current PR Evidence
 
-At PR head `dc0fde8cc7465caa5c56530144dcafef9e811527`, all PR-triggered checks
+At PR head `a40072bc674ee9b66c703c9fcd02133f238a05de`, all PR-triggered checks
 completed successfully on 2026-09-09. Release Readiness produced artifact
-`deterministic-japanese-parser-offline-release`, artifact id `10119258235`,
-digest `sha256:4b32f00863988dc4d7e150faf03f8321672589b8e0230c61b8fd7c7ae87a0d59`,
-expiring `2026-10-09T18:36:55Z`.
+`deterministic-japanese-parser-offline-release`, artifact id `10119735339`,
+digest `sha256:c3cd5966ca678b74510dd7434e2f73a78274a26390a88207533f718f3c6d7214`,
+expiring `2026-10-09T18:49:02Z`.
 
 That artifact is the offline release for the checked-in compatibility snapshot.
-It is useful release evidence, but it is not the completed 9,852,513-record
-Direct Final semantic runtime.
+It is useful release evidence, but it is not the completed Direct Final semantic
+runtime.
 
 ## Deployment Decision
 
@@ -148,6 +144,6 @@ resulting `compiled/open_lexicon`, `compiled/canonical_dictionary_runtime`, and
 `compiled/direct_final_integration.json` have passed verification.
 
 Do not add branch `push` or PR triggers that automatically export the private
-Drive bundle into GitHub artifacts unless that specific data export destination
+source bundle into GitHub artifacts unless that specific data export destination
 has been explicitly approved. The safe default is manual dispatch with the
 service account secret and folder sharing prepared first.
