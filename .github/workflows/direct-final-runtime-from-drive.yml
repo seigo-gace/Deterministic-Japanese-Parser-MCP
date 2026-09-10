@@ -13,6 +13,10 @@ on:
       expected-records:
         description: "Expected Direct Final runtime records"
         required: true
+      upload-source-bundle:
+        description: "Upload the raw Drive source bundle artifact after explicit approval"
+        required: true
+        default: "false"
 
 permissions:
   contents: read
@@ -171,7 +175,8 @@ jobs:
           print(json.dumps(report, sort_keys=True))
           PY
 
-      - name: Upload materialized Direct Final runtime bundle
+      - name: Upload materialized Direct Final source bundle
+        if: ${{ inputs.upload-source-bundle == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
