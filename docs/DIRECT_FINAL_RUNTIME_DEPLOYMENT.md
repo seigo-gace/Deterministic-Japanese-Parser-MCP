@@ -124,17 +124,21 @@ available through the package data or set:
 export DJPMCP_SYSTEM_DICT_DIR=/absolute/path/to/dictionaries/system
 ```
 
-## Current PR Evidence
+## PR Evidence
 
-At PR head `a40072bc674ee9b66c703c9fcd02133f238a05de`, all PR-triggered checks
-completed successfully on 2026-09-09. Release Readiness produced artifact
-`deterministic-japanese-parser-offline-release`, artifact id `10119735339`,
-digest `sha256:c3cd5966ca678b74510dd7434e2f73a78274a26390a88207533f718f3c6d7214`,
-expiring `2026-10-09T18:49:02Z`.
+For the current PR head, require all PR-triggered workflows to complete
+successfully before merge or deployment promotion. The required evidence is:
 
-That artifact is the offline release for the checked-in compatibility snapshot.
-It is useful release evidence, but it is not the completed Direct Final semantic
-runtime.
+- CI on supported Python versions
+- Release Readiness, including offline rebuild, index audit, wheelhouse/project
+  wheel build, immutable manifest, install from wheelhouse, installed-wheel
+  verification outside repo, offline deployment gates, semantic/holdout gates,
+  runtime performance gates, and evidence hashing/upload
+- Dictionary Data Pipeline and factory/boundary workflows used by the PR
+
+The Release Readiness artifact is the offline release for the checked-in
+compatibility snapshot. It is useful release evidence, but it is not the
+completed Direct Final semantic runtime.
 
 ## Deployment Decision
 
