@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      DRIVE_FOLDER_ID: ${{ inputs.drive-folder-id }}
-      EXPECTED_RECORDS: ${{ inputs.expected-records }}
+      DRIVE_FOLDER_ID: ${{ inputs['drive-folder-id'] }}
+      EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
       GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
@@ -176,10 +176,10 @@ jobs:
           PY
 
       - name: Upload materialized Direct Final source bundle
-        if: ${{ inputs.upload-source-bundle == 'true' }}
+        if: ${{ inputs['upload-source-bundle'] == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.artifact-name }}
+          name: ${{ inputs['artifact-name'] }}
           path: work/direct-final-drive-input
           if-no-files-found: error
           retention-days: 30
@@ -199,7 +199,7 @@ jobs:
         run: |
           python scripts/direct_final_deployment_contract.py \
             --require-direct-final \
-            --expected-source-records "${{ inputs.expected-records }}" \
+            --expected-source-records "${{ inputs['expected-records'] }}" \
             --output reports/direct-final-deployment-contract.json
 
       - name: Verify parser, dictionaries and runtime safety
