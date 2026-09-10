@@ -64,4 +64,19 @@ def test_direct_final_source_bundle_artifact_requires_explicit_opt_in() -> None:
 
     assert 'default: "false"' in upload_source_input
     assert "Upload materialized Direct Final source bundle" in workflow
-    assert "if: ${{ inputs.upload-source-bundle == 'true' }}" in workflow
+    assert "if: ${{ inputs['upload-source-bundle'] == 'true' }}" in workflow
+
+
+def test_direct_final_workflow_uses_bracket_syntax_for_hyphenated_inputs() -> None:
+    workflow = (ROOT / ".github/workflows/direct-final-runtime-from-drive.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "${{ inputs['drive-folder-id'] }}" in workflow
+    assert "${{ inputs['expected-records'] }}" in workflow
+    assert "${{ inputs['artifact-name'] }}" in workflow
+    assert "${{ inputs['upload-source-bundle'] == 'true' }}" in workflow
+    assert "${{ inputs.drive-folder-id }}" not in workflow
+    assert "${{ inputs.expected-records }}" not in workflow
+    assert "${{ inputs.artifact-name }}" not in workflow
+    assert "${{ inputs.upload-source-bundle" not in workflow
