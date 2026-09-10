@@ -54,3 +54,14 @@ def test_direct_final_drive_workflow_keeps_private_inputs_out_of_public_defaults
     assert '"final_unique_runtime_entries": final_records' not in workflow
     assert '"total_bytes": total_bytes' not in workflow
     assert "Direct Final record count does not match workflow input" in workflow
+
+
+def test_direct_final_source_bundle_artifact_requires_explicit_opt_in() -> None:
+    workflow = (ROOT / ".github/workflows/direct-final-runtime-from-drive.yml").read_text(
+        encoding="utf-8"
+    )
+    upload_source_input = _workflow_input_block(workflow, "upload-source-bundle")
+
+    assert 'default: "false"' in upload_source_input
+    assert "Upload materialized Direct Final source bundle" in workflow
+    assert "if: ${{ inputs.upload-source-bundle == 'true' }}" in workflow
