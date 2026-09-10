@@ -6,7 +6,6 @@ on:
       drive-folder-id:
         description: "Google Drive folder containing manifest.json, final parts, and support pack"
         required: true
-        default: "13VJ9E5fbVHIJZWddiOGWAw_l7rQJmIES"
       artifact-name:
         description: "Artifact name for the materialized Direct Final runtime bundle"
         required: true
@@ -14,7 +13,6 @@ on:
       expected-records:
         description: "Expected Direct Final runtime records"
         required: true
-        default: "9852513"
 
 permissions:
   contents: read
@@ -54,8 +52,10 @@ jobs:
           from google.auth.transport.requests import Request
           from google.oauth2 import service_account
 
-          folder_id = os.environ["DRIVE_FOLDER_ID"]
+          folder_id = os.environ["DRIVE_FOLDER_ID"].strip()
           expected_records = int(os.environ["EXPECTED_RECORDS"])
+          if not folder_id:
+              raise SystemExit("drive-folder-id workflow input is required")
           secret = os.environ.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "").strip()
           if not secret:
               raise SystemExit(
@@ -143,7 +143,7 @@ jobs:
               raise SystemExit("Direct Final Drive bundle must declare factory_used=false")
           final_records = int(manifest["candidate_reduction"]["final_unique_runtime_entries"])
           if final_records != expected_records:
-              raise SystemExit(f"Direct Final record count mismatch: {final_records} != {expected_records}")
+              raise SystemExit("Direct Final record count does not match workflow input")
           validation = manifest.get("validation") or {}
           if validation.get("gzip_integrity_final_parts") != "PASS":
               raise SystemExit("Direct Final manifest does not declare gzip integrity PASS")
@@ -152,21 +152,15 @@ jobs:
           if len(manifest.get("parts") or []) != int(validation.get("final_part_count", -1)):
               raise SystemExit("Direct Final manifest part count mismatch")
 
-          total_bytes = manifest_path.stat().st_size
           for part in manifest["parts"]:
-              path = download_file(part["file"], expected_sha256=part["sha256"])
-              total_bytes += path.stat().st_size
+              download_file(part["file"], expected_sha256=part["sha256"])
           support = manifest.get("support_pack") or {}
           if support.get("file"):
-              path = download_file(support["file"], expected_sha256=support.get("sha256"))
-              total_bytes += path.stat().st_size
+              download_file(support["file"], expected_sha256=support.get("sha256"))
 
           report = {
               "status": "DIRECT_FINAL_DRIVE_BUNDLE_MATERIALIZED",
-              "folder_id": folder_id,
-              "file_count": len(list(root.iterdir())),
-              "total_bytes": total_bytes,
-              "final_unique_runtime_entries": final_records,
+              "expected_runtime_records_matched": True,
               "factory_used": manifest.get("factory_used"),
               "target": manifest.get("target"),
           }
