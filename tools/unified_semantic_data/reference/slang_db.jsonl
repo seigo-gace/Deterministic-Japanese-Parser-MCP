@@ -1,0 +1,7 @@
+{"surface":"ぴえん","meaning":"悲しい、困った、泣きたいなどの気持ちを軽い調子で表すSNS・若者表現","category":"slang","domains":["internet","casual"],"dataset":"master-semantic-reference","source_id":"slang-pien","license":"Master-provided project reference"}
+{"surface":"エモい","meaning":"言葉にしにくい感動、懐かしさ、情緒などによって感情を強く動かされる様子","category":"slang","domains":["casual"],"dataset":"master-semantic-reference","source_id":"slang-emoi","license":"Master-provided project reference"}
+{"surface":"草","meaning":"笑いや面白さを表すインターネットスラング。笑いを示す「w」が草のように見えることに由来する用法","category":"slang","domains":["internet"],"dataset":"master-semantic-reference","source_id":"slang-kusa","license":"Master-provided project reference"}
+{"surface":"推し","meaning":"特に好み、応援し、他者にも薦めたい人物・作品・対象","category":"slang","domains":["fandom","casual"],"dataset":"master-semantic-reference","source_id":"slang-oshi","license":"Master-provided project reference"}
+{"surface":"沼","meaning":"趣味や作品などに深く夢中になり、容易に抜け出せない状態を表す比喩的な若者・ネット表現","category":"slang","domains":["internet","casual"],"dataset":"master-semantic-reference","source_id":"slang-numa","license":"Master-provided project reference"}
+{"surface":"詰んだ","meaning":"解決手段がなくなった、または行き詰まってどうにもならない状態を表すネット・若者表現","category":"slang","domains":["internet","casual"],"dataset":"master-semantic-reference","source_id":"slang-tsunda","license":"Master-provided project reference"}
+{"surface":"ワンチャン","meaning":"可能性が少しでもあること、またはうまくいく可能性を期待する表現","category":"abbreviation","domains":["casual"],"dataset":"master-semantic-reference","source_id":"slang-wanchan","license":"Master-provided project reference"}

@@ -266,6 +266,188 @@ class ScopeEdge(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class DependencyArc(BaseModel):
+    arc_id: str
+    clause_id: str
+    dependent_token_index: int
+    head_token_index: int
+    relation: str
+    marker: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class PredicateFrame(BaseModel):
+    frame_id: str
+    clause_id: str
+    predicate: str
+    surface_predicate: str
+    predicate_token_index: int
+    arguments: list[Argument] = Field(default_factory=list)
+    polarity: Literal["positive", "negative"] = "positive"
+    tense: str | None = None
+    aspect: list[str] = Field(default_factory=list)
+    voice: list[str] = Field(default_factory=lambda: ["active"])
+    modality: list[str] = Field(default_factory=list)
+    related_proposition_ids: list[str] = Field(default_factory=list)
+    source_span: OriginalSpan
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ScopeOperator(BaseModel):
+    operator_id: str
+    clause_id: str
+    operator_type: str
+    semantic_value: str
+    marker: str
+    source_span: OriginalSpan
+    operand_spans: list[OriginalSpan] = Field(default_factory=list)
+    target_frame_ids: list[str] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class DiscourseRelation(BaseModel):
+    relation_id: str
+    source_clause_id: str
+    target_clause_id: str
+    relation: str
+    marker: str
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class AttributionFrame(BaseModel):
+    attribution_id: str
+    clause_id: str
+    attribution_type: str
+    content_span: OriginalSpan
+    source: str | None = None
+    source_span: OriginalSpan | None = None
+    reporting_predicate: str | None = None
+    related_frame_ids: list[str] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ParagraphRelation(BaseModel):
+    relation_id: str
+    source_paragraph_id: str
+    target_paragraph_id: str
+    relation: str
+    marker: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ParagraphFrame(BaseModel):
+    paragraph_id: str
+    text: str
+    start_char: int
+    end_char: int
+    source_span: OriginalSpan
+    clause_ids: list[str] = Field(default_factory=list)
+    proposition_ids: list[str] = Field(default_factory=list)
+    sentence_spans: list[OriginalSpan] = Field(default_factory=list)
+    topic_sentence: str | None = None
+    topic_sentence_start: int | None = None
+    topic_sentence_end: int | None = None
+    topic_sentence_span: OriginalSpan | None = None
+    role: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class SummaryResult(BaseModel):
+    """文章全体の要旨抽出結果。"""
+
+    summary_text: str | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "AMBIGUOUS"
+    candidates: list[str] | None = None
+    source_paragraph_indices: list[int] = Field(default_factory=list)
+    method: str = "topic_sentence_aggregation"
+
+
+class ParagraphStructure(BaseModel):
+    paragraphs: list[ParagraphFrame] = Field(default_factory=list)
+    relations: list[ParagraphRelation] = Field(default_factory=list)
+    boundary_method: str = "explicit_blank_line"
+    ambiguity_flag: bool = False
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
+class ArgumentComponent(BaseModel):
+    component_id: str
+    component_type: Literal[
+        "claim",
+        "reason",
+        "evidence",
+        "explicit_premise",
+        "implicit_premise",
+        "counterargument",
+        "rebuttal",
+        "limitation",
+    ]
+    text: str | None = None
+    clause_id: str | None = None
+    paragraph_id: str | None = None
+    source_span: OriginalSpan | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    related_component_ids: list[str] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "DETERMINED"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class ArgumentEdge(BaseModel):
+    edge_id: str
+    source_component_id: str
+    target_component_id: str
+    relation: Literal[
+        "supports",
+        "opposes",
+        "limits",
+        "conditions",
+        "rephrases",
+    ]
+    evidence_ids: list[str] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "DETERMINED"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class ArgumentationResult(BaseModel):
+    claims: list[ArgumentComponent] = Field(default_factory=list)
+    reasons: list[ArgumentComponent] = Field(default_factory=list)
+    evidence: list[ArgumentComponent] = Field(default_factory=list)
+    explicit_premises: list[ArgumentComponent] = Field(default_factory=list)
+    implicit_premise_candidates: list[ArgumentComponent] = Field(
+        default_factory=list
+    )
+    counterarguments: list[ArgumentComponent] = Field(default_factory=list)
+    rebuttals: list[ArgumentComponent] = Field(default_factory=list)
+    limitations: list[ArgumentComponent] = Field(default_factory=list)
+    edges: list[ArgumentEdge] = Field(default_factory=list)
+    status: Literal["DETERMINED", "AMBIGUOUS"] = "AMBIGUOUS"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ReadingAnalysis(BaseModel):
+    analysis_version: str = "1.0.0"
+    purpose: Literal["japanese_reading_comprehension"] = (
+        "japanese_reading_comprehension"
+    )
+    predicate_frames: list[PredicateFrame] = Field(default_factory=list)
+    dependency_arcs: list[DependencyArc] = Field(default_factory=list)
+    scope_operators: list[ScopeOperator] = Field(default_factory=list)
+    attribution_frames: list[AttributionFrame] = Field(default_factory=list)
+    discourse_relations: list[DiscourseRelation] = Field(default_factory=list)
+    paragraph_structure: ParagraphStructure | None = None
+    summary: SummaryResult | None = None
+    argumentation: ArgumentationResult | None = None
+    unresolved: list[dict[str, Any]] = Field(default_factory=list)
+    status: ItemStatus = ItemStatus.RESOLVED
+
+
 class DecisionStateChange(BaseModel):
     change_type: str
     proposition_id: str
@@ -275,13 +457,14 @@ class DecisionStateChange(BaseModel):
 
 
 class MeaningGraph(BaseModel):
-    graph_version: str = "2.2.0"
+    graph_version: str = "2.3.0"
     semantic_hash: str = ""
     entities: list[Entity] = Field(default_factory=list)
     clauses: list[Clause] = Field(default_factory=list)
     propositions: list[Proposition] = Field(default_factory=list)
     lexical_nodes: list[LexicalNode] = Field(default_factory=list)
     scope_edges: list[ScopeEdge] = Field(default_factory=list)
+    reading_analysis: ReadingAnalysis = Field(default_factory=ReadingAnalysis)
     language_features: list[LanguageFeatureMatch] = Field(default_factory=list)
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     decision_state_changes: list[DecisionStateChange] = Field(

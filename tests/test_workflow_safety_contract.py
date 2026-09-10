@@ -91,3 +91,33 @@ def test_release_wheel_contains_one_runtime_copy_of_the_120k_lexicon() -> None:
     )
     duplicated = [item for item in raw_wheel_sections if item in pyproject]
     assert not duplicated, f"raw source shards are duplicated into the wheel: {duplicated}"
+
+
+def test_data_pipeline_pr_run_audits_legacy_snapshot_without_promotion() -> None:
+    workflow = _workflow("data_pipeline.yml")
+
+    assert "pull_request:" in workflow
+    assert "legacy-pr-audit:" in workflow
+    assert "if: github.event_name == 'pull_request'" in workflow
+    assert "scripts/direct_final_deployment_contract.py" in workflow
+    assert "completed_semantic_deployable" in workflow
+    assert "prepare-pipeline:\n    if: github.event_name == 'workflow_dispatch'" in workflow
+
+    legacy_audit, manual_promotion = workflow.split("  prepare-pipeline:", 1)
+    assert "--compile-approved" not in legacy_audit
+    assert "--compile-approved" in manual_promotion
+    _assert_read_only("data_pipeline.yml")
+
+
+def test_direct_final_runtime_deployment_is_manual_read_only_and_gated() -> None:
+    workflow = _workflow("direct-final-runtime.yml")
+
+    assert "workflow_dispatch:" in workflow
+    assert "pull_request:" not in workflow
+    assert "push:" not in workflow
+    assert "actions/download-artifact@v4" in workflow
+    assert "tools/compile_direct_final_runtime.py" in workflow
+    assert "scripts/direct_final_deployment_contract.py" in workflow
+    assert "--require-direct-final" in workflow
+    assert "tests/test_direct_final_deployment_contract.py" in workflow
+    _assert_read_only("direct-final-runtime.yml")

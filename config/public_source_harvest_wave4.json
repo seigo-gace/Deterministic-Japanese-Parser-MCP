@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "change_unit": "CU-RAW-COLLECTION-WAVE4-20260811-01",
+  "phase": "ACQUISITION_ONLY",
+  "run_revision": 2,
+  "policy": {
+    "normalize": false,
+    "semantic_enrichment": false,
+    "runtime_promotion": false,
+    "preserve_raw_bytes": true,
+    "source_lock_sha256": true
+  },
+  "sources": [
+    {"id":"ndl-ndlsh-rdf","url":"https://id.ndl.go.jp/auth/data/download/ndlsh-rdf.zip","filename":"ndlsh-rdf.zip"},
+    {"id":"ndl-ndlsh-tsv","url":"https://id.ndl.go.jp/auth/data/download/ndlsh-tsv.zip","filename":"ndlsh-tsv.zip"},
+    {"id":"ndl-ndlgft-tsv","url":"https://id.ndl.go.jp/information/wp-content/uploads/2024/03/ndlgft-tsv.zip","filename":"ndlgft-tsv.zip"},
+    {"id":"ndl-work-tsv","url":"https://id.ndl.go.jp/information/wp-content/uploads/2026/04/work-tsv.zip","filename":"work-tsv.zip"},
+    {"id":"egov-all-laws-xml","url":"https://laws.e-gov.go.jp/bulkdownload?file_section=1&only_xml_flag=true","filename":"egov-all-laws-xml.zip"},
+    {"id":"geonames-japan","url":"https://download.geonames.org/export/dump/JP.zip","filename":"geonames-JP.zip"},
+    {"id":"geonames-japan-alternate-names","url":"https://download.geonames.org/export/dump/alternatenames/JP.zip","filename":"geonames-alternatenames-JP.zip"},
+    {"id":"geonames-japan-postal","url":"https://download.geonames.org/export/zip/JP.zip","filename":"geonames-postal-JP.zip"},
+    {"id":"tatoeba-jpn-sentences","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences.tsv.bz2","filename":"jpn_sentences.tsv.bz2"},
+    {"id":"tatoeba-jpn-sentences-detailed","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences_detailed.tsv.bz2","filename":"jpn_sentences_detailed.tsv.bz2"},
+    {"id":"tatoeba-jpn-sentences-base","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences_base.tsv.bz2","filename":"jpn_sentences_base.tsv.bz2"},
+    {"id":"tatoeba-jpn-tags","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn_tags.tsv.bz2","filename":"jpn_tags.tsv.bz2"},
+    {"id":"tatoeba-jpn-transcriptions","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn_transcriptions.tsv.bz2","filename":"jpn_transcriptions.tsv.bz2"},
+    {"id":"tatoeba-jpn-eng-links","url":"https://downloads.tatoeba.org/exports/per_language/jpn/jpn-eng_links.tsv.bz2","filename":"jpn-eng_links.tsv.bz2"},
+    {"id":"tatoeba-jpn-indices","url":"https://downloads.tatoeba.org/exports/jpn_indices.tar.bz2","filename":"jpn_indices.tar.bz2"},
+    {"id":"j-unimorph","url":"https://github.com/cl-tohoku/J-UniMorph/archive/refs/heads/main.zip","filename":"J-UniMorph-main.zip"},
+    {"id":"open2ch-dialogue-corpus","url":"https://github.com/1never/open2ch-dialogue-corpus/archive/refs/heads/master.zip","filename":"open2ch-dialogue-corpus-master.zip"},
+    {"id":"mecab-ipadic-neologd","url":"https://github.com/neologd/mecab-ipadic-neologd/archive/refs/heads/master.zip","filename":"mecab-ipadic-neologd-master.zip"},
+    {"id":"japanpost-postcode-utf8","url":"https://www.post.japanpost.jp/zipcode/dl/utf/zip/utf_ken_all.zip","filename":"utf_ken_all.zip"},
+    {"id":"japanpost-postcode-legacy","url":"https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip","filename":"ken_all.zip"}
+  ]
+}

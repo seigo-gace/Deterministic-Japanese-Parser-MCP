@@ -1,0 +1,67 @@
+name: Canonical Dictionary Factory
+
+on:
+  pull_request:
+    paths:
+      - "tools/unified_semantic_data/**"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "tests/test_canonical_dictionary.py"
+      - "tests/test_canonical_meaning_provenance.py"
+      - "tests/test_canonical_evidence.py"
+      - "tests/test_canonical_distribution.py"
+      - "tests/test_canonical_runtime_projection.py"
+      - "tests/test_synthetic_dictionary_factory_e2e.py"
+      - "tests/test_source_adapter_contract.py"
+      - "tests/test_frozen_raw_meaning_factory.py"
+      - "tests/test_frozen_raw_role_factory.py"
+      - "tests/test_semantic_data_runtime.py"
+      - "src/deterministic_japanese_parser_mcp/config.py"
+      - "src/deterministic_japanese_parser_mcp/engine.py"
+      - "pyproject.toml"
+      - ".github/workflows/canonical-dictionary-factory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-dictionary-factory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Syntax check
+        run: |
+          python -m py_compile tools/unified_semantic_data/canonical_dictionary.py
+          python -m py_compile tools/unified_semantic_data/canonical_meaning_provenance.py
+          python -m py_compile tools/unified_semantic_data/canonical_evidence.py
+          python -m py_compile tools/unified_semantic_data/license_policy.py
+          python -m py_compile tools/unified_semantic_data/canonical_distribution.py
+          python -m py_compile tools/unified_semantic_data/canonical_runtime_projection.py
+          python -m py_compile tools/unified_semantic_data/source_adapter_contract.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
+          python -m py_compile tools/build_frozen_raw_meaning_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_role_factory.py
+          python -m py_compile tools/build_frozen_raw_role_factory.py
+          python -m py_compile tools/unified_semantic_data_pipeline.py
+      - name: Canonical dictionary unit tests
+        run: |
+          pytest -q \
+            tests/test_canonical_dictionary.py \
+            tests/test_canonical_meaning_provenance.py \
+            tests/test_canonical_evidence.py \
+            tests/test_canonical_distribution.py \
+            tests/test_canonical_runtime_projection.py \
+            tests/test_synthetic_dictionary_factory_e2e.py \
+            tests/test_source_adapter_contract.py
+          pytest -q tests/test_frozen_raw_meaning_factory.py tests/test_frozen_raw_role_factory.py tests/test_semantic_data_runtime.py
+      - name: Existing semantic factory regression tests
+        run: |
+          pytest -q tests/test_semantic_labeler.py tests/test_unified_semantic_data_pipeline.py

@@ -1,223 +1,180 @@
-# 汎用Semantic Data Supply・Runtime Integration Pipeline
+# 辞書データ自動加工・統合パイプライン
 
-## 結論
+## 目的
 
-このPipelineは、12万件と5,000件だけを一度加工するScriptではありません。
+この仕組みは辞書の意味をAIで大量生成するものではありません。Deterministic Japanese Parser MCPが利用するデータを、入力元が増えても同じ品質・安全・速度条件で受け入れられるようにする非AI・決定論的な供給基盤です。
 
-Deterministic Japanese Parser MCPが日本語をMeaning Graphへ変換するために必要なDataを、一般語彙・文脈表現・専門分野・利用者追加Dataから同じSchemaへ加工し、Review・Compile・本体接続・Wheel配布まで一続きで行う基盤です。
+対象は、JMdict意味候補を保持するオープン辞書120,000件、特殊・文脈語彙5,000件、将来の専門辞書、利用者追加データです。120,000件と5,000件は同じ共通Schema・同じReview Queue・同じDecision Ledgerで処理します。既存の比喩・判定規則・類義語Group・Task Template・Gold Caseは別レイヤーの正本として保持し、新規データから型付きRelationだけを生成します。
 
-## 本体との関係
+## 実行主体の境界
 
-本体の目的は辞書検索ではありません。
+| 主体 | 行うこと | 行わないこと |
+|---|---|---|
+| GPTアプリ | 利用者の一括指示を受ける、加工前Completion Queueへ根拠付き補足を作る、125,000件のReview Batchを読む、Decision Ledgerを作る、PR結果を説明する | Runtime内推論、GitHub Actions内からのAPI推論、自動承認、既存の確定値・JMdict意味候補の上書き |
+| GitHub Actions + Python | Schema化、正規化、重複・衝突・Source・License検査、Ledger適用、承認Scope限定Compile、品質・安全・速度Gate | 意味の創作、判断の代行、BranchへのCommit・Push |
+| MCP Runtime | Wheelに同梱された承認済みPackをオフラインで決定論的に参照する | 未承認候補の読込、外部API呼出し、辞書からの外部操作生成 |
 
-```text
-日本語入力
-  ↓
-正規化・Token・読み・品詞・語形
-  ↓
-語彙と意味候補
-  ↓
-Clause・Proposition・Argument・Scope・Reference
-  ↓
-極性・強度・発話行為・敬語・語用・文脈
-  ↓
-Meaning Graph
-  ↓
-Action Task Graph・External Action Guard
-```
+現在の実装にLLM API Client、API Key、Provider Secret、Workflowからの推論呼出しはありません。LLM APIは将来、Decision Ledgerを作る外部Adapterとして追加できる境界だけを設計対象とし、現在は実装しません。
 
-本Pipelineは、このMeaning Graphへ根拠付きDataを供給します。
+## 入力とAdapter
 
-## 入力
+| 入力 | 入口 | 主用途 | 既定の判断境界 |
+|---|---|---|---|
+| オープン辞書120,000件 | `dictionaries/system/lexicon.d/` + checksum固定JMdict | Surface・読み・品詞・語形・出典・意味候補 | 5,000件と同じReview Queueへ送る。意味候補は保持する |
+| 特殊語彙5,000件 | `research/context_collection/expansion_v3/` | Context由来候補と共通Schema項目 | 120,000件と同じReview Queueへ送る |
+| 専門辞書 | `dictionaries/domain_packs/<domain>/` | 分野固有の意味・用法 | Coreと分離。明示承認後だけ統合参照 |
+| 利用者データ | `dictionaries/user_packs/<pack>/` | 組織・製品・ローカル表現 | 公式Dataを上書きせず併存 |
 
-標準入力：
+入力形式はYAML、JSON、JSONL、gzip JSONLです。全Adapterは最終的に共通Recordへ変換されます。
 
-- `dictionaries/system/lexicon.d/`：一般語彙の基礎Data
-- `research/context_collection/expansion_v3/`：若者言葉、オノマトペ、敬語、談話、指示、省略等のContext候補
-- `dictionaries/domain_packs/`：医療、物理、金融、経済、教育等の公式専門分野Pack
-- `dictionaries/user_packs/`：Download利用者が追加するLocal Pack
+### 回収済み67入力・66論理SourceのRaw Intake
 
-対応形式：
+回収済みデータは、Source Harvestの34個別Artifact、既存の正規化Collection 16入力、Pending Raw 2入力、Wave 4 Raw 15入力の合計67入力です。NDLSHはRawと正規化派生の2入力が同じSource lineageを共有するため、論理Source数は66です。`.github/workflows/public-source-harvest.yml`は、固定した11 Workflow Run・44 Artifactを一つの不変Raw Bundleへまとめます。入口の正本は`config/frozen_raw_factory_input.json`、Source別のPayload Allowlist・文字Encoding・Parser Family・権利Laneは`config/source_payload_profiles.json`、出力契約は`schemas/source_intake_manifest.schema.json`です。
 
-- YAML
-- JSON
-- JSONL
-- gzip JSONL
+Builderは各Artifactについて外側ZIPのSHA-256を再検証します。個別Harvestでは`source-lock.json`が内側RawのSHA-256とByte数を証明し、Collectionでは同梱Manifest/ReportのSHA-256と照合します。内側Archiveは絶対Path・`..`・Backslash・Member数・展開Byte数・圧縮率を検査し、Allowlistに一致したPayloadだけを選択します。その後、次の10 Parser FamilyでPayloadを検査します。
 
-## 共通加工Schema
+| Parser Family | 対象形式 |
+|---|---|
+| `commented-sequence` | Unicode Emoji Sequence/Test |
+| `delimited-table` | TSV、CSV、行指向の語彙・頻度・分類表 |
+| `streaming-xml` | UCD、CLDR、JMnedict |
+| `json-corpus` | NER、対話、曖昧性、Catalog |
+| `conllu` | Universal Dependencies |
+| `skk` | SKK辞書 |
+| `knp` | KWDLC/KNP |
+| `jsonl` | 正規化辞書、評価・感情・Wiktionary JSONL |
+| `rdf-xml` | NDLSH RDF/XML |
+| `archive-index` | 再帰展開せず後段処理へ渡す入れ子Archive/Pointer |
 
-各Entryを次へ正規化します。
+全67入力は内部Factory Intakeの対象です。Rawと正規化派生を同一論理Sourceとして追跡し、二重投入を防ぎます。ただし公開可否は別判定で、Laneと`public_runtime_eligible`により候補を限定し、それ以外はRawと検証結果を保持したまま公開昇格を停止します。Raw Intakeは意味生成、自動承認、Runtime昇格を行いません。これらはSource Adapter、Decision Ledger、公開Gateを通る後段工程です。
 
-- Record ID
-- 見出し語
-- Surface・正規化Surface・表記揺れ
-- 読み・読み制約
-- 品詞
-- 原形・Token別形態情報・活用情報
-- Domain・Usage Label・Feature Type
-- 複数のMeaning Candidate
-- 極性・強度・Register・Parameter
-- Context条件
-- Positive・Negative・Boundary Example
-- Semantic Target
-- Risk Class
-- Source・Version・License・Digest・Evidence Scope
-- Review Status・Review Blocker
-- 既存Runtime DataとのLink
+### 加工前データ完成Gate
 
-入力に読み・品詞・語形が不足する場合は、固定VersionのSudachi Coreを使って候補を構造化します。
+加工工場へ渡す前に、全Source RecordをUniversal Source Adapterの同一Schemaへそろえます。同形化後に必須Fieldの欠落、空値、型不一致、項目間矛盾を全件検出し、未解決Recordは元Recordを失わず`factory-input-completion-queue.jsonl`へ送ります。
 
-入力Sourceに意味・Interpretation・Senseがある場合は、複数Meaning Candidateとして保持します。Sourceに意味がない場合、定義を捏造せず未確定Candidate Shellを作り、`meaning-candidate-required`としてReview Queueへ送ります。
+`tools/build_factory_input_preprocessor.py`は、すでに解決済みのAdapter Recordを正式Contractで再検証し、未解決のMeaning/Role Recordを共通Completion Itemへ変換します。GPTアプリが作る補足は`schemas/factory_input_supplement.schema.json`へ従い、`completion_id`、補足対象Field、Evidence、Rationaleを必須とします。補足できるのは実際に不足していた必須Fieldだけです。既存値の上書き、根拠なしPlaceholder、自動承認、Runtime昇格は拒否します。
 
-## 既存Dataとの統合
-
-既存の高精度Dataを消したり置換したりしません。
-
-- 比喩
-- 類義語Group
-- Language Feature
-- Intent Rule
-- Task Template
-- Gold Case
-
-新規RecordのSurfaceを既存Dataと照合し、`existing-runtime-links.jsonl`へ接続候補を出力します。
-
-`semantic_targets`は次を指定できます。
-
-- `lexicon`
-- `language_feature`
-- `metaphor`
-- `metonymy`
-- `synonym`
-- `intent_rule`
-- `task_template`
-- `gold_case`
-
-すべての語をRuleやTaskへ変換するのではなく、意味と用途が合うTargetだけを指定します。
-
-## Review Asset
-
-```text
-reports/unified-semantic-data/
-├── manifest.json
-├── review-records.jsonl
-├── review-queue.jsonl
-├── runtime-candidates.jsonl
-├── collision-report.jsonl
-└── existing-runtime-links.jsonl
-```
-
-Review Queueには次が残ります。
-
-- 意味候補不足
-- 読み・品詞不足
-- Source・Version・License・Digest不足
-- 未承認Candidate
-- Positive・Negative・Boundary不足
-- Context・Action・Social判断が必要なもの
-
-機械的に確定できない意味・極性・強度・用例だけをReviewerが確認します。
-
-## 承認済みCompile
-
-`review_status=approved`かつReview Blockerが0件のRecordだけをCompileします。
-
-生成Index：
-
-- Surface Index
-- Reading Index
-- Lemma Index
-- POS Index
-- Domain Index
-- Meaning Candidate Index
-- Semantic Target Index
-- Record Locator
-- gzip Record Shard
-- Manifest・SHA-256
-
-同じSurfaceに複数の意味がある場合は候補を削除せず保持します。
-
-## 本体Runtime接続
-
-`SemanticDataRuntime`が承認済みCompiled Packだけを読みます。
-
-本体解析後、Tokenと命題Spanを照合し、Meaning Candidateを決定論的に順位付けして次へ反映します。
-
-- `Proposition.sense_id`
-- `sense_label`
-- `sense_confidence`
-- `sense_candidates`
-- `polarity`
-- `force_level`
-- `directness`
-- `politeness_level`
-- `speech_act`
-- `epistemic_status`
-- `register_labels`
-- `honorific_classes`
-- `interaction_functions`
-- `information_territory`
-- `sensory_features`
-- `MeaningGraph.language_features`
-
-その後、Action Task GraphとExternal Action Guardを再評価します。
-
-ActionまたはSocialに関わる意味候補が絞れない場合は、命題を`AMBIGUOUS`にし、`executable_candidate=false`としてFail Closedします。
-
-Compiled Packから外部操作を自動生成することは禁止します。
-
-## 専門分野Series
-
-医療・物理・金融・経済・教育等を別々の仕組みで実装しません。
-
-分野Dataを`dictionaries/domain_packs/<domain>/`へ追加し、同じ加工・Review・Compile・Runtime接続を使います。
-
-専門分野Dataは単なる用語集ではなく、分野別のMeaning Candidate、Domain、Context条件、否定・疑問・仮定、強度、RelationをMeaning Graphへ供給する読解能力Packとして扱います。
-
-## 利用者追加Pack
-
-利用者Dataも同じSchemaで検証します。
-
-同じSurfaceが公式Dataに存在しても黙って上書きしません。候補を併存させ、Domain・Context・POS・Evidenceで選択します。根拠が不足すれば曖昧なまま返します。
-
-## 実行
+補足適用後はUniversal Source Adapterで再検証します。合格Recordだけを`factory_input_record_count`へ加え、未補足RecordはCompletion Queueへ残します。加工前データの完成条件は`unresolved_required_fields = 0`です。`--require-complete`を指定した実投入時は、この条件を満たさなければ非0終了し、加工工場へ渡しません。
 
 ```bash
-python tools/unified_semantic_data_pipeline.py --compile-approved
+python tools/build_factory_input_preprocessor.py \
+  --adapter-input meaning-factory/source-adapter-records.jsonl \
+  --adapter-input role-factory/source-role-records.jsonl.gz \
+  --unresolved-input meaning-factory/unresolved-meaning-records.jsonl \
+  --unresolved-input role-factory/unresolved-source-role-records.jsonl \
+  --supplements factory-input-supplements.jsonl \
+  --output-root work/factory-input-preprocessor \
+  --require-complete
 ```
 
-Byte Determinism確認：
+GitHub Actionsの最初の実行はQueue生成までを行い、`mcp-prefactory-input-completion-v1` Artifactとして保存します。GPTアプリがその全件を根拠付きで補足した後、`--require-complete` Gateを通った入力だけを加工工場へ接続します。
 
-```bash
-python tools/unified_semantic_data_pipeline.py --check
-```
+### Source-authored Meaning Factory
+
+`tools/build_frozen_raw_meaning_factory.py`は、凍結Raw BundleのManifestで`lexical-definition`と宣言された7 Sourceだけを対象に、Artifact ZIPとPayloadのSHA-256を再検証し、Source自身が持つ見出し語・読み・品詞・語義をUniversal Source Adapterへ変換します。対象は鳩間方言辞典、J-Ono、Japanese WordNet、NINJAL沖縄語辞典、Unicode Unihan、KANJIDIC2、日本語版Wiktionaryです。その他60入力は意味を持たないEvidence Sourceとして扱い、この工程で語義へ変換しません。
+
+出力は`semantic-reference.jsonl`（既存語への語義候補照合）、`lexical-candidates.jsonl`（新出語の通常Review Lane）、`canonical-evidence.jsonl`（補助Evidence）の3 Laneです。Artifact ID、Workflow Run ID、論理Source ID、元Record ID/SHA-256、Payload Path/SHA-256、権利Lane、License、公開適格性を保持します。同一表記でも明示Readingが衝突する候補は別語として扱い、語義をコピーしません。意味欠落・Placeholder・License欠落は`unresolved-meaning-records.jsonl`へ分離し、意味Adapterへ入れません。入力件数がAdapter件数＋未解決件数と一致しなければ失敗します。Checksum不一致は工程自体を停止します。この分離により、元Sourceに意味がない行を捏造せず、未解決のまま承認・昇格を閉じます。
+
+この工程は意味を創作・翻訳せず、Source-authored語義を`needs-evidence`候補へするだけです。自動承認とRuntime昇格は行わず、Semantic Decision Ledger、意味Provenance、License別Public Distribution Gateを引き続き必須とします。
+
+### Auxiliary Source Role Factory
+
+`tools/build_frozen_raw_role_factory.py`は、67入力すべてを完全走査し、`lexical-definition`以外の宣言済みRoleをUniversal Source Adapterの`canonical-evidence.jsonl`へ投影します。10 Parser Familyを共通設備として使用し、Sourceごとの差は`config/source_payload_profiles.json`へ固定します。中間Recordは決定的gzipの`source-role-records.jsonl.gz`へ保存します。入力Recordから明示的なSurfaceを得られない場合も削除せず、元値、Payload Path、Record番号、SHA-256、宣言Roleを`unresolved-source-role-records.jsonl`へ保持します。
+
+重複排除は同じLogical Source、同じRole、同じLexical Identity、同じ完全Payloadを持つ再投入だけが対象です。決定的FingerprintとSQLiteを用いるため入力順に依存せず、再実行しても同じID・同じ出力になります。畳まれたRecordでもArtifact、Workflow Run、Payload、Source Recordの全Lineageを保持します。表記だけの一致では統合しません。同じ表記でも読み、品詞、意味、用法、Domain、時代、Evidence Payloadのいずれかが異なれば別Recordとして残り、Canonical Dictionaryでは異なる意味Signatureが別Sense IDになります。同一Senseを複数Sourceが裏づける場合だけ、Senseを一つにして複数Source Evidenceを保持します。Semantic Enrichmentでも異なるGlossは別Proposalのまま保持し、同一Glossだけを一つのProposalへ集約して全Reference Evidence IDを残します。
+
+License式がRecordまたはSource Lockに存在しないRecordは加工結果として保持しますが、`public_runtime_eligible=false`に固定し、`LICENSE-EXPRESSION-PENDING`として公開Gateを閉じます。補助Evidenceから語義を作ること、自動承認、Runtime自動昇格は行いません。工程は入力件数＝投影済み入力件数＋未解決件数、Role投影件数＝一意Adapter件数＋完全再投入重複件数の二つの保存則を検証します。
+
+## 共通Record
+
+Schemaは`schemas/unified_semantic_record.schema.json`です。出力は次を保持します。
+
+- Surface、正規化Surface、表記揺れ
+- 読み、品詞、原形、語形・活用
+- 意味候補、極性、強度
+- 使用場面、Register、社会関係、文脈条件
+- 肯定例、否定例、境界例
+- Source、Version、License、Source ID、SHA-256、Attribution
+- 分野、Semantic Target、Risk Class
+- 既存Dataとの型付きRelation候補
+- 入力RecordのSHA-256とDecision ID
+- Scope別の承認状態とBlocker
+
+Sudachi Coreは不足した読み・品詞・語形の機械的候補整理だけに使います。意味は生成しません。120,000件の意味候補は`research/semantic_sources/jmdict/source-lock.json`で固定したPR #26のWorkflow Artifactから復元し、Review判断で上書きしません。日次更新されるJMdict配布URLを毎回取り直す方式ではないため、処理途中に意味候補が変わりません。
+
+## 承認Scope
+
+承認はRecord全体の1つのBooleanではなく、次のScopeごとに管理します。
+
+1. `lexical`：Surface・読み・品詞・語形
+2. `semantic`：意味・分野・極性・強度
+3. `pragmatic`：使用場面・社会関係・文脈・肯定／否定／境界例
+4. `task`：Intent Rule・Task Templateとの関係
+5. `external_action`：外部操作に関係する安全判断
+
+Compilerは`lexical`が承認されたRecordだけを受け入れ、さらに未承認ScopeのFieldを削ってからPack化します。したがって、12万件の語彙同定を使いながら、未承認の意味や語用をRuntimeへ混入させません。
+
+## Review BatchとDecision Ledger
+
+判断が残るRecordは`reports/unified-semantic-data/review-batches/`へ最大20件ずつ分割します。GPTアプリはこのBatchを読み、利用者の指示に従って`research/semantic_decisions/`へDecision Ledgerを追加します。
+
+Decision Ledgerの正本は`research/semantic_decisions/decision_ledger.jsonl`です。Record ID、Scope、判断、Reviewer、日時、理由、元入力RecordのSHA-256を必須とします。`semantic`判断は極性（positive / negative / neutral）と強度（0.0〜1.0）、`pragmatic`判断は必須／除外Context、`task`判断はTask候補、`external_action`判断はRiskのtrue / falseをPatchへ記録します。入力が変更されてSHA-256が一致しなくなった古い判断は適用しません。Ledger Schemaは`schemas/semantic_decision_ledger.schema.json`です。
+
+120,000件と5,000件は一つのQueueへ入り、同じBatch生成規則で処理されます。Source種別による除外・優先処理は行いません。125,000件すべての必要Scopeが確定するまで公開Gateは開きません。
+
+Pipeline自身は承認を作りません。Reviewが残る間、WorkflowはEvidenceを保存した後に`REVIEW_REQUIRED`で失敗し、公開可能状態にしません。
+
+## 自動生成物
+
+`reports/unified-semantic-data/`に次を生成します。
+
+- `manifest.json`
+- `review-records.jsonl`
+- `review-queue.jsonl`
+- `review-batches/`と`review-batch-index.jsonl`
+- `approved-records.jsonl`
+- `decision-audit.jsonl`
+- `collision-report.jsonl`
+- `license-report.jsonl`
+- `source-manifest.jsonl`
+- `existing-runtime-links.jsonl`
+
+承認済みPackは`dictionaries/system/compiled/semantic_data/`にManifest、gzip Record Shard、Surface・Reading・Lemma・POS・Domain・Meaning・Target Indexとして出力します。同形異義は潰さず、候補を保持します。
+
+Pack全体のIndexとは別に、Semantic Runtime専用のSurface・Reading・Record Locator Indexを生成します。Lexicalだけが承認済みのRecordはPackと全体Indexへ残しますが、承認済み意味候補がないためSemantic Runtime検索Indexには入れません。語彙同定はOpen Lexicon層、承認済み意味・語用の追加はSemantic Runtime層が担当し、同じLexical RecordのGzip Shardを意味解析のたびに重複読込しない構造です。
+
+## 専門・利用者Packの分離
+
+Core、専門、利用者の入力は物理的に別Directoryで管理し、正規化後も`pack_namespace`を保持します。衝突時に黙って上書きせず、`collision-report.jsonl`へ全Record IDを出します。Runtime利用時は有効にするDomain/User Packを選び、Coreとの候補集合として統合参照する設計です。
 
 ## GitHub Actions
 
-`.github/workflows/unified-semantic-data.yml`は次を実行します。
+`.github/workflows/data_pipeline.yml`は対象PRで次を実行します。
 
-1. 12万件・5,000件・Domain Pack・User Packを全件読込
-2. 共通Schema加工
-3. Review Queue・衝突・既存Data Link生成
-4. 承認済みDataだけCompile
-5. 二回再構築のByte一致
-6. Meaning Graph統合Test
-7. 既存Gold・Holdout・Safety Contract
-8. 10ms Target・50ms Hard Limit
-9. Wheel Build
-10. Repository外InstallとRuntime解析
-11. Evidence Artifact保存
+1. Run ID・Artifact ID・件数・SHA-256固定のPR #26 Review Queueを復元
+2. 4種Adapterから125,000件と追加Packを共通Schemaへ正規化
+3. Source・License・Digest、重複、同形異義、既存Data Relationを検査
+4. 既存Decision Ledgerだけを適用
+5. 125,000件の共通Review QueueからReview Batchを最大20件で生成
+6. 承認ScopeだけをCompile
+7. 2回BuildのByte一致を検査
+8. Adapter・Review・Runtime Pack Test
+9. Gold、Holdout、External Action Safety Gate
+10. p95 10ms Target、50ms Hard Limit
+11. Approved-only Wheel BuildとRepository外Offline Test
+12. Evidence ArtifactとPR Summaryを保存
+13. Review残件があれば`REVIEW_REQUIRED`で停止
 
-WorkflowはRepositoryへCommit・Pushしません。
+Workflowの権限は`contents: read`のみで、Commit・Push・Merge・Releaseは行いません。
 
-## 安全境界
+## 実行方法
 
-- 意味・定義を捏造しない
-- 自動承認しない
-- 未承認DataをRuntimeへ入れない
-- 不明LicenseをRuntimeへ入れない
-- 同形異義語を一つへ潰さない
-- 利用者Dataで公式Dataを黙って上書きしない
-- Meaning CandidateからIntent・Task・External Actionを無条件生成しない
-- Action／Socialの曖昧性はFail Closedする
-- Meaning Graphを唯一の意味正本とする
+```bash
+python tools/unified_semantic_data_pipeline.py --compile-approved
+python tools/unified_semantic_data_pipeline.py --check
+python tools/unified_semantic_data_pipeline.py --require-review-complete
+```
+
+## 公開Gate
+
+公開可能なのは、Review残件がなく、Byte Determinism、既存辞書検証、Gold、独立Holdout、外部操作安全性100%、Macro精度95%以上、各Category 90%以上、p95 10ms以下、Hard 50ms以下、Wheel Offline検証の全てが成功した場合だけです。いずれか1つでも失敗すれば公開処理を止めます。

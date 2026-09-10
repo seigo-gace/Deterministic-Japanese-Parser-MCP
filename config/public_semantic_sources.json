@@ -1,0 +1,218 @@
+{
+  "schema_version": "1.1.0",
+  "policy": {
+    "require_free_access": true,
+    "require_machine_retrievable_data": true,
+    "require_meaning_evidence": true,
+    "require_source_digest": true,
+    "forbid_web_scraping_without_reuse_permission": true,
+    "forbid_placeholder_meanings": true,
+    "fail_closed_on_missing_meaning": true,
+    "preserve_unresolved_source_rows": true
+  },
+  "sources": [
+    {
+      "id": "japanese-wordnet-1.1",
+      "title": "Japanese WordNet 1.1",
+      "category": ["general", "semantic", "synonym", "concept-relations"],
+      "status": "enabled",
+      "adapter": "wnja_sqlite_release",
+      "repository": "bond-lab/wnja",
+      "release_tag": "v1.1",
+      "asset_name": "wnjpn.db.gz",
+      "homepage": "https://bond-lab.github.io/wnja/jpn/downloads.html",
+      "license": "Japanese WordNet License (BSD-style; redistribution requires license and attribution)",
+      "license_url": "https://bond-lab.github.io/wnja/license.txt",
+      "expected_source_sha256": "64a14dcfe3ba296566e91a70a2fc0616e85cf2ee7b7fd8cdcbc66c8b12a505a5",
+      "attribution": "日本語ワードネット 1.1 © NICT / Francis Bond / Takayuki Kuribayashi",
+      "meaning_evidence": ["japanese_definition", "synset_relations", "synonyms", "examples"]
+    },
+    {
+      "id": "ninjal-okinawa-dictionary-main",
+      "title": "NINJAL Okinawa-go Dictionary main body",
+      "category": ["dialect", "ryukyuan", "lexicon"],
+      "status": "enabled",
+      "adapter": "okinawa_xlsx",
+      "url": "https://mmsrv.ninjal.ac.jp/okinawago/okinawa_01.xlsx",
+      "homepage": "https://mmsrv.ninjal.ac.jp/okinawago/",
+      "version": "Dictionary 9th printing / 2001 revision; electronic dataset",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "expected_source_sha256": "38fe3e32486d4698db18f7caa6ef605d474af4eaadfdbf51beb67c0c46387c12",
+      "attribution": "国立国語研究所資料集5『沖縄語辞典』第9刷",
+      "meaning_evidence": ["meaning", "part_of_speech", "accent"]
+    },
+    {
+      "id": "unicode-unihan-17.0.0",
+      "title": "Unicode Unihan 17.0.0",
+      "category": ["kanji", "han-ideograph", "definition", "reading"],
+      "status": "enabled",
+      "adapter": "unihan_zip",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip",
+      "homepage": "https://www.unicode.org/reports/tr38/",
+      "version": "Unicode 17.0.0",
+      "license": "Unicode License v3 (Unicode-3.0)",
+      "license_url": "https://www.unicode.org/license.txt",
+      "attribution": "Unicode Unihan Database © Unicode, Inc.",
+      "meaning_evidence": ["kDefinition", "kJapaneseOn", "kJapaneseKun"]
+    },
+    {
+      "id": "jmdict",
+      "title": "JMdict",
+      "category": ["general", "reading", "part-of-speech", "meaning"],
+      "status": "existing_pipeline",
+      "reason": "Already source-locked and processed by the current 125,000-record pipeline. Do not duplicate ingest."
+    },
+    {
+      "id": "kanjidic2",
+      "title": "KANJIDIC2",
+      "category": ["kanji", "reading", "meaning"],
+      "status": "enabled",
+      "adapter": "kanjidic2_xml_gz",
+      "url": "https://www.edrdg.org/kanjidic/kanjidic2.xml.gz",
+      "homepage": "https://www.edrdg.org/wiki/KANJIDIC_Project.html",
+      "version": "current KANJIDIC2 snapshot; source digest locked at acquisition",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://www.edrdg.org/edrdg/licence.html",
+      "attribution": "KANJIDIC2 © Electronic Dictionary Research and Development Group",
+      "meaning_evidence": ["english_meanings", "readings", "nanori", "character_metadata", "cross_source_unihan_fallback"]
+    },
+    {
+      "id": "nict-wikipedia-dependency-v1.0",
+      "title": "日本語Wikipediaエントリの係り受けデータベース Version 1.0",
+      "category": ["dependency", "syntax", "frequency", "wikipedia-entry"],
+      "status": "enabled_large_corpus",
+      "adapter": "nict_wikipedia_dependency_tar_gz",
+      "url": "https://alaginrc.nict.go.jp/wikidep/src/DEP_WIKIPEDIA_V1.0.tar.gz",
+      "homepage": "https://alaginrc.nict.go.jp/wikidep/",
+      "version": "1.0 (2011-12-01)",
+      "license": "CC BY-SA 3.0 Unported",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "ウィキペディア日本語版の情報等をベースとして国立研究開発法人情報通信研究機構が作成した『日本語Wikipediaエントリの係り受けデータベース』",
+      "evidence_role": ["dependency_relation", "dependency_frequency", "compound_entry_boundary"],
+      "meaning_policy": "This dataset is relation evidence, not a lexical-definition source. Join lexical meanings from separately licensed semantic sources; do not invent meanings from dependency pairs."
+    },
+    {
+      "id": "alagin-japanese-dependency-v1.1",
+      "title": "日本語係り受けデータベース Version 1.1 (A-8)",
+      "category": ["dependency", "syntax", "frequency", "web-corpus"],
+      "status": "restricted_contract_required",
+      "homepage": "https://alaginrc.nict.go.jp/li-outline.html",
+      "version": "1.1",
+      "reason": "ALAGIN currently states that data use is limited to ALAGIN members and acquisition requires a contract. It is therefore not treated as an anonymously downloadable free source. The public Wikipedia subset remains separately ingestible under CC BY-SA 3.0."
+    },
+    {
+      "id": "japanese-law-standard-bilingual-dictionary",
+      "title": "法令用語日英標準対訳辞書",
+      "category": ["law", "legal-terms", "examples"],
+      "status": "queued_adapter",
+      "homepage": "https://www.japaneselawtranslation.go.jp/ja/dicts/download",
+      "reason": "Official site exposes structured downloadable data; exact versioned endpoint must be source-locked before ingest."
+    },
+    {
+      "id": "openmwe-japanese-idioms",
+      "title": "OpenMWE for Japanese - Idioms",
+      "category": ["idiom", "mwe", "semantic-ambiguity"],
+      "status": "queued_license_verification",
+      "reason": "Catalog confirms free availability; redistribution/license text must be fixed before automatic ingest."
+    },
+    {
+      "id": "japanese-sentiment-polarity-dictionary",
+      "title": "日本語評価極性辞書",
+      "category": ["sentiment", "polarity"],
+      "status": "queued_overlay",
+      "reason": "Semantic overlay only; attach to records whose lexical meaning is independently evidenced."
+    },
+    {
+      "id": "cojads",
+      "title": "日本語諸方言コーパス COJADS",
+      "category": ["dialect", "corpus", "examples"],
+      "status": "reference_only_until_terms_verified",
+      "reason": "Free/registered access is not equivalent to unrestricted public repackaging permission."
+    },
+    {
+      "id": "bccwj",
+      "title": "BCCWJ",
+      "category": ["corpus", "written-japanese"],
+      "status": "reference_only",
+      "reason": "Corpus evidence source; not treated as freely redistributable dictionary text."
+    },
+    {
+      "id": "csj",
+      "title": "CSJ",
+      "category": ["corpus", "spoken-japanese"],
+      "status": "reference_only",
+      "reason": "Corpus evidence source with separate usage conditions; not automatically repackaged."
+    },
+    {
+      "id": "nwjc",
+      "title": "NWJC",
+      "category": ["corpus", "web-japanese"],
+      "status": "reference_only",
+      "reason": "Search/corpus evidence is distinct from redistribution permission."
+    },
+    {
+      "id": "kotobank",
+      "title": "コトバンク",
+      "category": ["portal", "dictionary-search"],
+      "status": "excluded_from_bulk_extraction",
+      "reason": "Free browsing is not evidence of bulk extraction/republication permission."
+    },
+    {
+      "id": "weblio",
+      "title": "Weblio",
+      "category": ["portal", "dictionary-search"],
+      "status": "excluded_from_bulk_extraction",
+      "reason": "Free browsing is not evidence of bulk extraction/republication permission."
+    },
+    {
+      "id": "goo-dictionary",
+      "title": "goo辞書",
+      "category": ["portal", "dictionary-search"],
+      "status": "excluded_from_bulk_extraction",
+      "reason": "Free browsing is not evidence of bulk extraction/republication permission."
+    },
+    {
+      "id": "cjki-jwl",
+      "title": "CJKI/JWL",
+      "category": ["general", "proper-nouns", "technical"],
+      "status": "excluded_until_free_reuse_proven",
+      "reason": "Do not treat searchable/commercial lexical data as freely redistributable without explicit permission."
+    },
+    {
+      "id": "cotoha-api",
+      "title": "COTOHA API Portal",
+      "category": ["api", "technical-terms"],
+      "status": "excluded_from_runtime_dataset",
+      "reason": "API trial/free usage is not permission to bulk extract and redistribute the underlying dictionary."
+    },
+    {
+      "id": "awesome-japanese-nlp-resources",
+      "title": "awesome-japanese-nlp-resources",
+      "category": ["discovery-portal"],
+      "status": "discovery_only",
+      "reason": "Catalog/index; every listed resource requires its own license and meaning-evidence check."
+    },
+    {
+      "id": "jaist-language-resource-catalog",
+      "title": "JAIST Catalogue of Language Resources and Tools in Japan",
+      "category": ["discovery-portal"],
+      "status": "discovery_only",
+      "reason": "Catalog/index; every listed resource requires its own license and data check."
+    },
+    {
+      "id": "ninjal-database-catalog",
+      "title": "NINJAL databases and corpora",
+      "category": ["discovery-portal"],
+      "status": "discovery_only",
+      "reason": "Catalog/index; each dataset has distinct terms."
+    },
+    {
+      "id": "alagin",
+      "title": "ALAGIN language resources",
+      "category": ["discovery-portal"],
+      "status": "discovery_only",
+      "reason": "Catalog/index; each dataset has distinct terms."
+    }
+  ]
+}

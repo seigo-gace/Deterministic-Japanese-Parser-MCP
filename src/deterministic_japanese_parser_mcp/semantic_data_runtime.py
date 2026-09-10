@@ -6,9 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Any, Iterable
+from tempfile import TemporaryFile
+from threading import Lock
+from typing import Any, BinaryIO, Iterable
 import unicodedata
 
+from .grammar_kernel import ACTION_INTENTS, CONSTRAINT_INTENTS
 from .models import (
     ItemStatus,
     LanguageFeatureMatch,
@@ -16,6 +19,7 @@ from .models import (
     OriginalSpan,
     Proposition,
     SenseCandidate,
+    SocialContext,
     Token,
 )
 
@@ -35,14 +39,8 @@ def _overlap(left: OriginalSpan, right: OriginalSpan) -> bool:
 
 
 def _stable_hash(graph: MeaningGraph) -> str:
-    payload = graph.model_dump(exclude={"semantic_hash"}, mode="json")
     return hashlib.sha256(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
     ).hexdigest()
 
 
@@ -56,6 +54,73 @@ def _contains_any(text: str, values: Iterable[str]) -> bool:
     return any(str(value).casefold() in folded for value in values if str(value))
 
 
+def _structured_markers(value: Any, *, prefix: str = "") -> set[str]:
+    """Flatten caller-supplied context into exact, normalized markers."""
+
+    markers: set[str] = set()
+    if isinstance(value, dict):
+        for key in sorted(value):
+            child_prefix = f"{prefix}:{key}" if prefix else str(key)
+            markers.update(_structured_markers(value[key], prefix=child_prefix))
+        return markers
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            markers.update(_structured_markers(item, prefix=prefix))
+        return markers
+    if value is None or value is False:
+        return markers
+    if value is True:
+        if prefix:
+            markers.add(_normalize(prefix))
+        return markers
+
+    marker = _normalize(str(value))
+    if marker:
+        markers.add(marker)
+        if prefix:
+            markers.add(_normalize(f"{prefix}:{value}"))
+    return markers
+
+
+def _social_markers(social_context: SocialContext | None) -> set[str]:
+    if social_context is None:
+        return set()
+    return _structured_markers(social_context.model_dump(mode="json"))
+
+
+def _discourse_markers(
+    graph: MeaningGraph,
+    discourse_state: dict[str, Any] | None,
+) -> set[str]:
+    markers = _structured_markers(discourse_state or {})
+    reading = graph.reading_analysis
+    for operator in reading.scope_operators:
+        markers.update({
+            _normalize(operator.operator_type),
+            _normalize(f"scope:{operator.operator_type}"),
+            _normalize(f"scope:{operator.semantic_value}"),
+        })
+    for frame in reading.attribution_frames:
+        markers.update({
+            _normalize(frame.attribution_type),
+            _normalize(f"attribution:{frame.attribution_type}"),
+        })
+    for relation in reading.discourse_relations:
+        markers.update({
+            _normalize(relation.relation),
+            _normalize(f"discourse:{relation.relation}"),
+        })
+    return {marker for marker in markers if marker}
+
+
+def _has_required_markers(
+    required: Iterable[str],
+    available: set[str],
+) -> bool:
+    normalized = {_normalize(str(value)) for value in required if str(value)}
+    return normalized.issubset(available)
+
+
 class SemanticDataRuntime:
     """Approved-only runtime for unified lexical and context data packs.
 
@@ -63,7 +128,13 @@ class SemanticDataRuntime:
     propositions. It preserves ambiguity and never creates external actions.
     """
 
-    def __init__(self, root: Path, *, shard_cache_size: int = 4):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        shard_cache_size: int = 4,
+        record_cache_size: int = 256,
+    ):
         self.root = Path(root)
         self.available = False
         self.manifest: dict[str, Any] = {}
@@ -71,7 +142,13 @@ class SemanticDataRuntime:
         self.reading_index: dict[str, list[str]] = {}
         self.record_locator: dict[str, dict[str, int]] = {}
         self.shard_cache_size = max(1, shard_cache_size)
+        self.record_cache_size = max(1, record_cache_size)
         self._shards: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
+        self._record_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._record_store: BinaryIO | None = None
+        self._record_offsets: dict[str, tuple[int, int]] = {}
+        self._record_store_lock = Lock()
+        self._record_cache_lock = Lock()
         self.last_metrics: dict[str, int | float | str] = {
             "semantic_pack_available": 0,
             "semantic_pack_match_count": 0,
@@ -100,18 +177,134 @@ class SemanticDataRuntime:
             raise FileNotFoundError(
                 "compiled semantic data indexes are incomplete: " + ", ".join(missing)
             )
+        runtime_required = {
+            "surface": index_root / "runtime-surface-index.json.gz",
+            "reading": index_root / "runtime-reading-index.json.gz",
+            "locator": index_root / "runtime-record-locator.json.gz",
+        }
+        if "runtime_record_count" in manifest:
+            runtime_missing = [
+                str(path) for path in runtime_required.values() if not path.exists()
+            ]
+            if runtime_missing:
+                raise FileNotFoundError(
+                    "compiled semantic runtime indexes are incomplete: "
+                    + ", ".join(runtime_missing)
+                )
+            selected_indexes = runtime_required
+            expected_locator_count = int(manifest["runtime_record_count"])
+        else:
+            # Backward compatibility for compiler manifests created before
+            # runtime-only lookup indexes were introduced.
+            selected_indexes = required
+            expected_locator_count = int(manifest.get("record_count", 0))
+
         self.manifest = manifest
-        self.surface_index = _load_json_gzip(required["surface"])
-        self.reading_index = _load_json_gzip(required["reading"])
-        self.record_locator = _load_json_gzip(required["locator"])
-        if len(self.record_locator) != int(manifest.get("record_count", 0)):
+        self.surface_index = _load_json_gzip(selected_indexes["surface"])
+        self.reading_index = _load_json_gzip(selected_indexes["reading"])
+        self.record_locator = _load_json_gzip(selected_indexes["locator"])
+        if len(self.record_locator) != expected_locator_count:
             raise ValueError("semantic data record locator count mismatch")
+
+        runtime_shards = {
+            int(location["shard"])
+            for location in self.record_locator.values()
+        }
+        if len(runtime_shards) > self.shard_cache_size:
+            self._prepare_random_access_store()
+
         self.available = True
         self.last_metrics["semantic_pack_available"] = 1
 
     @property
     def record_count(self) -> int:
         return int(self.manifest.get("record_count", 0))
+
+    @property
+    def runtime_record_count(self) -> int:
+        return int(self.manifest.get("runtime_record_count", self.record_count))
+
+    @staticmethod
+    def _validated_record(
+        item: dict[str, Any],
+        *,
+        path: Path,
+        line_number: int,
+        expected_record_id: str | None = None,
+    ) -> dict[str, Any]:
+        record_id = item.get("record_id")
+        if not record_id:
+            raise ValueError(f"semantic record_id missing: {path}:{line_number}")
+        if expected_record_id is not None and record_id != expected_record_id:
+            raise ValueError(
+                "semantic record locator mismatch: "
+                f"expected={expected_record_id} actual={record_id} "
+                f"path={path}:{line_number}"
+            )
+        approval = item.get("approval") or {}
+        approved_scopes = approval.get("approved_scopes") or []
+        if not approved_scopes:
+            raise ValueError(f"semantic record has no approved scope: {record_id}")
+        blocked = approval.get("blockers_by_scope") or {}
+        if any(blocked.get(scope) for scope in approved_scopes):
+            raise ValueError(
+                f"approved semantic record contains scoped blocker: {record_id}"
+            )
+        return item
+
+    def _prepare_random_access_store(self) -> None:
+        """Materialize runtime rows once to avoid repeated full-shard JSON parsing.
+
+        The compiled locator already identifies the exact line for every runtime
+        record. When runtime records span more shards than the bounded parsed
+        shard cache can retain, repeatedly parsing 10k-record gzip shards causes
+        deterministic cache thrashing. This store scans each required shard once
+        as bytes, keeps only runtime rows in a temporary seekable file, and
+        records byte offsets. Runtime semantics and approval validation remain
+        unchanged; individual rows are JSON-decoded and validated on access.
+        """
+
+        line_map_by_shard: dict[int, dict[int, str]] = {}
+        for record_id, location in self.record_locator.items():
+            shard = int(location["shard"])
+            line_number = int(location["line"])
+            shard_lines = line_map_by_shard.setdefault(shard, {})
+            if line_number in shard_lines:
+                raise ValueError(
+                    "semantic runtime locator line collision: "
+                    f"shard={shard} line={line_number}"
+                )
+            shard_lines[line_number] = record_id
+
+        store = TemporaryFile(mode="w+b")
+        offsets: dict[str, tuple[int, int]] = {}
+        offset = 0
+        try:
+            for shard, requested_lines in sorted(line_map_by_shard.items()):
+                path = self.root / "records" / f"records-{shard:04d}.jsonl.gz"
+                if not path.exists():
+                    raise FileNotFoundError(path)
+                with gzip.open(path, "rb") as handle:
+                    for line_number, line in enumerate(handle, 1):
+                        record_id = requested_lines.get(line_number)
+                        if record_id is None:
+                            continue
+                        offsets[record_id] = (offset, len(line))
+                        store.write(line)
+                        offset += len(line)
+            if len(offsets) != len(self.record_locator):
+                missing = sorted(set(self.record_locator) - set(offsets))
+                raise ValueError(
+                    "semantic runtime locator could not materialize all records: "
+                    f"missing={missing[:20]}"
+                )
+            store.flush()
+        except Exception:
+            store.close()
+            raise
+
+        self._record_store = store
+        self._record_offsets = offsets
 
     def _load_shard(self, number: int) -> dict[str, dict[str, Any]]:
         cached = self._shards.get(number)
@@ -126,15 +319,12 @@ class SemanticDataRuntime:
             for line_number, line in enumerate(handle, 1):
                 if not line.strip():
                     continue
-                item = json.loads(line)
-                record_id = item.get("record_id")
-                if not record_id:
-                    raise ValueError(f"semantic record_id missing: {path}:{line_number}")
-                if item.get("review_status") != "approved":
-                    raise ValueError(f"unapproved semantic record in runtime: {record_id}")
-                if item.get("review_blockers"):
-                    raise ValueError(f"blocked semantic record in runtime: {record_id}")
-                records[record_id] = item
+                item = self._validated_record(
+                    json.loads(line),
+                    path=path,
+                    line_number=line_number,
+                )
+                records[item["record_id"]] = item
         self._shards[number] = records
         self._shards.move_to_end(number)
         while len(self._shards) > self.shard_cache_size:
@@ -145,6 +335,47 @@ class SemanticDataRuntime:
         location = self.record_locator.get(record_id)
         if location is None:
             raise KeyError(record_id)
+
+        if self._record_store is not None:
+            with self._record_cache_lock:
+                cached = self._record_cache.get(record_id)
+                if cached is not None:
+                    self._record_cache.move_to_end(record_id)
+                    return cached
+
+            span = self._record_offsets.get(record_id)
+            if span is None:
+                raise KeyError(record_id)
+            offset, length = span
+            with self._record_store_lock:
+                self._record_store.seek(offset)
+                payload = self._record_store.read(length)
+            if len(payload) != length:
+                raise ValueError(
+                    f"semantic runtime record cache truncated: {record_id}"
+                )
+            path = (
+                self.root
+                / "records"
+                / f"records-{int(location['shard']):04d}.jsonl.gz"
+            )
+            item = self._validated_record(
+                json.loads(payload),
+                path=path,
+                line_number=int(location["line"]),
+                expected_record_id=record_id,
+            )
+            with self._record_cache_lock:
+                existing = self._record_cache.get(record_id)
+                if existing is not None:
+                    self._record_cache.move_to_end(record_id)
+                    return existing
+                self._record_cache[record_id] = item
+                self._record_cache.move_to_end(record_id)
+                while len(self._record_cache) > self.record_cache_size:
+                    self._record_cache.popitem(last=False)
+            return item
+
         item = self._load_shard(int(location["shard"])).get(record_id)
         if item is None:
             raise KeyError(record_id)
@@ -172,18 +403,28 @@ class SemanticDataRuntime:
         *,
         token: Token,
         context_text: str,
+        social_markers: set[str],
+        discourse_markers: set[str],
     ) -> tuple[int, list[str]]:
         score = 100
         evidence = ["semantic_pack_surface_match"]
         record_pos = " ".join(record.get("part_of_speech", [])).casefold()
         token_pos = " ".join(token.pos).casefold()
-        if token_pos and record_pos and any(part in record_pos for part in token_pos.split("-") if part):
+        if token_pos and record_pos and any(
+            part in record_pos for part in token_pos.split("-") if part
+        ):
             score += 20
             evidence.append("semantic_pack_pos_match")
 
         conditions = dict(record.get("context_conditions") or {})
         candidate_context = candidate.get("context") or {}
-        for key in ("required_any", "required_all", "forbidden_any"):
+        for key in (
+            "required_any",
+            "required_all",
+            "forbidden_any",
+            "required_social",
+            "required_discourse",
+        ):
             if key in candidate_context:
                 conditions[key] = [
                     *conditions.get(key, []),
@@ -205,9 +446,27 @@ class SemanticDataRuntime:
         if forbidden_any and _contains_any(context_text, forbidden_any):
             return -10000, ["semantic_pack_forbidden_context"]
 
+        required_social = conditions.get("required_social", [])
+        if required_social:
+            if not _has_required_markers(required_social, social_markers):
+                return -10000, ["semantic_pack_required_social_missing"]
+            score += 15
+            evidence.append("semantic_pack_required_social")
+
+        required_discourse = conditions.get("required_discourse", [])
+        if required_discourse:
+            if not _has_required_markers(required_discourse, discourse_markers):
+                return -10000, ["semantic_pack_required_discourse_missing"]
+            score += 15
+            evidence.append("semantic_pack_required_discourse")
+
         domains = [*record.get("domains", []), *candidate.get("domains", [])]
         matched_domain = next(
-            (domain for domain in domains if domain and domain.casefold() in context_text.casefold()),
+            (
+                domain
+                for domain in domains
+                if domain and domain.casefold() in context_text.casefold()
+            ),
             None,
         )
         if matched_domain:
@@ -219,7 +478,10 @@ class SemanticDataRuntime:
         return score, evidence
 
     @staticmethod
-    def _apply_parameters(proposition: Proposition, candidate: dict[str, Any]) -> Proposition:
+    def _apply_parameters(
+        proposition: Proposition,
+        candidate: dict[str, Any],
+    ) -> Proposition:
         parameters = dict(candidate.get("parameters") or {})
         allowed_scalar = {
             "force_level",
@@ -245,7 +507,9 @@ class SemanticDataRuntime:
         for key in list_fields:
             values = parameters.get(key)
             if values:
-                update[key] = list(dict.fromkeys([*getattr(proposition, key), *values]))
+                update[key] = list(
+                    dict.fromkeys([*getattr(proposition, key), *values])
+                )
         if parameters.get("sensory_features"):
             update["sensory_features"] = {
                 **proposition.sensory_features,
@@ -261,6 +525,9 @@ class SemanticDataRuntime:
         original_text: str,
         conversation_context: list[str],
         known_entities: list[str],
+        social_context: SocialContext | None = None,
+        discourse_state: dict[str, Any] | None = None,
+        update_hash: bool = True,
     ) -> MeaningGraph:
         if not self.available:
             quality = {
@@ -269,9 +536,39 @@ class SemanticDataRuntime:
                 "semantic_data_pack_record_count": 0,
             }
             updated = graph.model_copy(update={"quality_annotations": quality})
-            return updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
+
+        if self.runtime_record_count == 0:
+            quality = {
+                **graph.quality_annotations,
+                "semantic_data_pack_used": True,
+                "semantic_data_pack_record_count": self.record_count,
+                "semantic_data_runtime_record_count": 0,
+                "semantic_data_pack_match_count": 0,
+                "semantic_data_pack_resolved_count": 0,
+                "semantic_data_pack_ambiguous_count": 0,
+                "semantic_data_pack_automatic_external_action": False,
+            }
+            self.last_metrics = {
+                "semantic_pack_available": 1,
+                "semantic_pack_match_count": 0,
+                "semantic_pack_resolved_count": 0,
+                "semantic_pack_ambiguous_count": 0,
+            }
+            updated = graph.model_copy(update={"quality_annotations": quality})
+            if update_hash:
+                return updated.model_copy(update={
+                    "semantic_hash": _stable_hash(updated),
+                })
+            return updated
 
         context_text = "\n".join([original_text, *conversation_context, *known_entities])
+        social_markers = _social_markers(social_context)
+        discourse_markers = _discourse_markers(graph, discourse_state)
         propositions = list(graph.propositions)
         language_features = list(graph.language_features)
         unresolved = list(graph.unresolved)
@@ -287,10 +584,21 @@ class SemanticDataRuntime:
                 index
                 for index, proposition in enumerate(propositions)
                 if _overlap(token.span, proposition.source_span)
-                or any(argument.span and _overlap(token.span, argument.span) for argument in proposition.arguments)
+                or any(
+                    argument.span and _overlap(token.span, argument.span)
+                    for argument in proposition.arguments
+                )
             ]
-            ranked: list[tuple[int, str, dict[str, Any], dict[str, Any], list[str]]] = []
+            ranked: list[
+                tuple[int, str, dict[str, Any], dict[str, Any], list[str]]
+            ] = []
             for record in records:
+                record_discourse_markers = set(discourse_markers)
+                feature_type = record.get("feature_type") or ""
+                if feature_type:
+                    record_discourse_markers.add(
+                        _normalize(f"feature:{feature_type}")
+                    )
                 for candidate in record.get("meaning_candidates", []):
                     if candidate.get("review_status") != "approved":
                         continue
@@ -299,10 +607,14 @@ class SemanticDataRuntime:
                         candidate,
                         token=token,
                         context_text=context_text,
+                        social_markers=social_markers,
+                        discourse_markers=record_discourse_markers,
                     )
                     if score <= -10000:
                         continue
-                    ranked.append((score, candidate["candidate_id"], record, candidate, evidence))
+                    ranked.append(
+                        (score, candidate["candidate_id"], record, candidate, evidence)
+                    )
             if not ranked:
                 continue
             ranked.sort(key=lambda item: (-item[0], item[1], item[2]["record_id"]))
@@ -326,11 +638,20 @@ class SemanticDataRuntime:
 
             for index in related_indices:
                 proposition = propositions[index]
+                # The system semantic profile runs before the approved data pack
+                # and may already have a stronger, context-specific resolution.
+                # A later lexical/context pack can add coverage, but it must not
+                # replace an already resolved sense with a weaker generic sense.
+                if proposition.sense_id is not None:
+                    continue
                 if selected:
                     proposition = proposition.model_copy(update={
                         "sense_id": top[1],
                         "sense_label": top[3].get("label") or top[1],
-                        "sense_confidence": min(0.99, 0.70 + max(0, margin) / 100),
+                        "sense_confidence": min(
+                            0.99,
+                            0.70 + max(0, margin) / 100,
+                        ),
                         "sense_candidates": sense_candidates,
                         "evidence_ids": list(dict.fromkeys([
                             *proposition.evidence_ids,
@@ -348,13 +669,29 @@ class SemanticDataRuntime:
                         item[2].get("risk_class") in {"action", "social"}
                         for item in ranked
                     )
+                    # Grammar-derived action and constraint intents are already
+                    # structural decisions. Ordinary lexical/semantic polysemy
+                    # remains available as lexical evidence but must not turn a
+                    # resolved structural proposition into an ambiguous one.
+                    # Action/social-risk ambiguity still crosses this boundary
+                    # and remains fail-closed for external execution.
+                    structural_intent = (
+                        proposition.intent_type in ACTION_INTENTS
+                        or proposition.intent_type in CONSTRAINT_INTENTS
+                    )
+                    if structural_intent and not action_sensitive:
+                        continue
                     proposition = proposition.model_copy(update={
                         "sense_id": None,
                         "sense_label": None,
                         "sense_confidence": 0.0,
                         "sense_candidates": sense_candidates,
                         "status": ItemStatus.AMBIGUOUS,
-                        "executable_candidate": False if action_sensitive else proposition.executable_candidate,
+                        "executable_candidate": (
+                            False
+                            if action_sensitive
+                            else proposition.executable_candidate
+                        ),
                     })
                     unresolved.append({
                         "type": "semantic_data_pack",
@@ -365,21 +702,47 @@ class SemanticDataRuntime:
                     })
                 propositions[index] = proposition
 
+            eligible_record_ids = {item[2]["record_id"] for item in ranked}
             for record in records:
                 if "language_feature" not in record.get("semantic_targets", []):
                     continue
-                selected_candidate = top[3] if selected and top[2]["record_id"] == record["record_id"] else None
+                if record["record_id"] not in eligible_record_ids:
+                    continue
+                selected_candidate = (
+                    top[3]
+                    if selected and top[2]["record_id"] == record["record_id"]
+                    else None
+                )
                 language_features.append(LanguageFeatureMatch(
                     entry_id=record["record_id"],
                     feature_type=record.get("feature_type") or "semantic_data",
                     surface=token.surface,
-                    interpretation_id=selected_candidate.get("candidate_id") if selected_candidate else None,
-                    interpretation=selected_candidate.get("label") if selected_candidate else None,
+                    interpretation_id=(
+                        selected_candidate.get("candidate_id")
+                        if selected_candidate
+                        else None
+                    ),
+                    interpretation=(
+                        selected_candidate.get("label")
+                        if selected_candidate
+                        else None
+                    ),
                     parameters=(selected_candidate or {}).get("parameters", {}),
-                    register_profile=(selected_candidate or {}).get("register", record.get("register", {})),
+                    register_profile=(selected_candidate or {}).get(
+                        "register",
+                        record.get("register", {}),
+                    ),
                     source_span=token.span,
-                    status=ItemStatus.RESOLVED if selected_candidate else ItemStatus.AMBIGUOUS,
-                    candidate_ids=[item[1] for item in ranked if item[2]["record_id"] == record["record_id"]],
+                    status=(
+                        ItemStatus.RESOLVED
+                        if selected_candidate
+                        else ItemStatus.AMBIGUOUS
+                    ),
+                    candidate_ids=[
+                        item[1]
+                        for item in ranked
+                        if item[2]["record_id"] == record["record_id"]
+                    ],
                     evidence_ids=(selected_candidate or {}).get("evidence_ids", []),
                     risk_class=record.get("risk_class", "semantic"),
                 ))
@@ -388,6 +751,7 @@ class SemanticDataRuntime:
             **graph.quality_annotations,
             "semantic_data_pack_used": True,
             "semantic_data_pack_record_count": self.record_count,
+            "semantic_data_runtime_record_count": self.runtime_record_count,
             "semantic_data_pack_match_count": match_count,
             "semantic_data_pack_resolved_count": resolved_count,
             "semantic_data_pack_ambiguous_count": ambiguous_count,
@@ -399,7 +763,10 @@ class SemanticDataRuntime:
             "unresolved": unresolved,
             "quality_annotations": quality,
         })
-        updated = updated.model_copy(update={"semantic_hash": _stable_hash(updated)})
+        if update_hash:
+            updated = updated.model_copy(update={
+                "semantic_hash": _stable_hash(updated),
+            })
         self.last_metrics = {
             "semantic_pack_available": 1,
             "semantic_pack_match_count": match_count,

@@ -90,6 +90,54 @@ class GraphGuard:
                 if edge.status != ItemStatus.RESOLVED:
                     blocked.append(f"{edge.status.value}_SCOPE")
 
+        frame_propositions = {
+            frame.frame_id: set(frame.related_proposition_ids)
+            for frame in graph.reading_analysis.predicate_frames
+        }
+        for operator in graph.reading_analysis.scope_operators:
+            related = set().union(*(
+                frame_propositions.get(frame_id, set())
+                for frame_id in operator.target_frame_ids
+            )) if operator.target_frame_ids else set()
+            if not related.intersection(closure):
+                continue
+            if operator.status != ItemStatus.RESOLVED:
+                blocked.append(f"{operator.status.value}_READING_SCOPE")
+            if operator.operator_type == "quotation":
+                blocked.append("QUOTED_ACTION")
+            elif operator.operator_type == "question":
+                related_actions = [
+                    proposition_by_id[proposition_id]
+                    for proposition_id in related.intersection(closure)
+                    if proposition_id in proposition_by_id
+                    and proposition_by_id[proposition_id].intent_type
+                    in ACTION_INTENTS
+                ]
+                if any(
+                    item.speech_act != "polite_request"
+                    for item in related_actions
+                ):
+                    blocked.append("INTERROGATIVE_ACTION")
+            elif operator.operator_type == "negation":
+                blocked.append("NEGATED_ACTION")
+            elif operator.operator_type == "condition":
+                blocked.append("CONDITIONAL_ACTION_REQUIRES_EVALUATION")
+            elif (
+                operator.operator_type == "modality"
+                and operator.semantic_value in {"hearsay", "inference"}
+            ):
+                blocked.append("NON_ASSERTED_ACTION")
+
+        for attribution in graph.reading_analysis.attribution_frames:
+            related = set().union(*(
+                frame_propositions.get(frame_id, set())
+                for frame_id in attribution.related_frame_ids
+            )) if attribution.related_frame_ids else set()
+            if related.intersection(closure):
+                blocked.append("ATTRIBUTED_ACTION")
+                if attribution.status != ItemStatus.RESOLVED:
+                    blocked.append("INSUFFICIENT_ATTRIBUTION")
+
         for unresolved in graph.unresolved:
             related = set(unresolved.get("related_proposition_ids", []))
             status = unresolved.get("status")

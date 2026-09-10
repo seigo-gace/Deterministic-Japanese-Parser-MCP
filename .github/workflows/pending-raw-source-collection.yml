@@ -1,0 +1,117 @@
+name: Pending Raw Source Collection
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pending-raw-source-collection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pending-raw-source-collection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collect-pending-raw:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect unchanged raw source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p raw/stopwords-ja raw/wrime
+
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output raw/stopwords-ja/stopwords-ja.txt \
+            https://raw.githubusercontent.com/stopwords-iso/stopwords-ja/master/stopwords-ja.txt
+
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output raw/wrime/wrime-ver2.tsv \
+            https://raw.githubusercontent.com/ids-cv/wrime/master/wrime-ver2.tsv
+
+          test -s raw/stopwords-ja/stopwords-ja.txt
+          test -s raw/wrime/wrime-ver2.tsv
+
+          python - <<'PY'
+          from __future__ import annotations
+          import hashlib
+          import json
+          from pathlib import Path
+
+          sources = [
+              {
+                  "id": "stopwords-ja",
+                  "repository": "stopwords-iso/stopwords-ja",
+                  "source_url": "https://raw.githubusercontent.com/stopwords-iso/stopwords-ja/master/stopwords-ja.txt",
+                  "path": "raw/stopwords-ja/stopwords-ja.txt",
+                  "license_status": "permissive_readme_statement",
+                  "license_note": "Upstream README states the collection is free to use any way; SPDX license not asserted here.",
+                  "collection_role": "lexical-filter-evidence",
+                  "runtime_promotion": False,
+              },
+              {
+                  "id": "wrime-ver2",
+                  "repository": "ids-cv/wrime",
+                  "source_url": "https://raw.githubusercontent.com/ids-cv/wrime/master/wrime-ver2.tsv",
+                  "path": "raw/wrime/wrime-ver2.tsv",
+                  "license_status": "CC-BY-NC-ND-4.0",
+                  "license_note": "Raw bytes preserved unchanged. NonCommercial + NoDerivatives boundary applies.",
+                  "collection_role": "restricted-sentiment-reference",
+                  "runtime_promotion": False,
+              },
+          ]
+
+          for row in sources:
+              path = Path(row["path"])
+              data = path.read_bytes()
+              row["bytes"] = len(data)
+              row["sha256"] = hashlib.sha256(data).hexdigest()
+              row["line_count"] = data.count(b"\n")
+
+          manifest = {
+              "schema_version": "1.0.0",
+              "change_unit": "CU-RAW-COLLECTION-WAVE3-20260811-01",
+              "phase": "ACQUISITION_ONLY",
+              "normalization": False,
+              "semantic_enrichment": False,
+              "runtime_promotion": False,
+              "raw_bytes_preserved": True,
+              "sources": sources,
+          }
+          Path("raw/pending-raw-source-collection.manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps({"sources": len(sources), "bytes": sum(r["bytes"] for r in sources)}, sort_keys=True))
+          PY
+
+      - name: Verify source manifest and raw-byte hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("raw/pending-raw-source-collection.manifest.json").read_text(encoding="utf-8"))
+          assert manifest["phase"] == "ACQUISITION_ONLY"
+          assert manifest["runtime_promotion"] is False
+          assert len(manifest["sources"]) == 2
+          for row in manifest["sources"]:
+              data = Path(row["path"]).read_bytes()
+              assert data
+              assert hashlib.sha256(data).hexdigest() == row["sha256"]
+          print("PENDING_RAW_COLLECTION_VALID")
+          PY
+
+      - name: Upload pending raw collection
+        uses: actions/upload-artifact@v4
+        with:
+          name: pending-raw-source-collection
+          path: raw/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

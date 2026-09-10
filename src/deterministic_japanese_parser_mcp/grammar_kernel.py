@@ -89,6 +89,9 @@ _CASE_MARKERS = (
 
 _QUOTE_PAIRS = {"「": "」", "『": "』", "“": "”", "‘": "’"}
 _SENTENCE_END = re.compile(r"[。！？!?\n]+")
+_INTRA_CLAUSE_BOUNDARY = re.compile(
+    r"(?:ので|のに|けれども|けれど|けど|が、)"
+)
 _QUESTION_END = re.compile(r"(?:[？?]|(?:の|ん|だ|です|ます)?か[。！？!?]?$)")
 _IMPERATIVE_END = re.compile(
     r"(?:しろ|せよ|やれ|直せ|変えろ|削除しろ|消せ|残せ|維持しろ|"
@@ -143,41 +146,58 @@ def is_inside_quote(
     return False, None
 
 
+def _append_clause_span(
+    seeds: list[ClauseSeed],
+    text: str,
+    start: int,
+    end: int,
+) -> None:
+    raw_start = start
+    raw_end = end
+    while raw_start < raw_end and text[raw_start].isspace():
+        raw_start += 1
+    while raw_end > raw_start and text[raw_end - 1].isspace():
+        raw_end -= 1
+    if raw_start >= raw_end:
+        return
+    seeds.append(ClauseSeed(
+        clause_id=f"C-{len(seeds) + 1:03d}",
+        start=raw_start,
+        end=raw_end,
+        text=text[raw_start:raw_end],
+    ))
+
+
+def _append_clause_with_discourse_boundaries(
+    seeds: list[ClauseSeed],
+    text: str,
+    start: int,
+    end: int,
+) -> None:
+    cursor = start
+    for match in _INTRA_CLAUSE_BOUNDARY.finditer(text, start, end):
+        split = match.end()
+        if split >= end:
+            continue
+        tail = text[split:end].strip(" \t\r\n、。！？!?")
+        if not tail:
+            continue
+        _append_clause_span(seeds, text, cursor, split)
+        cursor = split
+    _append_clause_span(seeds, text, cursor, end)
+
+
 def segment_clauses(text: str) -> list[ClauseSeed]:
     seeds: list[ClauseSeed] = []
     cursor = 0
-    index = 1
     for match in _SENTENCE_END.finditer(text):
         end = match.end()
-        raw_start = cursor
-        raw_end = end
-        while raw_start < raw_end and text[raw_start].isspace():
-            raw_start += 1
-        while raw_end > raw_start and text[raw_end - 1].isspace():
-            raw_end -= 1
-        if raw_start < raw_end:
-            seeds.append(ClauseSeed(
-                clause_id=f"C-{index:03d}",
-                start=raw_start,
-                end=raw_end,
-                text=text[raw_start:raw_end],
-            ))
-            index += 1
+        _append_clause_with_discourse_boundaries(seeds, text, cursor, end)
         cursor = end
     if cursor < len(text):
-        raw_start = cursor
-        raw_end = len(text)
-        while raw_start < raw_end and text[raw_start].isspace():
-            raw_start += 1
-        while raw_end > raw_start and text[raw_end - 1].isspace():
-            raw_end -= 1
-        if raw_start < raw_end:
-            seeds.append(ClauseSeed(
-                clause_id=f"C-{index:03d}",
-                start=raw_start,
-                end=raw_end,
-                text=text[raw_start:raw_end],
-            ))
+        _append_clause_with_discourse_boundaries(
+            seeds, text, cursor, len(text)
+        )
     if not seeds and text:
         seeds.append(ClauseSeed(
             clause_id="C-001",

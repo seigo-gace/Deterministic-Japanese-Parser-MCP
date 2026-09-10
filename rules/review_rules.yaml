@@ -1,0 +1,321 @@
+schema_version: 1.0.0
+source_queue:
+  records: 125000
+  sha256: 29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17
+  sample_review_count: 100
+  sample_record_ids:
+  - DIALECT-009dfcf32991
+  - DIALECT-00ba206d13c7
+  - DIALECT-0184d261bad0
+  - DIALECT-01b8f0eb1b9d
+  - DIALECT-0235e6faf031
+  - DIALECT-02605378ece8
+  - DIALECT-03044c8ca5b7
+  - DIALECT-036c66deda72
+  - DIALECT-03bcb3b7afd9
+  - DIALECT-04665cd1523c
+  - DIALECT-04685abf441d
+  - DIALECT-053d8e681273
+  - DIALECT-05491b1acab2
+  - DIALECT-075e824fd4c9
+  - DIALECT-07f0621030a2
+  - DIALECT-07ff164f8ac3
+  - DIALECT-08d272928e79
+  - DIALECT-0910e21dad5e
+  - DIALECT-098a73a4b391
+  - DIALECT-0a8a49ef8858
+  - DIALECT-0ae3163a9038
+  - DIALECT-0bcebf5bc6a2
+  - DIALECT-0c0f627e37a7
+  - DIALECT-0c1685931aef
+  - DIALECT-0ca1208d5abc
+  - DIALECT-0d6586b0487f
+  - DIALECT-0e586c42258c
+  - DIALECT-0f428f65fa5c
+  - DIALECT-0f5937a031d0
+  - DIALECT-10ab690922bc
+  - DIALECT-1135c2900486
+  - DIALECT-1156c61fafac
+  - DIALECT-118091f3c602
+  - DIALECT-119745040a86
+  - DIALECT-12aba6ed295e
+  - DIALECT-12ef70fbef80
+  - DIALECT-14e4a480f15b
+  - DIALECT-17442bbb87f6
+  - DIALECT-17cf8d6bcaa7
+  - DIALECT-194c371977b0
+  - DIALECT-19979147273e
+  - DIALECT-19c3b185d29a
+  - DIALECT-19e8a215aa4c
+  - DIALECT-1b2d5fff5ab5
+  - DIALECT-1cde2704699b
+  - DIALECT-1d0992bed40f
+  - DIALECT-1da1681d3730
+  - DIALECT-1da2d203fa15
+  - DIALECT-1e3cd720a10c
+  - DIALECT-1fa2d68129dc
+  - DIALECT-1ff68f55b7e8
+  - DIALECT-200899940859
+  - DIALECT-20b69e7b8c5e
+  - DIALECT-21079e6149a0
+  - DIALECT-21560721acd3
+  - DIALECT-22454afe70e2
+  - DIALECT-22e93e4df444
+  - DIALECT-22f0ad844b12
+  - DIALECT-230087bbc1b6
+  - DIALECT-2375e1423281
+  - DIALECT-244a18aec858
+  - DIALECT-24a1aa4d4936
+  - DIALECT-25e32717aa70
+  - DIALECT-27e550a3e865
+  - DIALECT-285dd56c6323
+  - DIALECT-286c8c302812
+  - DIALECT-29c3f9ef7c01
+  - DIALECT-2a8c90da499c
+  - DIALECT-2b7e7f8500ae
+  - DIALECT-2c9a99ec9101
+  - DIALECT-2cce978943a9
+  - DIALECT-2d230a6ee99f
+  - DIALECT-2d7d5b3e3cce
+  - DIALECT-2e35ba3f3dce
+  - DIALECT-310c7f0ffec0
+  - DIALECT-315508cd8597
+  - DIALECT-31553323e365
+  - DIALECT-3271bd7ccdc1
+  - DIALECT-33b57decd24d
+  - DIALECT-34a96bc8edbc
+  - DIALECT-34dbb15810b7
+  - DIALECT-35c76cb0b407
+  - DIALECT-368c64b8ce85
+  - DIALECT-36af85686788
+  - DIALECT-37d4ff91ba23
+  - DIALECT-381b10d5da6d
+  - DIALECT-38d1cd19adce
+  - DIALECT-38d7ad11131f
+  - DIALECT-39b585b76ce5
+  - DIALECT-3a42c577665d
+  - DIALECT-3a691e641d29
+  - DIALECT-3b230651789f
+  - DIALECT-3bd6b182d677
+  - DIALECT-3c4ddf89c8db
+  - DIALECT-3ebaa67cae17
+  - DIALECT-3fb4b0f8476c
+  - DIALECT-4099729983a1
+  - DIALECT-410a8a57004b
+  - DIALECT-413df6f29ff8
+  - DIALECT-42f0b6346e28
+  escape_hatch_category_samples:
+    dialect:
+    - DIALECT-009dfcf32991
+    - DIALECT-00ba206d13c7
+    - DIALECT-0184d261bad0
+    - DIALECT-01b8f0eb1b9d
+    discourse:
+    - DISCOURSE-01512b5ef5fe
+    - DISCOURSE-01d900559892
+    - DISCOURSE-021a5f60d5d4
+    - DISCOURSE-02ddacbd5c00
+    modality:
+    - EPISTEMIC-02440a1654b9
+    - EPISTEMIC-0247e4d4c185
+    - EPISTEMIC-055e20fd7eb8
+    - EPISTEMIC-078f4375023d
+    honorific:
+    - HONORIFIC-005036fda9d5
+    - HONORIFIC-00af4fa2c375
+    - HONORIFIC-00e303e3a3dc
+    - HONORIFIC-0116e84fe7eb
+    slang:
+    - MEDIA_COMMUNITY-00d047e58607
+    - MEDIA_COMMUNITY-013a9bd065a9
+    - MEDIA_COMMUNITY-022a801e1e7c
+    - MEDIA_COMMUNITY-027fcb662a62
+    metaphor:
+    - METAPHOR-010fd49c2ecb
+    - METAPHOR-01aef1921579
+    - METAPHOR-04f81c3c1350
+    - METAPHOR-05017cd93f5c
+    onomatopoeia:
+    - ONOMATOPOEIA-00bf23807afe
+    - ONOMATOPOEIA-00c6cb1eba31
+    - ONOMATOPOEIA-019c076ebf2c
+    - ONOMATOPOEIA-01c162cde3d5
+    reference:
+    - REFERENCE-00e2547f43e6
+    - REFERENCE-02a699761764
+    - REFERENCE-03159a85d4c9
+    - REFERENCE-039efcacbc59
+    open_lexicon:
+    - JMD-000029edd882f94abd85
+    - JMD-00004abfc370deead01c
+    - JMD-0000645aeac80cb9e0ad
+    - JMD-0001b65919bb71e6fd57
+  path: unified-semantic-data/review-queue.jsonl
+review_policy:
+  evidence_first: true
+  never_invent_evidence: true
+  source_owned_meaning_candidates_immutable: true
+  pending_license_markers:
+  - 確認中
+  - unknown
+  - pending
+  - tbd
+  - unlicensed
+  - private
+  placeholder_markers:
+  - 意味・機能はEvidence確認待ち
+  - Meaning candidate from Wiktionary-derived data; review required
+  - no-gloss
+  ambiguous_markers:
+  - 'neighborhoods in Japan):'
+  - 'neighborhoods in Japan:'
+  - 'especially:'
+  positive_markers:
+  - good
+  - excellent
+  - happy
+  - happiness
+  - love
+  - beautiful
+  - success
+  - benefit
+  - thanks
+  - gratitude
+  - praise
+  - joy
+  - 良い
+  - 嬉
+  - 幸福
+  - 愛
+  - 美しい
+  - 成功
+  - 利益
+  - 感謝
+  - 称賛
+  negative_markers:
+  - bad
+  - evil
+  - hate
+  - dislike
+  - pain
+  - danger
+  - failure
+  - death
+  - disease
+  - ugly
+  - insult
+  - abuse
+  - stupid
+  - fool
+  - impudence
+  - sorry
+  - regret
+  - harm
+  - violence
+  - kill
+  - curse
+  - 悪い
+  - 嫌
+  - 痛
+  - 危険
+  - 失敗
+  - 死
+  - 病
+  - 侮辱
+  - 愚
+  - 謝罪
+  - 後悔
+  - 害
+  - 暴力
+  - 殺
+pragmatic_feature_evidence:
+  dialect:
+  - dialectal
+  - regional
+  - kansai
+  - kagoshima
+  - kyūshū
+  - shikoku
+  - chūgoku
+  - tsugaru
+  - akita
+  - nagoya
+  - tohoku
+  - hokkaido
+  onomatopoeia:
+  - 擬音語
+  - 擬声語
+  - onomatopoe
+  - sound
+  - noise
+  - fanfare
+  honorific:
+  - honorific
+  - polite
+  - humble
+  - respectful
+  metaphor:
+  - proverb
+  - idiomatic
+  - figurative
+  - metaphor
+  discourse:
+  - intj
+  - phrasebook
+  - interjection
+  - informal
+  reference:
+  - pron
+  - pronoun
+  - demonstrative
+  - interrogative
+  modality:
+  - 助動詞
+  - modal
+  - かもし
+  - でしょう
+  - だろ
+  - べき
+  - はず
+  - らしい
+  - ようだ
+  slang:
+  - slang
+  - informal
+  - internet
+  - gaming
+  - youth
+  - colloquial
+scope_rules:
+  semantic:
+    default_polarity: neutral
+    default_intensity: 0.0
+    explicit_polarity_intensity: 0.5
+    insufficient_evidence_status: needs-evidence
+    sufficient_evidence_status: approved
+  pragmatic:
+    open_lexicon_status: approved
+    feature_match_status: approved
+    feature_mismatch_status: approved
+    insufficient_evidence_status: needs-evidence
+    principle: Pragmatic review separates usable lexical context from whether the supplied feature bucket is actually evidenced.
+  task:
+    default_status: approved
+    action_sensitive_status: needs-evidence
+    task_candidates: []
+    principle: A lexical item alone does not establish an executable task. Action-sensitive items require sentence/speech-act
+      evidence before task promotion.
+  external_action:
+    status: approved
+    risk_true_when_risk_class:
+    - action
+    principle: action-sensitive lexical/reference/modality evidence is guarded downstream
+sample_review_findings:
+  first_100_bias: The fixed queue is sorted by source_kind/record_id, so the first 100 are all dialect-labelled context records.
+  escape_hatch_used: true
+  category_samples: Representative records were also inspected for discourse, modality, honorific, slang, metaphor, onomatopoeia,
+    reference, and open_lexicon before generalizing rules.
+  feature_label_noise: Context feature labels are not assumed correct; clear lexical meaning can be preserved while unsupported
+    language_feature targeting is removed.
+  uncertainty_policy: Pending license, placeholder meaning, or unresolved ambiguity remains needs-evidence rather than being
+    auto-approved.

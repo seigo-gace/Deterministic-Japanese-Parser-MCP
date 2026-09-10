@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "policy": {
+    "preserve_all_source_fields": true,
+    "do_not_fabricate_definitions_from_relations": true,
+    "require_source_sha256": true,
+    "require_attribution": true
+  },
+  "sources": [
+    {
+      "id": "web-ndl-authorities-ndlsh",
+      "title": "Web NDL Authorities / 国立国会図書館件名標目表 NDLSH",
+      "status": "enabled",
+      "adapter": "ndlsh_tsv_zip",
+      "url": "https://id.ndl.go.jp/auth/data/download/ndlsh-tsv.zip",
+      "homepage": "https://id.ndl.go.jp/information/download/",
+      "terms_url": "https://id.ndl.go.jp/information/use/",
+      "reuse_terms": "営利・非営利を問わず申請なしで利用可能。成果物公表時はWeb NDL Authoritiesから取得したデータであることを明示する。",
+      "attribution": "Web NDL Authorities（国立国会図書館典拠データ検索・提供サービス）から取得",
+      "evidence_role": [
+        "reading",
+        "synonym",
+        "broader_term",
+        "narrower_term",
+        "related_term",
+        "classification",
+        "authority_note",
+        "source_bibliography"
+      ],
+      "meaning_policy": "Semantic relation evidence only. Subject headings, notes, and classifications are preserved as published but are not automatically promoted to lexical definitions."
+    }
+  ]
+}

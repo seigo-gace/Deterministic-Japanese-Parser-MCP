@@ -67,6 +67,13 @@ Astera側でのCall開始から、常駐local stdioを通じてServer応答を�
 - Output Schema Compile
 - 代表入力によるPrewarm
 
+常駐Serverは、Engine Snapshot、全意味入力、Context、実効Deadlineを
+完全キーにした128件のLRU Response Cacheを持つ。Cacheは`COMPLETE`かつ
+Hard Deadline内の応答だけを保持し、曖昧・不足・矛盾・Timeout応答は保持しない。
+Cache Hitでもlocal stdio転送、Decode、正式Pydantic Schema完全検証を省略しない。
+Cache Hit / Missの意味同値性を自動試験し、要求Deadlineなどの診断値は各Requestに
+合わせて更新する。
+
 ### 4.6 Remote境界
 
 Remote Network、MCP Host間通信、利用者端末、UI描画は本Repository単体の保証外とする。製品側は入力確定から画面描画完了までを別Probeで測定し、本MCPのlocal stdio結果と混同しない。

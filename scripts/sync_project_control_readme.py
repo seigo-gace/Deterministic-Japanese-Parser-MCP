@@ -10,27 +10,11 @@ EN_START = "<!-- project-control-en:start -->"
 EN_END = "<!-- project-control-en:end -->"
 
 JA_BLOCK = f"""{JA_START}
-## 所有・管理・ブランド
-
-**設計・開発・管理：加藤星悟（[`@seigo-gace`](https://github.com/seigo-gace)）。**
-
-公式リポジトリ、設計方針、公開版、外部提供物の採用、名称・ロゴなどの利用許可に関する最終決定権は、[`GOVERNANCE.md`](GOVERNANCE.md)に従ってプロジェクト所有者が保持します。
-
-プログラムはMITライセンスで利用・改変・再配布できます。ただし、MITライセンスは、改変版や派生サービスを公式版として表示するための名称・ロゴ・ブランド利用権を与えません。詳細は[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
-
-外部提供には開発者証明への署名が必要です。実質的なコード、辞書、正解検証データ、設計、公開、安全性、管理規程の変更には、統合前にプロジェクト所有者が受領した[`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md)が必要です。
+プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
 {JA_END}"""
 
 EN_BLOCK = f"""{EN_START}
-## Ownership, governance, and brand
-
-**Created, designed, developed, and maintained by Seigo Kato ([`@seigo-gace`](https://github.com/seigo-gace)).**
-
-Under [`GOVERNANCE.md`](GOVERNANCE.md), the Project Owner retains final authority over the official repository, architecture, releases, contribution acceptance, and permission to use names, logos, and other Project Marks.
-
-Program code may be used, modified, and redistributed under the MIT License. The MIT License does not authorize modified forks, products, or services to present themselves as official through project names, logos, or branding. See [`TRADEMARK.md`](TRADEMARK.md).
-
-External contributions require DCO sign-off. Substantive code, dictionary, Gold data, design, release, security, or governance changes require a Project-Owner-accepted [`CONTRIBUTOR_LICENSE_AGREEMENT.md`](CONTRIBUTOR_LICENSE_AGREEMENT.md) before merge.
+See [`GOVERNANCE.md`](GOVERNANCE.md) and [`TRADEMARK.md`](TRADEMARK.md) for project governance and use of names and logos.
 {EN_END}"""
 
 
@@ -43,7 +27,9 @@ def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
         )
     prefix, remainder = text.split(start, 1)
     _, suffix = remainder.split(end, 1)
-    return prefix + block + "\n\n" + suffix.lstrip("\n")
+    normalized_suffix = suffix.lstrip("\n")
+    separator = "\n\n" if normalized_suffix else "\n"
+    return prefix + block + separator + normalized_suffix
 
 
 def synchronize_japanese(text: str) -> str:

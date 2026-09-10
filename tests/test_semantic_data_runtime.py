@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
 import yaml
 
 from deterministic_japanese_parser_mcp.models import (
+    AnalyzeRequest,
     ItemStatus,
     MeaningGraph,
     OriginalSpan,
     Proposition,
+    SocialContext,
+    SocialParticipant,
     Token,
 )
+from deterministic_japanese_parser_mcp.config import Settings
+from deterministic_japanese_parser_mcp.engine import ParserEngine
 from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,11 +44,42 @@ def _source(source_id: str) -> dict:
     }
 
 
-def _compile_pack(tmp_path: Path, records: list[dict]) -> Path:
+def _compile_pack(
+    tmp_path: Path,
+    records: list[dict],
+    *,
+    shard_size: int = 100,
+) -> Path:
+    approved_records = []
+    for source_record in records:
+        record = dict(source_record)
+        candidates = record.get("meaning_candidates") or []
+        record.setdefault(
+            "polarity",
+            candidates[0].get("polarity", "neutral") if candidates else "neutral",
+        )
+        record.setdefault("intensity", 0.5)
+        record.setdefault("context_conditions", {})
+        record.setdefault("task_candidates", [])
+        record.setdefault(
+            "external_action_risk", record.get("risk_class") == "action"
+        )
+        record["approval_scopes"] = {
+            "lexical": "approved",
+            "semantic": "approved",
+            "pragmatic": "approved",
+            "task": "approved",
+            "external_action": "approved",
+        }
+        approved_records.append(record)
     pack_root = tmp_path / "domain_packs"
     pack_root.mkdir()
     (pack_root / "fixture.yaml").write_text(
-        yaml.safe_dump({"records": records}, allow_unicode=True, sort_keys=False),
+        yaml.safe_dump(
+            {"records": approved_records},
+            allow_unicode=True,
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
     review_root = tmp_path / "review"
@@ -54,7 +91,7 @@ def _compile_pack(tmp_path: Path, records: list[dict]) -> Path:
         output_root=review_root,
         system_root=tmp_path / "system",
     )
-    compile_approved(review_root, compiled_root, shard_size=100)
+    compile_approved(review_root, compiled_root, shard_size=shard_size)
     return compiled_root
 
 
@@ -194,6 +231,112 @@ def test_ambiguous_action_semantics_fail_closed(tmp_path: Path) -> None:
     assert graph.language_features[0].status == ItemStatus.AMBIGUOUS
 
 
+def test_preexisting_resolved_sense_has_priority_over_generic_pack(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-GENERIC-FALL-001",
+        "lemma": "落ちる",
+        "surfaces": ["落ちる"],
+        "readings": ["オチル"],
+        "part_of_speech": ["動詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-GENERIC-FALL-001:generic",
+                "label": "to fall",
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-GENERIC-FALL-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="落ちる",
+        normalized="落ちる",
+        reading="オチル",
+        pos=["動詞"],
+        span=OriginalSpan(start=0, end=3, source_text="落ちる"),
+    )
+    source_graph = _graph("落ちる")
+    source_graph = source_graph.model_copy(update={
+        "propositions": [
+            source_graph.propositions[0].model_copy(update={
+                "sense_id": "fall.system_failure",
+                "sense_label": "system_or_connection_failure",
+                "sense_confidence": 0.95,
+                "inference_sources": ["semantic-profile"],
+            })
+        ]
+    })
+
+    graph = runtime.enrich(
+        source_graph,
+        tokens=[token],
+        original_text="落ちる",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "fall.system_failure"
+    assert proposition.sense_label == "system_or_connection_failure"
+    assert proposition.inference_sources == ["semantic-profile"]
+
+
+def test_generic_lexical_ambiguity_does_not_downgrade_resolved_action(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-GENERIC-SHARE-001",
+        "lemma": "共有",
+        "surfaces": ["共有"],
+        "readings": ["キョウユウ"],
+        "part_of_speech": ["名詞", "動詞"],
+        "risk_class": "semantic",
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-GENERIC-SHARE-001:joint",
+                "label": "共同所有",
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-GENERIC-SHARE-001:network",
+                "label": "情報共有",
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-GENERIC-SHARE-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="共有",
+        normalized="共有",
+        reading="キョウユウ",
+        pos=["名詞", "動詞"],
+        span=OriginalSpan(start=0, end=2, source_text="共有"),
+    )
+
+    graph = runtime.enrich(
+        _graph("共有", executable=True),
+        tokens=[token],
+        original_text="共有",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    proposition = graph.propositions[0]
+    assert proposition.status == ItemStatus.RESOLVED
+    assert proposition.executable_candidate is True
+    assert proposition.sense_id is None
+    assert proposition.sense_candidates == []
+
+
 def test_missing_compiled_pack_is_safe_noop(tmp_path: Path) -> None:
     runtime = SemanticDataRuntime(tmp_path / "missing")
     graph = runtime.enrich(
@@ -206,3 +349,276 @@ def test_missing_compiled_pack_is_safe_noop(tmp_path: Path) -> None:
     assert runtime.available is False
     assert graph.propositions[0].sense_id is None
     assert graph.quality_annotations["semantic_data_pack_used"] is False
+
+
+def test_social_and_discourse_conditions_filter_meaning_candidates(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-CONTEXT-001",
+        "lemma": "エグい",
+        "surfaces": ["エグい"],
+        "readings": ["エグイ"],
+        "part_of_speech": ["形容詞"],
+        "feature_type": "slang",
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-CONTEXT-001:reported-friends",
+                "label": "友人間で伝聞された高評価",
+                "context": {
+                    "required_social": ["友人"],
+                    "required_discourse": ["feature:slang", "mode:reported"],
+                },
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-CONTEXT-001:formal-direct",
+                "label": "公的場面での直接評価",
+                "context": {
+                    "required_social": ["公的"],
+                    "required_discourse": ["mode:direct"],
+                },
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon", "language_feature"],
+        "positive_examples": ["友人からエグいと聞いた。"],
+        "negative_examples": ["公的な評価文である。"],
+        "boundary_examples": ["エグい。"],
+        "source": _source("SEM-CONTEXT-001"),
+        "review_status": "approved",
+    }
+    rejected_record = {
+        **record,
+        "record_id": "SEM-CONTEXT-002",
+        "context_conditions": {
+            "required_social": ["公的"],
+        },
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-CONTEXT-002:formal",
+                "label": "公的場面だけで使う評価",
+                "review_status": "approved",
+            }
+        ],
+        "source": _source("SEM-CONTEXT-002"),
+    }
+    root = _compile_pack(tmp_path, [record, rejected_record])
+    runtime = SemanticDataRuntime(root)
+    token = Token(
+        surface="エグい",
+        normalized="エグい",
+        reading="エグイ",
+        pos=["形容詞"],
+        span=OriginalSpan(start=0, end=3, source_text="エグい"),
+    )
+
+    matched = runtime.enrich(
+        _graph("エグい"),
+        tokens=[token],
+        original_text="エグい",
+        conversation_context=[],
+        known_entities=[],
+        social_context=SocialContext(
+            speaker=SocialParticipant(entity_id="speaker", groups=["友人"]),
+        ),
+        discourse_state={"mode": "reported"},
+    )
+    rejected = runtime.enrich(
+        _graph("エグい"),
+        tokens=[token],
+        original_text="エグい",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    assert matched.propositions[0].sense_id == (
+        "SEM-CONTEXT-001:reported-friends"
+    )
+    assert matched.propositions[0].sense_candidates[0].evidence[-2:] == [
+        "semantic_pack_required_social",
+        "semantic_pack_required_discourse",
+    ]
+    assert [item.entry_id for item in matched.language_features] == [
+        "SEM-CONTEXT-001"
+    ]
+    assert rejected.propositions[0].sense_id is None
+    assert rejected.language_features == []
+    assert rejected.quality_annotations["semantic_data_pack_match_count"] == 0
+
+
+def test_parser_engine_passes_request_context_to_semantic_runtime(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-ENGINE-CONTEXT-001",
+        "lemma": "エグい",
+        "surfaces": ["エグい"],
+        "readings": ["エグイ"],
+        "part_of_speech": ["形容詞"],
+        "feature_type": "slang",
+        "context_conditions": {
+            "required_social": ["友人"],
+            "required_discourse": ["feature:slang", "mode:reported"],
+        },
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-ENGINE-CONTEXT-001:sense:001",
+                "label": "友人間で伝聞された高評価",
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon", "language_feature"],
+        "positive_examples": ["友人からエグいと聞いた。"],
+        "negative_examples": ["公的な評価文である。"],
+        "boundary_examples": ["エグい。"],
+        "source": _source("SEM-ENGINE-CONTEXT-001"),
+        "review_status": "approved",
+    }
+    runtime_root = _compile_pack(tmp_path, [record])
+    settings = Settings(
+        system_dict_dir=ROOT / "dictionaries/system",
+        user_dict_dir=ROOT / "dictionaries/user",
+        semantic_data_runtime_dir=runtime_root,
+        hard_deadline_ms=5000,
+    )
+    engine = ParserEngine(settings)
+
+    rejected = engine.analyze(
+        AnalyzeRequest(original_text="エグい", deadline_ms=5000)
+    )
+    matched_request = AnalyzeRequest(
+        original_text="エグい",
+        social_context={
+            "speaker": {"entity_id": "speaker", "groups": ["友人"]},
+        },
+        discourse_state={"mode": "reported"},
+        deadline_ms=5000,
+    )
+    matched = engine.analyze(matched_request)
+    repeated = engine.analyze(matched_request)
+
+    assert rejected.meaning_graph.quality_annotations[
+        "semantic_data_pack_match_count"
+    ] == 0
+    assert matched.meaning_graph.quality_annotations[
+        "semantic_data_pack_resolved_count"
+    ] >= 1
+    assert any(
+        item.sense_id == "SEM-ENGINE-CONTEXT-001:sense:001"
+        for item in matched.meaning_graph.propositions
+    )
+    assert matched.meaning_graph.model_dump_json() == (
+        repeated.meaning_graph.model_dump_json()
+    )
+
+
+def test_lexical_only_pack_never_loads_semantic_record_shards(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "LEXICAL-ONLY-001",
+        "lemma": "確認",
+        "surfaces": ["確認"],
+        "readings": ["カクニン"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "LEXICAL-ONLY-001:sense:001",
+                "label": "内容を確かめること",
+                "review_status": "needs-evidence",
+            }
+        ],
+        "approval_scopes": {"lexical": "approved"},
+        "source": _source("LEXICAL-ONLY-001"),
+        "review_status": "needs-evidence",
+    }
+    pack_root = tmp_path / "open"
+    pack_root.mkdir()
+    (pack_root / "lexical.jsonl").write_text(
+        json.dumps(record, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    review_root = tmp_path / "review"
+    compiled_root = tmp_path / "compiled"
+    build_review_assets(
+        open_lexicon_root=pack_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    compile_approved(review_root, compiled_root, shard_size=100)
+
+    runtime = SemanticDataRuntime(compiled_root)
+    assert runtime.record_count == 1
+    assert runtime.runtime_record_count == 0
+
+    def fail_if_loaded(_number: int):
+        raise AssertionError("lexical-only records must not load semantic shards")
+
+    runtime._load_shard = fail_if_loaded  # type: ignore[method-assign]
+    graph = runtime.enrich(
+        _graph("確認"),
+        tokens=[Token(
+            surface="確認",
+            normalized="確認",
+            reading="カクニン",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=2, source_text="確認"),
+        )],
+        original_text="確認",
+        conversation_context=[],
+        known_entities=[],
+    )
+    assert graph.propositions[0].sense_id is None
+    assert graph.quality_annotations["semantic_data_pack_record_count"] == 1
+    assert graph.quality_annotations["semantic_data_runtime_record_count"] == 0
+
+
+def test_runtime_materializes_seekable_store_when_shards_exceed_cache(
+    tmp_path: Path,
+) -> None:
+    records = []
+    for number in range(5):
+        record_id = f"SEM-SCALE-{number:03d}"
+        surface = f"性能語{number}"
+        records.append({
+            "record_id": record_id,
+            "lemma": surface,
+            "surfaces": [surface],
+            "readings": [f"セイノウゴ{number}"],
+            "part_of_speech": ["名詞"],
+            "domains": ["general"],
+            "meaning_candidates": [
+                {
+                    "candidate_id": f"{record_id}:sense:001",
+                    "label": f"性能評価語{number}",
+                    "review_status": "approved",
+                }
+            ],
+            "semantic_targets": ["lexicon"],
+            "source": _source(record_id),
+            "review_status": "approved",
+        })
+
+    root = _compile_pack(tmp_path, records, shard_size=1)
+    runtime = SemanticDataRuntime(root, shard_cache_size=2)
+
+    assert runtime._record_store is not None
+    assert len(runtime._record_offsets) == 5
+
+    def fail_if_loaded(_number: int):
+        raise AssertionError("random-access store must bypass full shard parsing")
+
+    runtime._load_shard = fail_if_loaded  # type: ignore[method-assign]
+    token = Token(
+        surface="性能語4",
+        normalized="性能語4",
+        reading="セイノウゴ4",
+        pos=["名詞"],
+        span=OriginalSpan(start=0, end=4, source_text="性能語4"),
+    )
+    matches = runtime.lookup_token(token)
+
+    assert [item["record_id"] for item in matches] == ["SEM-SCALE-004"]

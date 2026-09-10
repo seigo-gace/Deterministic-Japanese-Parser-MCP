@@ -206,6 +206,14 @@ def build_semantic_lexicon(
                     raise ValueError(f"no JMdict meanings: {sequence}")
                 record["meaning_candidates"] = candidates
                 record["review_status"] = "needs-evidence"
+                record["approval_scopes"] = {
+                    **dict(record.get("approval_scopes") or {}),
+                    "lexical": "approved",
+                    "semantic": "needs-evidence",
+                    "pragmatic": "needs-evidence",
+                    "task": "needs-evidence",
+                    "external_action": "needs-evidence",
+                }
                 record["notes"] = list(record.get("notes") or []) + [
                     "Semantic candidates were restored from checksum-locked JMdict; "
                     "runtime promotion remains review-gated."

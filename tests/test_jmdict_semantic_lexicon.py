@@ -104,9 +104,18 @@ def test_jmdict_semantics_become_review_candidates(tmp_path: Path) -> None:
         system_root=tmp_path / "system",
     )
     assert manifest["total_records"] == 1
-    assert manifest["runtime_eligible_records"] == 0
+    assert manifest["runtime_eligible_records"] == 1
     reviewed = json.loads(
         (review_root / "review-records.jsonl").read_text(encoding="utf-8")
     )
     assert len(reviewed["meaning_candidates"]) == 2
     assert reviewed["review_status"] == "needs-evidence"
+    assert set(reviewed["approval"]["review_scopes"]) == {
+        "external_action",
+        "pragmatic",
+        "semantic",
+        "task",
+    }
+    assert reviewed["polarity"] == "unspecified"
+    assert reviewed["intensity"] is None
+    assert reviewed["external_action_risk"] is None

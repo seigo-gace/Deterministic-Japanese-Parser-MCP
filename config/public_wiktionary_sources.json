@@ -1,0 +1,30 @@
+{
+  "id": "jawiktionary-raw-2026-08-04",
+  "title": "Japanese-language Wiktionary raw Wiktextract snapshot",
+  "provider": "kaikki.org / Wiktextract",
+  "raw_url": "https://kaikki.org/jawiktionary/raw-wiktextract-data.jsonl.gz",
+  "metadata_url": "https://kaikki.org/jawiktionary/rawdata.html",
+  "upstream": "https://ja.wiktionary.org/",
+  "dump_date": "2026-08-04",
+  "extraction_date": "2026-08-06",
+  "wiktextract_commits": [
+    "d9fa233",
+    "9e92f4b"
+  ],
+  "target_lang_codes": [
+    "ja",
+    "ojp"
+  ],
+  "source_scope": "The raw Japanese-edition Wiktionary extract contains hundreds of languages. This Change Unit targets Modern Japanese (ja) and Classical Japanese (ojp). All source lines are counted; all target rows are preserved exactly after decompression; non-target rows are indexed rather than treated as Japanese lexical data.",
+  "license": {
+    "name": "CC BY-SA 4.0 / GFDL",
+    "license_url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/ja",
+    "dataset_license_note": "kaikki.org states that extracted Wiktionary data is made available under the same licenses as Wiktionary (CC BY-SA and GFDL). Reuse in this pack follows CC BY-SA 4.0 requirements.",
+    "attribution": "Retain Japanese Wiktionary source page URL per normalized record, plus dataset/upstream/source-version metadata; indicate that normalization modified the original structured extract."
+  },
+  "semantic_policy": {
+    "meaning_evidence": "Only non-empty Wiktionary sense glosses are accepted as lexical meaning evidence in this source adapter.",
+    "missing_gloss": "Preserve the target source row and emit needs-evidence unresolved inventory; never synthesize a meaning.",
+    "runtime": "Reference pack only. No automatic Decision Ledger approval or Runtime promotion."
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "decision_count": 500000,
+  "decision_ledger_bytes": 236348994,
+  "decision_ledger_path": "data/reviewed/decision_ledger.jsonl",
+  "decision_ledger_sha256": "1eb03f2cff352f1c276e515b641e835a3f6dfa48fa53e45dd79567fdecef90f7",
+  "decision_scope_counts": {
+    "external_action": 125000,
+    "pragmatic": 125000,
+    "semantic": 125000,
+    "task": 125000
+  },
+  "decision_status_counts": {
+    "approved": 495134,
+    "needs-evidence": 4866
+  },
+  "external_api_enabled": false,
+  "external_api_provider": "openai_api_stub",
+  "needs_evidence_records": 2652,
+  "needs_evidence_scopes": 4866,
+  "network_call_performed": false,
+  "provider": "chatgpt_app",
+  "queue_path": "unified-semantic-data/review-queue.jsonl",
+  "queue_sha256": "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17",
+  "review_gate_status": "passed",
+  "review_method": "rule_based",
+  "reviewer_counts": {
+    "gpt-app-rule-based-review": 499600,
+    "gpt-app-sample-review": 400
+  },
+  "rule_applied_records": 124900,
+  "rules_sha256": "33e8c00fc5204d149d77c041c5dac98e6045903421957b3e9b849a2a6b1a3e05",
+  "sample_method": "chatgpt_app_review_100",
+  "sample_review_records": 100,
+  "schema_version": "1.0.0",
+  "storage_status": "generated-local; GitHub regular-file publish blocked (>100 MiB)",
+  "total_records": 125000,
+  "unreviewed_records": 0
+}

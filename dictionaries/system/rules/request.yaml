@@ -46,3 +46,7 @@ intents:
     pattern: (?P<action>[^。！？]+?)(?:しろ|せよ|やれ)(?=[。！？]|$)
     priority: 49
     enabled: true
+  - id: REQUEST-012
+    pattern: (?:[^。！？]{1,24}?(?:が|は|、))?(?P<target>[^。！？]{1,48}?)(?:をご|を)(?P<action>確認|検証|共有|保存|更新|修正|作成|整理)ください(?=[。！？]|$)
+    priority: 97
+    enabled: true

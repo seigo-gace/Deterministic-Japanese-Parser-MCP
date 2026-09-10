@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from typing import Iterable
 
@@ -136,6 +135,7 @@ class MeaningGraphBuilder:
         metaphors: list[Metaphor],
         conversation_context: list[str],
         known_entities: list[str],
+        update_hash: bool = True,
     ) -> MeaningGraph:
         del normalized_text, tokens
         seeds = segment_clauses(original_text)
@@ -564,16 +564,11 @@ class MeaningGraphBuilder:
                 known_entities,
             ),
         )
-        semantic_payload = graph.model_dump(
-            mode="json",
-            exclude={"semantic_hash"},
-        )
+        if not update_hash:
+            return graph
         semantic_hash = hashlib.sha256(
-            json.dumps(
-                semantic_payload,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
+            graph.model_dump_json(
+                exclude={"semantic_hash"},
             ).encode("utf-8")
         ).hexdigest()
         return graph.model_copy(update={"semantic_hash": semantic_hash})

@@ -11,7 +11,7 @@ Runtime remains non-AI and offline. External corpora are used only to inspect us
 | Data | Before | After | Added |
 |---|---:|---:|---:|
 | Metaphor / idiom / pragmatic expression | 200 | 452 | 252 |
-| Deterministic intent pattern | 213 | 339 | 126 |
+| Deterministic intent pattern | 213 | 340 | 127 |
 | Canonical synonym group | 40 | 100 | 60 |
 | Task / workflow template | 39 | 63 | 24 |
 | Workflow | 18 | 42 | 24 |
@@ -142,7 +142,7 @@ Single-word slang and extremely broad verbs remain deferred unless they are pair
 
 - 252 new expression-specific Gold cases
 - 126 new rule-specific Gold cases
-- Fixed total counts for 452 expressions, 339 rules, 100 synonym groups, 63 templates, 42 workflows, and 649 Gold cases
+- Fixed total counts for 452 expressions, 340 rules, 100 synonym groups, 63 templates, 42 workflows, and 649 Gold cases
 - Python 3.10 and 3.12
 - Indexed / exhaustive semantic parity
 - MCP stdio end-to-end

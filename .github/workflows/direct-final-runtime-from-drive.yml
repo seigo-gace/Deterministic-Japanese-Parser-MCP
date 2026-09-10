@@ -1,0 +1,272 @@
+name: Direct Final Runtime From Drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive-folder-id:
+        description: "Google Drive folder containing manifest.json, final parts, and support pack"
+        required: true
+      artifact-name:
+        description: "Artifact name for the materialized Direct Final runtime bundle"
+        required: true
+        default: "mcp-runtime-direct-final-v1"
+      expected-records:
+        description: "Expected Direct Final runtime records"
+        required: true
+      upload-source-bundle:
+        description: "Upload the raw Drive source bundle artifact after explicit approval"
+        required: true
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  materialize-compile-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      DRIVE_FOLDER_ID: ${{ inputs['drive-folder-id'] }}
+      EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build google-auth requests
+
+      - name: Download and verify Direct Final bundle from Drive
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import requests
+          from google.auth.transport.requests import Request
+          from google.oauth2 import service_account
+
+          folder_id = os.environ["DRIVE_FOLDER_ID"].strip()
+          expected_records = int(os.environ["EXPECTED_RECORDS"])
+          if not folder_id:
+              raise SystemExit("drive-folder-id workflow input is required")
+          secret = os.environ.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+          if not secret:
+              raise SystemExit(
+                  "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON secret is required. "
+                  "Share the Drive folder with that service account before running."
+              )
+
+          credentials = service_account.Credentials.from_service_account_info(
+              json.loads(secret),
+              scopes=["https://www.googleapis.com/auth/drive.readonly"],
+          )
+          credentials.refresh(Request())
+          headers = {"Authorization": f"Bearer {credentials.token}"}
+          root = Path("work/direct-final-drive-input")
+          root.mkdir(parents=True, exist_ok=True)
+          reports = Path("reports")
+          reports.mkdir(exist_ok=True)
+
+          def drive_get(url: str, **params: object) -> dict:
+              response = requests.get(url, params=params, headers=headers, timeout=60)
+              response.raise_for_status()
+              return response.json()
+
+          files: dict[str, dict] = {}
+          page_token = None
+          while True:
+              params = {
+                  "q": f"'{folder_id}' in parents and trashed = false",
+                  "fields": "nextPageToken, files(id,name,size,mimeType)",
+                  "pageSize": 1000,
+                  "supportsAllDrives": "true",
+                  "includeItemsFromAllDrives": "true",
+              }
+              if page_token:
+                  params["pageToken"] = page_token
+              payload = drive_get("https://www.googleapis.com/drive/v3/files", **params)
+              for item in payload.get("files", []):
+                  files[item["name"]] = item
+              page_token = payload.get("nextPageToken")
+              if not page_token:
+                  break
+
+          def download_file(name: str, *, expected_sha256: str | None = None) -> Path:
+              if name not in files:
+                  raise SystemExit(f"Drive file missing from folder: {name}")
+              file_id = files[name]["id"]
+              destination = root / name
+              url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
+              with requests.get(
+                  url,
+                  params={"alt": "media", "supportsAllDrives": "true"},
+                  headers=headers,
+                  stream=True,
+                  timeout=60,
+              ) as response:
+                  response.raise_for_status()
+                  digest = hashlib.sha256()
+                  bytes_written = 0
+                  with destination.open("wb") as handle:
+                      for chunk in response.iter_content(chunk_size=1024 * 1024):
+                          if not chunk:
+                              continue
+                          handle.write(chunk)
+                          digest.update(chunk)
+                          bytes_written += len(chunk)
+              declared_size = files[name].get("size")
+              if declared_size is not None and bytes_written != int(declared_size):
+                  raise SystemExit(
+                      f"Drive size mismatch for {name}: {bytes_written} != {declared_size}"
+                  )
+              actual = digest.hexdigest()
+              if expected_sha256 and actual != expected_sha256:
+                  raise SystemExit(
+                      f"Drive sha256 mismatch for {name}: {actual} != {expected_sha256}"
+                  )
+              return destination
+
+          manifest_path = download_file("manifest.json")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          if manifest.get("schema_version") != "djpmcp.direct-runtime-final.manifest.v1":
+              raise SystemExit(f"unexpected Direct Final manifest schema: {manifest.get('schema_version')}")
+          if manifest.get("target") != "Deterministic-Japanese-Parser-MCP":
+              raise SystemExit(f"unexpected Direct Final target: {manifest.get('target')}")
+          if manifest.get("factory_used") is not False:
+              raise SystemExit("Direct Final Drive bundle must declare factory_used=false")
+          final_records = int(manifest["candidate_reduction"]["final_unique_runtime_entries"])
+          if final_records != expected_records:
+              raise SystemExit("Direct Final record count does not match workflow input")
+          validation = manifest.get("validation") or {}
+          if validation.get("gzip_integrity_final_parts") != "PASS":
+              raise SystemExit("Direct Final manifest does not declare gzip integrity PASS")
+          if int(validation.get("missing_required_core_fields", -1)) != 0:
+              raise SystemExit("Direct Final manifest declares missing required core fields")
+          if len(manifest.get("parts") or []) != int(validation.get("final_part_count", -1)):
+              raise SystemExit("Direct Final manifest part count mismatch")
+
+          for part in manifest["parts"]:
+              download_file(part["file"], expected_sha256=part["sha256"])
+          support = manifest.get("support_pack") or {}
+          if support.get("file"):
+              download_file(support["file"], expected_sha256=support.get("sha256"))
+
+          report = {
+              "status": "DIRECT_FINAL_DRIVE_BUNDLE_MATERIALIZED",
+              "expected_runtime_records_matched": True,
+              "factory_used": manifest.get("factory_used"),
+              "target": manifest.get("target"),
+          }
+          (reports / "direct-final-drive-materialization.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, sort_keys=True))
+          PY
+
+      - name: Upload materialized Direct Final source bundle
+        if: ${{ inputs['upload-source-bundle'] == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs['artifact-name'] }}
+          path: work/direct-final-drive-input
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Compile Direct Final runtime into existing ABIs
+        run: |
+          mkdir -p work/direct-final-runtime reports
+          python tools/compile_direct_final_runtime.py \
+            --manifest work/direct-final-drive-input/manifest.json \
+            --input-root work/direct-final-drive-input \
+            --system-root dictionaries/system \
+            --work-root work/direct-final-runtime \
+            | tee reports/direct-final-compile.json
+
+      - name: Enforce completed semantic deployment contract
+        run: |
+          python scripts/direct_final_deployment_contract.py \
+            --require-direct-final \
+            --expected-source-records "${{ inputs['expected-records'] }}" \
+            --output reports/direct-final-deployment-contract.json
+
+      - name: Verify parser, dictionaries and runtime safety
+        run: |
+          python -m pytest \
+            tests/test_direct_final_runtime_integration.py \
+            tests/test_direct_final_deployment_contract.py \
+            tests/test_semantic_data_runtime.py
+          python tools/validator.py --global-only
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/direct-final-semantic-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/direct-final-semantic-holdout.json
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 30 \
+            --stdio-rounds 20 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/direct-final-astera-latency.json
+          python -m compileall -q src tools scripts tests
+
+      - name: Build wheel with Direct Final runtime
+        run: python -m build --wheel --outdir dist
+
+      - name: Verify Direct Final wheel outside repository
+        run: |
+          python -m venv --system-site-packages /tmp/djpmcp-direct-final-wheel
+          /tmp/djpmcp-direct-final-wheel/bin/pip install \
+            --no-index \
+            --no-deps \
+            --force-reinstall \
+            dist/*.whl
+          cd /tmp
+          /tmp/djpmcp-direct-final-wheel/bin/python - <<'PY'
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          import os
+
+          engine = ParserEngine()
+          assert engine.bundle.open_lexicon.lookup_backend == "sqlite-index-v1"
+          assert engine.bundle.open_lexicon.record_count == int(os.environ["EXPECTED_RECORDS"])
+          assert engine.semantic_data.root.name == "canonical_dictionary_runtime"
+          assert engine.semantic_data.record_count > 0
+          response = engine.analyze(
+              AnalyzeRequest(original_text="UIは残せ。APIだけ変更しろ。", deadline_ms=5000)
+          )
+          assert response.meaning_graph.semantic_hash
+          print({
+              "installed_wheel": "OK",
+              "open_lexicon_records": engine.bundle.open_lexicon.record_count,
+              "semantic_records": engine.semantic_data.record_count,
+          })
+          PY
+
+      - name: Upload Direct Final runtime release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-final-runtime-drive-release-${{ github.sha }}
+          path: |
+            dist
+            reports
+            dictionaries/system/compiled/open_lexicon
+            dictionaries/system/compiled/canonical_dictionary_runtime
+            dictionaries/system/compiled/direct_final_integration.json
+            dictionaries/system/compiled/direct_final_support
+          if-no-files-found: error
+          retention-days: 30

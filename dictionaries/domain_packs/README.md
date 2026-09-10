@@ -27,10 +27,10 @@ dictionaries/domain_packs/
 - `source.version`
 - `source.license`
 - `source.source_sha256`
-- `review_status`
+- `approval_scopes`（`lexical`、`semantic`、`pragmatic`、`task`、`external_action`）
 
 Language Featureへ反映するEntryは、Positive・Negative・Boundary Exampleも必要です。
 
-未承認Dataや、意味・Source・Licenseが不足するDataはReview Queueへ送られ、Runtimeへ入りません。承認済みDataだけがCompiled Packとなり、Meaning Graphへ接続されます。
+未承認Dataや、意味・Source・Licenseが不足するDataはReview Queueへ送られます。GPTアプリで内容を確認してDecision Ledgerを作成し、承認済みScopeだけをCompileします。Pipeline内でLLM APIを呼んだり、自動承認したりはしません。
 
 詳細は `docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md` を参照してください。

@@ -12,9 +12,11 @@ import unicodedata
 
 import yaml
 
-SCHEMA_VERSION = "1.0.0"
-COMPILER_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
+COMPILER_VERSION = "2.1.0"
 ALLOWED_REVIEW_STATUS = {"approved", "needs-evidence", "rejected", "hold"}
+APPROVAL_SCOPES = ("lexical", "semantic", "pragmatic", "task", "external_action")
+ALLOWED_POLARITIES = {"positive", "negative", "neutral"}
 UNKNOWN_LICENSE_MARKERS = ("unknown", "unlicensed", "private", "pending", "tbd", "確認中")
 SEMANTIC_TARGETS = {
     "lexicon",
@@ -169,18 +171,42 @@ class MorphologyAnalyzer:
 def _source_object(raw: dict[str, Any], dataset_default: str) -> dict[str, Any]:
     source = raw.get("source") or {}
     provenance = raw.get("provenance") or {}
+    source_refs = _as_list(raw.get("source_refs"))
+    if isinstance(source, list):
+        source_refs = [*source_refs, *source]
+        source = {}
     if not isinstance(source, dict):
         source = {"source_url": source}
+    source_path = Path(str(raw.get("_source_path") or ""))
+    source_digest = normalize_text(
+        source.get("source_sha256") or provenance.get("source_sha256")
+    )
+    if not source_digest and source_path.is_file():
+        source_digest = _sha256_file(source_path)
+    source_url = normalize_text(source.get("source_url") or raw.get("source_url"))
+    if not source_url:
+        source_url = next(
+            (
+                normalize_text(value)
+                for value in source_refs
+                if normalize_text(value).startswith(("https://", "http://"))
+            ),
+            "",
+        )
     license_value = normalize_text(
         raw.get("license") or source.get("license") or provenance.get("license")
     )
     return {
         "dataset": normalize_text(source.get("dataset") or provenance.get("origin") or dataset_default),
-        "version": normalize_text(source.get("version") or provenance.get("version")),
+        "version": normalize_text(
+            source.get("version")
+            or raw.get("source_version")
+            or provenance.get("version")
+        ),
         "license": license_value,
         "source_id": normalize_text(source.get("source_id") or provenance.get("source_id") or raw.get("entry_id") or raw.get("record_id")),
-        "source_url": normalize_text(source.get("source_url") or raw.get("source_url")),
-        "source_sha256": normalize_text(source.get("source_sha256") or provenance.get("source_sha256")),
+        "source_url": source_url,
+        "source_sha256": source_digest,
         "evidence_scope": normalize_text(source.get("evidence_scope") or provenance.get("evidence_scope") or "runtime_data"),
         "attribution": normalize_text(source.get("attribution") or provenance.get("attribution")),
     }
@@ -299,25 +325,54 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     ])
     source = _source_object(raw, {"open_lexicon": "open-lexicon", "context": "context-v3"}.get(source_kind, source_kind))
     meaning_candidates, semantic_content_present = _meaning_candidates(raw, record_id, lemma, part_of_speech, domains)
+    polarity = normalize_text(raw.get("polarity") or "unspecified")
+    intensity = raw.get("intensity", raw.get("strength"))
+    if polarity != "unspecified" and polarity not in ALLOWED_POLARITIES:
+        raise ValueError(f"invalid polarity for {record_id}: {polarity}")
+    if intensity is not None and (
+        isinstance(intensity, bool)
+        or not isinstance(intensity, (int, float))
+        or not 0.0 <= float(intensity) <= 1.0
+    ):
+        raise ValueError(f"invalid intensity for {record_id}: {intensity}")
     review_status = normalize_text(raw.get("review_status") or "needs-evidence")
     if review_status not in ALLOWED_REVIEW_STATUS:
         review_status = "needs-evidence"
-    blockers: list[str] = []
+    blockers_by_scope: dict[str, list[str]] = {
+        scope: [] for scope in APPROVAL_SCOPES
+    }
     if not readings:
-        blockers.append("reading-required")
+        blockers_by_scope["lexical"].append("reading-required")
     if not part_of_speech:
-        blockers.append("part-of-speech-required")
+        blockers_by_scope["lexical"].append("part-of-speech-required")
     if not semantic_content_present:
-        blockers.append("meaning-candidate-required")
+        blockers_by_scope["semantic"].append("meaning-candidate-required")
+    if polarity == "unspecified":
+        blockers_by_scope["semantic"].append("polarity-required")
+    if intensity is None:
+        blockers_by_scope["semantic"].append("intensity-required")
+    raw_context = raw.get("context_conditions")
+    if raw.get("_force_judgment_review") or not isinstance(raw_context, dict):
+        blockers_by_scope["pragmatic"].append("context-review-required")
+    if not isinstance(raw_context, dict):
+        raw_context = {}
+    if "task_candidates" not in raw:
+        blockers_by_scope["task"].append("task-review-required")
+    if not isinstance(raw.get("external_action_risk"), bool):
+        blockers_by_scope["external_action"].append(
+            "external-action-risk-review-required"
+        )
     license_folded = source["license"].casefold()
     if not source["license"] or any(marker in license_folded for marker in UNKNOWN_LICENSE_MARKERS):
-        blockers.append("license-required")
+        blockers_by_scope["lexical"].append("license-required")
     if not source["dataset"]:
-        blockers.append("source-dataset-required")
+        blockers_by_scope["lexical"].append("source-dataset-required")
     if not source["version"]:
-        blockers.append("source-version-required")
+        blockers_by_scope["lexical"].append("source-version-required")
     if not source["source_sha256"]:
-        blockers.append("source-digest-required")
+        blockers_by_scope["lexical"].append("source-digest-required")
+    elif not re.fullmatch(r"[0-9a-fA-F]{64}", source["source_sha256"]):
+        blockers_by_scope["lexical"].append("source-digest-invalid")
     examples = {
         "positive": _as_list(raw.get("positive_examples")),
         "negative": _as_list(raw.get("negative_examples")),
@@ -326,12 +381,62 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     if "language_feature" in _semantic_targets(raw, source_kind):
         for name, values in examples.items():
             if not values:
-                blockers.append(f"{name}-example-required")
-    runtime_eligible = review_status == "approved" and not blockers
+                blockers_by_scope["pragmatic"].append(f"{name}-example-required")
+
+    explicit_scopes = raw.get("approval_scopes") or {}
+    if not isinstance(explicit_scopes, dict):
+        explicit_scopes = {}
+    lexical_status = normalize_text(explicit_scopes.get("lexical") or review_status)
+    if lexical_status not in ALLOWED_REVIEW_STATUS:
+        lexical_status = "needs-evidence"
+    scope_status: dict[str, str] = {
+        "lexical": lexical_status,
+        "semantic": normalize_text(
+            explicit_scopes.get("semantic") or "needs-evidence"
+        ),
+        "pragmatic": normalize_text(
+            explicit_scopes.get("pragmatic") or "needs-evidence"
+        ),
+        "task": normalize_text(
+            explicit_scopes.get("task") or "needs-evidence"
+        ),
+        "external_action": normalize_text(
+            explicit_scopes.get("external_action") or "needs-evidence"
+        ),
+    }
+    for scope, status in list(scope_status.items()):
+        if status not in {*ALLOWED_REVIEW_STATUS, "not-applicable"}:
+            scope_status[scope] = "needs-evidence"
+    approved_scopes = sorted(
+        scope
+        for scope, status in scope_status.items()
+        if status == "approved" and not blockers_by_scope[scope]
+    )
+    review_scopes = sorted(
+        scope
+        for scope, status in scope_status.items()
+        if status not in {"approved", "not-applicable", "rejected"}
+        or bool(blockers_by_scope[scope])
+    )
+    blockers = sorted(
+        {item for values in blockers_by_scope.values() for item in values}
+    )
+    runtime_eligible = "lexical" in approved_scopes
+    input_value = {
+        key: value for key, value in raw.items() if not key.startswith("_source_")
+    }
+    input_digest = _sha256_bytes(_json_line(input_value).encode("utf-8"))
+    if source_kind == "domain_pack":
+        pack_namespace = "domains"
+    elif source_kind == "user_pack":
+        pack_namespace = "user"
+    else:
+        pack_namespace = "core"
     return {
         "schema_version": SCHEMA_VERSION,
         "record_id": record_id,
         "source_kind": source_kind,
+        "pack_namespace": pack_namespace,
         "lemma": lemma,
         "surfaces": surfaces,
         "normalized_surfaces": _stable_unique(normalize_key(value) for value in surfaces),
@@ -347,22 +452,52 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         "usage_labels": usage_labels,
         "feature_type": normalize_text(raw.get("feature_type") or raw.get("category")),
         "meaning_candidates": meaning_candidates,
+        "polarity": polarity,
+        "intensity": float(intensity) if intensity is not None else None,
         "semantic_targets": _semantic_targets(raw, source_kind),
         "parameters": raw.get("parameters") or {},
         "register": raw.get("register") or {},
         "context_conditions": {
-            "required_any": _as_list(raw.get("required_any")),
-            "required_all": _as_list(raw.get("required_all")),
-            "forbidden_any": _as_list(raw.get("forbidden_any")),
-            "required_social": _as_list(raw.get("required_social")),
-            "required_discourse": _as_list(raw.get("required_discourse")),
+            "required_any": _as_list(
+                raw_context.get("required_any", raw.get("required_any"))
+            ),
+            "required_all": _as_list(
+                raw_context.get("required_all", raw.get("required_all"))
+            ),
+            "forbidden_any": _as_list(
+                raw_context.get("forbidden_any", raw.get("forbidden_any"))
+            ),
+            "required_social": _as_list(
+                raw_context.get("required_social", raw.get("required_social"))
+            ),
+            "required_discourse": _as_list(
+                raw_context.get(
+                    "required_discourse", raw.get("required_discourse")
+                )
+            ),
         },
+        "task_candidates": _as_list(raw.get("task_candidates")),
         "examples": examples,
         "risk_class": normalize_text(raw.get("risk_class") or ("action" if raw.get("external_action_risk") else "semantic")),
+        "external_action_risk": (
+            bool(raw.get("external_action_risk"))
+            if isinstance(raw.get("external_action_risk"), bool)
+            else None
+        ),
         "source": source,
         "review_status": review_status,
+        "approval": {
+            "scopes": scope_status,
+            "approved_scopes": approved_scopes,
+            "review_scopes": review_scopes,
+            "blockers_by_scope": {
+                scope: sorted(set(values))
+                for scope, values in blockers_by_scope.items()
+            },
+        },
         "review_blockers": sorted(set(blockers)),
         "runtime_eligible": runtime_eligible,
+        "input_sha256": input_digest,
         "original_location": {
             "path": normalize_text(raw.get("_source_path")),
             "line": raw.get("_source_line"),

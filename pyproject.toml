@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "deterministic-japanese-parser-mcp"
 version = "0.4.0"
-description = "Non-AI deterministic Japanese Meaning Graph and action-safety MCP server"
+description = "Non-AI deterministic Japanese reading-comprehension and Meaning Graph MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -49,6 +49,7 @@ where = ["src"]
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon" = [
   "dictionaries/system/compiled/open_lexicon/manifest.json",
+  "dictionaries/system/compiled/open_lexicon/*.sqlite3",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/open_lexicon/indexes" = [
   "dictionaries/system/compiled/open_lexicon/indexes/*.json.gz",
@@ -64,6 +65,49 @@ where = ["src"]
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/records" = [
   "dictionaries/system/compiled/semantic_data/records/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/core" = [
+  "dictionaries/system/compiled/semantic_data/core/*.json",
+  "dictionaries/system/compiled/semantic_data/core/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/core/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/domains" = [
+  "dictionaries/system/compiled/semantic_data/domains/*.json",
+  "dictionaries/system/compiled/semantic_data/domains/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/domains/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/semantic_data/user" = [
+  "dictionaries/system/compiled/semantic_data/user/*.json",
+  "dictionaries/system/compiled/semantic_data/user/*.json.gz",
+  "dictionaries/system/compiled/semantic_data/user/*.jsonl.gz",
+]
+# Internal canonical master dictionary is intentionally not packaged. It may contain
+# approved evidence with redistribution terms that are not suitable for the default
+# public Wheel. Only the license-filtered public view and its runtime projection ship.
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public" = [
+  "dictionaries/system/compiled/canonical_dictionary_public/*.json",
+  "dictionaries/system/compiled/canonical_dictionary_public/*.jsonl",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/indexes" = [
+  "dictionaries/system/compiled/canonical_dictionary_public/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/records" = [
+  "dictionaries/system/compiled/canonical_dictionary_public/records/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/*.json",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/indexes" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/indexes/*.json.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/records" = [
+  "dictionaries/system/compiled/canonical_dictionary_runtime/records/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/direct_final_support" = [
+  "dictionaries/system/compiled/direct_final_support/*.jsonl.gz",
+]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = [
+  "dictionaries/system/compiled/*.json",
 ]
 "share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
   "dictionaries/sources/*.json",

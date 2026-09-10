@@ -22,12 +22,24 @@ from .models import (
     OverallStatus,
 )
 from .normalizer import normalize_with_map
+from .reading_runtime import DeterministicReadingRuntime
 from .rule_engine import RuleEngine
+from .semantic_data_runtime import SemanticDataRuntime
 from .semantic_enrichment import SemanticEnricher
 from .task_graph import ActionTaskGraphBuilder
 from .tasks import TaskDecomposer
 from .tokenizer import JapaneseTokenizer
 from .version import VERSION
+
+
+def _semantic_runtime_root(settings: Settings):
+    if settings.semantic_data_runtime_dir is not None:
+        return settings.semantic_data_runtime_dir
+    compiled = settings.system_dict_dir / "compiled"
+    canonical = compiled / "canonical_dictionary_runtime"
+    if (canonical / "manifest.json").is_file():
+        return canonical
+    return compiled / "semantic_data"
 
 
 class ParserEngine:
@@ -56,6 +68,13 @@ class ParserEngine:
         self.enricher = SemanticEnricher(
             settings.system_dict_dir / "semantic_profiles.yaml",
             self.canonicalizer,
+        )
+        self.reading = DeterministicReadingRuntime(
+            max_frames=settings.max_graph_nodes,
+            max_operators=settings.max_scope_edges,
+        )
+        self.semantic_data = SemanticDataRuntime(
+            _semantic_runtime_root(settings),
         )
         self.lexical_graph = LexicalGraphEnricher(
             max_nodes=settings.max_graph_nodes,
@@ -243,6 +262,7 @@ class ParserEngine:
                 metaphors=metaphors,
                 conversation_context=context,
                 known_entities=request.known_entities,
+                update_hash=False,
             ),
         )
         if deadline_remaining():
@@ -255,6 +275,7 @@ class ParserEngine:
                     metaphors=metaphors,
                     conversation_context=context,
                     known_entities=request.known_entities,
+                    update_hash=False,
                 ),
             )
         else:
@@ -263,6 +284,58 @@ class ParserEngine:
                 "status": "TIMEOUT",
             })
             phase_metrics["semantic_enrichment_ms"] = 0.0
+
+        if deadline_remaining():
+            meaning_graph = run_phase(
+                "reading_analysis",
+                lambda: self.reading.enrich(
+                    meaning_graph,
+                    tokens=tokens,
+                    original_text=request.original_text,
+                    update_hash=False,
+                ),
+            )
+        else:
+            timeouts.append({
+                "phase": "reading_analysis",
+                "status": "TIMEOUT",
+            })
+            phase_metrics["reading_analysis_ms"] = 0.0
+            self.reading.last_metrics = {
+                "reading_predicate_frame_count": 0,
+                "reading_dependency_arc_count": 0,
+                "reading_scope_operator_count": 0,
+                "reading_attribution_frame_count": 0,
+                "reading_discourse_relation_count": 0,
+                "reading_unresolved_count": 0,
+            }
+
+        if deadline_remaining():
+            meaning_graph = run_phase(
+                "approved_semantic_data",
+                lambda: self.semantic_data.enrich(
+                    meaning_graph,
+                    tokens=tokens,
+                    original_text=request.original_text,
+                    conversation_context=context,
+                    known_entities=request.known_entities,
+                    social_context=request.social_context,
+                    discourse_state=request.discourse_state,
+                    update_hash=False,
+                ),
+            )
+        else:
+            timeouts.append({
+                "phase": "approved_semantic_data",
+                "status": "TIMEOUT",
+            })
+            phase_metrics["approved_semantic_data_ms"] = 0.0
+            self.semantic_data.last_metrics = {
+                "semantic_pack_available": int(self.semantic_data.available),
+                "semantic_pack_match_count": 0,
+                "semantic_pack_resolved_count": 0,
+                "semantic_pack_ambiguous_count": 0,
+            }
 
         if deadline_remaining():
             meaning_graph = run_phase(
@@ -407,6 +480,8 @@ class ParserEngine:
                 or quality.get("inferred_arguments")
                 or quality.get("pragmatic_acts")
                 or quality.get("discourse_edges")
+                or self.reading.last_metrics.get("reading_scope_operator_count")
+                or self.reading.last_metrics.get("reading_discourse_relation_count")
             )
         )
         metrics = {
@@ -414,6 +489,8 @@ class ParserEngine:
             **rule_metrics,
             **self.metaphors.last_metrics,
             **self.enricher.last_metrics,
+            **self.reading.last_metrics,
+            **self.semantic_data.last_metrics,
             **self.lexical_graph.last_metrics,
             **self.tasks.last_metrics,
             **self.action_tasks.last_metrics,

@@ -8,6 +8,11 @@ This file records user-visible changes to the public repository.
 
 ### Added
 
+- Japanese Reading Contract defining correct Japanese reading as the primary MCP purpose, with Task and external-action safety as downstream consumers.
+- Backward-compatible `meaning_graph.reading_analysis` output for predicate-argument frames, local dependency arcs, semantic scope, attribution, and discourse relations.
+- Deterministic observation propositions for ordinary descriptive Japanese without promoting them to executable instructions.
+- Approved-only semantic pack enrichment in the main parser flow.
+- Reading regression cases for partial negation, quantification, five condition forms, quotation attribution, hearsay, discourse contrast, polite requests, and conditional actions.
 - Separate English entrypoint in `README_EN.md`, linked from the Japanese `README.md`.
 - Public community validation contract in `VALIDATION.md`.
 - GitHub Discussion category forms for validation campaigns, validation results, Japanese-language review, environment validation, and evidence review.

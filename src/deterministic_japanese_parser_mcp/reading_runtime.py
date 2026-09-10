@@ -1,0 +1,1735 @@
+from __future__ import annotations
+
+import hashlib
+import re
+
+from .grammar_kernel import quote_ranges
+from .models import (
+    Argument,
+    ArgumentComponent,
+    ArgumentEdge,
+    ArgumentationResult,
+    AttributionFrame,
+    Clause,
+    DependencyArc,
+    DiscourseRelation,
+    Entity,
+    ItemStatus,
+    MeaningGraph,
+    OriginalSpan,
+    ParagraphFrame,
+    ParagraphStructure,
+    PredicateFrame,
+    Proposition,
+    ReadingAnalysis,
+    ScopeOperator,
+    SummaryResult,
+    Token,
+)
+
+
+_PREDICATE_POS = {"動詞", "形容詞", "形状詞"}
+_COPULAS = {"だ", "です", "である", "だった", "でした"}
+_ASPECT_AUXILIARIES = {
+    "居る",
+    "有る",
+    "置く",
+    "仕舞う",
+    "見る",
+    "来る",
+    "行く",
+}
+_CASE_ROLES = {
+    "が": "agent",
+    "は": "topic",
+    "を": "object",
+    "に": "recipient",
+    "へ": "destination",
+    "で": "location_or_means",
+    "から": "source",
+    "まで": "limit",
+    "より": "comparison_source",
+    "と": "companion_or_quote",
+}
+_BOUNDARY = re.compile(r"^[、。！？!?；;：:]$")
+_PARAGRAPH_BOUNDARY = re.compile(r"(?:\r?\n[ \t]*){2,}")
+
+_NEGATION_PATTERNS = (
+    (re.compile(r"わけではない"), "partial_negation"),
+    (re.compile(r"とは限らない"), "limited_negation"),
+    (re.compile(r"(?:なくはない|ないことはない)"), "double_negation"),
+    (re.compile(r"必ずしも.{0,32}?ない"), "partial_negation"),
+    (re.compile(r"決して.{0,32}?ない"), "strong_negation"),
+    (re.compile(r"(?:あまり|ほとんど).{0,24}?ない"), "degree_negation"),
+    (re.compile(r"(?:ではない|じゃない|ません|なかった|ない|ぬ|ず)"), "negation"),
+)
+_CONDITION_PATTERNS = (
+    (re.compile(r"(?:れば|けば|えば|せば|なければ)"), "general_condition"),
+    (re.compile(r"たら(?!しい)"), "event_condition"),
+    (re.compile(r"なら(?:ば)?"), "premise_condition"),
+    (re.compile(r"と(?=[、,])"), "natural_condition"),
+    (re.compile(r"(?:ても|でも)"), "concessive_condition"),
+)
+_MODALITY_PATTERNS = (
+    (re.compile(r"(?:だろう|でしょう|かもしれない)"), "inference"),
+    (re.compile(r"(?:らしい|そうだ|とのことだ?)"), "hearsay"),
+    (re.compile(r"(?:はずだ|はずです)"), "expectation"),
+    (re.compile(r"(?:なければならない|べきだ?|必要がある|必須)"), "obligation"),
+    (re.compile(r"(?:てもよい|てもいい|許可する)"), "permission"),
+    (re.compile(r"(?:てはいけない|禁止する|するな)"), "prohibition"),
+    (re.compile(r"(?:つもりだ|ようと思う)"), "intention"),
+    (re.compile(r"(?:たい|てほしい)"), "desire"),
+)
+_QUANTIFIER_PATTERNS = (
+    (re.compile(r"すべて|全て|全部|必ず"), "universal"),
+    (re.compile(r"(?:一部|いくつか|少なくとも)"), "existential_or_lower_bound"),
+    (re.compile(r"(?:最大で|多くとも|以下|未満)"), "upper_bound"),
+    (re.compile(r"(?:以上|を超える)"), "lower_bound"),
+    (re.compile(r"(?:多くの|ほとんど|主に|おおむね)"), "proportional"),
+)
+_POLITE_REQUEST = re.compile(
+    r"(?:して|していただけ|してもらえ)"
+    r"(?:ますか|ませんか|ないでしょうか)"
+)
+_DISCOURSE_MARKERS = (
+    (re.compile(r"^(?:そのため|だから|従って|よって|結果として)"), "causes"),
+    (re.compile(r"^(?:しかし|ただし|一方|ところが|もっとも)"), "contrasts_with"),
+    (re.compile(r"^(?:つまり|すなわち|言い換えると)"), "rephrases"),
+    (re.compile(r"^(?:具体的には|例えば|たとえば)"), "exemplifies"),
+    (re.compile(r"^(?:なぜなら|というのも)"), "justifies"),
+    (re.compile(r"^(?:また|さらに|加えて)"), "adds"),
+    (re.compile(r"^(?:したがって|以上のことから|結論として)"), "concludes"),
+)
+_PREVIOUS_TAIL_DISCOURSE_MARKERS = (
+    (re.compile(r"(?:ので|ため)$"), "causes"),
+    (re.compile(r"(?:のに|けれども|けれど|けど|が、?)$"), "contrasts_with"),
+)
+
+
+def _stable_hash(graph: MeaningGraph) -> str:
+    return hashlib.sha256(
+        graph.model_dump_json(exclude={"semantic_hash"}).encode("utf-8")
+    ).hexdigest()
+
+
+def _span(start: int, end: int, original: str) -> OriginalSpan:
+    return OriginalSpan(start=start, end=end, source_text=original[start:end])
+
+
+def _compact(value: str) -> str:
+    return re.sub(r"[\s、。！？!?「」『』\"'()（）]+", "", value or "")
+
+
+def _pos0(token: Token) -> str:
+    return token.pos[0] if token.pos else ""
+
+
+def _is_punctuation(token: Token) -> bool:
+    return _pos0(token) in {"補助記号", "空白"} or bool(
+        _BOUNDARY.match(token.surface)
+    )
+
+
+def _clause_token_indices(clause: Clause, tokens: list[Token]) -> list[int]:
+    return [
+        index
+        for index, token in enumerate(tokens)
+        if token.span.start < clause.source_span.end
+        and clause.source_span.start < token.span.end
+    ]
+
+
+def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
+    heads: list[int] = []
+    for position, index in enumerate(indices):
+        token = tokens[index]
+        if _pos0(token) in _PREDICATE_POS:
+            previous = tokens[indices[position - 1]] if position else None
+            previous_surface = "".join(
+                tokens[item].surface for item in indices[max(0, position - 4):position]
+            )
+            if (
+                token.normalized in {"無い", "ない"}
+                and ("では" in previous_surface or "じゃ" in previous_surface)
+            ):
+                continue
+            if (
+                token.normalized in _ASPECT_AUXILIARIES
+                and previous is not None
+                and previous.surface in {"て", "で"}
+            ):
+                continue
+            next_token = (
+                tokens[indices[position + 1]]
+                if position + 1 < len(indices)
+                else None
+            )
+            if previous is not None and previous.surface == "に":
+                if token.surface in {"よって", "因って", "依って"}:
+                    continue
+                if token.normalized in {"よる", "因る", "依る"} and (
+                    next_token is not None and next_token.surface == "て"
+                ):
+                    continue
+            heads.append(index)
+            continue
+        if _pos0(token) == "名詞" and position + 1 < len(indices):
+            following = tokens[indices[position + 1]]
+            if following.surface in _COPULAS:
+                heads.append(index)
+    return heads
+
+
+def _predicate_bounds(
+    head_index: int,
+    clause_indices: list[int],
+    tokens: list[Token],
+) -> tuple[int, int, str, str]:
+    position = clause_indices.index(head_index)
+    start_position = position
+    head = tokens[head_index]
+    if position and (
+        head.normalized in {"為る", "する"} or head.surface.startswith("し")
+    ):
+        previous = tokens[clause_indices[position - 1]]
+        if _pos0(previous) == "名詞":
+            start_position -= 1
+
+    end_position = position
+    cursor = position + 1
+    while cursor < len(clause_indices):
+        token = tokens[clause_indices[cursor]]
+        previous = tokens[clause_indices[cursor - 1]]
+        if _pos0(token) == "助動詞" or token.surface in {"て", "で"}:
+            end_position = cursor
+            cursor += 1
+            continue
+        if (
+            token.normalized in _ASPECT_AUXILIARIES
+            and previous.surface in {"て", "で"}
+        ):
+            end_position = cursor
+            cursor += 1
+            continue
+        break
+
+    selected = clause_indices[start_position:end_position + 1]
+    start = tokens[selected[0]].span.start
+    end = tokens[selected[-1]].span.end
+    surface = "".join(tokens[index].surface for index in selected)
+    if start_position < position:
+        predicate = tokens[selected[0]].normalized + "する"
+    else:
+        predicate = head.normalized or head.surface
+    return start, end, predicate, surface
+
+
+def _arguments_before(
+    indices: list[int],
+    tokens: list[Token],
+    original: str,
+) -> list[tuple[Argument, int]]:
+    output: list[tuple[Argument, int]] = []
+    buffer: list[int] = []
+    for position, index in enumerate(indices):
+        token = tokens[index]
+        if _is_punctuation(token):
+            buffer = []
+            continue
+        role = _CASE_ROLES.get(token.surface)
+        marker = token.surface
+        next_token = (
+            tokens[indices[position + 1]]
+            if position + 1 < len(indices)
+            else None
+        )
+        following_token = (
+            tokens[indices[position + 2]]
+            if position + 2 < len(indices)
+            else None
+        )
+        if token.surface == "に" and next_token is not None:
+            if next_token.surface in {"よって", "因って", "依って"}:
+                role = "agent"
+                marker = "によって"
+            elif next_token.normalized in {"よる", "因る", "依る"} and (
+                following_token is not None and following_token.surface == "て"
+            ):
+                role = "agent"
+                marker = "によって"
+        if role is None:
+            if _pos0(token) not in {"助詞", "助動詞"}:
+                buffer.append(index)
+            continue
+        if not buffer:
+            continue
+        start_index = buffer[0]
+        end_index = buffer[-1]
+        start = tokens[start_index].span.start
+        end = tokens[end_index].span.end
+        value = original[start:end].strip()
+        if value:
+            output.append((Argument(
+                role=role,
+                value=value,
+                case_marker=marker,
+                explicit=True,
+                span=_span(start, end, original),
+            ), end_index))
+        buffer = []
+    return output
+
+
+def _tense(text: str) -> str:
+    if re.search(
+        r"(?:た|だ|だった|でした|ました)(?:らしい|そうだ|とのことだ?)?[。！？!?]?$",
+        text,
+    ):
+        return "past"
+    return "nonpast"
+
+
+def _aspect(text: str) -> list[str]:
+    patterns = (
+        (r"ている", "progressive_or_state"),
+        (r"てある", "resultant_state"),
+        (r"ておく", "preparatory"),
+        (r"てしまう", "completion_or_regret"),
+        (r"てみる", "attempt"),
+        (r"てくる", "change_toward_reference"),
+        (r"ていく", "change_away_from_reference"),
+        (r"始める", "inchoative"),
+        (r"続ける", "continuative"),
+        (r"終わる", "terminative"),
+    )
+    return [value for pattern, value in patterns if re.search(pattern, text)]
+
+
+def _voice(text: str) -> list[str]:
+    if re.search(r"(?:させられる|せられる)", text):
+        return ["causative_passive"]
+    if re.search(r"(?:させる|せる)", text):
+        return ["causative"]
+    if re.search(r"(?:された|される|されて|られた|られる|られて)", text):
+        return ["passive"]
+    if re.search(r"(?:られる|れる)", text):
+        return ["passive_or_potential"]
+    if re.search(r"(?:できる|可能だ|可能です)", text):
+        return ["potential"]
+    return ["active"]
+
+
+def _has_passive_voice(voice: list[str]) -> bool:
+    return any(
+        value in {"passive", "passive_or_potential", "causative_passive"}
+        for value in voice
+    )
+
+
+def _arguments_for_voice(
+    arguments: list[Argument],
+    voice: list[str],
+) -> list[Argument]:
+    if not _has_passive_voice(voice):
+        return arguments
+    updated: list[Argument] = []
+    for argument in arguments:
+        if argument.case_marker == "によって":
+            updated.append(argument.model_copy(update={"role": "agent"}))
+            continue
+        if (
+            argument.role in {"agent", "topic"}
+            and argument.case_marker in {"が", "は"}
+        ):
+            updated.append(argument.model_copy(update={"role": "patient"}))
+            continue
+        updated.append(argument)
+    return updated
+
+
+def _modalities(text: str) -> list[str]:
+    values: list[str] = []
+    polite_ranges = _polite_request_ranges(text)
+    for pattern, value in _MODALITY_PATTERNS:
+        for match in pattern.finditer(text):
+            if value == "inference" and _inside_ranges(match, polite_ranges):
+                continue
+            if value not in values:
+                values.append(value)
+    return values
+
+
+def _polite_request_ranges(text: str) -> list[tuple[int, int]]:
+    return [match.span() for match in _POLITE_REQUEST.finditer(text)]
+
+
+def _inside_ranges(
+    match: re.Match[str],
+    ranges: list[tuple[int, int]],
+) -> bool:
+    start, end = match.span()
+    return any(left <= start and end <= right for left, right in ranges)
+
+
+def _has_semantic_negation(text: str) -> bool:
+    polite_ranges = _polite_request_ranges(text)
+    return any(
+        not _inside_ranges(match, polite_ranges)
+        for pattern, _ in _NEGATION_PATTERNS
+        for match in pattern.finditer(text)
+    )
+
+
+def _scope_target_frame_ids(
+    operator_type: str,
+    start: int,
+    end: int,
+    frames: list[PredicateFrame],
+) -> list[str]:
+    ordered = sorted(frames, key=lambda item: item.source_span.start)
+    if not ordered:
+        return []
+
+    if operator_type == "condition":
+        following = [
+            frame for frame in ordered if frame.source_span.start >= end
+        ]
+        return [following[0].frame_id] if following else []
+
+    if operator_type == "quantifier":
+        following = [
+            frame for frame in ordered if frame.source_span.start >= end
+        ]
+        if following:
+            return [following[0].frame_id]
+
+    overlapping = [
+        frame
+        for frame in ordered
+        if frame.source_span.start < end and start < frame.source_span.end
+    ]
+    if overlapping:
+        return [overlapping[-1].frame_id]
+
+    preceding = [
+        frame for frame in ordered if frame.source_span.start < end
+    ]
+    if preceding:
+        return [preceding[-1].frame_id]
+
+    following = [
+        frame for frame in ordered if frame.source_span.start >= end
+    ]
+    return [following[0].frame_id] if following else []
+
+
+def _operators_for_clause(
+    clause: Clause,
+    original: str,
+    frames: list[PredicateFrame],
+    start_number: int,
+) -> tuple[list[ScopeOperator], list[dict]]:
+    output: list[ScopeOperator] = []
+    unresolved: list[dict] = []
+    used: dict[str, list[tuple[int, int]]] = {}
+    polite_ranges = _polite_request_ranges(clause.text)
+
+    def add(
+        operator_type: str,
+        semantic_value: str,
+        match: re.Match[str],
+    ) -> None:
+        relative_start, relative_end = match.span()
+        start = clause.source_span.start + relative_start
+        end = clause.source_span.start + relative_end
+        if any(
+            left < relative_end and relative_start < right
+            for left, right in used.setdefault(operator_type, [])
+        ):
+            return
+        used[operator_type].append((relative_start, relative_end))
+        targets = _scope_target_frame_ids(
+            operator_type,
+            start,
+            end,
+            frames,
+        )
+        operands = [clause.source_span]
+        if operator_type == "condition":
+            operands = [
+                _span(clause.source_span.start, end, original),
+                _span(end, clause.source_span.end, original),
+            ]
+        status = ItemStatus.RESOLVED if targets else ItemStatus.AMBIGUOUS
+        operator_id = f"SO-{start_number + len(output):03d}"
+        output.append(ScopeOperator(
+            operator_id=operator_id,
+            clause_id=clause.clause_id,
+            operator_type=operator_type,
+            semantic_value=semantic_value,
+            marker=match.group(0),
+            source_span=_span(start, end, original),
+            operand_spans=operands,
+            target_frame_ids=targets,
+            status=status,
+        ))
+        if status != ItemStatus.RESOLVED:
+            unresolved.append({
+                "type": "reading_scope_target",
+                "operator_id": operator_id,
+                "status": status.value,
+                "source_span": _span(start, end, original).model_dump(),
+            })
+
+    for pattern, value in _NEGATION_PATTERNS:
+        for match in pattern.finditer(clause.text):
+            if _inside_ranges(match, polite_ranges):
+                continue
+            add("negation", value, match)
+    for pattern, value in _CONDITION_PATTERNS:
+        for match in pattern.finditer(clause.text):
+            if match.group(0) in {"ても", "でも"} and _inside_ranges(
+                match,
+                polite_ranges,
+            ):
+                continue
+            add("condition", value, match)
+    for pattern, value in _MODALITY_PATTERNS:
+        for match in pattern.finditer(clause.text):
+            if value == "inference" and _inside_ranges(match, polite_ranges):
+                continue
+            add("modality", value, match)
+    for pattern, value in _QUANTIFIER_PATTERNS:
+        for match in pattern.finditer(clause.text):
+            add("quantifier", value, match)
+    if re.search(r"[？?]|(?:の|ん|だ|です|ます)?か[。！？!?]?$", clause.text):
+        match = re.search(r"[？?]|か(?=[。！？!?]?$)", clause.text)
+        if match:
+            add("question", "interrogative", match)
+    return output, unresolved
+
+
+def _discourse_relations(clauses: list[Clause]) -> list[DiscourseRelation]:
+    output: list[DiscourseRelation] = []
+    ordered = sorted(clauses, key=lambda item: item.source_span.start)
+    for previous, current in zip(ordered, ordered[1:]):
+        stripped = current.text.lstrip()
+        previous_stripped = previous.text.rstrip(" \t\r\n、。！？!?")
+        matched = False
+        for pattern, relation in _PREVIOUS_TAIL_DISCOURSE_MARKERS:
+            match = pattern.search(previous_stripped)
+            if not match:
+                continue
+            output.append(DiscourseRelation(
+                relation_id=f"DR-{len(output) + 1:03d}",
+                source_clause_id=previous.clause_id,
+                target_clause_id=current.clause_id,
+                relation=relation,
+                marker=match.group(0),
+                confidence=0.98,
+            ))
+            matched = True
+            break
+        if matched:
+            continue
+        for pattern, relation in _DISCOURSE_MARKERS:
+            match = pattern.search(stripped)
+            if not match:
+                continue
+            output.append(DiscourseRelation(
+                relation_id=f"DR-{len(output) + 1:03d}",
+                source_clause_id=previous.clause_id,
+                target_clause_id=current.clause_id,
+                relation=relation,
+                marker=match.group(0),
+                confidence=0.98,
+            ))
+            break
+    return output
+
+
+def _attributions(
+    original: str,
+    clauses: list[Clause],
+    frames: list[PredicateFrame],
+) -> list[AttributionFrame]:
+    output: list[AttributionFrame] = []
+    for start, end, _ in quote_ranges(original):
+        clause = next(
+            (
+                item
+                for item in clauses
+                if item.source_span.start <= start < item.source_span.end
+            ),
+            None,
+        )
+        if clause is None:
+            continue
+        tail = original[end:clause.source_span.end]
+        report = re.search(
+            r"と(?:(?P<source>[^、。！？!?]{1,24}?)(?:が|は))?"
+            r"(?P<predicate>言った|述べた|報告した|説明した|書いた|記載した)",
+            tail,
+        )
+        source = report.group("source").strip() if report and report.group("source") else None
+        source_span = None
+        reporting_predicate = report.group("predicate") if report else None
+        if source and report:
+            source_start = end + report.start("source")
+            source_span = _span(source_start, source_start + len(source), original)
+        output.append(AttributionFrame(
+            attribution_id=f"AT-{len(output) + 1:03d}",
+            clause_id=clause.clause_id,
+            attribution_type="quotation",
+            content_span=_span(start, end, original),
+            source=source,
+            source_span=source_span,
+            reporting_predicate=reporting_predicate,
+            related_frame_ids=[
+                item.frame_id
+                for item in frames
+                if start <= item.source_span.start and item.source_span.end <= end
+            ],
+            status=(
+                ItemStatus.RESOLVED
+                if report is not None
+                else ItemStatus.INSUFFICIENT
+            ),
+        ))
+
+    for clause in clauses:
+        source_match = re.search(
+            r"(?P<source>[^、。！？!?]{1,24}?)(?:によると|によれば)",
+            clause.text,
+        )
+        if not source_match:
+            continue
+        source = source_match.group("source").strip()
+        source_start = clause.source_span.start + source_match.start("source")
+        output.append(AttributionFrame(
+            attribution_id=f"AT-{len(output) + 1:03d}",
+            clause_id=clause.clause_id,
+            attribution_type="hearsay",
+            content_span=clause.source_span,
+            source=source,
+            source_span=_span(source_start, source_start + len(source), original),
+            reporting_predicate="伝聞",
+            related_frame_ids=[
+                item.frame_id for item in frames if item.clause_id == clause.clause_id
+            ],
+        ))
+    return output
+
+
+class DeterministicReadingRuntime:
+    """Create sentence-reading structures without generative inference.
+
+    The runtime describes predicate/argument, scope, and discourse evidence.
+    It never converts an ordinary statement into an executable instruction.
+    """
+
+    def __init__(self, *, max_frames: int = 256, max_operators: int = 512):
+        self.max_frames = max_frames
+        self.max_operators = max_operators
+        self.last_metrics: dict[str, int | float] = {}
+
+    @staticmethod
+    def _detect_paragraphs(
+        original_text: str,
+        clauses: list[Clause],
+    ) -> ParagraphStructure:
+        """Detect only explicitly separated paragraphs and preserve source spans."""
+        boundaries = list(_PARAGRAPH_BOUNDARY.finditer(original_text))
+        if not boundaries:
+            return ParagraphStructure(
+                ambiguity_flag=True,
+                unresolved=[{
+                    "type": "paragraph_boundary_not_explicit",
+                    "status": ItemStatus.AMBIGUOUS.value,
+                }],
+                status=ItemStatus.AMBIGUOUS,
+            )
+
+        paragraph_spans: list[tuple[int, int]] = []
+        cursor = 0
+        for boundary in boundaries:
+            start = cursor
+            end = boundary.start()
+            while start < end and original_text[start].isspace():
+                start += 1
+            while end > start and original_text[end - 1].isspace():
+                end -= 1
+            if start < end:
+                paragraph_spans.append((start, end))
+            cursor = boundary.end()
+
+        start = cursor
+        end = len(original_text)
+        while start < end and original_text[start].isspace():
+            start += 1
+        while end > start and original_text[end - 1].isspace():
+            end -= 1
+        if start < end:
+            paragraph_spans.append((start, end))
+
+        paragraphs: list[ParagraphFrame] = []
+        unresolved: list[dict] = []
+        for start, end in paragraph_spans:
+            sentence_clauses = [
+                clause
+                for clause in clauses
+                if start <= clause.source_span.start
+                and clause.source_span.end <= end
+            ]
+            overlapping = [
+                clause
+                for clause in clauses
+                if clause.source_span.start < end
+                and start < clause.source_span.end
+                and clause not in sentence_clauses
+            ]
+            if overlapping:
+                unresolved.append({
+                    "type": "paragraph_boundary_overlap",
+                    "paragraph_start": start,
+                    "paragraph_end": end,
+                    "clause_ids": [item.clause_id for item in overlapping],
+                    "status": ItemStatus.AMBIGUOUS.value,
+                })
+            if not sentence_clauses:
+                unresolved.append({
+                    "type": "paragraph_without_sentence",
+                    "paragraph_start": start,
+                    "paragraph_end": end,
+                    "status": ItemStatus.INSUFFICIENT.value,
+                })
+                continue
+
+            topic = sentence_clauses[0].source_span
+            paragraphs.append(ParagraphFrame(
+                paragraph_id=f"PG-{len(paragraphs) + 1:03d}",
+                text=original_text[start:end],
+                start_char=start,
+                end_char=end,
+                source_span=_span(start, end, original_text),
+                clause_ids=[item.clause_id for item in sentence_clauses],
+                proposition_ids=list(dict.fromkeys(
+                    proposition_id
+                    for item in sentence_clauses
+                    for proposition_id in item.proposition_ids
+                )),
+                sentence_spans=[item.source_span for item in sentence_clauses],
+                topic_sentence=topic.source_text,
+                topic_sentence_start=topic.start,
+                topic_sentence_end=topic.end,
+                topic_sentence_span=topic,
+            ))
+
+        status = (
+            ItemStatus.RESOLVED
+            if paragraphs and not unresolved
+            else ItemStatus.AMBIGUOUS
+        )
+        return ParagraphStructure(
+            paragraphs=paragraphs,
+            relations=[],
+            boundary_method="explicit_blank_line",
+            ambiguity_flag=bool(unresolved or not paragraphs),
+            unresolved=unresolved,
+            status=status,
+        )
+
+    def _extract_summary(
+        self,
+        paragraph_structure: ParagraphStructure | None,
+    ) -> SummaryResult:
+        """Extract a deterministic document summary from paragraph topics."""
+        if (
+            paragraph_structure is None
+            or paragraph_structure.ambiguity_flag
+            or not paragraph_structure.paragraphs
+        ):
+            return SummaryResult(
+                status="AMBIGUOUS",
+                candidates=[],
+                confidence=0.0,
+            )
+
+        paragraphs = paragraph_structure.paragraphs
+        topics: list[dict[str, str | int | float]] = []
+        last_index = len(paragraphs) - 1
+        for idx, para in enumerate(paragraphs):
+            if not para.topic_sentence:
+                continue
+            if len(paragraphs) == 1 or idx == 0:
+                weight = 1.0
+            elif idx == last_index:
+                weight = 0.75
+            else:
+                weight = 0.5
+            score = max(0.0, min(weight * para.confidence, 1.0))
+            topics.append({
+                "text": para.topic_sentence,
+                "index": idx,
+                "score": score,
+            })
+
+        if not topics:
+            return SummaryResult(
+                status="AMBIGUOUS",
+                candidates=[],
+                confidence=0.0,
+            )
+
+        sorted_topics = sorted(
+            topics,
+            key=lambda item: (-float(item["score"]), int(item["index"])),
+        )
+        best = sorted_topics[0]
+
+        if len(sorted_topics) >= 2:
+            diff = float(best["score"]) - float(sorted_topics[1]["score"])
+            if diff < 0.2:
+                selected = sorted_topics[:3]
+                return SummaryResult(
+                    status="AMBIGUOUS",
+                    candidates=[str(item["text"]) for item in selected],
+                    confidence=max(0.0, min(diff + 0.5, 1.0)),
+                    source_paragraph_indices=[
+                        int(item["index"]) for item in selected
+                    ],
+                    method="topic_sentence_aggregation",
+                )
+
+        return SummaryResult(
+            summary_text=str(best["text"]),
+            confidence=max(0.0, min(float(best["score"]) + 0.5, 1.0)),
+            status="DETERMINED",
+            candidates=[],
+            source_paragraph_indices=[int(best["index"])],
+            method="topic_sentence_aggregation",
+        )
+
+    @staticmethod
+    def _extract_argumentation(
+        *,
+        paragraph_structure: ParagraphStructure | None,
+        summary: SummaryResult | None,
+        clauses: list[Clause],
+        discourse_relations: list[DiscourseRelation],
+        scope_operators: list[ScopeOperator],
+        attribution_frames: list[AttributionFrame],
+    ) -> ArgumentationResult:
+        """Build only argument relations supported by existing reading evidence."""
+        clause_by_id = {item.clause_id: item for item in clauses}
+        paragraph_by_clause: dict[str, ParagraphFrame] = {}
+        paragraphs = (
+            paragraph_structure.paragraphs
+            if paragraph_structure is not None
+            else []
+        )
+        for paragraph in paragraphs:
+            for clause_id in paragraph.clause_ids:
+                paragraph_by_clause[clause_id] = paragraph
+
+        buckets: dict[str, list[ArgumentComponent]] = {
+            "claim": [],
+            "reason": [],
+            "evidence": [],
+            "explicit_premise": [],
+            "implicit_premise": [],
+            "counterargument": [],
+            "rebuttal": [],
+            "limitation": [],
+        }
+        prefixes = {
+            "claim": "C",
+            "reason": "R",
+            "evidence": "E",
+            "explicit_premise": "EP",
+            "implicit_premise": "IP",
+            "counterargument": "CA",
+            "rebuttal": "RB",
+            "limitation": "L",
+        }
+        component_index: dict[tuple, ArgumentComponent] = {}
+        edges: list[ArgumentEdge] = []
+        unresolved: list[dict] = []
+        support_relation_by_edge: dict[str, str] = {}
+
+        def add_component(
+            component_type: str,
+            *,
+            text: str | None,
+            clause_id: str | None = None,
+            paragraph_id: str | None = None,
+            source_span: OriginalSpan | None = None,
+            evidence_ids: list[str] | None = None,
+            related_component_ids: list[str] | None = None,
+            status: str = "DETERMINED",
+            confidence: float = 0.98,
+        ) -> ArgumentComponent:
+            key = (
+                component_type,
+                clause_id,
+                paragraph_id,
+                text,
+                source_span.start if source_span else None,
+                source_span.end if source_span else None,
+            )
+            existing = component_index.get(key)
+            if existing is not None:
+                merged_evidence = list(dict.fromkeys([
+                    *existing.evidence_ids,
+                    *(evidence_ids or []),
+                ]))
+                merged_related = list(dict.fromkeys([
+                    *existing.related_component_ids,
+                    *(related_component_ids or []),
+                ]))
+                updated = existing.model_copy(update={
+                    "evidence_ids": merged_evidence,
+                    "related_component_ids": merged_related,
+                    "confidence": max(existing.confidence, confidence),
+                })
+                position = buckets[component_type].index(existing)
+                buckets[component_type][position] = updated
+                component_index[key] = updated
+                return updated
+            component = ArgumentComponent(
+                component_id=(
+                    f"ARG-{prefixes[component_type]}-"
+                    f"{len(buckets[component_type]) + 1:03d}"
+                ),
+                component_type=component_type,
+                text=text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id,
+                source_span=source_span,
+                evidence_ids=list(evidence_ids or []),
+                related_component_ids=list(related_component_ids or []),
+                status=status,
+                confidence=confidence,
+            )
+            buckets[component_type].append(component)
+            component_index[key] = component
+            return component
+
+        def paragraph_id_for(clause_id: str | None) -> str | None:
+            if clause_id is None:
+                return None
+            paragraph = paragraph_by_clause.get(clause_id)
+            return paragraph.paragraph_id if paragraph else None
+
+        def component_for_clause(
+            component_type: str,
+            clause_id: str,
+        ) -> ArgumentComponent | None:
+            return next(
+                (
+                    item
+                    for item in buckets[component_type]
+                    if item.clause_id == clause_id
+                ),
+                None,
+            )
+
+        def ensure_claim(
+            clause_id: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentComponent | None:
+            existing = component_for_clause("claim", clause_id)
+            if existing is not None:
+                return existing
+            clause = clause_by_id.get(clause_id)
+            if clause is None:
+                unresolved.append({
+                    "type": "argumentation_missing_clause",
+                    "clause_id": clause_id,
+                    "evidence_id": evidence_id,
+                })
+                return None
+            return add_component(
+                "claim",
+                text=clause.text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id_for(clause_id),
+                source_span=clause.source_span,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+
+        def add_clause_component(
+            component_type: str,
+            clause_id: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentComponent | None:
+            clause = clause_by_id.get(clause_id)
+            if clause is None:
+                unresolved.append({
+                    "type": "argumentation_missing_clause",
+                    "clause_id": clause_id,
+                    "evidence_id": evidence_id,
+                })
+                return None
+            return add_component(
+                component_type,
+                text=clause.text,
+                clause_id=clause_id,
+                paragraph_id=paragraph_id_for(clause_id),
+                source_span=clause.source_span,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+
+        def add_edge(
+            source: ArgumentComponent,
+            target: ArgumentComponent,
+            relation: str,
+            evidence_id: str,
+            confidence: float,
+        ) -> ArgumentEdge:
+            existing = next(
+                (
+                    item
+                    for item in edges
+                    if item.source_component_id == source.component_id
+                    and item.target_component_id == target.component_id
+                    and item.relation == relation
+                ),
+                None,
+            )
+            if existing is not None:
+                return existing
+            edge = ArgumentEdge(
+                edge_id=f"ARG-E-{len(edges) + 1:03d}",
+                source_component_id=source.component_id,
+                target_component_id=target.component_id,
+                relation=relation,
+                evidence_ids=[evidence_id],
+                confidence=confidence,
+            )
+            edges.append(edge)
+            return edge
+
+        if (
+            paragraph_structure is None
+            or paragraph_structure.ambiguity_flag
+            or paragraph_structure.status != ItemStatus.RESOLVED
+        ):
+            unresolved.append({
+                "type": "argumentation_paragraph_structure_ambiguous",
+                "status": "AMBIGUOUS",
+            })
+
+        if summary is None or summary.status != "DETERMINED" or not summary.summary_text:
+            unresolved.append({
+                "type": "argumentation_summary_ambiguous",
+                "status": "AMBIGUOUS",
+            })
+            if summary is not None:
+                for index, candidate_text in enumerate(summary.candidates or []):
+                    paragraph_index = (
+                        summary.source_paragraph_indices[index]
+                        if index < len(summary.source_paragraph_indices)
+                        else None
+                    )
+                    paragraph = (
+                        paragraphs[paragraph_index]
+                        if paragraph_index is not None
+                        and 0 <= paragraph_index < len(paragraphs)
+                        else None
+                    )
+                    clause_id = paragraph.clause_ids[0] if paragraph and paragraph.clause_ids else None
+                    clause = clause_by_id.get(clause_id) if clause_id else None
+                    add_component(
+                        "claim",
+                        text=candidate_text,
+                        clause_id=clause_id,
+                        paragraph_id=paragraph.paragraph_id if paragraph else None,
+                        source_span=(
+                            paragraph.topic_sentence_span
+                            if paragraph and paragraph.topic_sentence_span
+                            else clause.source_span if clause else None
+                        ),
+                        evidence_ids=["SUMMARY:CANDIDATE"],
+                        status="AMBIGUOUS",
+                        confidence=summary.confidence,
+                    )
+        else:
+            source_indices = summary.source_paragraph_indices or [0]
+            for index in source_indices:
+                if not 0 <= index < len(paragraphs):
+                    unresolved.append({
+                        "type": "argumentation_summary_source_missing",
+                        "paragraph_index": index,
+                        "status": "AMBIGUOUS",
+                    })
+                    continue
+                paragraph = paragraphs[index]
+                topic_span = paragraph.topic_sentence_span or paragraph.source_span
+                clause = next(
+                    (
+                        item
+                        for item in clauses
+                        if item.source_span.start <= topic_span.start
+                        and topic_span.end <= item.source_span.end
+                    ),
+                    None,
+                )
+                add_component(
+                    "claim",
+                    text=summary.summary_text,
+                    clause_id=clause.clause_id if clause else None,
+                    paragraph_id=paragraph.paragraph_id,
+                    source_span=topic_span,
+                    evidence_ids=["SUMMARY:DETERMINED"],
+                    confidence=summary.confidence,
+                )
+
+        for relation in discourse_relations:
+            if relation.status != ItemStatus.RESOLVED:
+                unresolved.append({
+                    "type": "argumentation_discourse_relation_ambiguous",
+                    "discourse_relation_id": relation.relation_id,
+                    "status": "AMBIGUOUS",
+                })
+                continue
+            evidence_id = f"DISCOURSE:{relation.relation_id}"
+            confidence = relation.confidence
+            if relation.relation == "justifies":
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                reason = add_clause_component(
+                    "reason",
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and reason:
+                    edge = add_edge(
+                        reason,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+                    support_relation_by_edge[edge.edge_id] = relation.relation
+            elif relation.relation in {"concludes", "causes"}:
+                claim = ensure_claim(
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                reason = add_clause_component(
+                    "reason",
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and reason:
+                    edge = add_edge(
+                        reason,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+                    support_relation_by_edge[edge.edge_id] = relation.relation
+            elif relation.relation == "exemplifies":
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                evidence = add_clause_component(
+                    "evidence",
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and evidence:
+                    add_edge(
+                        evidence,
+                        claim,
+                        "supports",
+                        evidence_id,
+                        confidence,
+                    )
+            elif relation.relation == "contrasts_with":
+                limitation_marker = relation.marker in {"ただし", "もっとも"}
+                source_counter = component_for_clause(
+                    "counterargument",
+                    relation.source_clause_id,
+                )
+                if source_counter is not None and not limitation_marker:
+                    rebuttal = add_clause_component(
+                        "rebuttal",
+                        relation.target_clause_id,
+                        evidence_id,
+                        confidence,
+                    )
+                    if rebuttal:
+                        add_edge(
+                            rebuttal,
+                            source_counter,
+                            "opposes",
+                            evidence_id,
+                            confidence,
+                        )
+                    continue
+                claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                target_type = "limitation" if limitation_marker else "counterargument"
+                target = add_clause_component(
+                    target_type,
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if claim and target:
+                    add_edge(
+                        target,
+                        claim,
+                        "limits" if limitation_marker else "opposes",
+                        evidence_id,
+                        confidence,
+                    )
+            elif relation.relation == "rephrases":
+                source_claim = ensure_claim(
+                    relation.source_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                target_claim = ensure_claim(
+                    relation.target_clause_id,
+                    evidence_id,
+                    confidence,
+                )
+                if source_claim and target_claim:
+                    add_edge(
+                        target_claim,
+                        source_claim,
+                        "rephrases",
+                        evidence_id,
+                        confidence,
+                    )
+            # `adds` is intentionally not promoted to a support edge. The design
+            # contract treats it as supplementary evidence only.
+
+        for attribution in attribution_frames:
+            if attribution.status != ItemStatus.RESOLVED:
+                continue
+            add_component(
+                "evidence",
+                text=attribution.content_span.source_text,
+                clause_id=attribution.clause_id,
+                paragraph_id=paragraph_id_for(attribution.clause_id),
+                source_span=attribution.content_span,
+                evidence_ids=[f"ATTRIBUTION:{attribution.attribution_id}"],
+                confidence=0.95,
+            )
+
+        argument_components = [
+            *buckets["claim"],
+            *buckets["reason"],
+            *buckets["evidence"],
+            *buckets["counterargument"],
+            *buckets["rebuttal"],
+            *buckets["limitation"],
+        ]
+        for operator in scope_operators:
+            if (
+                operator.operator_type != "condition"
+                or operator.status != ItemStatus.RESOLVED
+            ):
+                continue
+            targets = [
+                item
+                for item in argument_components
+                if item.clause_id == operator.clause_id
+                and item.component_type in {"claim", "reason"}
+            ]
+            if len(targets) != 1:
+                unresolved.append({
+                    "type": "argumentation_explicit_premise_target_ambiguous",
+                    "operator_id": operator.operator_id,
+                    "candidate_component_ids": [item.component_id for item in targets],
+                    "status": "AMBIGUOUS",
+                })
+                continue
+            target = targets[0]
+            premise = add_component(
+                "explicit_premise",
+                text=operator.source_span.source_text,
+                clause_id=operator.clause_id,
+                paragraph_id=paragraph_id_for(operator.clause_id),
+                source_span=operator.source_span,
+                evidence_ids=[f"SCOPE:{operator.operator_id}"],
+                related_component_ids=[target.component_id],
+                confidence=0.98,
+            )
+            add_edge(
+                premise,
+                target,
+                "conditions",
+                f"SCOPE:{operator.operator_id}",
+                0.98,
+            )
+
+        component_by_id = {
+            item.component_id: item
+            for values in buckets.values()
+            for item in values
+        }
+        explicit_targets = {
+            edge.target_component_id
+            for edge in edges
+            if edge.relation == "conditions"
+        }
+        for edge in list(edges):
+            if (
+                edge.relation != "supports"
+                or support_relation_by_edge.get(edge.edge_id)
+                not in {"justifies", "concludes"}
+            ):
+                continue
+            source = component_by_id.get(edge.source_component_id)
+            target = component_by_id.get(edge.target_component_id)
+            if (
+                source is None
+                or target is None
+                or source.component_type != "reason"
+                or target.component_type != "claim"
+                or target.component_id in explicit_targets
+            ):
+                continue
+            candidate = add_component(
+                "implicit_premise",
+                text=None,
+                evidence_ids=edge.evidence_ids,
+                related_component_ids=[source.component_id, target.component_id],
+                status="AMBIGUOUS",
+                confidence=0.5,
+            )
+            unresolved.append({
+                "type": "argumentation_implicit_premise",
+                "reason": "warrant_not_explicit",
+                "component_id": candidate.component_id,
+                "related_component_ids": [source.component_id, target.component_id],
+                "evidence_ids": edge.evidence_ids,
+                "status": "AMBIGUOUS",
+            })
+
+        if not buckets["claim"]:
+            unresolved.append({
+                "type": "argumentation_claim_not_determined",
+                "status": "AMBIGUOUS",
+            })
+
+        ambiguous_component = any(
+            item.status == "AMBIGUOUS"
+            for values in buckets.values()
+            for item in values
+        )
+        result_status = (
+            "AMBIGUOUS"
+            if unresolved or ambiguous_component
+            else "DETERMINED"
+        )
+        if not buckets["claim"]:
+            confidence = 0.0
+        else:
+            base = (
+                summary.confidence
+                if summary is not None and summary.status == "DETERMINED"
+                else 0.6
+            )
+            confidence = min(0.98, max(0.0, base) + min(0.2, 0.04 * len(edges)))
+            if result_status == "AMBIGUOUS":
+                confidence = min(confidence, 0.69)
+
+        return ArgumentationResult(
+            claims=buckets["claim"],
+            reasons=buckets["reason"],
+            evidence=buckets["evidence"],
+            explicit_premises=buckets["explicit_premise"],
+            implicit_premise_candidates=buckets["implicit_premise"],
+            counterarguments=buckets["counterargument"],
+            rebuttals=buckets["rebuttal"],
+            limitations=buckets["limitation"],
+            edges=edges,
+            status=result_status,
+            confidence=confidence,
+            unresolved=unresolved,
+        )
+
+    @staticmethod
+    def _ensure_entities(
+        graph: MeaningGraph,
+        frames: list[PredicateFrame],
+    ) -> tuple[list[Entity], list[PredicateFrame]]:
+        entities = list(graph.entities)
+        by_key = {
+            _compact(value): entity
+            for entity in entities
+            for value in [entity.canonical, *entity.mentions]
+            if _compact(value)
+        }
+        updated_frames: list[PredicateFrame] = []
+        for frame in frames:
+            arguments: list[Argument] = []
+            for argument in frame.arguments:
+                key = _compact(argument.value)
+                entity = by_key.get(key)
+                if entity is None and key:
+                    entity = Entity(
+                        entity_id=f"E-{len(entities) + 1:03d}",
+                        canonical=argument.value,
+                        entity_type=(
+                            "person_or_role"
+                            if argument.role == "agent"
+                            else "semantic_entity"
+                        ),
+                        mentions=[argument.value],
+                        source_spans=[argument.span] if argument.span else [],
+                        salience=45,
+                    )
+                    entities.append(entity)
+                    by_key[key] = entity
+                arguments.append(argument.model_copy(update={
+                    "entity_id": entity.entity_id if entity else None,
+                }))
+            updated_frames.append(frame.model_copy(update={
+                "arguments": arguments,
+            }))
+        return entities, updated_frames
+
+    def enrich(
+        self,
+        graph: MeaningGraph,
+        *,
+        tokens: list[Token],
+        original_text: str,
+        update_hash: bool = True,
+    ) -> MeaningGraph:
+        frames: list[PredicateFrame] = []
+        arcs: list[DependencyArc] = []
+        unresolved: list[dict] = []
+        frame_by_clause: dict[str, list[PredicateFrame]] = {}
+
+        for clause in graph.clauses:
+            indices = _clause_token_indices(clause, tokens)
+            heads = _predicate_heads(indices, tokens)
+            previous_end_position = -1
+            for head_index in heads:
+                if len(frames) >= self.max_frames:
+                    unresolved.append({
+                        "type": "reading_frame_limit",
+                        "status": ItemStatus.TIMEOUT.value,
+                    })
+                    break
+                head_position = indices.index(head_index)
+                argument_indices = indices[previous_end_position + 1:head_position]
+                arguments_with_heads = _arguments_before(
+                    argument_indices,
+                    tokens,
+                    original_text,
+                )
+                start, end, predicate, surface = _predicate_bounds(
+                    head_index,
+                    indices,
+                    tokens,
+                )
+                voice = _voice(clause.text)
+                arguments = _arguments_for_voice(
+                    [item[0] for item in arguments_with_heads],
+                    voice,
+                )
+                frame = PredicateFrame(
+                    frame_id=f"PF-{len(frames) + 1:03d}",
+                    clause_id=clause.clause_id,
+                    predicate=predicate,
+                    surface_predicate=surface,
+                    predicate_token_index=head_index,
+                    arguments=arguments,
+                    polarity=(
+                        "negative"
+                        if _has_semantic_negation(clause.text)
+                        else "positive"
+                    ),
+                    tense=_tense(clause.text),
+                    aspect=_aspect(clause.text),
+                    voice=voice,
+                    modality=_modalities(clause.text),
+                    source_span=_span(start, end, original_text),
+                )
+                frames.append(frame)
+                frame_by_clause.setdefault(clause.clause_id, []).append(frame)
+                for argument, dependent_index in arguments_with_heads:
+                    arcs.append(DependencyArc(
+                        arc_id=f"DA-{len(arcs) + 1:03d}",
+                        clause_id=clause.clause_id,
+                        dependent_token_index=dependent_index,
+                        head_token_index=head_index,
+                        relation=argument.role,
+                        marker=argument.case_marker,
+                        confidence=0.98,
+                    ))
+                end_positions = [
+                    position
+                    for position, index in enumerate(indices)
+                    if tokens[index].span.end <= end
+                ]
+                previous_end_position = max(end_positions, default=head_position)
+
+        entities, frames = self._ensure_entities(graph, frames)
+        frame_updates: dict[str, PredicateFrame] = {}
+        for clause in graph.clauses:
+            clause_frames = sorted(
+                [frame for frame in frames if frame.clause_id == clause.clause_id],
+                key=lambda item: item.source_span.start,
+            )
+            for index, frame in enumerate(clause_frames):
+                next_frame = (
+                    clause_frames[index + 1]
+                    if index + 1 < len(clause_frames)
+                    else None
+                )
+                local_end = (
+                    next_frame.source_span.start
+                    if next_frame is not None
+                    else clause.source_span.end
+                )
+                local_end = max(local_end, frame.source_span.end)
+                local_text = original_text[frame.source_span.start:local_end]
+                frame_updates[frame.frame_id] = frame.model_copy(update={
+                    "polarity": (
+                        "negative"
+                        if _has_semantic_negation(local_text)
+                        else "positive"
+                    ),
+                    "tense": _tense(local_text),
+                    "aspect": _aspect(local_text),
+                    "voice": _voice(local_text),
+                    "modality": _modalities(local_text),
+                })
+        frames = [
+            (updated := frame_updates.get(frame.frame_id, frame)).model_copy(
+                update={
+                    "arguments": _arguments_for_voice(
+                        updated.arguments,
+                        updated.voice,
+                    )
+                }
+            )
+            for frame in frames
+        ]
+
+        frame_by_clause = {}
+        for frame in frames:
+            frame_by_clause.setdefault(frame.clause_id, []).append(frame)
+
+        propositions = list(graph.propositions)
+        clauses: list[Clause] = []
+        frame_index_by_id = {
+            item.frame_id: index for index, item in enumerate(frames)
+        }
+        for clause in graph.clauses:
+            clause_frames = frame_by_clause.get(clause.clause_id, [])
+            related = [
+                item
+                for item in propositions
+                if item.clause_id == clause.clause_id
+            ]
+            if not related and clause_frames:
+                main = clause_frames[-1]
+                proposition = Proposition(
+                    proposition_id=f"P-{len(propositions) + 1:03d}",
+                    predicate=main.predicate,
+                    surface_predicate=main.surface_predicate,
+                    intent_type="observation",
+                    value=clause.text,
+                    arguments=main.arguments,
+                    polarity=main.polarity,
+                    sentence_mood=(
+                        "interrogative"
+                        if re.search(r"[？?]", clause.text)
+                        else "declarative"
+                    ),
+                    speech_act=(
+                        "question"
+                        if re.search(r"[？?]", clause.text)
+                        else "assertion"
+                    ),
+                    epistemic_status=(
+                        "hearsay" if "hearsay" in main.modality else "asserted"
+                    ),
+                    tense=main.tense,
+                    aspect=main.aspect,
+                    voice=main.voice,
+                    executable_candidate=False,
+                    clause_id=clause.clause_id,
+                    source_span=clause.source_span,
+                    evidence_ids=["READING:PREDICATE_FRAME"],
+                    inference_sources=["deterministic-reading-runtime"],
+                )
+                propositions.append(proposition)
+                related = [proposition]
+            related_ids = [item.proposition_id for item in related]
+            for frame in clause_frames:
+                index = frame_index_by_id[frame.frame_id]
+                frames[index] = frame.model_copy(update={
+                    "related_proposition_ids": related_ids,
+                })
+            clauses.append(clause.model_copy(update={
+                "proposition_ids": list(dict.fromkeys([
+                    *clause.proposition_ids,
+                    *related_ids,
+                ])),
+            }))
+
+        operators: list[ScopeOperator] = []
+        for clause in clauses:
+            if len(operators) >= self.max_operators:
+                unresolved.append({
+                    "type": "reading_scope_limit",
+                    "status": ItemStatus.TIMEOUT.value,
+                })
+                break
+            values, missing = _operators_for_clause(
+                clause,
+                original_text,
+                frame_by_clause.get(clause.clause_id, []),
+                len(operators) + 1,
+            )
+            remaining = self.max_operators - len(operators)
+            operators.extend(values[:remaining])
+            unresolved.extend(missing)
+
+        for start, end, source in quote_ranges(original_text):
+            if len(operators) >= self.max_operators:
+                break
+            clause = next(
+                (
+                    item
+                    for item in clauses
+                    if item.source_span.start <= start < item.source_span.end
+                ),
+                None,
+            )
+            if clause is None:
+                continue
+            operators.append(ScopeOperator(
+                operator_id=f"SO-{len(operators) + 1:03d}",
+                clause_id=clause.clause_id,
+                operator_type="quotation",
+                semantic_value="quoted_content",
+                marker=source,
+                source_span=_span(start, end, original_text),
+                operand_spans=[_span(start, end, original_text)],
+                target_frame_ids=[
+                    item.frame_id
+                    for item in frames
+                    if start <= item.source_span.start and item.source_span.end <= end
+                ],
+            ))
+
+        discourse = _discourse_relations(clauses)
+        attributions = _attributions(original_text, clauses, frames)
+        unresolved.extend([
+            {
+                "type": "reading_attribution_source",
+                "attribution_id": item.attribution_id,
+                "status": item.status.value,
+                "source_span": item.content_span.model_dump(),
+            }
+            for item in attributions
+            if item.status != ItemStatus.RESOLVED
+        ])
+        status = (
+            ItemStatus.RESOLVED
+            if not unresolved
+            else (
+                ItemStatus.TIMEOUT
+                if any(item.get("status") == ItemStatus.TIMEOUT.value for item in unresolved)
+                else ItemStatus.INSUFFICIENT
+            )
+        )
+        paragraph_structure = self._detect_paragraphs(
+            original_text,
+            clauses,
+        )
+        summary = self._extract_summary(paragraph_structure)
+        argumentation = self._extract_argumentation(
+            paragraph_structure=paragraph_structure,
+            summary=summary,
+            clauses=clauses,
+            discourse_relations=discourse,
+            scope_operators=operators,
+            attribution_frames=attributions,
+        )
+        reading = ReadingAnalysis(
+            predicate_frames=frames,
+            dependency_arcs=arcs,
+            scope_operators=operators,
+            attribution_frames=attributions,
+            discourse_relations=discourse,
+            paragraph_structure=paragraph_structure,
+            summary=summary,
+            argumentation=argumentation,
+            unresolved=unresolved,
+            status=status,
+        )
+        graph_unresolved = [
+            *graph.unresolved,
+            *[
+                {**item, "reading_analysis": True}
+                for item in unresolved
+            ],
+        ]
+        quality = {
+            **graph.quality_annotations,
+            "reading_purpose": "japanese_reading_comprehension",
+            "reading_predicate_frames": len(frames),
+            "reading_dependency_arcs": len(arcs),
+            "reading_scope_operators": len(operators),
+            "reading_attribution_frames": len(attributions),
+            "reading_discourse_relations": len(discourse),
+            "reading_argumentation_claims": len(argumentation.claims),
+            "reading_argumentation_edges": len(argumentation.edges),
+            "reading_argumentation_status": argumentation.status,
+            "reading_unresolved": len(unresolved),
+            "reading_action_inference": False,
+        }
+        updated = graph.model_copy(update={
+            "entities": entities,
+            "clauses": clauses,
+            "propositions": propositions,
+            "reading_analysis": reading,
+            "unresolved": graph_unresolved,
+            "quality_annotations": quality,
+        })
+        if update_hash:
+            updated = updated.model_copy(update={
+                "semantic_hash": _stable_hash(updated),
+            })
+        self.last_metrics = {
+            "reading_predicate_frame_count": len(frames),
+            "reading_dependency_arc_count": len(arcs),
+            "reading_scope_operator_count": len(operators),
+            "reading_attribution_frame_count": len(attributions),
+            "reading_discourse_relation_count": len(discourse),
+            "reading_argumentation_claim_count": len(argumentation.claims),
+            "reading_argumentation_edge_count": len(argumentation.edges),
+            "reading_unresolved_count": len(unresolved),
+        }
+        return updated

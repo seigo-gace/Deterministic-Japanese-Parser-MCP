@@ -1,0 +1,123 @@
+name: Frozen Raw Factory Input
+
+on:
+  pull_request:
+    paths:
+      - "config/frozen_raw_factory_input.json"
+      - "config/source_payload_profiles.json"
+      - "schemas/source_intake_manifest.schema.json"
+      - "schemas/factory_input_supplement.schema.json"
+      - "tools/build_frozen_raw_factory_input.py"
+      - "tools/build_factory_input_preprocessor.py"
+      - "tools/build_frozen_raw_meaning_factory.py"
+      - "tools/build_frozen_raw_role_factory.py"
+      - "tools/unified_semantic_data/raw_intake.py"
+      - "tools/unified_semantic_data/collection_intake.py"
+      - "tools/unified_semantic_data/factory_input_preprocessor.py"
+      - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
+      - "tools/unified_semantic_data/frozen_raw_role_factory.py"
+      - "tools/unified_semantic_data/semantic_labeler.py"
+      - "tools/unified_semantic_data/source_adapter_contract.py"
+      - "tests/test_raw_intake.py"
+      - "tests/test_factory_input_preprocessor.py"
+      - "tests/test_frozen_raw_meaning_factory.py"
+      - "tests/test_frozen_raw_role_factory.py"
+      - "tests/test_source_adapter_contract.py"
+      - ".github/workflows/public-source-harvest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frozen-raw-factory-input-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frozen-raw-pr-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CONFIG_PATH: config/frozen_raw_factory_input.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate frozen raw contracts without large artifact generation
+        run: |
+          python -m pip install "pytest>=8.3,<10" "PyYAML>=6,<7"
+          python -m py_compile tools/build_frozen_raw_factory_input.py
+          python -m py_compile tools/build_factory_input_preprocessor.py
+          python -m py_compile tools/unified_semantic_data/raw_intake.py
+          python -m py_compile tools/unified_semantic_data/collection_intake.py
+          python -m py_compile tools/unified_semantic_data/factory_input_preprocessor.py
+          python -m py_compile tools/build_frozen_raw_meaning_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_meaning_factory.py
+          python -m py_compile tools/build_frozen_raw_role_factory.py
+          python -m py_compile tools/unified_semantic_data/frozen_raw_role_factory.py
+          python -m py_compile tools/unified_semantic_data/source_adapter_contract.py
+          python tools/build_frozen_raw_factory_input.py self-test
+          python tools/build_frozen_raw_factory_input.py validate-config \
+            --config "$CONFIG_PATH"
+          python -m pytest \
+            tests/test_raw_intake.py \
+            tests/test_factory_input_preprocessor.py \
+            tests/test_frozen_raw_meaning_factory.py \
+            tests/test_frozen_raw_role_factory.py \
+            tests/test_source_adapter_contract.py
+
+      - name: Report legacy frozen raw boundary
+        run: |
+          python - <<'PY'
+          import json
+          print(json.dumps({
+              "status": "FROZEN_RAW_PR_CONTRACT_ONLY",
+              "large_artifact_download": False,
+              "auxiliary_role_shard_generation": False,
+              "runtime_promotion": False,
+              "direct_final_runtime_required_for_completed_deployment": True,
+          }, sort_keys=True))
+          PY
+
+  legacy-frozen-raw-manual-boundary:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CONFIG_PATH: config/frozen_raw_factory_input.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate legacy frozen raw contracts
+        run: |
+          python -m pip install "pytest>=8.3,<10" "PyYAML>=6,<7"
+          python tools/build_frozen_raw_factory_input.py self-test
+          python tools/build_frozen_raw_factory_input.py validate-config \
+            --config "$CONFIG_PATH"
+          python -m pytest \
+            tests/test_raw_intake.py \
+            tests/test_factory_input_preprocessor.py \
+            tests/test_frozen_raw_meaning_factory.py \
+            tests/test_frozen_raw_role_factory.py \
+            tests/test_source_adapter_contract.py
+
+      - name: Report superseded deployment path
+        run: |
+          python - <<'PY'
+          import json
+          print(json.dumps({
+              "status": "LEGACY_FROZEN_RAW_FACTORY_SUPERSEDED_FOR_DEPLOYMENT",
+              "reason": "Direct Final Drive bundle is the completed semantic runtime source.",
+              "use_workflow": "Direct Final Runtime From Drive",
+              "notion_runtime": False,
+              "runtime_promotion": False,
+          }, sort_keys=True))
+          PY

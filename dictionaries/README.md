@@ -54,7 +54,7 @@ The source snapshot remains in the repository for provenance and reproducible re
 | Data | Count |
 |---|---:|
 | Metaphor, idiom, and pragmatic expressions | **452** |
-| Deterministic intent rules | **339** |
+| Deterministic intent rules | **340** |
 | Intent types | **21** |
 | Canonical synonym groups | **100** |
 | Task and workflow templates | **63** |

@@ -1,0 +1,13 @@
+name: Public Hatoma Dictionary Source Acquisition — Disabled
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "External source acquisition is disabled. Use the frozen collected raw factory input."
