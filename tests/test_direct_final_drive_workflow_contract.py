@@ -7,13 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _workflow_input_block(workflow: str, input_name: str) -> str:
-    marker = f"      {input_name}:\n"
-    start = workflow.index(marker)
-    rest = workflow[start + len(marker) :]
-    next_input = rest.find("      ")
-    if next_input == -1:
-        return rest
-    return rest[:next_input]
+    lines = workflow.splitlines()
+    marker = f"      {input_name}:"
+    start = next(index for index, line in enumerate(lines) if line == marker)
+    block: list[str] = []
+    for line in lines[start + 1 :]:
+        if line.startswith("      ") and not line.startswith("        "):
+            break
+        block.append(line)
+    return "\n".join(block)
 
 
 def test_direct_final_drive_workflow_is_manual_and_gated() -> None:
