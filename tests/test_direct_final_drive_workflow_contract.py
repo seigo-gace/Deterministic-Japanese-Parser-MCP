@@ -6,6 +6,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _workflow_input_block(workflow: str, input_name: str) -> str:
+    marker = f"      {input_name}:\n"
+    start = workflow.index(marker)
+    rest = workflow[start + len(marker) :]
+    next_input = rest.find("      ")
+    if next_input == -1:
+        return rest
+    return rest[:next_input]
+
+
 def test_direct_final_drive_workflow_is_manual_and_gated() -> None:
     workflow = (ROOT / ".github/workflows/direct-final-runtime-from-drive.yml").read_text(
         encoding="utf-8"
@@ -29,3 +39,16 @@ def test_direct_final_drive_workflow_is_manual_and_gated() -> None:
     assert "contents: write" not in workflow
     assert "git push" not in workflow
     assert "git commit" not in workflow
+
+
+def test_direct_final_drive_workflow_keeps_private_inputs_out_of_public_defaults() -> None:
+    workflow = (ROOT / ".github/workflows/direct-final-runtime-from-drive.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "default:" not in _workflow_input_block(workflow, "drive-folder-id")
+    assert "default:" not in _workflow_input_block(workflow, "expected-records")
+    assert '"folder_id": folder_id' not in workflow
+    assert '"final_unique_runtime_entries": final_records' not in workflow
+    assert '"total_bytes": total_bytes' not in workflow
+    assert "Direct Final record count does not match workflow input" in workflow
