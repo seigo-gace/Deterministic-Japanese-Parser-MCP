@@ -18,7 +18,7 @@ def _workflow_input_block(workflow: str, input_name: str) -> str:
     return "\n".join(block)
 
 
-def test_direct_final_drive_workflow_is_manual_and_gated() -> None:
+def test_direct_final_drive_workflow_is_manual_emergency_import_only() -> None:
     workflow = (ROOT / ".github/workflows/direct-final-runtime-from-drive.yml").read_text(
         encoding="utf-8"
     )
@@ -26,17 +26,19 @@ def test_direct_final_drive_workflow_is_manual_and_gated() -> None:
     assert "workflow_dispatch:" in workflow
     assert "pull_request:" not in workflow
     assert "push:" not in workflow
+    assert "Direct Final Runtime Emergency Import From Drive" in workflow
     assert "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON" in workflow
     assert "https://www.googleapis.com/auth/drive.readonly" in workflow
     assert "Drive file missing from folder" in workflow
     assert "Drive sha256 mismatch" in workflow
     assert "djpmcp.direct-runtime-final.manifest.v1" in workflow
     assert "factory_used=false" in workflow
-    assert "tools/compile_direct_final_runtime.py" in workflow
-    assert "scripts/direct_final_deployment_contract.py" in workflow
-    assert "--require-direct-final" in workflow
-    assert "tests/test_direct_final_deployment_contract.py" in workflow
-    assert "direct-final-runtime-drive-release-${{ github.sha }}" in workflow
+    assert "tools/compile_direct_final_runtime.py" not in workflow
+    assert "scripts/direct_final_deployment_contract.py" not in workflow
+    assert "--require-direct-final" not in workflow
+    assert "Build wheel with Direct Final runtime" not in workflow
+    assert "direct-final-runtime-drive-release-${{ github.sha }}" not in workflow
+    assert "direct-final-drive-emergency-import-report-${{ github.sha }}" in workflow
     assert "contents: read" in workflow
     assert "contents: write" not in workflow
     assert "git push" not in workflow
@@ -63,7 +65,7 @@ def test_direct_final_source_bundle_artifact_requires_explicit_opt_in() -> None:
     upload_source_input = _workflow_input_block(workflow, "upload-source-bundle")
 
     assert 'default: "false"' in upload_source_input
-    assert "Upload materialized Direct Final source bundle" in workflow
+    assert "Upload staged Direct Final source bundle" in workflow
     assert "if: ${{ inputs['upload-source-bundle'] == 'true' }}" in workflow
 
 

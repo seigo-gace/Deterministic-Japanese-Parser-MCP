@@ -115,8 +115,8 @@ jobs:
           import json
           print(json.dumps({
               "status": "LEGACY_FROZEN_RAW_FACTORY_SUPERSEDED_FOR_DEPLOYMENT",
-              "reason": "Direct Final Drive bundle is the completed semantic runtime source.",
-              "use_workflow": "Direct Final Runtime From Drive",
+              "reason": "GitHub-managed Direct Final bundle is the completed semantic runtime source.",
+              "use_workflow": "Direct Final Runtime Deployment",
               "notion_runtime": False,
               "runtime_promotion": False,
           }, sort_keys=True))

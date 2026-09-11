@@ -1,31 +1,36 @@
-name: Direct Final Runtime Deployment
+name: Direct Final Runtime From GitHub Release
 
 on:
   workflow_dispatch:
     inputs:
-      artifact-run-id:
-        description: "GitHub Actions run ID containing the GitHub-managed direct-final runtime source bundle"
+      release-tag:
+        description: "GitHub Release tag containing the Direct Final source bundle assets"
         required: true
-      artifact-name:
-        description: "GitHub artifact name containing manifest.json and mcp-runtime-final parts"
+      asset-pattern:
+        description: "Release asset glob for Direct Final files"
         required: true
-        default: "mcp-runtime-direct-final-v1"
+        default: "mcp-runtime-final-*"
       bundle-root:
-        description: "Directory inside the downloaded artifact; leave empty to auto-detect"
+        description: "Directory inside extracted asset archives; leave empty to auto-detect"
         required: false
         default: ""
       expected-records:
-        description: "Expected direct-final runtime records"
+        description: "Expected Direct Final runtime records"
         required: true
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
-  compile-and-verify-direct-final:
+  compile-and-verify-direct-final-release:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      RELEASE_TAG: ${{ inputs['release-tag'] }}
+      ASSET_PATTERN: ${{ inputs['asset-pattern'] }}
+      BUNDLE_ROOT: ${{ inputs['bundle-root'] }}
+      EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,31 +44,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" build
 
-      - name: Download direct-final runtime artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.artifact-name }}
-          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
-          run-id: ${{ inputs.artifact-run-id }}
-          github-token: ${{ github.token }}
-          path: work/direct-final-input
+      - name: Download Direct Final source bundle from GitHub Release
+        run: |
+          set -euo pipefail
+          mkdir -p work/direct-final-release-input reports
+          gh release download "$RELEASE_TAG" \
+            --repo seigo-gace/Deterministic-Japanese-Parser-MCP \
+            --pattern "manifest.json" \
+            --pattern "$ASSET_PATTERN" \
+            --pattern "mcp-runtime-support.jsonl.gz" \
+            --dir work/direct-final-release-input
+          find work/direct-final-release-input -maxdepth 1 -type f -name "*.zip" -print0 | xargs -0 -r -I{} unzip -q {} -d work/direct-final-release-input
+          find work/direct-final-release-input -maxdepth 1 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" \) -print0 | xargs -0 -r -I{} tar -xf {} -C work/direct-final-release-input
+          test -f work/direct-final-release-input/manifest.json || find work/direct-final-release-input -name manifest.json -print -quit | grep -q .
 
-      - name: Compile direct-final runtime into existing ABIs
+      - name: Compile Direct Final runtime into existing ABIs
         run: |
           set -euo pipefail
           mkdir -p reports work/direct-final-runtime
-          BUNDLE_ROOT="${{ inputs.bundle-root }}"
           if [ -n "$BUNDLE_ROOT" ]; then
-            INPUT_ROOT="work/direct-final-input/$BUNDLE_ROOT"
+            INPUT_ROOT="work/direct-final-release-input/$BUNDLE_ROOT"
           else
-            MANIFEST="$(find work/direct-final-input -name manifest.json -print -quit)"
+            MANIFEST="$(find work/direct-final-release-input -name manifest.json -print -quit)"
             if [ -z "$MANIFEST" ]; then
-              echo "manifest.json not found in downloaded artifact" >&2
+              echo "manifest.json not found in downloaded GitHub Release assets" >&2
               exit 1
             fi
             INPUT_ROOT="$(dirname "$MANIFEST")"
           fi
-          test -f "$INPUT_ROOT/manifest.json"
           python tools/compile_direct_final_runtime.py \
             --manifest "$INPUT_ROOT/manifest.json" \
             --input-root "$INPUT_ROOT" \
@@ -75,7 +83,7 @@ jobs:
         run: |
           python scripts/direct_final_deployment_contract.py \
             --require-direct-final \
-            --expected-source-records "${{ inputs.expected-records }}" \
+            --expected-source-records "$EXPECTED_RECORDS" \
             --output reports/direct-final-deployment-contract.json
 
       - name: Verify parser, dictionaries and runtime safety
@@ -100,12 +108,10 @@ jobs:
             --output reports/direct-final-astera-latency.json
           python -m compileall -q src tools scripts tests
 
-      - name: Build wheel with direct-final runtime
+      - name: Build wheel with Direct Final runtime
         run: python -m build --wheel --outdir dist
 
-      - name: Verify direct-final wheel outside repository
-        env:
-          EXPECTED_RECORDS: ${{ inputs.expected-records }}
+      - name: Verify Direct Final wheel outside repository
         run: |
           python -m venv --system-site-packages /tmp/djpmcp-direct-final-wheel
           /tmp/djpmcp-direct-final-wheel/bin/pip install \
@@ -114,7 +120,7 @@ jobs:
             --force-reinstall \
             dist/*.whl
           cd /tmp
-          /tmp/djpmcp-direct-final-wheel/bin/python - <<'PY'
+          /tmp/djpmcp-direct-final-wheel/bin/python - <<'VERIFY_PY'
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
           import os
 
@@ -132,13 +138,13 @@ jobs:
               "open_lexicon_records": engine.bundle.open_lexicon.record_count,
               "semantic_records": engine.semantic_data.record_count,
           })
-          PY
+          VERIFY_PY
 
-      - name: Upload direct-final runtime release evidence
+      - name: Upload Direct Final runtime release evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: direct-final-runtime-release-${{ github.sha }}
+          name: direct-final-runtime-github-release-${{ github.sha }}
           path: |
             dist
             reports

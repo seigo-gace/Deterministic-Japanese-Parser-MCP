@@ -26,7 +26,7 @@ def test_frozen_raw_workflow_does_not_run_large_generation_on_pr() -> None:
     assert "mcp-collected-raw-factory-input-v1.tar" not in pr_contract
     assert "Build assigned auxiliary source-role adapter lane shard" not in pr_contract
     assert "LEGACY_FROZEN_RAW_FACTORY_SUPERSEDED_FOR_DEPLOYMENT" in manual_boundary
-    assert "Direct Final Runtime From Drive" in manual_boundary
+    assert "Direct Final Runtime Deployment" in manual_boundary
     assert "contents: read" in workflow
     assert "contents: write" not in workflow
     assert "git push" not in workflow

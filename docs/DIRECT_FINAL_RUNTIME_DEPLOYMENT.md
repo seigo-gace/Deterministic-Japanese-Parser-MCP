@@ -1,27 +1,36 @@
 # Direct Final Runtime Deployment
 
-The direct-final runtime data is the practical deployment data path for the
+Direct Final runtime data is the practical deployment data path for the
 completed MCP dictionary. It is separate from the historical 120k Open Lexicon
 snapshot: the 120k snapshot is lexical identity only and must not be treated as
 meaning-complete runtime data.
 
+The operational source of truth for deployable Direct Final data is GitHub:
+GitHub Release assets are preferred for durable storage, GitHub Actions
+artifacts are acceptable for short-lived handoff, and an explicit branch bundle
+may be used when the repository is intentionally carrying the data. Drive and
+Notion are not runtime sources of truth.
+
 ## Boundary
 
 - Runtime remains non-AI and deterministic.
-- The compiler does not call external dictionary or LLM APIs.
+- The compiler does not call external dictionary, Drive, Notion, or LLM APIs.
 - `factory_used=false` is required and verified.
 - Only source-provided `senses` become semantic runtime records.
 - Rows without source-provided senses stay lexical-only; meanings are not
   generated or inherited from aliases.
 - Notion is not a runtime data source and is not accepted for practical
   deployment.
+- Drive is only a temporary or emergency staging location before data is moved
+  into GitHub-managed release/artifact storage.
 - The existing runtime ABIs are used:
   - `compiled/open_lexicon`
   - `compiled/canonical_dictionary_runtime`
 
 ## Expected Input
 
-Place the direct-final files in one local input directory:
+Place the Direct Final files in one local input directory or publish the same
+files as GitHub-managed release/artifact assets:
 
 - `manifest.json`
 - `mcp-runtime-final-part-001.jsonl.gz` through the manifest-declared final part
@@ -41,59 +50,65 @@ The manifest is the authority for:
 - gzip integrity status
 - missing required core field count
 
-Do not copy private source identifiers, Drive folder IDs, file IDs, or complete
-manifest metadata into public PR text or repository documentation.
+Do not copy private staging identifiers, Drive folder IDs, file IDs, or complete
+private manifest metadata into public PR text or repository documentation.
 
-## Private Source Handling
+## GitHub-Managed Deployment
 
-The direct-final source bundle is stored outside the public repository. Its
-location and manifest details must be handled as private deployment
-configuration, not as public project metadata.
-
-Before a GitHub Actions deployment run:
-
-- create or verify the `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` repository secret
-- share the private source folder with that service account
-- keep Drive access readonly for the deployment job
-- pass the source folder and expected runtime count through workflow inputs or
-  repository/environment configuration
-
-## GitHub Actions Deployment
-
-Use `.github/workflows/direct-final-runtime-from-drive.yml` for deployment from
-private Drive-backed source data. It is intentionally `workflow_dispatch` only so
-private source data is not automatically exported to GitHub artifacts by ordinary
-PR or push activity.
-
-Required repository secret:
-
-```text
-GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON
-```
+Preferred durable path: publish the Direct Final bundle as GitHub Release assets
+and run `.github/workflows/direct-final-runtime-from-release.yml`.
 
 Required workflow inputs:
 
 ```text
-drive-folder-id = <private source folder id>
+release-tag = <GitHub Release tag containing the Direct Final bundle>
+asset-pattern = <release asset glob for final parts>
 expected-records = <manifest expected runtime count>
-artifact-name = <release artifact name>
+bundle-root = <optional extracted bundle directory>
 ```
 
-The workflow performs these gates before upload/release evidence:
+Short-lived handoff path: use `.github/workflows/direct-final-runtime.yml` with a
+GitHub Actions artifact that already contains the Direct Final bundle. This is
+useful for a controlled CI handoff, but artifact retention is limited by GitHub
+Actions retention settings.
 
-- authenticates with Google Drive readonly scope
-- lists the Drive folder and requires all manifest-declared files
-- validates Drive-reported size and SHA-256 for each final part and support pack
-- validates schema, target, `factory_used=false`, gzip integrity, missing-core
-  field count, final part count, and expected runtime record count
-- compiles the direct-final bundle into existing runtime ABIs
-- runs `scripts/direct_final_deployment_contract.py --require-direct-final`
-- runs direct-final integration, deployment contract, semantic runtime tests,
+Required workflow inputs:
+
+```text
+artifact-run-id = <GitHub Actions run ID containing the Direct Final bundle>
+artifact-name = <artifact name containing manifest.json and final parts>
+expected-records = <manifest expected runtime count>
+bundle-root = <optional artifact directory>
+```
+
+Both GitHub deployment workflows perform these gates before release evidence is
+accepted:
+
+- locate `manifest.json` and all manifest-declared final/support files
+- validate schema, target, `factory_used=false`, gzip integrity, missing-core
+  field count, final part count, SHA-256 values, and expected runtime record
+  count
+- compile the Direct Final bundle into existing runtime ABIs
+- run `scripts/direct_final_deployment_contract.py --require-direct-final`
+- run direct-final integration, deployment contract, semantic runtime tests,
   global validator, semantic quality, semantic holdout, Astera latency, and
   `compileall`
-- builds the wheel and verifies the installed wheel outside the repository
+- build the wheel and verify the installed wheel outside the repository
 
-## Compile
+## Emergency Drive Import
+
+`.github/workflows/direct-final-runtime-from-drive.yml` is not a deployment path.
+It is an emergency/manual importer for cases where the Direct Final bundle exists
+only in a temporary Drive folder and must be staged into GitHub-managed storage.
+
+The Drive importer is `workflow_dispatch` only, uses readonly Drive access, and
+does not compile, build, verify the runtime, or upload deployable runtime release
+evidence. It may upload the staged source bundle only when
+`upload-source-bundle=true` is explicitly provided. Keep that input `false`
+unless exporting the staged source bundle into GitHub artifacts has been
+approved.
+
+## Local Compile
 
 ```bash
 python tools/compile_direct_final_runtime.py \
@@ -143,11 +158,12 @@ completed Direct Final semantic runtime.
 ## Deployment Decision
 
 Do not deploy the checked-in 120k lexical snapshot as the completed semantic
-runtime. Deploy only after the direct-final bundle has been compiled and the
-resulting `compiled/open_lexicon`, `compiled/canonical_dictionary_runtime`, and
+runtime. Deploy only after the GitHub-managed Direct Final bundle has been
+compiled and the resulting `compiled/open_lexicon`,
+`compiled/canonical_dictionary_runtime`, and
 `compiled/direct_final_integration.json` have passed verification.
 
-Do not add branch `push` or PR triggers that automatically export the private
-source bundle into GitHub artifacts unless that specific data export destination
-has been explicitly approved. The safe default is manual dispatch with the
-service account secret and folder sharing prepared first.
+Do not add branch `push` or PR triggers that automatically export private staged
+source data into GitHub artifacts unless that specific export destination has
+been explicitly approved. The safe default is GitHub-managed Release assets or
+explicit artifact handoff, with Drive limited to temporary emergency import.
