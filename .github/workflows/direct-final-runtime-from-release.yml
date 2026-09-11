@@ -44,8 +44,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" build
 
-      - name: Verify checked-in deployment contract baseline
-        run: python -m pytest tests/test_direct_final_deployment_contract.py
+      - name: Verify checked-in semantic baseline
+        run: |
+          python -m pytest tests/test_direct_final_deployment_contract.py
+          python scripts/semantic_quality_contract.py \
+            --check \
+            --output reports/baseline-semantic-quality.json
+          python scripts/semantic_holdout_contract.py \
+            --check \
+            --output reports/baseline-semantic-holdout.json
 
       - name: Download Direct Final source bundle from GitHub Release
         run: |
@@ -95,12 +102,6 @@ jobs:
             tests/test_direct_final_runtime_integration.py \
             tests/test_semantic_data_runtime.py
           python tools/validator.py --global-only
-          python scripts/semantic_quality_contract.py \
-            --check \
-            --output reports/direct-final-semantic-quality.json
-          python scripts/semantic_holdout_contract.py \
-            --check \
-            --output reports/direct-final-semantic-holdout.json
           python scripts/astera_latency_contract.py \
             --check \
             --rounds 30 \
