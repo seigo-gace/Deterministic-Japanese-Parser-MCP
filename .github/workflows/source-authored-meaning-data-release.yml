@@ -1,0 +1,65 @@
+name: Source-authored Meaning Data Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: "GitHub Release tag containing source-authored meaning data assets"
+        required: true
+        default: "source-authored-meaning-data-v1"
+      deep-scan:
+        description: "Scan every JSONL row instead of manifest/checksum-only validation"
+        required: true
+        default: "true"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONHASHSEED: "0"
+
+jobs:
+  verify-source-authored-meaning-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download source-authored meaning data from GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          mkdir -p work/source-authored-meaning-release reports
+          gh release download "$RELEASE_TAG" \
+            --repo seigo-gace/Deterministic-Japanese-Parser-MCP \
+            --pattern "mcp-source-authored-meaning-factory-v1.zip" \
+            --pattern "mcp-auxiliary-source-role-shard-*.zip" \
+            --dir work/source-authored-meaning-release
+          python - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path("work/source-authored-meaning-release").glob("*.zip")):
+              print(f"{path.name}\t{path.stat().st_size}")
+          PY
+
+      - name: Verify source-authored meaning data contract
+        env:
+          DEEP_SCAN: ${{ inputs.deep-scan }}
+        run: |
+          ARGS=""
+          if [ "$DEEP_SCAN" != "true" ]; then
+            ARGS="--shallow"
+          fi
+          python scripts/source_authored_meaning_release_contract.py \
+            --asset-root work/source-authored-meaning-release \
+            --output reports/source-authored-meaning-release-contract.json \
+            --require-role-shards \
+            $ARGS
+
+      - name: Upload source-authored meaning release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-authored-meaning-release-evidence-${{ github.sha }}
+          path: reports
+          if-no-files-found: error
