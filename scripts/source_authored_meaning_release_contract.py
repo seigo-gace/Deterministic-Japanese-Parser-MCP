@@ -18,6 +18,11 @@ from typing import Any, Callable
 
 MEANING_ASSET = "mcp-source-authored-meaning-factory-v1.zip"
 ROLE_PREFIX = "mcp-auxiliary-source-role-shard-"
+RAW_INPUT_PARTS = [
+    "mcp-collected-raw-factory-input-v1.zip.part-00",
+    "mcp-collected-raw-factory-input-v1.zip.part-01",
+    "mcp-collected-raw-factory-input-v1.zip.part-02",
+]
 SEMANTIC_MEMBER = "meaning-factory/adapter-output/semantic-reference.jsonl"
 LEXICAL_MEMBER = "meaning-factory/adapter-output/lexical-candidates.jsonl"
 EVIDENCE_MEMBER = "meaning-factory/adapter-output/canonical-evidence.jsonl"
@@ -99,7 +104,23 @@ def _validate_source(row: dict[str, Any], line_number: int) -> None:
     _require(bool(row.get("surfaces")), f"{prefix}: surfaces required")
 
 
-def validate(asset_root: Path, *, require_role_shards: bool = False, deep_scan: bool = True) -> dict[str, Any]:
+def _sha256_joined(paths: list[Path]) -> str:
+    digest = hashlib.sha256()
+    for path in paths:
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+    return digest.hexdigest()
+
+
+def validate(
+    asset_root: Path,
+    *,
+    require_role_shards: bool = False,
+    require_raw_factory_input: bool = False,
+    expected_raw_factory_input_sha256: str | None = None,
+    deep_scan: bool = True,
+) -> dict[str, Any]:
     meaning_zip = asset_root / MEANING_ASSET
     if not meaning_zip.is_file():
         raise FileNotFoundError(meaning_zip)
@@ -121,6 +142,18 @@ def validate(asset_root: Path, *, require_role_shards: bool = False, deep_scan: 
     role_assets = sorted(name for name in assets if name.startswith(ROLE_PREFIX))
     if require_role_shards:
         _require(role_assets == ["mcp-auxiliary-source-role-shard-0-v1.zip", "mcp-auxiliary-source-role-shard-1-v1.zip"], "expected role shard 0 and 1 assets")
+
+    raw_input_parts = [asset_root / name for name in RAW_INPUT_PARTS if (asset_root / name).is_file()]
+    raw_input_sha256 = None
+    if require_raw_factory_input:
+        missing_raw = [name for name in RAW_INPUT_PARTS if not (asset_root / name).is_file()]
+        _require(not missing_raw, "missing raw factory input parts: " + ", ".join(missing_raw))
+        raw_input_sha256 = _sha256_joined([asset_root / name for name in RAW_INPUT_PARTS])
+        if expected_raw_factory_input_sha256:
+            _require(
+                raw_input_sha256 == expected_raw_factory_input_sha256,
+                "raw factory input reconstructed sha256 mismatch",
+            )
 
     with zipfile.ZipFile(meaning_zip) as zf:
         required_members = [
@@ -194,6 +227,8 @@ def validate(asset_root: Path, *, require_role_shards: bool = False, deep_scan: 
         "assets": assets,
         "meaning_asset": MEANING_ASSET,
         "role_assets": role_assets,
+        "raw_factory_input_parts": [path.name for path in raw_input_parts],
+        "raw_factory_input_reconstructed_sha256": raw_input_sha256,
         "counts": counts,
         "usable_as": "github-managed-source-authored-meaning-data",
         "direct_final_runtime_ready": False,
@@ -212,9 +247,17 @@ def main() -> int:
     parser.add_argument("--asset-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--require-role-shards", action="store_true")
+    parser.add_argument("--require-raw-factory-input", action="store_true")
+    parser.add_argument("--expected-raw-factory-input-sha256")
     parser.add_argument("--shallow", action="store_true", help="verify manifests/checksums without scanning every JSONL row")
     args = parser.parse_args()
-    report = validate(args.asset_root, require_role_shards=args.require_role_shards, deep_scan=not args.shallow)
+    report = validate(
+        args.asset_root,
+        require_role_shards=args.require_role_shards,
+        require_raw_factory_input=args.require_raw_factory_input,
+        expected_raw_factory_input_sha256=args.expected_raw_factory_input_sha256,
+        deep_scan=not args.shallow,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))

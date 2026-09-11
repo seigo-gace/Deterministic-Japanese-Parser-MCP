@@ -88,11 +88,20 @@ def test_source_authored_meaning_release_contract_accepts_valid_assets(tmp_path:
     )
     _write_zip(tmp_path / "mcp-auxiliary-source-role-shard-0-v1.zip", {"roles-0.jsonl": ""})
     _write_zip(tmp_path / "mcp-auxiliary-source-role-shard-1-v1.zip", {"roles-1.jsonl": ""})
+    (tmp_path / "mcp-collected-raw-factory-input-v1.zip.part-00").write_bytes(b"raw-")
+    (tmp_path / "mcp-collected-raw-factory-input-v1.zip.part-01").write_bytes(b"factory-")
+    (tmp_path / "mcp-collected-raw-factory-input-v1.zip.part-02").write_bytes(b"input")
 
-    result = validate(tmp_path, require_role_shards=True)
+    result = validate(
+        tmp_path,
+        require_role_shards=True,
+        require_raw_factory_input=True,
+        expected_raw_factory_input_sha256=_sha(b"raw-factory-input"),
+    )
 
     assert result["status"] == "pass"
     assert result["counts"]["semantic_reference_records"] == 1
+    assert result["raw_factory_input_reconstructed_sha256"] == _sha(b"raw-factory-input")
     assert result["direct_final_runtime_ready"] is False
     assert result["boundaries"]["drive_source_of_truth"] is False
 
@@ -156,3 +165,11 @@ def test_source_authored_meaning_release_contract_rejects_generated_meaning(tmp_
 
     with pytest.raises(ValueError, match="meaning_origin"):
         validate(tmp_path)
+
+
+
+def test_source_authored_meaning_release_contract_requires_raw_factory_parts(tmp_path: Path) -> None:
+    _write_zip(tmp_path / "mcp-source-authored-meaning-factory-v1.zip", {})
+
+    with pytest.raises(ValueError, match="missing raw factory input parts"):
+        validate(tmp_path, require_raw_factory_input=True, deep_scan=False)

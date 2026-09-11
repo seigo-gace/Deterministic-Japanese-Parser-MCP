@@ -13,3 +13,6 @@ def test_source_authored_meaning_release_workflow_uses_github_release_not_drive(
     assert "source_authored_meaning_release_contract.py" in text
     assert "mcp-source-authored-meaning-factory-v1.zip" in text
     assert "mcp-auxiliary-source-role-shard-*.zip" in text
+    assert "mcp-collected-raw-factory-input-v1.zip.part-*" in text
+    assert "--require-raw-factory-input" in text
+    assert "fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629" in text

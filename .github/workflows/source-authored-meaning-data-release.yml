@@ -36,6 +36,7 @@ jobs:
             --repo seigo-gace/Deterministic-Japanese-Parser-MCP \
             --pattern "mcp-source-authored-meaning-factory-v1.zip" \
             --pattern "mcp-auxiliary-source-role-shard-*.zip" \
+            --pattern "mcp-collected-raw-factory-input-v1.zip.part-*" \
             --dir work/source-authored-meaning-release
           python - <<'PY'
           from pathlib import Path
@@ -55,6 +56,8 @@ jobs:
             --asset-root work/source-authored-meaning-release \
             --output reports/source-authored-meaning-release-contract.json \
             --require-role-shards \
+            --require-raw-factory-input \
+            --expected-raw-factory-input-sha256 fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629 \
             $ARGS
 
       - name: Upload source-authored meaning release evidence
