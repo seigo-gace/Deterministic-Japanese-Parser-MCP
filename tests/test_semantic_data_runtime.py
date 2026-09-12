@@ -964,3 +964,151 @@ def test_hashi_sense_prefers_japanese_chopsticks_over_proper_name(
     assert hashi_props[0].sense_id == "SEM-HASHI-JA-001:sense:0001"
     assert hashi_props[0].sense_label == "食事用の棒"
     assert "Chō" not in (hashi_props[0].sense_label or "")
+
+
+def test_tenki_surface_prefers_weather_over_time_sense(tmp_path: Path) -> None:
+    record = {
+        "record_id": "SEM-TENKI-001",
+        "lemma": "天気",
+        "surfaces": ["天気"],
+        "readings": ["テンキ"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-TENKI-001:sense:time",
+                "label": "スピーチの瞬間を含む時間の一続きの時間",
+                "glosses": ["スピーチの瞬間を含む時間の一続きの時間"],
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-TENKI-001:sense:weather",
+                "label": "空の状態。天候。",
+                "glosses": ["降水や雲の様子など、大気の状態。"],
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-TENKI-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    text = "今日はいい天気です"
+    token = Token(
+        surface="天気",
+        normalized="天気",
+        reading="テンキ",
+        pos=["名詞", "普通名詞", "一般"],
+        span=OriginalSpan(start=5, end=7, source_text=text),
+    )
+    source_graph = MeaningGraph(
+        propositions=[
+            Proposition(
+                proposition_id="P-001",
+                predicate="天気",
+                intent_type="observation",
+                value=text,
+                source_span=OriginalSpan(start=0, end=9, source_text=text),
+            )
+        ]
+    )
+    graph = runtime.enrich(
+        source_graph,
+        tokens=[token],
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "SEM-TENKI-001:sense:weather"
+    assert "天候" in (proposition.sense_label or "")
+    assert "時間の一続き" not in (proposition.sense_label or "")
+
+
+def test_weather_proposition_uses_predicate_headword_over_earlier_token(
+    tmp_path: Path,
+) -> None:
+    today = {
+        "record_id": "SEM-KYO-001",
+        "lemma": "今日",
+        "surfaces": ["今日"],
+        "readings": ["キョウ"],
+        "part_of_speech": ["n"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-KYO-001:sense:time",
+                "label": "スピーチの瞬間を含む時間の一続きの時間",
+                "glosses": ["スピーチの瞬間を含む時間の一続きの時間"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-KYO-001"),
+        "review_status": "approved",
+    }
+    weather = {
+        "record_id": "SEM-TENKI-002",
+        "lemma": "天気",
+        "surfaces": ["天気"],
+        "readings": ["テンキ"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-TENKI-002:sense:weather",
+                "label": "空の状態。天候。",
+                "glosses": ["いい天候のときは外に出かける。"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-TENKI-002"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [today, weather])
+    runtime = SemanticDataRuntime(root)
+    text = "今日はいい天気です"
+    tokens = [
+        Token(
+            surface="今日",
+            normalized="今日",
+            reading="キョウ",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=2, source_text=text),
+        ),
+        Token(
+            surface="いい",
+            normalized="いい",
+            reading="イイ",
+            pos=["形容詞"],
+            span=OriginalSpan(start=3, end=5, source_text=text),
+        ),
+        Token(
+            surface="天気",
+            normalized="天気",
+            reading="テンキ",
+            pos=["名詞"],
+            span=OriginalSpan(start=5, end=7, source_text=text),
+        ),
+    ]
+    source_graph = MeaningGraph(
+        propositions=[
+            Proposition(
+                proposition_id="P-001",
+                predicate="天気",
+                intent_type="observation",
+                value=text,
+                source_span=OriginalSpan(start=0, end=9, source_text=text),
+            )
+        ]
+    )
+    graph = runtime.enrich(
+        source_graph,
+        tokens=tokens,
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "SEM-TENKI-002:sense:weather"
+    assert "天候" in (proposition.sense_label or "")
+    assert "時間の一続き" not in (proposition.sense_label or "")

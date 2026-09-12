@@ -187,6 +187,10 @@ _POS_BOOST_BLOCK_VALUES = frozenset({
 
 _EVERYDAY_SENSE_MARKERS = ("通常", "一般", "愛玩")
 
+_WEATHER_SURFACE = _normalize("天気")
+_WEATHER_LABEL_MARKERS = ("天候", "空", "気象", "大気", "降水", "晴れ")
+_WEATHER_NON_METEOROLOGY_MARKERS = ("機嫌", "皇帝", "天皇", "主君")
+
 
 def _has_japanese_script(text: str) -> bool:
     return bool(_JAPANESE_SCRIPT_RE.search(text or ""))
@@ -268,6 +272,17 @@ def _is_proper_name_candidate(
         for domain in domain_values
         if domain
     )
+
+
+def _token_matches_proposition_head(token: Token, proposition: Proposition) -> bool:
+    predicate = _normalize(proposition.predicate or "")
+    if not predicate:
+        return False
+    token_forms = {
+        _normalize(token.surface),
+        _normalize(token.normalized),
+    }
+    return predicate in token_forms
 
 
 def _headword_matches_token(record: dict[str, Any], token: Token) -> bool:
@@ -680,6 +695,24 @@ class SemanticDataRuntime:
                 score -= 15
                 evidence.append("semantic_pack_distinct_label_penalty")
 
+        token_head = _normalize(token.surface)
+        record_lemma = _normalize(str(record.get("lemma") or ""))
+        if token_head == _WEATHER_SURFACE or record_lemma == _WEATHER_SURFACE:
+            if any(
+                marker in text
+                for text in label_texts
+                for marker in _WEATHER_LABEL_MARKERS
+            ):
+                score += 15
+                evidence.append("semantic_pack_weather_headword")
+            if any(
+                marker in text
+                for text in label_texts
+                for marker in _WEATHER_NON_METEOROLOGY_MARKERS
+            ):
+                score -= 25
+                evidence.append("semantic_pack_weather_non_meteorology_penalty")
+
         conditions = dict(record.get("context_conditions") or {})
         candidate_context = candidate.get("context") or {}
         for key in (
@@ -938,7 +971,20 @@ class SemanticDataRuntime:
                 # A later lexical/context pack can add coverage, but it must not
                 # replace an already resolved sense with a weaker generic sense.
                 if proposition.sense_id is not None:
-                    continue
+                    if "semantic-profile" in (proposition.inference_sources or []):
+                        continue
+                    if not _token_matches_proposition_head(token, proposition):
+                        continue
+                    existing_score = next(
+                        (
+                            candidate.score
+                            for candidate in proposition.sense_candidates
+                            if candidate.sense_id == proposition.sense_id
+                        ),
+                        None,
+                    )
+                    if existing_score is not None and top[0] <= existing_score:
+                        continue
                 structural_intent = (
                     proposition.intent_type in ACTION_INTENTS
                     or proposition.intent_type in CONSTRAINT_INTENTS
