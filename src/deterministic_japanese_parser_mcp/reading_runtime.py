@@ -1738,7 +1738,10 @@ class DeterministicReadingRuntime:
                     polarity=main.polarity,
                     sentence_mood=(
                         "interrogative"
-                        if re.search(r"[？?]", clause.text)
+                        if (
+                            _CAPABILITY_QUESTION_RE.search(clause.text)
+                            or re.search(r"[？?]", clause.text)
+                        )
                         else "declarative"
                     ),
                     speech_act=(
