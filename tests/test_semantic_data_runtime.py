@@ -267,7 +267,7 @@ def test_preexisting_resolved_sense_has_priority_over_generic_pack(
                 "sense_id": "fall.system_failure",
                 "sense_label": "system_or_connection_failure",
                 "sense_confidence": 0.95,
-                "inference_sources": ["semantic-profile"],
+                "inference_sources": ["sense_profile:落ちる"],
             })
         ]
     })
@@ -283,7 +283,7 @@ def test_preexisting_resolved_sense_has_priority_over_generic_pack(
     proposition = graph.propositions[0]
     assert proposition.sense_id == "fall.system_failure"
     assert proposition.sense_label == "system_or_connection_failure"
-    assert proposition.inference_sources == ["semantic-profile"]
+    assert proposition.inference_sources == ["sense_profile:落ちる"]
 
 
 def test_generic_lexical_ambiguity_does_not_downgrade_resolved_action(
@@ -1112,3 +1112,109 @@ def test_weather_proposition_uses_predicate_headword_over_earlier_token(
     assert proposition.sense_id == "SEM-TENKI-002:sense:weather"
     assert "天候" in (proposition.sense_label or "")
     assert "時間の一続き" not in (proposition.sense_label or "")
+
+
+def test_neighbor_definition_overlap_prefers_crossing_wataru_sense(
+    tmp_path: Path,
+) -> None:
+    bridge = {
+        "record_id": "SEM-HASHI-BRIDGE-002",
+        "lemma": "橋",
+        "surfaces": ["橋"],
+        "readings": ["ハシ"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-HASHI-BRIDGE-002:bridge",
+                "label": "構造物",
+                "glosses": ["川などを渡るための構築物"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-HASHI-BRIDGE-002"),
+        "review_status": "approved",
+    }
+    wataru = {
+        "record_id": "SEM-WATARU-002",
+        "lemma": "渡る",
+        "surfaces": ["渡る"],
+        "readings": ["ワタル"],
+        "part_of_speech": ["動詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-WATARU-002:cross",
+                "label": "横切って渡る",
+                "glosses": ["構築物の上を横切って向こう側へ行く"],
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-WATARU-002:travel",
+                "label": "旅行する",
+                "glosses": ["各地を転々と旅行する"],
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-WATARU-002"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [bridge, wataru])
+    runtime = SemanticDataRuntime(root)
+    text = "橋を渡る"
+    tokens = [
+        Token(
+            surface="橋",
+            normalized="橋",
+            reading="ハシ",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=1, source_text=text),
+        ),
+        Token(
+            surface="を",
+            normalized="を",
+            reading="ヲ",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=1, end=2, source_text=text),
+        ),
+        Token(
+            surface="渡る",
+            normalized="渡る",
+            reading="ワタル",
+            pos=["動詞"],
+            span=OriginalSpan(start=2, end=4, source_text=text),
+        ),
+    ]
+    source_graph = MeaningGraph(
+        propositions=[
+            Proposition(
+                proposition_id="P-001",
+                predicate="渡る",
+                intent_type="observation",
+                value=text,
+                source_span=OriginalSpan(start=0, end=4, source_text=text),
+            )
+        ]
+    )
+    graph = runtime.enrich(
+        source_graph,
+        tokens=tokens,
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "SEM-WATARU-002:cross"
+    assert proposition.sense_label == "横切って渡る"
+    cross = next(
+        item
+        for item in proposition.sense_candidates
+        if item.sense_id == "SEM-WATARU-002:cross"
+    )
+    travel = next(
+        item
+        for item in proposition.sense_candidates
+        if item.sense_id == "SEM-WATARU-002:travel"
+    )
+    assert cross.score > travel.score
+    assert "semantic_pack_neighbor_definition_overlap" in cross.evidence

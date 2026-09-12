@@ -167,6 +167,84 @@ def _candidate_context_texts(
     return texts
 
 
+def _record_lookup_definition_texts(record: dict[str, Any]) -> list[str]:
+    texts: list[str] = []
+    for candidate in record.get("meaning_candidates", []):
+        if candidate.get("review_status") != "approved":
+            continue
+        label = candidate.get("label")
+        if label:
+            texts.append(str(label))
+        for gloss in candidate.get("glosses") or []:
+            if gloss:
+                texts.append(str(gloss))
+    for key in (
+        "positive_examples",
+        "negative_examples",
+        "boundary_examples",
+    ):
+        for item in record.get(key) or []:
+            if item:
+                texts.append(str(item))
+    examples = record.get("examples")
+    if isinstance(examples, dict):
+        for item in examples.get("positive") or []:
+            if item:
+                texts.append(str(item))
+    elif isinstance(examples, list):
+        for item in examples:
+            if item:
+                texts.append(str(item))
+    return texts
+
+
+_JP_OVERLAP_SEGMENT_RE = re.compile(
+    r"[\u4E00-\u9FFF\u30A0-\u30FF]{2,}|[\u3040-\u309F]{2,}"
+)
+
+
+def _japanese_overlap_segments(text: str) -> set[str]:
+    return {
+        _normalize(match.group(0))
+        for match in _JP_OVERLAP_SEGMENT_RE.finditer(text or "")
+    }
+
+
+def _neighbor_definition_overlap_bonus(
+    context_texts: Iterable[str],
+    neighbor_definitions: str,
+    *,
+    token: Token,
+) -> tuple[int, bool]:
+    excluded = {
+        _normalize(token.surface),
+        _normalize(token.normalized),
+    }
+    excluded = {value for value in excluded if value}
+    candidate_segments: set[str] = set()
+    for text in context_texts:
+        for segment in _japanese_overlap_segments(text):
+            if segment not in excluded:
+                candidate_segments.add(segment)
+    neighbor_segments: set[str] = set()
+    for segment in _japanese_overlap_segments(neighbor_definitions):
+        if segment not in excluded:
+            neighbor_segments.add(segment)
+    overlap_kinds = candidate_segments.intersection(neighbor_segments)
+    if not overlap_kinds:
+        return 0, False
+    return min(len(overlap_kinds), 3) * 15, True
+
+
+def _inference_sources_profile_locked(sources: Iterable[str] | None) -> bool:
+    for source in sources or []:
+        if source.startswith("sense_profile:") or source.startswith(
+            "sense_ambiguous:"
+        ):
+            return True
+    return False
+
+
 _JAPANESE_SCRIPT_RE = re.compile(
     r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]"
 )
@@ -186,6 +264,8 @@ _POS_BOOST_BLOCK_VALUES = frozenset({
 })
 
 _EVERYDAY_SENSE_MARKERS = ("通常", "一般", "愛玩")
+
+_SURU_LIGHT_VERB = _normalize("する")
 
 _WEATHER_SURFACE = _normalize("天気")
 _WEATHER_LABEL_MARKERS = ("天候", "空", "気象", "大気", "降水", "晴れ")
@@ -282,7 +362,45 @@ def _token_matches_proposition_head(token: Token, proposition: Proposition) -> b
         _normalize(token.surface),
         _normalize(token.normalized),
     }
-    return predicate in token_forms
+    if predicate in token_forms:
+        return True
+    # A サ変 noun realizes the head of its light-verb predicate, so 「変更」
+    # heads 「変更する」. This is the grammatical relation, not a lexical entry.
+    if "サ変可能" in token.pos:
+        return any(
+            form and predicate == f"{form}{_SURU_LIGHT_VERB}"
+            for form in token_forms
+        )
+    return False
+
+
+def _argument_indices_for_token(
+    proposition: Proposition,
+    token: Token,
+) -> list[int]:
+    return [
+        index
+        for index, argument in enumerate(proposition.arguments)
+        if argument.span and _overlap(token.span, argument.span)
+    ]
+
+
+def _has_spanned_arguments(proposition: Proposition) -> bool:
+    return any(argument.span for argument in proposition.arguments)
+
+
+def _sense_confidence(margin: int, *, selected: bool) -> float:
+    """Report how far the pack actually separated the top candidates.
+
+    Tied candidates are ordered by candidate id, which carries no linguistic
+    evidence. Reporting such a pick below the resolved floor keeps it
+    distinguishable from a sense the context genuinely decided.
+    """
+
+    separation = max(0, margin) / 100
+    if selected:
+        return min(0.99, 0.70 + separation)
+    return round(min(0.69, 0.50 + separation), 4)
 
 
 def _headword_matches_token(record: dict[str, Any], token: Token) -> bool:
@@ -639,6 +757,7 @@ class SemanticDataRuntime:
         social_markers: set[str],
         discourse_markers: set[str],
         neighbor_surfaces: Iterable[str] = (),
+        neighbor_definitions: str = "",
         known_entities: Iterable[str] = (),
     ) -> tuple[int, list[str]]:
         score = 100
@@ -785,6 +904,16 @@ class SemanticDataRuntime:
                     evidence.append("semantic_pack_example_overlap")
                     break
 
+        if neighbor_definitions.strip() and context_texts:
+            overlap_bonus, matched = _neighbor_definition_overlap_bonus(
+                context_texts,
+                neighbor_definitions,
+                token=token,
+            )
+            if matched:
+                score += overlap_bonus
+                evidence.append("semantic_pack_neighbor_definition_overlap")
+
         return score, evidence
 
     @staticmethod
@@ -826,6 +955,98 @@ class SemanticDataRuntime:
                 **parameters["sensory_features"],
             }
         return proposition.model_copy(update=update) if update else proposition
+
+    def _apply_argument_senses(
+        self,
+        proposition: Proposition,
+        *,
+        argument_indices: list[int],
+        sense_candidates: list[SenseCandidate],
+        top: tuple[int, str, dict[str, Any], dict[str, Any], list[str]],
+        margin: int,
+        selected: bool,
+        action_sensitive: bool,
+        structural_intent: bool,
+        token: Token,
+        ranked: list[tuple[int, str, dict[str, Any], dict[str, Any], list[str]]],
+        unresolved: list[dict[str, Any]],
+    ) -> Proposition:
+        """Attach a ranked sense to the arguments the token realizes.
+
+        Candidate parameters stay on the predicate path: register, politeness
+        and speech act describe the proposition, not the filler of one of its
+        argument slots.
+        """
+
+        arguments = list(proposition.arguments)
+        changed = False
+        escalated = False
+        for argument_index in argument_indices:
+            argument = arguments[argument_index]
+            if argument.sense_id is not None:
+                existing_score = next(
+                    (
+                        candidate.score
+                        for candidate in argument.sense_candidates
+                        if candidate.sense_id == argument.sense_id
+                    ),
+                    None,
+                )
+                if existing_score is not None and top[0] <= existing_score:
+                    continue
+            if selected or (not action_sensitive and not structural_intent):
+                arguments[argument_index] = argument.model_copy(update={
+                    "sense_id": top[1],
+                    "sense_label": top[3].get("label") or top[1],
+                    "sense_confidence": _sense_confidence(
+                        margin,
+                        selected=selected,
+                    ),
+                    "sense_candidates": sense_candidates,
+                })
+                changed = True
+                continue
+            # Same boundary as the predicate path: ordinary polysemy under a
+            # structural intent stays lexical evidence, while action and social
+            # risk leaves the argument unresolved and fail-closed.
+            if structural_intent and not action_sensitive:
+                continue
+            arguments[argument_index] = argument.model_copy(update={
+                "sense_id": None,
+                "sense_label": None,
+                "sense_confidence": 0.0,
+                "sense_candidates": sense_candidates,
+                "status": ItemStatus.AMBIGUOUS,
+            })
+            changed = True
+            escalated = True
+
+        if not changed:
+            return proposition
+
+        update: dict[str, Any] = {
+            "arguments": arguments,
+            "evidence_ids": list(dict.fromkeys([
+                *proposition.evidence_ids,
+                *top[3].get("evidence_ids", []),
+                f"semantic-pack:{top[2]['record_id']}",
+            ])),
+            "inference_sources": list(dict.fromkeys([
+                *proposition.inference_sources,
+                "approved-semantic-data-pack",
+            ])),
+        }
+        if escalated:
+            unresolved.append({
+                "type": "semantic_data_pack",
+                "surface": token.surface,
+                "candidate_ids": [item[1] for item in ranked],
+                "status": ItemStatus.AMBIGUOUS.value,
+                "action_sensitive": action_sensitive,
+            })
+            if action_sensitive:
+                update["executable_candidate"] = False
+        return proposition.model_copy(update=update)
 
     def enrich(
         self,
@@ -887,10 +1108,44 @@ class SemanticDataRuntime:
         resolved_count = 0
         ambiguous_count = 0
 
+        # A proposition sense describes its predicate, so decide up front which
+        # propositions actually have a head token in this sentence. Predicates
+        # never change during enrichment, so this survives the copies below.
+        content_tokens = [
+            token for token in tokens if not _is_function_word_token(token)
+        ]
+        head_bearing = [
+            any(
+                _token_matches_proposition_head(token, proposition)
+                for token in content_tokens
+            )
+            for proposition in propositions
+        ]
+        role_structured = [
+            _has_spanned_arguments(proposition) for proposition in propositions
+        ]
+
+        neighbor_definition_by_span_start: dict[int, str] = {}
+        for content_token in content_tokens:
+            definition_parts: list[str] = []
+            for neighbor_record in self.lookup_token(content_token):
+                definition_parts.extend(
+                    _record_lookup_definition_texts(neighbor_record)
+                )
+            if definition_parts:
+                neighbor_definition_by_span_start[content_token.span.start] = (
+                    "\n".join(definition_parts)
+                )
+
         for token in tokens:
             if _is_function_word_token(token):
                 continue
             neighbor_surfaces = _neighbor_surfaces_for_token(tokens, current=token)
+            neighbor_definitions = "\n".join(
+                text
+                for span_start, text in neighbor_definition_by_span_start.items()
+                if span_start != token.span.start
+            )
             records = self.lookup_token(token)
             if not records:
                 continue
@@ -924,6 +1179,7 @@ class SemanticDataRuntime:
                         social_markers=social_markers,
                         discourse_markers=record_discourse_markers,
                         neighbor_surfaces=neighbor_surfaces,
+                        neighbor_definitions=neighbor_definitions,
                         known_entities=known_entity_markers,
                     )
                     if score <= -10000:
@@ -966,15 +1222,52 @@ class SemanticDataRuntime:
 
             for index in related_indices:
                 proposition = propositions[index]
+                # A proposition sense states what its predicate means, so only a
+                # head token may write it. A token that realizes an argument
+                # describes that argument instead. Without this split every
+                # content token in the clause overlaps the proposition span and
+                # the last one processed silently became the predicate sense.
+                if _token_matches_proposition_head(token, proposition):
+                    argument_indices: list[int] = []
+                else:
+                    argument_indices = _argument_indices_for_token(
+                        proposition,
+                        token,
+                    )
+                    if not argument_indices:
+                        # Fall back to the clause only when the graph offers no
+                        # finer attachment point at all: no role-bearing
+                        # argument spans and no head token in this sentence.
+                        if role_structured[index] or head_bearing[index]:
+                            continue
+                structural_intent = (
+                    proposition.intent_type in ACTION_INTENTS
+                    or proposition.intent_type in CONSTRAINT_INTENTS
+                )
+                if argument_indices:
+                    propositions[index] = self._apply_argument_senses(
+                        proposition,
+                        argument_indices=argument_indices,
+                        sense_candidates=sense_candidates,
+                        top=top,
+                        margin=margin,
+                        selected=selected,
+                        action_sensitive=action_sensitive,
+                        structural_intent=structural_intent,
+                        token=token,
+                        ranked=ranked,
+                        unresolved=unresolved,
+                    )
+                    continue
                 # The system semantic profile runs before the approved data pack
                 # and may already have a stronger, context-specific resolution.
                 # A later lexical/context pack can add coverage, but it must not
                 # replace an already resolved sense with a weaker generic sense.
+                if _inference_sources_profile_locked(
+                    proposition.inference_sources
+                ):
+                    continue
                 if proposition.sense_id is not None:
-                    if "semantic-profile" in (proposition.inference_sources or []):
-                        continue
-                    if not _token_matches_proposition_head(token, proposition):
-                        continue
                     existing_score = next(
                         (
                             candidate.score
@@ -985,17 +1278,13 @@ class SemanticDataRuntime:
                     )
                     if existing_score is not None and top[0] <= existing_score:
                         continue
-                structural_intent = (
-                    proposition.intent_type in ACTION_INTENTS
-                    or proposition.intent_type in CONSTRAINT_INTENTS
-                )
                 if selected or (not action_sensitive and not structural_intent):
                     proposition = proposition.model_copy(update={
                         "sense_id": top[1],
                         "sense_label": top[3].get("label") or top[1],
-                        "sense_confidence": min(
-                            0.99,
-                            0.70 + max(0, margin) / 100,
+                        "sense_confidence": _sense_confidence(
+                            margin,
+                            selected=selected,
                         ),
                         "sense_candidates": sense_candidates,
                         "evidence_ids": list(dict.fromkeys([

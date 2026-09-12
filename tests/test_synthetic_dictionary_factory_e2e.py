@@ -434,8 +434,14 @@ def test_synthetic_data_runs_through_complete_dictionary_factory(
         assert contextual.meaning_graph.quality_annotations[
             "semantic_data_pack_resolved_count"
         ] >= 1
+        # はし fills an argument slot of 渡る/食べる/置く, so its resolved sense
+        # is attached to that argument rather than to the predicate.
         assert any(
             proposition.sense_label == expected_label
+            or any(
+                argument.sense_label == expected_label
+                for argument in proposition.arguments
+            )
             for proposition in contextual.meaning_graph.propositions
         )
 

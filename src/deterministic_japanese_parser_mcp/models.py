@@ -194,6 +194,10 @@ class Argument(BaseModel):
     span: OriginalSpan | None = None
     candidates: list[str] = Field(default_factory=list)
     status: ItemStatus = ItemStatus.RESOLVED
+    sense_id: str | None = None
+    sense_label: str | None = None
+    sense_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    sense_candidates: list[SenseCandidate] = Field(default_factory=list)
 
 
 class Clause(BaseModel):

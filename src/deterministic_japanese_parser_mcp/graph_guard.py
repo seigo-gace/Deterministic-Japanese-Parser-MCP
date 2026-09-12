@@ -84,6 +84,11 @@ class GraphGuard:
                 blocked.append("INTERROGATIVE_ACTION")
             if proposition.sense_candidates and not proposition.sense_id:
                 blocked.append("AMBIGUOUS_ACTION_SENSE")
+            if any(
+                argument.sense_candidates and not argument.sense_id
+                for argument in proposition.arguments
+            ):
+                blocked.append("AMBIGUOUS_ACTION_SENSE")
 
         for edge in graph.scope_edges:
             if edge.source_id in closure or edge.target_id in closure:
