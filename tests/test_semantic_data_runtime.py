@@ -768,3 +768,199 @@ def test_runtime_materializes_seekable_store_when_shards_exceed_cache(
     matches = runtime.lookup_token(token)
 
     assert [item["record_id"] for item in matches] == ["SEM-SCALE-004"]
+
+
+def test_wordnet_cat_sense_prefers_domestic_cat_over_wildcat(tmp_path: Path) -> None:
+    record = {
+        "record_id": "SEM-CAT-001",
+        "lemma": "猫",
+        "surfaces": ["猫"],
+        "readings": ["ネコ"],
+        "part_of_speech": ["n"],
+        "domains": ["general", "wordnet"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-CAT-001:sense:0001",
+                "label": "ヤマネコ",
+                "glosses": ["ヤマネコ"],
+                "domains": ["general", "wordnet"],
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-CAT-001:sense:0002",
+                "label": "通常、厚く柔らかい毛皮を持ち、吠えることのできないネコ科の哺乳類:家ネコ",
+                "glosses": [
+                    "通常、厚く柔らかい毛皮を持ち、吠えることのできないネコ科の哺乳類:家ネコ",
+                ],
+                "domains": ["general", "wordnet"],
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-CAT-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    text = "猫が魚を食べた"
+    tokens = [
+        Token(
+            surface="猫",
+            normalized="猫",
+            reading="ネコ",
+            pos=["名詞", "普通名詞", "一般"],
+            span=OriginalSpan(start=0, end=1, source_text=text),
+        ),
+        Token(
+            surface="が",
+            normalized="が",
+            reading="ガ",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=1, end=2, source_text=text),
+        ),
+        Token(
+            surface="魚",
+            normalized="魚",
+            reading="サカナ",
+            pos=["名詞"],
+            span=OriginalSpan(start=2, end=3, source_text=text),
+        ),
+        Token(
+            surface="を",
+            normalized="を",
+            reading="ヲ",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=3, end=4, source_text=text),
+        ),
+        Token(
+            surface="食べ",
+            normalized="食べ",
+            reading="タベ",
+            pos=["動詞"],
+            span=OriginalSpan(start=4, end=6, source_text=text),
+        ),
+        Token(
+            surface="た",
+            normalized="た",
+            reading="タ",
+            pos=["助動詞"],
+            span=OriginalSpan(start=6, end=7, source_text=text),
+        ),
+    ]
+    graph = runtime.enrich(
+        _graph(text),
+        tokens=tokens,
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    cat_props = [
+        item
+        for item in graph.propositions
+        if item.sense_id and item.sense_id.startswith("SEM-CAT-001:")
+    ]
+    assert len(cat_props) == 1
+    assert cat_props[0].sense_id == "SEM-CAT-001:sense:0002"
+    assert "ヤマネコ" not in (cat_props[0].sense_label or "")
+
+
+def test_hashi_sense_prefers_japanese_chopsticks_over_proper_name(
+    tmp_path: Path,
+) -> None:
+    proper = {
+        "record_id": "SEM-HASHI-PROPER-001",
+        "lemma": "箸",
+        "surfaces": ["箸"],
+        "readings": ["ハシ"],
+        "part_of_speech": ["unclassified name"],
+        "domains": ["proper-name"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-HASHI-PROPER-001:sense:0001",
+                "label": "Chō",
+                "glosses": ["Chō"],
+                "domains": ["proper-name"],
+                "part_of_speech": ["unclassified name"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-HASHI-PROPER-001"),
+        "review_status": "approved",
+    }
+    chopsticks = {
+        "record_id": "SEM-HASHI-JA-001",
+        "lemma": "箸",
+        "surfaces": ["箸"],
+        "readings": ["ハシ"],
+        "part_of_speech": ["noun"],
+        "domains": ["日本語 名詞", "日本語 食器"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-HASHI-JA-001:sense:0001",
+                "label": "食事用の棒",
+                "glosses": [
+                    "(はし)東アジア地域を起源とし、食物を移動させるのに用いる食器の一種で、二本一組で用いられる棒。",
+                ],
+                "domains": ["日本語 名詞", "日本語 食器"],
+                "part_of_speech": ["noun"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-HASHI-JA-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [proper, chopsticks])
+    runtime = SemanticDataRuntime(root)
+    text = "箸で食べる"
+    tokens = [
+        Token(
+            surface="箸",
+            normalized="箸",
+            reading="ハシ",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=1, source_text=text),
+        ),
+        Token(
+            surface="で",
+            normalized="で",
+            reading="デ",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=1, end=2, source_text=text),
+        ),
+        Token(
+            surface="食べ",
+            normalized="食べ",
+            reading="タベ",
+            pos=["動詞"],
+            span=OriginalSpan(start=2, end=4, source_text=text),
+        ),
+        Token(
+            surface="る",
+            normalized="る",
+            reading="ル",
+            pos=["助動詞"],
+            span=OriginalSpan(start=4, end=5, source_text=text),
+        ),
+    ]
+    graph = runtime.enrich(
+        _graph(text),
+        tokens=tokens,
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    hashi_props = [
+        item
+        for item in graph.propositions
+        if item.sense_id
+        and (
+            item.sense_id.startswith("SEM-HASHI-PROPER-001:")
+            or item.sense_id.startswith("SEM-HASHI-JA-001:")
+        )
+    ]
+    assert len(hashi_props) == 1
+    assert hashi_props[0].sense_id == "SEM-HASHI-JA-001:sense:0001"
+    assert hashi_props[0].sense_label == "食事用の棒"
+    assert "Chō" not in (hashi_props[0].sense_label or "")

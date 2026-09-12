@@ -167,6 +167,153 @@ def _candidate_context_texts(
     return texts
 
 
+_JAPANESE_SCRIPT_RE = re.compile(
+    r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]"
+)
+_KATAKANA_RE = re.compile(r"^[\u30A0-\u30FFー]+$")
+_KANJI_RE = re.compile(r"[\u4E00-\u9FFF]")
+
+_SUDACHI_POS_CANONICAL: dict[str, frozenset[str]] = {
+    "名詞": frozenset({"noun", "n", "名詞", "普通名詞", "一般", "普通名詞-一般"}),
+    "動詞": frozenset({"verb", "v", "動詞"}),
+    "形容詞": frozenset({"adj", "adjective", "a", "形容詞"}),
+    "副詞": frozenset({"adv", "adverb", "副詞"}),
+}
+
+_POS_BOOST_BLOCK_VALUES = frozenset({
+    _normalize("proper-name"),
+    _normalize("unclassified name"),
+})
+
+_EVERYDAY_SENSE_MARKERS = ("通常", "一般", "愛玩")
+
+
+def _has_japanese_script(text: str) -> bool:
+    return bool(_JAPANESE_SCRIPT_RE.search(text or ""))
+
+
+def _label_core(label: str) -> str:
+    value = unicodedata.normalize("NFKC", label or "")
+    value = re.sub(
+        r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]",
+        "",
+        value,
+    )
+    return value.casefold()
+
+
+def _is_distinct_japanese_word_core(core: str) -> bool:
+    if len(core) < 2:
+        return False
+    if _KATAKANA_RE.fullmatch(core):
+        return True
+    return bool(_KANJI_RE.search(core))
+
+
+def _pos_canonical_tokens(values: Iterable[str]) -> set[str]:
+    tokens: set[str] = set()
+    for raw in values:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        folded = text.casefold()
+        tokens.add(folded)
+        head = text.split("-")[0]
+        mapped = _SUDACHI_POS_CANONICAL.get(head)
+        if mapped:
+            tokens.update(mapped)
+        for sudachi, canonicals in _SUDACHI_POS_CANONICAL.items():
+            if sudachi in text:
+                tokens.update(canonicals)
+    return {token for token in tokens if token}
+
+
+def _pos_and_domain_values(
+    record: dict[str, Any],
+    candidate: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    pos_values: list[str] = []
+    domain_values: list[str] = []
+    for key in ("part_of_speech", "pos"):
+        pos_values.extend(record.get(key) or [])
+        pos_values.extend(candidate.get(key) or [])
+    domain_values.extend(record.get("domains") or [])
+    domain_values.extend(candidate.get("domains") or [])
+    return pos_values, domain_values
+
+
+def _blocks_pos_match_boost(
+    record: dict[str, Any],
+    candidate: dict[str, Any],
+) -> bool:
+    pos_values, domain_values = _pos_and_domain_values(record, candidate)
+    if any(_normalize(value) in _POS_BOOST_BLOCK_VALUES for value in pos_values):
+        return True
+    return any(
+        str(domain).casefold() == "proper-name"
+        for domain in domain_values
+        if domain
+    )
+
+
+def _is_proper_name_candidate(
+    record: dict[str, Any],
+    candidate: dict[str, Any],
+) -> bool:
+    pos_values, domain_values = _pos_and_domain_values(record, candidate)
+    if any(_normalize(value) in _POS_BOOST_BLOCK_VALUES for value in pos_values):
+        return True
+    return any(
+        str(domain).casefold() == "proper-name"
+        for domain in domain_values
+        if domain
+    )
+
+
+def _headword_matches_token(record: dict[str, Any], token: Token) -> bool:
+    token_forms = {
+        _normalize(token.surface),
+        _normalize(token.normalized),
+    }
+    lemma = _normalize(str(record.get("lemma") or ""))
+    if lemma and lemma in token_forms:
+        return True
+    for surface in record.get("surfaces") or []:
+        if _normalize(str(surface)) in token_forms:
+            return True
+    return False
+
+
+def _candidate_label_texts(candidate: dict[str, Any]) -> list[str]:
+    texts: list[str] = []
+    label = candidate.get("label")
+    if label:
+        texts.append(str(label))
+    for gloss in candidate.get("glosses") or []:
+        if gloss:
+            texts.append(str(gloss))
+    return texts
+
+
+def _candidate_has_japanese_label(candidate: dict[str, Any]) -> bool:
+    return any(_has_japanese_script(text) for text in _candidate_label_texts(candidate))
+
+
+def _rank_sort_key(
+    score: int,
+    candidate_id: str,
+    record: dict[str, Any],
+    candidate: dict[str, Any],
+    token: Token,
+) -> tuple[int, int, int, str]:
+    return (
+        -score,
+        0 if _candidate_has_japanese_label(candidate) else 1,
+        0 if _headword_matches_token(record, token) else 1,
+        candidate_id,
+    )
+
+
 def _neighbor_surfaces_for_token(
     tokens: list[Token],
     *,
@@ -477,16 +624,61 @@ class SemanticDataRuntime:
         social_markers: set[str],
         discourse_markers: set[str],
         neighbor_surfaces: Iterable[str] = (),
+        known_entities: Iterable[str] = (),
     ) -> tuple[int, list[str]]:
         score = 100
         evidence = ["semantic_pack_surface_match"]
-        record_pos = " ".join(record.get("part_of_speech", [])).casefold()
-        token_pos = " ".join(token.pos).casefold()
-        if token_pos and record_pos and any(
-            part in record_pos for part in token_pos.split("-") if part
+        if not _blocks_pos_match_boost(record, candidate):
+            token_pos = _pos_canonical_tokens(token.pos)
+            record_pos = _pos_canonical_tokens(
+                [
+                    *record.get("part_of_speech", []),
+                    *record.get("pos", []),
+                    *candidate.get("part_of_speech", []),
+                    *candidate.get("pos", []),
+                ]
+            )
+            if token_pos and record_pos and token_pos.intersection(record_pos):
+                score += 20
+                evidence.append("semantic_pack_pos_match")
+
+        label_texts = _candidate_label_texts(candidate)
+        if any(_has_japanese_script(text) for text in label_texts):
+            score += 25
+            evidence.append("semantic_pack_japanese_label")
+
+        if _is_proper_name_candidate(record, candidate):
+            known = {_normalize(str(value)) for value in known_entities if str(value)}
+            if _normalize(token.surface) not in known:
+                score -= 40
+                evidence.append("semantic_pack_proper_name_demotion")
+
+        if any(
+            marker in text
+            for text in label_texts
+            for marker in _EVERYDAY_SENSE_MARKERS
         ):
             score += 20
-            evidence.append("semantic_pack_pos_match")
+            evidence.append("semantic_pack_everyday_sense")
+
+        label = candidate.get("label")
+        if label:
+            core = _label_core(str(label))
+            token_forms = {
+                _normalize(token.surface),
+                _normalize(token.normalized),
+                _normalize(str(record.get("lemma") or "")),
+            }
+            token_forms = {value for value in token_forms if value}
+            if (
+                core
+                and core not in token_forms
+                and _is_distinct_japanese_word_core(core)
+                and not re.search(r"[\u3040-\u309F]", core)
+                and not any(form and form in core for form in token_forms)
+            ):
+                score -= 15
+                evidence.append("semantic_pack_distinct_label_penalty")
 
         conditions = dict(record.get("context_conditions") or {})
         candidate_context = candidate.get("context") or {}
@@ -652,6 +844,7 @@ class SemanticDataRuntime:
             return updated
 
         context_text = "\n".join([original_text, *conversation_context, *known_entities])
+        known_entity_markers = {_normalize(str(value)) for value in known_entities if str(value)}
         social_markers = _social_markers(social_context)
         discourse_markers = _discourse_markers(graph, discourse_state)
         propositions = list(graph.propositions)
@@ -698,6 +891,7 @@ class SemanticDataRuntime:
                         social_markers=social_markers,
                         discourse_markers=record_discourse_markers,
                         neighbor_surfaces=neighbor_surfaces,
+                        known_entities=known_entity_markers,
                     )
                     if score <= -10000:
                         continue
@@ -706,7 +900,15 @@ class SemanticDataRuntime:
                     )
             if not ranked:
                 continue
-            ranked.sort(key=lambda item: (-item[0], item[1], item[2]["record_id"]))
+            ranked.sort(
+                key=lambda item: _rank_sort_key(
+                    item[0],
+                    item[1],
+                    item[2],
+                    item[3],
+                    token,
+                )
+            )
             match_count += 1
             sense_candidates = [
                 SenseCandidate(
