@@ -660,6 +660,68 @@ def test_contextual_examples_select_bridge_over_chopsticks(tmp_path: Path) -> No
     )
 
 
+def test_ordinary_polysemy_assigns_primary_sense_without_unresolved(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "record_id": "SEM-GENERIC-WORD-001",
+        "lemma": "単語",
+        "surfaces": ["単語"],
+        "readings": ["タンゴ"],
+        "part_of_speech": ["名詞"],
+        "risk_class": "semantic",
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-GENERIC-WORD-001:sense-a",
+                "label": "meaning-a",
+                "review_status": "approved",
+            },
+            {
+                "candidate_id": "SEM-GENERIC-WORD-001:sense-b",
+                "label": "meaning-b",
+                "review_status": "approved",
+            },
+        ],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-GENERIC-WORD-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [record])
+    runtime = SemanticDataRuntime(root)
+    text = "単語"
+    token = Token(
+        surface="単語",
+        normalized="単語",
+        reading="タンゴ",
+        pos=["名詞"],
+        span=OriginalSpan(start=0, end=2, source_text=text),
+    )
+    source_graph = MeaningGraph(
+        propositions=[
+            Proposition(
+                proposition_id="P-001",
+                predicate="述語",
+                intent_type="description",
+                value=text,
+                source_span=OriginalSpan(start=0, end=2, source_text=text),
+            )
+        ]
+    )
+    graph = runtime.enrich(
+        source_graph,
+        tokens=[token],
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    proposition = graph.propositions[0]
+    assert proposition.sense_id == "SEM-GENERIC-WORD-001:sense-a"
+    assert proposition.sense_label == "meaning-a"
+    assert len(proposition.sense_candidates) == 2
+    assert graph.unresolved == []
+    assert graph.quality_annotations["semantic_data_pack_ambiguous_count"] == 1
+
+
 def test_runtime_materializes_seekable_store_when_shards_exceed_cache(
     tmp_path: Path,
 ) -> None:

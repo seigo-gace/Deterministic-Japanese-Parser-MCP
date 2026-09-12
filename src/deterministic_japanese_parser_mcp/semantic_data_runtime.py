@@ -720,6 +720,10 @@ class SemanticDataRuntime:
             top = ranked[0]
             margin = top[0] - ranked[1][0] if len(ranked) > 1 else top[0]
             selected = len(ranked) == 1 or margin >= 20
+            action_sensitive = any(
+                item[2].get("risk_class") in {"action", "social"}
+                for item in ranked
+            )
             if selected:
                 resolved_count += 1
             else:
@@ -733,7 +737,11 @@ class SemanticDataRuntime:
                 # replace an already resolved sense with a weaker generic sense.
                 if proposition.sense_id is not None:
                     continue
-                if selected:
+                structural_intent = (
+                    proposition.intent_type in ACTION_INTENTS
+                    or proposition.intent_type in CONSTRAINT_INTENTS
+                )
+                if selected or (not action_sensitive and not structural_intent):
                     proposition = proposition.model_copy(update={
                         "sense_id": top[1],
                         "sense_label": top[3].get("label") or top[1],
@@ -754,20 +762,12 @@ class SemanticDataRuntime:
                     })
                     proposition = self._apply_parameters(proposition, top[3])
                 else:
-                    action_sensitive = any(
-                        item[2].get("risk_class") in {"action", "social"}
-                        for item in ranked
-                    )
                     # Grammar-derived action and constraint intents are already
                     # structural decisions. Ordinary lexical/semantic polysemy
                     # remains available as lexical evidence but must not turn a
                     # resolved structural proposition into an ambiguous one.
                     # Action/social-risk ambiguity still crosses this boundary
                     # and remains fail-closed for external execution.
-                    structural_intent = (
-                        proposition.intent_type in ACTION_INTENTS
-                        or proposition.intent_type in CONSTRAINT_INTENTS
-                    )
                     if structural_intent and not action_sensitive:
                         continue
                     proposition = proposition.model_copy(update={
@@ -797,9 +797,10 @@ class SemanticDataRuntime:
                     continue
                 if record["record_id"] not in eligible_record_ids:
                     continue
+                attach_primary = selected or not action_sensitive
                 selected_candidate = (
                     top[3]
-                    if selected and top[2]["record_id"] == record["record_id"]
+                    if attach_primary and top[2]["record_id"] == record["record_id"]
                     else None
                 )
                 language_features.append(LanguageFeatureMatch(
