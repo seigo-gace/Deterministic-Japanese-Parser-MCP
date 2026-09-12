@@ -144,6 +144,10 @@ integrity, and manifest boundaries before writing runtime output.
 
 ## Verify
 
+Direct Final meaning selection uses approved examples and neighboring content
+words; function words (particles and similar) are not left as unresolved semantic
+pack items.
+
 ```bash
 python -m pytest tests/test_direct_final_runtime_integration.py
 python tools/validator.py --global-only

@@ -121,6 +121,77 @@ def _has_required_markers(
     return normalized.issubset(available)
 
 
+_FUNCTION_WORD_POS_HEADS = frozenset({
+    "助詞",
+    "助動詞",
+    "記号",
+    "補助記号",
+    "接続詞",
+    "フィラー",
+})
+
+
+def _is_function_word_token(token: Token) -> bool:
+    if not token.pos:
+        return False
+    head = token.pos[0]
+    if head in _FUNCTION_WORD_POS_HEADS:
+        return True
+    joined = "-".join(token.pos)
+    return any(
+        joined == value or joined.startswith(f"{value}-")
+        for value in _FUNCTION_WORD_POS_HEADS
+    )
+
+
+def _candidate_context_texts(
+    record: dict[str, Any],
+    candidate: dict[str, Any],
+) -> list[str]:
+    texts: list[str] = []
+    label = candidate.get("label")
+    if label:
+        texts.append(str(label))
+    for gloss in candidate.get("glosses") or []:
+        if gloss:
+            texts.append(str(gloss))
+    examples = record.get("examples")
+    if isinstance(examples, dict):
+        for item in examples.get("positive") or []:
+            if item:
+                texts.append(str(item))
+    elif isinstance(examples, list):
+        for item in examples:
+            if item:
+                texts.append(str(item))
+    return texts
+
+
+def _neighbor_surfaces_for_token(
+    tokens: list[Token],
+    *,
+    current: Token,
+) -> list[str]:
+    self_surfaces = {
+        _normalize(current.surface),
+        _normalize(current.normalized),
+    }
+    neighbors: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        for value in (token.surface, token.normalized):
+            normalized = _normalize(value)
+            if not normalized or len(normalized) <= 1:
+                continue
+            if normalized in self_surfaces:
+                continue
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            neighbors.append(value)
+    return neighbors
+
+
 class SemanticDataRuntime:
     """Approved-only runtime for unified lexical and context data packs.
 
@@ -405,6 +476,7 @@ class SemanticDataRuntime:
         context_text: str,
         social_markers: set[str],
         discourse_markers: set[str],
+        neighbor_surfaces: Iterable[str] = (),
     ) -> tuple[int, list[str]]:
         score = 100
         evidence = ["semantic_pack_surface_match"]
@@ -475,6 +547,19 @@ class SemanticDataRuntime:
         if candidate.get("evidence_ids"):
             score += 1
             evidence.append("semantic_pack_evidence_complete")
+
+        context_texts = _candidate_context_texts(record, candidate)
+        if context_texts and neighbor_surfaces:
+            folded_texts = [_normalize(text) for text in context_texts]
+            for neighbor in neighbor_surfaces:
+                folded_neighbor = _normalize(str(neighbor))
+                if not folded_neighbor or len(folded_neighbor) <= 1:
+                    continue
+                if any(folded_neighbor in text for text in folded_texts):
+                    score += 30
+                    evidence.append("semantic_pack_example_overlap")
+                    break
+
         return score, evidence
 
     @staticmethod
@@ -577,6 +662,9 @@ class SemanticDataRuntime:
         ambiguous_count = 0
 
         for token in tokens:
+            if _is_function_word_token(token):
+                continue
+            neighbor_surfaces = _neighbor_surfaces_for_token(tokens, current=token)
             records = self.lookup_token(token)
             if not records:
                 continue
@@ -609,6 +697,7 @@ class SemanticDataRuntime:
                         context_text=context_text,
                         social_markers=social_markers,
                         discourse_markers=record_discourse_markers,
+                        neighbor_surfaces=neighbor_surfaces,
                     )
                     if score <= -10000:
                         continue

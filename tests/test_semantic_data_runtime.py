@@ -576,6 +576,90 @@ def test_lexical_only_pack_never_loads_semantic_record_shards(
     assert graph.quality_annotations["semantic_data_runtime_record_count"] == 0
 
 
+def test_contextual_examples_select_bridge_over_chopsticks(tmp_path: Path) -> None:
+    bridge = {
+        "record_id": "SEM-HASHI-BRIDGE-001",
+        "lemma": "橋",
+        "surfaces": ["橋"],
+        "readings": ["ハシ"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-HASHI-BRIDGE-001:bridge",
+                "label": "bridge",
+                "glosses": ["bridge"],
+                "review_status": "approved",
+            }
+        ],
+        "positive_examples": ["橋を渡る"],
+        "negative_examples": [],
+        "boundary_examples": [],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-HASHI-BRIDGE-001"),
+        "review_status": "approved",
+    }
+    chopsticks = {
+        "record_id": "SEM-HASHI-CHOP-001",
+        "lemma": "箸",
+        "surfaces": ["橋"],
+        "readings": ["ハシ"],
+        "part_of_speech": ["名詞"],
+        "meaning_candidates": [
+            {
+                "candidate_id": "SEM-HASHI-CHOP-001:chopsticks",
+                "label": "chopsticks",
+                "glosses": ["chopsticks"],
+                "review_status": "approved",
+            }
+        ],
+        "positive_examples": ["箸で食べる"],
+        "negative_examples": [],
+        "boundary_examples": [],
+        "semantic_targets": ["lexicon"],
+        "source": _source("SEM-HASHI-CHOP-001"),
+        "review_status": "approved",
+    }
+    root = _compile_pack(tmp_path, [bridge, chopsticks])
+    runtime = SemanticDataRuntime(root)
+    text = "橋を渡る"
+    tokens = [
+        Token(
+            surface="橋",
+            normalized="橋",
+            reading="ハシ",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=1, source_text=text),
+        ),
+        Token(
+            surface="を",
+            normalized="を",
+            reading="ヲ",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=1, end=2, source_text=text),
+        ),
+        Token(
+            surface="渡る",
+            normalized="渡る",
+            reading="ワタル",
+            pos=["動詞"],
+            span=OriginalSpan(start=2, end=4, source_text=text),
+        ),
+    ]
+    graph = runtime.enrich(
+        _graph(text),
+        tokens=tokens,
+        original_text=text,
+        conversation_context=[],
+        known_entities=[],
+    )
+    assert graph.propositions[0].sense_id == "SEM-HASHI-BRIDGE-001:bridge"
+    assert graph.propositions[0].sense_label == "bridge"
+    assert not any(
+        item.get("type") == "semantic_data_pack" and item.get("surface") == "を"
+        for item in graph.unresolved
+    )
+
+
 def test_runtime_materializes_seekable_store_when_shards_exceed_cache(
     tmp_path: Path,
 ) -> None:
