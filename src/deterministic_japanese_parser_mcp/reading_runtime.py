@@ -39,6 +39,17 @@ _ASPECT_AUXILIARIES = {
     "来る",
     "行く",
 }
+_POLITE_REQUEST_AUXILIARIES = frozenset({
+    "下さる",
+    "呉れる",
+    "くれる",
+    "貰う",
+    "もらう",
+    "頂く",
+    "いただく",
+    "欲しい",
+    "ほしい",
+})
 _CASE_ROLES = {
     "が": "agent",
     "は": "topic",
@@ -159,6 +170,12 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
                 and previous.surface in {"て", "で"}
             ):
                 continue
+            if (
+                token.normalized in _POLITE_REQUEST_AUXILIARIES
+                and previous is not None
+                and previous.surface in {"て", "で"}
+            ):
+                continue
             next_token = (
                 tokens[indices[position + 1]]
                 if position + 1 < len(indices)
@@ -178,6 +195,17 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
             if following.surface in _COPULAS:
                 heads.append(index)
     return heads
+
+
+def _primary_predicate_frame(frames: list[PredicateFrame]) -> PredicateFrame:
+    substantive = [
+        frame
+        for frame in frames
+        if frame.predicate not in _POLITE_REQUEST_AUXILIARIES
+    ]
+    if substantive:
+        return substantive[-1]
+    return frames[-1]
 
 
 def _predicate_bounds(
@@ -1551,7 +1579,7 @@ class DeterministicReadingRuntime:
                 if item.clause_id == clause.clause_id
             ]
             if not related and clause_frames:
-                main = clause_frames[-1]
+                main = _primary_predicate_frame(clause_frames)
                 proposition = Proposition(
                     proposition_id=f"P-{len(propositions) + 1:03d}",
                     predicate=main.predicate,

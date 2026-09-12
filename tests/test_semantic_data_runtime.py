@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 import yaml
+import pytest
 
 from deterministic_japanese_parser_mcp.models import (
     AnalyzeRequest,
@@ -1218,3 +1219,30 @@ def test_neighbor_definition_overlap_prefers_crossing_wataru_sense(
     )
     assert cross.score > travel.score
     assert "semantic_pack_neighbor_definition_overlap" in cross.evidence
+
+
+def test_direct_final_collocate_sense_selection() -> None:
+    system_root = ROOT / "work/direct-final-compiled/system"
+    if not (system_root / "compiled").is_dir():
+        pytest.skip("direct-final compiled runtime is not prepared locally")
+
+    settings = Settings(
+        system_dict_dir=system_root,
+        hard_deadline_ms=15000,
+    )
+    engine = ParserEngine(settings)
+    expectations = {
+        "橋を渡る": ("渡る", ("横切", "通り越", "突き抜")),
+        "東京へ行った": ("行く", ("移動", "向か", "目的地", "前進", "着く")),
+        "猫が魚を食べた": ("食べる", ("食物", "摂取", "固形食物", "食事")),
+    }
+    for text, (predicate, sense_markers) in expectations.items():
+        response = engine.analyze(AnalyzeRequest(original_text=text, deadline_ms=15000))
+        proposition = response.meaning_graph.propositions[0]
+        assert proposition.predicate == predicate
+        label = proposition.sense_label or ""
+        assert any(marker in label for marker in sense_markers), {
+            "text": text,
+            "predicate": proposition.predicate,
+            "sense_label": label,
+        }

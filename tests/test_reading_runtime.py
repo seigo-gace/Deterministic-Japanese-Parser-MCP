@@ -233,3 +233,14 @@ def test_reading_analysis_is_deterministic(engine):
         first.meaning_graph.reading_analysis
         == second.meaning_graph.reading_analysis
     )
+
+
+def test_negated_te_kudasai_keeps_matrix_verb_as_proposition(engine):
+    response = _analyze(engine, "行かないでください。")
+    proposition = response.meaning_graph.propositions[0]
+    frames = response.meaning_graph.reading_analysis.predicate_frames
+
+    assert proposition.predicate == "行く"
+    assert frames[0].predicate == "行く"
+    assert "下さる" not in proposition.predicate
+    assert all(frame.predicate != "下さる" for frame in frames)

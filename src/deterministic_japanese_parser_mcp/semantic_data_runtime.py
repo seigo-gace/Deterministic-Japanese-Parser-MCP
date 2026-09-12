@@ -201,6 +201,34 @@ def _record_lookup_definition_texts(record: dict[str, Any]) -> list[str]:
 _JP_OVERLAP_SEGMENT_RE = re.compile(
     r"[\u4E00-\u9FFF\u30A0-\u30FF]{2,}|[\u3040-\u309F]{2,}"
 )
+_KANJI_RUN_RE = re.compile(r"[\u4E00-\u9FFF]{2,}")
+
+_CASE_MARKED_PARTICLE_SURFACES = frozenset({"を", "へ", "で"})
+_CASE_BUFFER_RESET_SURFACES = frozenset({"が", "は", "も", "の", "と", "から", "まで", "より"})
+
+_OVERLAP_STOP_SEGMENTS = frozenset({
+    _normalize(value)
+    for value in (
+        "する",
+        "ある",
+        "ない",
+        "こと",
+        "もの",
+        "ため",
+        "など",
+        "において",
+        "における",
+        "という",
+        "といった",
+        "として",
+        "から",
+        "まで",
+        "などの",
+        "るための",
+        "くなっている",
+        "比較的高",
+    )
+})
 
 
 def _japanese_overlap_segments(text: str) -> set[str]:
@@ -208,6 +236,180 @@ def _japanese_overlap_segments(text: str) -> set[str]:
         _normalize(match.group(0))
         for match in _JP_OVERLAP_SEGMENT_RE.finditer(text or "")
     }
+
+
+def _meaningful_overlap_segments(text: str, *, excluded: set[str]) -> set[str]:
+    return {
+        segment
+        for segment in _japanese_overlap_segments(text)
+        if segment not in excluded
+        and segment not in _OVERLAP_STOP_SEGMENTS
+    }
+
+
+def _salient_kanji_overlap_score(
+    context_texts: Iterable[str],
+    neighbor_definitions: str,
+    *,
+    excluded: set[str],
+) -> int:
+    if not neighbor_definitions.strip():
+        return 0
+    neighbor_runs = _KANJI_RUN_RE.findall(neighbor_definitions)
+    if not neighbor_runs:
+        return 0
+    neighbor_kanji = set("".join(neighbor_runs))
+    score = 0
+    for text in context_texts or []:
+        gloss_runs = _KANJI_RUN_RE.findall(str(text))
+        if not gloss_runs:
+            continue
+        gloss_kanji = set("".join(gloss_runs))
+        gloss_kanji -= {
+            char
+            for char in gloss_kanji
+            if _normalize(char) in excluded
+        }
+        shared = gloss_kanji & neighbor_kanji
+        if not shared:
+            continue
+        meaningful = set()
+        for run in neighbor_runs:
+            if any(char in shared for char in run):
+                meaningful.update(char for char in run if char in shared)
+        if meaningful:
+            score += min(len(meaningful), 4) * 10
+    return score
+
+
+def _case_marked_argument_tokens(tokens: list[Token]) -> list[Token]:
+    marked: list[Token] = []
+    buffer: list[Token] = []
+    for token in tokens:
+        if _is_function_word_token(token):
+            if token.surface in _CASE_MARKED_PARTICLE_SURFACES and buffer:
+                marked.extend(buffer)
+                buffer = []
+            elif token.surface in _CASE_BUFFER_RESET_SURFACES:
+                buffer = []
+            continue
+        buffer.append(token)
+    return marked
+
+
+def _destination_tokens_for_verb(tokens: list[Token]) -> list[Token]:
+    marked_starts = {
+        token.span.start for token in _case_marked_argument_tokens(tokens)
+    }
+    destinations: list[Token] = []
+    for index, token in enumerate(tokens):
+        if token.surface != "へ" or index == 0:
+            continue
+        previous = tokens[index - 1]
+        if previous.span.start in marked_starts:
+            destinations.append(previous)
+    return destinations
+
+
+def _collocate_sense_adjustment(
+    candidate: dict[str, Any],
+    *,
+    token: Token,
+    tokens: list[Token],
+    neighbor_definitions: str,
+) -> tuple[int, list[str]]:
+    label = str(candidate.get("label") or "")
+    if not label:
+        return 0, []
+    neighbor_norm = _normalize(neighbor_definitions)
+    lemma = _normalize(token.normalized or token.surface)
+    score = 0
+    evidence: list[str] = []
+
+    if "漢字表記" in label and (
+        neighbor_definitions.strip() or _destination_tokens_for_verb(tokens)
+    ):
+        score -= 40
+        evidence.append("semantic_pack_kana_notation_demotion")
+
+    destinations = _destination_tokens_for_verb(tokens)
+    if destinations and all(
+        "固有名詞" in (item.pos or []) for item in destinations
+    ):
+        if any(
+            marker in label
+            for marker in (
+                "ミーティング",
+                "礼拝",
+                "大学",
+                "出席",
+                "ゲーム",
+            )
+        ):
+            score -= 35
+            evidence.append("semantic_pack_destination_place_demotion")
+        elif any(
+            marker in label
+            for marker in ("目的地", "移動", "旅", "向か", "着く", "進む")
+        ):
+            score += 25
+            evidence.append("semantic_pack_destination_locomotion_boost")
+
+    if lemma and lemma in neighbor_norm:
+        if any(
+            marker in label
+            for marker in ("地域", "期間", "カバー", "広がる", "転々", "旅行")
+        ):
+            score -= 30
+            evidence.append("semantic_pack_object_verb_purpose_demotion")
+        elif any(
+            marker in label
+            for marker in ("横切", "通り越", "突き抜", "構築", "横断")
+        ):
+            score += 25
+            evidence.append("semantic_pack_object_verb_purpose_boost")
+
+    if "のみ" in label and any(
+        marker in neighbor_definitions
+        for marker in ("食用", "食物", "摂取", "食事")
+    ):
+        score -= 45
+        evidence.append("semantic_pack_food_collocate_restriction_demotion")
+    elif any(
+        marker in label for marker in ("食物", "摂取", "固形食物", "食事")
+    ) and any(
+        marker in neighbor_definitions
+        for marker in ("食用", "食物", "摂取", "食事")
+    ):
+        score += 30
+        evidence.append("semantic_pack_food_collocate_ingestion_boost")
+
+    return score, evidence
+
+
+def _case_linked_neighbor_definitions(
+    tokens: list[Token],
+    *,
+    current: Token,
+    neighbor_definition_by_span_start: dict[int, str],
+) -> str:
+    parts: list[str] = []
+    seen_starts: set[int] = set()
+    for argument_token in _case_marked_argument_tokens(tokens):
+        span_start = argument_token.span.start
+        if span_start == current.span.start or span_start in seen_starts:
+            continue
+        seen_starts.add(span_start)
+        definition = neighbor_definition_by_span_start.get(span_start)
+        if definition:
+            parts.append(definition)
+    if parts:
+        return "\n".join(parts)
+    return "\n".join(
+        text
+        for span_start, text in neighbor_definition_by_span_start.items()
+        if span_start != current.span.start
+    )
 
 
 def _neighbor_definition_overlap_bonus(
@@ -223,17 +425,23 @@ def _neighbor_definition_overlap_bonus(
     excluded = {value for value in excluded if value}
     candidate_segments: set[str] = set()
     for text in context_texts:
-        for segment in _japanese_overlap_segments(text):
-            if segment not in excluded:
-                candidate_segments.add(segment)
-    neighbor_segments: set[str] = set()
-    for segment in _japanese_overlap_segments(neighbor_definitions):
-        if segment not in excluded:
-            neighbor_segments.add(segment)
+        candidate_segments.update(
+            _meaningful_overlap_segments(text, excluded=excluded)
+        )
+    neighbor_segments = _meaningful_overlap_segments(
+        neighbor_definitions,
+        excluded=excluded,
+    )
     overlap_kinds = candidate_segments.intersection(neighbor_segments)
-    if not overlap_kinds:
+    bonus = min(len(overlap_kinds), 3) * 15
+    bonus += _salient_kanji_overlap_score(
+        context_texts,
+        neighbor_definitions,
+        excluded=excluded,
+    )
+    if bonus <= 0:
         return 0, False
-    return min(len(overlap_kinds), 3) * 15, True
+    return bonus, True
 
 
 def _inference_sources_profile_locked(sources: Iterable[str] | None) -> bool:
@@ -917,6 +1125,42 @@ class SemanticDataRuntime:
         return score, evidence
 
     @staticmethod
+    def _collocate_adjusted_context_score(
+        record: dict[str, Any],
+        candidate: dict[str, Any],
+        *,
+        token: Token,
+        tokens: list[Token],
+        context_text: str,
+        social_markers: set[str],
+        discourse_markers: set[str],
+        neighbor_surfaces: Iterable[str] = (),
+        neighbor_definitions: str = "",
+        known_entities: Iterable[str] = (),
+    ) -> tuple[int, list[str]]:
+        score, evidence = SemanticDataRuntime._context_score(
+            record,
+            candidate,
+            token=token,
+            context_text=context_text,
+            social_markers=social_markers,
+            discourse_markers=discourse_markers,
+            neighbor_surfaces=neighbor_surfaces,
+            neighbor_definitions=neighbor_definitions,
+            known_entities=known_entities,
+        )
+        adjustment, adjustment_evidence = _collocate_sense_adjustment(
+            candidate,
+            token=token,
+            tokens=tokens,
+            neighbor_definitions=neighbor_definitions,
+        )
+        if adjustment:
+            score += adjustment
+            evidence.extend(adjustment_evidence)
+        return score, evidence
+
+    @staticmethod
     def _apply_parameters(
         proposition: Proposition,
         candidate: dict[str, Any],
@@ -1141,10 +1385,10 @@ class SemanticDataRuntime:
             if _is_function_word_token(token):
                 continue
             neighbor_surfaces = _neighbor_surfaces_for_token(tokens, current=token)
-            neighbor_definitions = "\n".join(
-                text
-                for span_start, text in neighbor_definition_by_span_start.items()
-                if span_start != token.span.start
+            neighbor_definitions = _case_linked_neighbor_definitions(
+                tokens,
+                current=token,
+                neighbor_definition_by_span_start=neighbor_definition_by_span_start,
             )
             records = self.lookup_token(token)
             if not records:
@@ -1171,10 +1415,11 @@ class SemanticDataRuntime:
                 for candidate in record.get("meaning_candidates", []):
                     if candidate.get("review_status") != "approved":
                         continue
-                    score, evidence = self._context_score(
+                    score, evidence = self._collocate_adjusted_context_score(
                         record,
                         candidate,
                         token=token,
+                        tokens=tokens,
                         context_text=context_text,
                         social_markers=social_markers,
                         discourse_markers=record_discourse_markers,
