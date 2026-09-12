@@ -480,8 +480,55 @@ class SemanticEnricher:
                 pair
                 for pair in overlapping
                 if pair[1].intent_type in ACTION_INTENTS
-                or pair[1].intent_type == "question"
+            ] or [
+                pair
+                for pair in overlapping
+                if pair[1].intent_type != "question"
             ] or overlapping
+            if intent_type == "question":
+                if not preferred:
+                    return
+                for index, item in preferred:
+                    if item.intent_type == "question":
+                        continue
+                    arguments = list(item.arguments)
+                    if target and not any(
+                        argument.role in _TARGET_ROLES and argument.value == target
+                        for argument in arguments
+                    ):
+                        arguments.append(self._argument_for_target(
+                            target,
+                            span,
+                            original_text,
+                            entities,
+                            entity_index,
+                            explicit=True,
+                        ))
+                    propositions[index] = item.model_copy(update={
+                        "arguments": arguments,
+                        "speech_act": speech_act,
+                        "sentence_mood": (
+                            "interrogative"
+                            if speech_act in {
+                                "polite_request",
+                                "capability_question",
+                                "question",
+                            }
+                            else item.sentence_mood
+                        ),
+                        "executable_candidate": False,
+                        "pragmatic_markers": list(dict.fromkeys([
+                            *item.pragmatic_markers,
+                            marker,
+                        ])),
+                        "inference_sources": list(dict.fromkeys([
+                            *item.inference_sources,
+                            f"pragmatic_profile:{marker}",
+                        ])),
+                    })
+                    count += 1
+                return
+
             if preferred:
                 for index, item in preferred:
                     arguments = list(item.arguments)

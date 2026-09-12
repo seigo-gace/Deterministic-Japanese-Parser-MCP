@@ -393,6 +393,7 @@ def install_semantic_holdout_refinement() -> None:
         known,
         max_candidates=8,
         current_mentions=None,
+        original_text=None,
     ):
         output = _ORIGINAL_REFERENCE_RESOLVER(
             self,
@@ -401,6 +402,7 @@ def install_semantic_holdout_refinement() -> None:
             known,
             max_candidates,
             current_mentions,
+            original_text=original_text,
         )
         refined: list[ReferenceResolution] = []
         for item in output:

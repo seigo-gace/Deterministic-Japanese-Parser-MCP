@@ -278,6 +278,9 @@ def test_conditional_clause_keeps_matrix_observation_proposition(engine):
     }
 
     assert "中止する" in predicates
+    assert "条件とする" not in {
+        item.predicate for item in response.meaning_graph.propositions
+    }
     assert any(
         item.operator_type == "condition"
         for item in response.meaning_graph.reading_analysis.scope_operators
@@ -292,3 +295,97 @@ def test_copula_identification_is_not_failed_without_antecedent(engine):
         item.predicate == "ペン"
         for item in response.meaning_graph.propositions
     )
+
+
+def _has_question_meta_proposition(propositions) -> bool:
+    return any(
+        item.intent_type == "question"
+        or item.predicate in {"質問する", "実行可能性を質問する"}
+        for item in propositions
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "それは何ですか",
+        "あの人は誰ですか",
+        "この端末で処理できますか。",
+        "今週中の修正は可能ですか。",
+    ],
+)
+def test_interrogatives_do_not_emit_question_meta_propositions(engine, text):
+    response = _analyze(engine, text, external=True)
+    reading = response.meaning_graph.reading_analysis
+
+    assert str(response.overall_status) != "FAILED"
+    assert not _has_question_meta_proposition(response.meaning_graph.propositions)
+    assert any(item.operator_type == "question" for item in reading.scope_operators)
+    assert not response.execution_allowed
+
+
+def test_conditional_connection_omits_condition_proposition(engine):
+    response = _analyze(engine, "もし雨なら中止する。")
+    predicates = {item.predicate for item in response.meaning_graph.propositions}
+
+    assert "中止する" in predicates
+    assert "条件とする" not in predicates
+    assert any(
+        item.operator_type == "condition"
+        for item in response.meaning_graph.reading_analysis.scope_operators
+    )
+
+
+def test_invariant_preserve_phrase_is_not_failed(engine):
+    response = _analyze(engine, "この構造を不変条件とする。")
+
+    assert str(response.overall_status) != "FAILED"
+    assert any(
+        item.intent_type == "preserve"
+        for item in response.meaning_graph.propositions
+    )
+
+
+def test_discourse_pronoun_resolves_to_prior_subject(engine):
+    response = _analyze(engine, "田中さんが来た。彼は本を読んだ。")
+    resolution = next(
+        item for item in response.references if item.expression == "彼"
+    )
+
+    assert resolution.selected == "田中さん"
+    assert resolution.status.value == "RESOLVED"
+
+
+def test_conversation_context_resolves_kare(engine):
+    response = engine.analyze(AnalyzeRequest(
+        original_text="彼は本を読んだ",
+        conversation_context=["田中さん"],
+    ))
+    resolution = next(
+        item for item in response.references if item.expression == "彼"
+    )
+
+    assert resolution.selected == "田中さん"
+
+
+def test_same_request_resolves_sore_to_discourse_antecedent(engine):
+    response = _analyze(engine, "ペンを見て。それは何ですか。")
+    resolution = next(
+        item for item in response.references if item.expression == "それ"
+    )
+
+    assert resolution.selected == "ペン"
+    assert str(response.overall_status) != "FAILED"
+    assert not _has_question_meta_proposition(response.meaning_graph.propositions)
+
+
+def test_conversation_context_resolves_sore(engine):
+    response = engine.analyze(AnalyzeRequest(
+        original_text="それをください",
+        conversation_context=["ペン"],
+    ))
+    resolution = next(
+        item for item in response.references if item.expression == "それ"
+    )
+
+    assert resolution.selected == "ペン"

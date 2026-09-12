@@ -64,6 +64,9 @@ _STRUCTURAL_PROPOSITION_INTENTS = frozenset({
     "action",
 })
 _GRATITUDE_RE = re.compile(r"ありがとう(?:ございます)?")
+_CAPABILITY_QUESTION_RE = re.compile(
+    r"(?:できますか|可能ですか|対応可能でしょうか)"
+)
 _CASE_ROLES = {
     "が": "agent",
     "は": "topic",
@@ -1739,9 +1742,13 @@ class DeterministicReadingRuntime:
                         else "declarative"
                     ),
                     speech_act=(
-                        "question"
-                        if re.search(r"[？?]", clause.text)
-                        else "assertion"
+                        "capability_question"
+                        if _CAPABILITY_QUESTION_RE.search(clause.text)
+                        else (
+                            "question"
+                            if re.search(r"[？?]", clause.text)
+                            else "assertion"
+                        )
                     ),
                     epistemic_status=(
                         "hearsay" if "hearsay" in main.modality else "asserted"

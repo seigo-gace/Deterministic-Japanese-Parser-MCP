@@ -10,8 +10,21 @@ PATTERN = re.compile(
     r"同リポジトリ|同ブランチ|"
     r"(?:この|その|あの)(?:API|UI|DB|ページ|ファイル|案|仕様|内容|"
     r"リポジトリ|ブランチ|設定|資料)|"
-    r"直前の[^、。！？をにはがでと]+|以前の[^、。！？をにはがでと]+"
+    r"直前の[^、。！？をにはがでと]+|以前の[^、。！？をにはがでと]+|"
+    r"彼(?=[はがをにもので])|彼女(?=[はがをにもので])"
 )
+_DISCOURSE_MENTION = re.compile(
+    r"(?P<value>[^、。！？\s]{1,30}?)(?:が|を|は|も)"
+)
+_PRONOUN_MENTIONS = {
+    "これ",
+    "それ",
+    "あれ",
+    "彼",
+    "彼女",
+    "それら",
+}
+_PERSONAL_PRONOUNS = {"彼", "彼女"}
 _HEAD_PREFIX = re.compile(
     r"^(?:直前の|以前の|前の|先ほどの|上記の?|下記の?|この|その|あの|同)"
 )
@@ -33,6 +46,25 @@ _GENERIC = {
 class AnaphoraResolver:
     def __init__(self, canonicalizer: Canonicalizer | None = None):
         self.canonicalizer = canonicalizer
+
+    @staticmethod
+    def mentions_from_discourse(
+        text: str,
+        *,
+        before: int | None = None,
+    ) -> list[str]:
+        end = before if before is not None else len(text)
+        values: list[tuple[int, str]] = []
+        for match in _DISCOURSE_MENTION.finditer(text, 0, end):
+            value = match.group("value").strip(" 「」『』\"'")
+            if not value or value in _PRONOUN_MENTIONS:
+                continue
+            if len(value) > 30:
+                continue
+            values.append((match.start("value"), value))
+        return list(dict.fromkeys(
+            value for _, value in sorted(values, key=lambda item: item[0])
+        ))
 
     @staticmethod
     def mentions_from_intents(intents: list[Intent]) -> list[str]:
@@ -151,6 +183,11 @@ class AnaphoraResolver:
         }[source]
         score = base - min(30, rank * 4)
         head = self._head(reference)
+        if reference in _PERSONAL_PRONOUNS:
+            if candidate.endswith("さん") or "さん" in candidate:
+                score += 140
+            elif re.search(r"(?:人|者|氏|君|くん|ちゃん)", candidate):
+                score += 90
         if head:
             if head == candidate:
                 score += 130
@@ -173,14 +210,27 @@ class AnaphoraResolver:
         known: list[str],
         max_candidates: int = 8,
         current_mentions: list[str] | None = None,
+        original_text: str | None = None,
     ) -> list[ReferenceResolution]:
         output: list[ReferenceResolution] = []
-        current_mentions = current_mentions or []
+        current_mentions = list(current_mentions or [])
         reference_intents = self._deduplicate_references(reference_intents)
 
         for intent in reference_intents:
             reference = intent.value
-            if reference in _GENERIC and not context and not known and not current_mentions:
+            discourse_mentions = (
+                self.mentions_from_discourse(
+                    original_text,
+                    before=intent.span.start,
+                )
+                if original_text
+                else []
+            )
+            effective_mentions = list(dict.fromkeys([
+                *discourse_mentions,
+                *current_mentions,
+            ]))
+            if reference in _GENERIC and not context and not known and not effective_mentions:
                 output.append(ReferenceResolution(
                     expression=reference,
                     candidates=[reference],
@@ -193,7 +243,7 @@ class AnaphoraResolver:
                 continue
             filtered_mentions = [
                 value
-                for value in current_mentions
+                for value in effective_mentions
                 if reference not in value and value not in reference
             ]
             pool = self._pool(filtered_mentions, context, known)
@@ -238,12 +288,16 @@ class AnaphoraResolver:
                     top = ranked[0]
                     second = ranked[1][0] if len(ranked) > 1 else -999
                     head = self._head(reference)
+                    personal_context = (
+                        reference in _PERSONAL_PRONOUNS
+                        and top[2] in {"current", "known", "context"}
+                    )
                     if (
                         len(ranked) == 1
                         or (
                             top[0] >= 100
                             and top[0] - second >= 20
-                            and (head or top[2] in {"current", "known"})
+                            and (head or top[2] in {"current", "known"} or personal_context)
                         )
                     ):
                         selected = top[1]
@@ -305,4 +359,5 @@ class AnaphoraResolver:
             context,
             known,
             max_candidates,
+            original_text=original,
         )

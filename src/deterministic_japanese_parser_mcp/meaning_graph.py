@@ -59,6 +59,16 @@ _TARGET_REQUIRED = {
     "scope",
     "out_of_scope",
 }
+_CONDITIONAL_CONNECTION_MARKERS = re.compile(
+    r"(?:もし|仮に)|(?:なら|たら|れば|の場合|のとき|の時)"
+)
+def _suppress_conditional_connection_proposition(
+    intent: Intent,
+    original_text: str,
+) -> bool:
+    if intent.type != "condition":
+        return False
+    return bool(_CONDITIONAL_CONNECTION_MARKERS.search(original_text))
 
 
 def _compact(value: str) -> str:
@@ -241,6 +251,13 @@ class MeaningGraphBuilder:
                 item.type,
             ),
         ):
+            if intent.type == "question":
+                continue
+            if _suppress_conditional_connection_proposition(
+                intent,
+                original_text,
+            ):
+                continue
             if len(propositions) + len(entity_by_key) >= self.max_graph_nodes:
                 unresolved.append({
                     "type": "graph_node_limit",

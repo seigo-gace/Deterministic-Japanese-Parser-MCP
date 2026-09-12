@@ -256,6 +256,7 @@ class ParserEngine:
                     request.known_entities,
                     max_candidates=self.settings.max_candidates,
                     current_mentions=current_mentions,
+                    original_text=request.original_text,
                 ),
             )
         else:
