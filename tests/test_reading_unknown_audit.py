@@ -75,10 +75,19 @@ def test_completion_only_when_all_pass(engine):
         for item in response.meaning_graph.propositions
         if item.intent_type == "completion_criteria"
     ]
+    toru = [
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+    ]
 
     assert str(response.overall_status) == "OverallStatus.COMPLETE"
     assert completion
     assert not response.meaning_graph.unresolved
+    assert len(toru) == 1
+    assert toru[0].predicate == "通る"
+    assert toru[0].sense_id == "pass.test"
+    assert toru[0].sense_label == "test_or_validation_pass"
 
 
 def test_negated_failure_completion_criterion(engine):
@@ -396,6 +405,12 @@ def test_restrictive_completion_quantifier_recorded(engine):
         (item.operator_type, item.semantic_value)
         for item in reading.scope_operators
     }
+    frames = [
+        item.predicate
+        for item in reading.predicate_frames
+        if item.surface_predicate
+        and "通" in item.surface_predicate
+    ]
 
     assert str(response.overall_status) == "OverallStatus.COMPLETE"
     assert any(
@@ -404,6 +419,33 @@ def test_restrictive_completion_quantifier_recorded(engine):
     )
     assert ("quantifier", "restrictive") in scopes
     assert ("condition", "premise_condition") in scopes
+    assert frames == ["通る"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "検査が通った",
+        "ビルドが通った",
+    ],
+)
+def test_validation_subject_pass_toru_reading(engine, text):
+    response = _analyze(engine, text)
+    toru = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+    )
+    frame = next(
+        item
+        for item in response.meaning_graph.reading_analysis.predicate_frames
+        if "通" in item.surface_predicate
+    )
+
+    assert toru.predicate == "通る"
+    assert toru.sense_id == "pass.test"
+    assert toru.sense_label == "test_or_validation_pass"
+    assert frame.predicate == "通る"
 
 
 def test_rule_trigger_extraction_tolerates_unparseable_pattern():

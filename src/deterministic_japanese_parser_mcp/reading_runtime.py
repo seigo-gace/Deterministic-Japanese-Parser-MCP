@@ -233,8 +233,12 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
     return heads
 
 
-_TEST_PASS_SUBJECT = re.compile(
-    r"(?:テスト|試験|検証|チェック|ビルド|CI|ユニット)"
+_TEST_PASS_SUBJECT_ALT = (
+    r"(?:テスト|試験|検証|チェック|ビルド|CI|ユニット|全件|全テスト|すべて|検査)"
+)
+_TEST_PASS_SUBJECT = re.compile(_TEST_PASS_SUBJECT_ALT)
+_TEST_PASS_CONTEXT = re.compile(
+    _TEST_PASS_SUBJECT_ALT + r".{0,24}?(?:通って|通り|通る|通った)"
 )
 _COMMUTE_DESTINATION = re.compile(
     r"(?:学校|会社|大学|職場|塾|教室)(?:に|へ)"
@@ -269,13 +273,13 @@ def _apply_test_pass_sense_to_propositions(
     *,
     original_text: str,
 ) -> list[Proposition]:
-    if not re.search(
-        r"(?:テスト|試験|検証|チェック|ビルド).{0,20}?(?:通って|通り|通る|通った)",
-        original_text,
-    ):
+    if not _TEST_PASS_CONTEXT.search(original_text):
         return propositions
     output: list[Proposition] = []
     for item in propositions:
+        if item.intent_type != "observation":
+            output.append(item)
+            continue
         if item.predicate not in {"通う", "通る"}:
             if not _TORU_SURFACE.search(item.surface_predicate or item.predicate):
                 output.append(item)

@@ -27,7 +27,8 @@ _SENSE_COMPLETIONS = [
         "sense_id": "pass.test",
         "label": "test_or_validation_pass",
         "pattern": re.compile(
-            r"(?:テスト|試験|検証|チェック|ビルド).{0,16}(?:通って|通り|通る|通った)"
+            r"(?:テスト|試験|検証|チェック|ビルド|全件|全テスト|すべて|検査)"
+            r".{0,16}(?:通って|通り|通る|通った)"
         ),
         "predicate_pattern": re.compile(r"(?:通って|通り|通る|通った)"),
         "evidence": ["strong:CI", "completion:test_pass"],
