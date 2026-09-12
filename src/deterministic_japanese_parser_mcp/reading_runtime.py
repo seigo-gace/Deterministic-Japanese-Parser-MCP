@@ -233,6 +233,71 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
     return heads
 
 
+_TEST_PASS_SUBJECT = re.compile(
+    r"(?:テスト|試験|検証|チェック|ビルド|CI|ユニット)"
+)
+_COMMUTE_DESTINATION = re.compile(
+    r"(?:学校|会社|大学|職場|塾|教室)(?:に|へ)"
+)
+_TORU_SURFACE = re.compile(r"(?:通って|通り|通る|通った|通う)")
+
+
+def _disambiguate_toru_predicate(
+    frame: PredicateFrame,
+    *,
+    clause_text: str,
+) -> PredicateFrame:
+    if frame.predicate not in {"通う", "通る"}:
+        if not _TORU_SURFACE.search(frame.surface_predicate):
+            return frame
+    if not _TORU_SURFACE.search(frame.surface_predicate):
+        return frame
+    commute = bool(
+        _COMMUTE_DESTINATION.search(clause_text)
+        or ("毎日" in clause_text and re.search(r"学校|会社|大学", clause_text))
+    )
+    test_pass = bool(_TEST_PASS_SUBJECT.search(clause_text))
+    if commute and not test_pass:
+        return frame.model_copy(update={"predicate": "通う"})
+    if test_pass:
+        return frame.model_copy(update={"predicate": "通る"})
+    return frame
+
+
+def _apply_test_pass_sense_to_propositions(
+    propositions: list[Proposition],
+    *,
+    original_text: str,
+) -> list[Proposition]:
+    if not re.search(
+        r"(?:テスト|試験|検証|チェック|ビルド).{0,20}?(?:通って|通り|通る|通った)",
+        original_text,
+    ):
+        return propositions
+    output: list[Proposition] = []
+    for item in propositions:
+        if item.predicate not in {"通う", "通る"}:
+            if not _TORU_SURFACE.search(item.surface_predicate or item.predicate):
+                output.append(item)
+                continue
+        if item.predicate == "通う":
+            item = item.model_copy(update={"predicate": "通る"})
+        if item.sense_id == "pass.test":
+            output.append(item)
+            continue
+        output.append(item.model_copy(update={
+            "predicate": "通る",
+            "sense_id": "pass.test",
+            "sense_label": "test_or_validation_pass",
+            "sense_confidence": 1.0,
+            "inference_sources": list(dict.fromkeys([
+                *item.inference_sources,
+                "reading_runtime:test_pass_sense",
+            ])),
+        }))
+    return output
+
+
 def _substantive_predicate_frames(frames: list[PredicateFrame]) -> list[PredicateFrame]:
     substantive = [
         frame
@@ -2087,7 +2152,7 @@ class DeterministicReadingRuntime:
                 )
                 local_end = max(local_end, frame.source_span.end)
                 local_text = original_text[frame.source_span.start:local_end]
-                frame_updates[frame.frame_id] = frame.model_copy(update={
+                adjusted = frame.model_copy(update={
                     "polarity": (
                         "negative"
                         if _has_semantic_negation(local_text)
@@ -2098,6 +2163,10 @@ class DeterministicReadingRuntime:
                     "voice": _voice(local_text),
                     "modality": _modalities(local_text),
                 })
+                frame_updates[frame.frame_id] = _disambiguate_toru_predicate(
+                    adjusted,
+                    clause_text=clause.text,
+                )
         frames = [
             (updated := frame_updates.get(frame.frame_id, frame)).model_copy(
                 update={
@@ -2335,6 +2404,10 @@ class DeterministicReadingRuntime:
             discourse=discourse,
         )
         propositions = _prune_redundant_observations(propositions)
+        propositions = _apply_test_pass_sense_to_propositions(
+            propositions,
+            original_text=original_text,
+        )
         if _COMPLETION_WITH_HOLDING_RE.search(original_text) and any(
             item.intent_type == "completion_criteria"
             for item in propositions

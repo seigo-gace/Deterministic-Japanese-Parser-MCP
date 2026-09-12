@@ -310,6 +310,58 @@ def test_conjoined_conditions_before_completion(engine):
     )
     assert _condition_scopes(response)
     assert "条件とする" not in _predicates(response)
+    toru = [
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+        or "通" in (item.surface_predicate or "")
+    ]
+    assert toru
+    assert all(item.predicate == "通る" for item in toru)
+    assert all(item.sense_id == "pass.test" for item in toru)
+    assert all(item.sense_label == "test_or_validation_pass" for item in toru)
+
+
+def test_test_pass_plain_form(engine):
+    response = _analyze(engine, "テストが通る")
+    toru = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+    )
+
+    assert toru.predicate == "通る"
+    assert toru.sense_id == "pass.test"
+    assert toru.sense_label == "test_or_validation_pass"
+
+
+def test_commute_toru_unchanged(engine):
+    response = _analyze(engine, "毎日学校に通う")
+    toru = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+    )
+    frames = response.meaning_graph.reading_analysis.predicate_frames
+
+    assert toru.predicate == "通う"
+    assert toru.sense_id != "pass.test"
+    assert frames[0].predicate == "通う"
+
+
+def test_toru_disambiguation_regression_sentences(engine):
+    cases = {
+        "本を読む": "読む",
+        "雨が降る": "降る",
+        "もし雨なら中止する。": "中止する",
+        "やめてください": "やめる",
+        "ドアを開けてください": "開ける",
+    }
+    for text, expected_predicate in cases.items():
+        response = _analyze(engine, text)
+        predicates = _predicates(response)
+        assert expected_predicate in predicates
+        assert "通う" not in predicates or text.startswith("毎日")
 
 
 def test_sore_object_reporting_request(engine):
