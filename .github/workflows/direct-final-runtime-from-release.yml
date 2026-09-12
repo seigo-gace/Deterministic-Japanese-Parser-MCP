@@ -54,10 +54,98 @@ jobs:
             --check \
             --output reports/baseline-semantic-holdout.json
 
-      - name: Download Direct Final source bundle from GitHub Release
+      - name: Download Direct Final manifest from GitHub Release
         run: |
           set -euo pipefail
           mkdir -p work/direct-final-release-input reports
+          gh release download "$RELEASE_TAG" \
+            --repo seigo-gace/Deterministic-Japanese-Parser-MCP \
+            --pattern "manifest.json" \
+            --dir work/direct-final-release-input
+          find work/direct-final-release-input -maxdepth 1 -type f -name "*.zip" -print0 | xargs -0 -r -I{} unzip -q {} -d work/direct-final-release-input
+          find work/direct-final-release-input -maxdepth 1 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" \) -print0 | xargs -0 -r -I{} tar -xf {} -C work/direct-final-release-input
+          test -f work/direct-final-release-input/manifest.json || find work/direct-final-release-input -name manifest.json -print -quit | grep -q .
+
+      - name: Verify expected-records against manifest
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          input_root = Path("work/direct-final-release-input")
+          manifest_path = input_root / "manifest.json"
+          if not manifest_path.is_file():
+              found = next(input_root.rglob("manifest.json"), None)
+              if found is None:
+                  print("manifest.json not found", file=sys.stderr)
+                  raise SystemExit(1)
+              manifest_path = found
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          expected = int(os.environ["EXPECTED_RECORDS"])
+          actual = int((manifest.get("validation") or {}).get("full_json_records_validated", 0))
+          if actual != expected:
+              print(
+                  f"expected-records mismatch: expected={expected} manifest={actual}",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+          PY
+
+      - name: Restore compiled Direct Final ABI cache
+        uses: actions/cache@v4
+        id: compiled-abi-cache
+        with:
+          path: |
+            dictionaries/system/compiled/open_lexicon
+            dictionaries/system/compiled/canonical_dictionary_runtime
+            dictionaries/system/compiled/direct_final_integration.json
+            dictionaries/system/compiled/direct_final_support
+          key: direct-final-abi-${{ runner.os }}-${{ hashFiles('work/direct-final-release-input/manifest.json') }}-${{ inputs['expected-records'] }}
+
+      - name: Evaluate compiled ABI reuse readiness
+        id: reuse-ready
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for block in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          input_root = Path("work/direct-final-release-input")
+          manifest_path = input_root / "manifest.json"
+          if not manifest_path.is_file():
+              manifest_path = next(input_root.rglob("manifest.json"))
+          integration_path = Path("dictionaries/system/compiled/direct_final_integration.json")
+          ready = "false"
+          if integration_path.is_file():
+              integration = json.loads(integration_path.read_text(encoding="utf-8"))
+              if (
+                  integration.get("schema_version") == "djpmcp.direct-final-integration.v1"
+                  and integration.get("target") == "Deterministic-Japanese-Parser-MCP"
+                  and integration.get("factory_used") is False
+                  and integration.get("source_manifest_sha256") == sha256(manifest_path)
+              ):
+                  ready = "true"
+          github_output = os.environ["GITHUB_OUTPUT"]
+          with open(github_output, "a", encoding="utf-8") as handle:
+              handle.write(f"ready={ready}\n")
+          PY
+
+      - name: Download Direct Final source bundle when compiled ABI is not reusable
+        if: steps.compiled-abi-cache.outputs.cache-hit != 'true' || steps.reuse-ready.outputs.ready != 'true'
+        run: |
+          set -euo pipefail
           gh release download "$RELEASE_TAG" \
             --repo seigo-gace/Deterministic-Japanese-Parser-MCP \
             --pattern "manifest.json" \

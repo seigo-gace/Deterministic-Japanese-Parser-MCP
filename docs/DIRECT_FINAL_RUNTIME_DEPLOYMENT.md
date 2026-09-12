@@ -110,6 +110,21 @@ approved.
 
 ## Local Compile
 
+Repo-native preparation from GitHub Release (default output under `work/` so the
+checked-in 120k baseline under `dictionaries/system` is not overwritten):
+
+```bash
+python tools/prepare_direct_final_runtime.py \
+  --release-tag <GitHub Release tag> \
+  --expected-records <manifest full_json_records_validated>
+export DJPMCP_SYSTEM_DICT_DIR="$(python -c 'import json,sys; print(json.load(sys.stdin)["DJPMCP_SYSTEM_DICT_DIR"]')" \
+  < <(python tools/prepare_direct_final_runtime.py \
+        --release-tag <GitHub Release tag> \
+        --expected-records <manifest full_json_records_validated>)
+```
+
+Low-level compile when the Direct Final bundle is already on disk:
+
 ```bash
 python tools/compile_direct_final_runtime.py \
   --manifest /path/to/direct-final/manifest.json \

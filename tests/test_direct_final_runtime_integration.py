@@ -206,6 +206,93 @@ def test_direct_final_compiles_into_existing_runtime_abis(tmp_path: Path) -> Non
     assert semantic.lookup_token(_token("未知語", reading="ミチゴ")) == []
 
 
+def test_direct_final_reuses_existing_integration_on_same_manifest(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+    work_root = tmp_path / "work"
+
+    first = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root,
+        semantic_shard_size=100,
+    )
+    assert first.get("reused") is False
+    assert first["source_runtime_records"] == 3
+
+    second = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root / "second",
+        semantic_shard_size=100,
+    )
+    assert second.get("reused") is True
+    assert second["source_runtime_records"] == 3
+    assert second["semantic_records"] == first["semantic_records"]
+
+
+def test_direct_final_force_recompile_skips_reuse(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+    work_root = tmp_path / "work"
+
+    compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root,
+        semantic_shard_size=100,
+    )
+    result = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root / "again",
+        semantic_shard_size=100,
+        force_recompile=True,
+    )
+    assert result.get("reused") is False
+
+
+def test_direct_final_does_not_reuse_corrupted_integration_counts(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+    work_root = tmp_path / "work"
+
+    compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root,
+        semantic_shard_size=100,
+    )
+    integration_path = system_root / "compiled/direct_final_integration.json"
+    integration = json.loads(integration_path.read_text(encoding="utf-8"))
+    integration["source_runtime_records"] = 999
+    integration_path.write_text(
+        json.dumps(integration, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    result = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=work_root / "rebuild",
+        semantic_shard_size=100,
+    )
+    assert result.get("reused") is False
+    assert result["source_runtime_records"] == 3
+
+
 def test_direct_final_rejects_factory_output(tmp_path: Path) -> None:
     source_root = tmp_path / "source"
     source_root.mkdir()

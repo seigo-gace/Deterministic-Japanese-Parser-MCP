@@ -109,6 +109,89 @@ def _validate(manifest_path: Path, input_root: Path) -> tuple[dict[str, Any], li
     return manifest, parts, support
 
 
+INTEGRATION_SCHEMA = "djpmcp.direct-final-integration.v1"
+
+
+def _manifest_header(manifest_path: Path) -> tuple[dict[str, Any], str]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != DIRECT_SCHEMA:
+        raise ValueError("direct final runtime schema mismatch")
+    if manifest.get("target") != TARGET:
+        raise ValueError("direct final runtime target mismatch")
+    if manifest.get("factory_used") is not False:
+        raise ValueError("direct final runtime must preserve factory_used=false")
+    return manifest, _sha(manifest_path)
+
+
+def _try_reuse_direct_final_runtime(
+    *,
+    manifest_path: Path,
+    system_root: Path,
+    force_recompile: bool,
+) -> dict[str, Any] | None:
+    if force_recompile:
+        return None
+    integration_path = system_root / "compiled/direct_final_integration.json"
+    if not integration_path.is_file():
+        return None
+    manifest, manifest_sha = _manifest_header(manifest_path)
+    validation = manifest.get("validation") or {}
+    expected_records = int(validation.get("full_json_records_validated", 0))
+
+    try:
+        integration = json.loads(integration_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if integration.get("schema_version") != INTEGRATION_SCHEMA:
+        return None
+    if integration.get("target") != TARGET:
+        return None
+    if integration.get("factory_used") is not False:
+        return None
+    if integration.get("source_manifest_sha256") != manifest_sha:
+        return None
+    if int(integration.get("source_runtime_records") or -1) != expected_records:
+        return None
+
+    open_root = system_root / "compiled/open_lexicon"
+    open_manifest_path = open_root / "manifest.json"
+    open_db = open_root / "lexicon.sqlite3"
+    if not open_manifest_path.is_file() or not open_db.is_file():
+        return None
+    open_manifest = json.loads(open_manifest_path.read_text(encoding="utf-8"))
+    if open_manifest.get("source_manifest_sha256") != manifest_sha:
+        return None
+    if int(open_manifest.get("record_count") or -1) != int(integration.get("source_runtime_records") or -1):
+        return None
+
+    semantic_records = int(integration.get("semantic_records") or 0)
+    if semantic_records <= 0:
+        return None
+    sem_manifest_path = system_root / "compiled/canonical_dictionary_runtime/manifest.json"
+    if not sem_manifest_path.is_file():
+        return None
+    sem_manifest = json.loads(sem_manifest_path.read_text(encoding="utf-8"))
+    if sem_manifest.get("source_manifest_sha256") != manifest_sha:
+        return None
+    if int(sem_manifest.get("record_count") or -1) != semantic_records:
+        return None
+
+    support_info = integration.get("support") or {}
+    support_path = Path(str(support_info.get("path") or ""))
+    if not support_path.is_file():
+        support_name = Path(str(support_info.get("path") or "")).name
+        if support_name:
+            support_path = system_root / "compiled/direct_final_support" / support_name
+    if not support_path.is_file():
+        support_dir = system_root / "compiled/direct_final_support"
+        if not support_dir.is_dir() or not any(support_dir.iterdir()):
+            return None
+
+    result = dict(integration)
+    result["reused"] = True
+    return result
+
+
 def _rows(parts: Iterable[Path]) -> Iterator[dict[str, Any]]:
     for path in parts:
         with gzip.open(path, "rt", encoding="utf-8") as handle:
@@ -336,9 +419,24 @@ def _write_semantic(db: sqlite3.Connection, root: Path, count: int, shard_size: 
     return manifest
 
 
-def compile_direct_final_runtime(*, manifest_path: Path, input_root: Path, system_root: Path, work_root: Path, semantic_shard_size: int = 10000) -> dict[str, Any]:
+def compile_direct_final_runtime(
+    *,
+    manifest_path: Path,
+    input_root: Path,
+    system_root: Path,
+    work_root: Path,
+    semantic_shard_size: int = 10000,
+    force_recompile: bool = False,
+) -> dict[str, Any]:
     if semantic_shard_size < 100:
         raise ValueError("semantic_shard_size must be at least 100")
+    reused = _try_reuse_direct_final_runtime(
+        manifest_path=manifest_path,
+        system_root=system_root,
+        force_recompile=force_recompile,
+    )
+    if reused is not None:
+        return reused
     manifest, parts, support = _validate(manifest_path, input_root)
     date, manifest_sha = str(manifest.get("date") or ""), _sha(manifest_path)
     work_root.mkdir(parents=True, exist_ok=True)
@@ -399,6 +497,7 @@ def compile_direct_final_runtime(*, manifest_path: Path, input_root: Path, syste
             "support": {"path": str(support_target), "sha256": _sha(support_target), "bytes": support_target.stat().st_size},
         }
         path = system_root / "compiled/direct_final_integration.json"
+        result["reused"] = False
         path.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return result
     finally:
@@ -416,8 +515,16 @@ def main() -> int:
     parser.add_argument("--system-root", type=Path, required=True)
     parser.add_argument("--work-root", type=Path, required=True)
     parser.add_argument("--semantic-shard-size", type=int, default=10000)
+    parser.add_argument("--force-recompile", action="store_true")
     args = parser.parse_args()
-    result = compile_direct_final_runtime(manifest_path=args.manifest, input_root=args.input_root, system_root=args.system_root, work_root=args.work_root, semantic_shard_size=args.semantic_shard_size)
+    result = compile_direct_final_runtime(
+        manifest_path=args.manifest,
+        input_root=args.input_root,
+        system_root=args.system_root,
+        work_root=args.work_root,
+        semantic_shard_size=args.semantic_shard_size,
+        force_recompile=args.force_recompile,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

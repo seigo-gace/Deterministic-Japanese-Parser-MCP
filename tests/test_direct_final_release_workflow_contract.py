@@ -49,3 +49,16 @@ def test_direct_final_release_workflow_keeps_private_counts_out_of_defaults() ->
     assert "default:" not in _workflow_input_block(workflow, "release-tag")
     assert "default:" not in _workflow_input_block(workflow, "expected-records")
     assert "9852513" not in workflow
+
+
+def test_direct_final_release_workflow_prefetches_manifest_and_uses_abi_cache() -> None:
+    workflow = (ROOT / ".github/workflows/direct-final-runtime-from-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uses: actions/cache@v4" in workflow
+    assert "Download Direct Final manifest from GitHub Release" in workflow
+    assert "Verify expected-records against manifest" in workflow
+    assert "Restore compiled Direct Final ABI cache" in workflow
+    assert "Download Direct Final source bundle when compiled ABI is not reusable" in workflow
+    assert "direct-final-abi-${{ runner.os }}-${{ hashFiles('work/direct-final-release-input/manifest.json') }}" in workflow
