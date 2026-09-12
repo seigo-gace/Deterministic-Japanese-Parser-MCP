@@ -7,7 +7,25 @@ import pytest
 
 from tests.test_direct_final_runtime_integration import _fixture
 from tools.compile_direct_final_runtime import _sha as compile_sha
-from tools.prepare_direct_final_runtime import prepare_direct_final_runtime
+from tools.prepare_direct_final_runtime import _gh_download, prepare_direct_final_runtime
+
+
+def test_gh_download_passes_skip_existing_to_gh(tmp_path: Path) -> None:
+    with (
+        patch("tools.prepare_direct_final_runtime.subprocess.run") as run_mock,
+        patch("tools.prepare_direct_final_runtime._extract_archives"),
+    ):
+        _gh_download(
+            "/usr/bin/gh",
+            release_tag="v1.0.0",
+            repo="owner/repo",
+            input_root=tmp_path / "input",
+            patterns=["mcp-runtime-final-*"],
+        )
+
+    run_mock.assert_called_once()
+    cmd = run_mock.call_args[0][0]
+    assert "--skip-existing" in cmd
 
 
 def test_prepare_skips_download_when_local_fixture_is_complete(tmp_path: Path) -> None:

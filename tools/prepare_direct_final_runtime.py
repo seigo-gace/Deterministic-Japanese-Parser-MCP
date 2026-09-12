@@ -101,6 +101,7 @@ def _gh_download(
         "release",
         "download",
         release_tag,
+        "--skip-existing",
         "--repo",
         repo,
         "--dir",
