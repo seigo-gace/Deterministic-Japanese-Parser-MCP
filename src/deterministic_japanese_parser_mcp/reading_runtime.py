@@ -96,8 +96,11 @@ _CONDITION_PATTERNS = (
     (re.compile(r"たら(?!しい)"), "event_condition"),
     (re.compile(r"なら(?:ば)?"), "premise_condition"),
     (re.compile(r"の場合(?:は|に)?"), "premise_condition"),
+    (re.compile(r"(?<=[^\s、])場合(?:だけ)?(?:は|に)?"), "premise_condition"),
     (re.compile(r"(?:限り|まで)"), "general_condition"),
+    (re.compile(r"(?:の際|際)(?:は|に)?"), "event_condition"),
     (re.compile(r"(?:とき|時)(?:は|に)"), "event_condition"),
+    (re.compile(r"にもかかわらず"), "concessive_condition"),
     (re.compile(r"と(?=[、,])"), "natural_condition"),
     (re.compile(r"(?:ても|でも)"), "concessive_condition"),
 )
@@ -412,7 +415,7 @@ def _rewrite_generic_request_propositions(
         ):
             if any(
                 other.clause_id == item.clause_id
-                and other.intent_type == "action"
+                and other.intent_type in {"action", "modify", "remove"}
                 for other in propositions
                 if other is not item
             ):
@@ -483,22 +486,81 @@ def _ensure_completion_criteria_propositions(
 
 
 def _dedupe_propositions(propositions: list[Proposition]) -> list[Proposition]:
-    seen: set[tuple[str | None, str, str, int, int]] = set()
+    seen: set[tuple[str | None, str, str]] = set()
     output: list[Proposition] = []
     for item in propositions:
-        span = item.source_span
-        key = (
-            item.clause_id,
-            item.intent_type,
-            item.predicate,
-            span.start,
-            span.end,
-        )
+        key = (item.clause_id, item.intent_type, item.predicate)
         if key in seen:
             continue
         seen.add(key)
         output.append(item)
     return output
+
+
+def _prune_redundant_observations(
+    propositions: list[Proposition],
+) -> list[Proposition]:
+    by_clause: dict[str | None, list[Proposition]] = {}
+    for item in propositions:
+        by_clause.setdefault(item.clause_id, []).append(item)
+
+    output: list[Proposition] = []
+    for item in propositions:
+        peers = by_clause.get(item.clause_id, [])
+        peer_predicates = {peer.predicate for peer in peers}
+        if item.intent_type == "observation":
+            if any(peer.intent_type == "prohibition" for peer in peers):
+                if item.predicate in {"余計", "為る", "する"}:
+                    continue
+            if "終了する" in peer_predicates and item.predicate in {
+                "不要",
+                "完了する",
+            }:
+                continue
+        output.append(item)
+    return output
+
+
+def _normalize_concessive_and_contrast_propositions(
+    propositions: list[Proposition],
+    *,
+    original_text: str,
+    operators: list[ScopeOperator],
+    discourse: list[DiscourseRelation],
+) -> list[Proposition]:
+    has_concessive = any(
+        item.operator_type == "condition"
+        and item.semantic_value == "concessive_condition"
+        and item.marker == "にもかかわらず"
+        for item in operators
+    )
+    has_tadashi = any(
+        item.marker == "ただし" and item.relation == "contrasts_with"
+        for item in discourse
+    )
+    filtered = list(propositions)
+    if has_concessive:
+        filtered = [
+            item
+            for item in filtered
+            if not (
+                item.intent_type == "action"
+                and item.predicate == "実行する"
+                and "公開" in original_text
+            )
+        ]
+        filtered = [
+            item
+            for item in filtered
+            if item.predicate != "関わる"
+        ]
+    if has_tadashi:
+        filtered = [
+            item
+            for item in filtered
+            if item.intent_type != "exception"
+        ]
+    return filtered
 
 
 def _ensure_observations_for_predicate_frames(
@@ -509,15 +571,33 @@ def _ensure_observations_for_predicate_frames(
 ) -> list[Proposition]:
     updated = list(propositions)
     for clause in clauses:
+        clause_conditions = [
+            item
+            for item in operators
+            if item.clause_id == clause.clause_id
+            and item.operator_type == "condition"
+        ]
         if any(
             item.clause_id == clause.clause_id
             and item.intent_type == "action"
             for item in updated
-        ) and _clause_has_condition_scope(clause.clause_id, operators):
+        ) and clause_conditions and not any(
+            item.semantic_value == "concessive_condition"
+            for item in clause_conditions
+        ):
             continue
-        clause_frames = _substantive_predicate_frames(
-            frame_by_clause.get(clause.clause_id, [])
-        )
+        clause_frames = [
+            frame
+            for frame in _substantive_predicate_frames(
+                frame_by_clause.get(clause.clause_id, [])
+            )
+            if frame.predicate not in {
+                "関わる",
+                "不要",
+                "余計",
+                "為る",
+            }
+        ]
         if not clause_frames:
             continue
         covered = {
@@ -564,7 +644,7 @@ def _drop_spurious_preserve_propositions(
     original_text: str,
     operators: list[ScopeOperator],
 ) -> list[Proposition]:
-    if not re.search(r"(?:ても|でも)", original_text):
+    if not re.search(r"(?:ても|でも|にもかかわらず)", original_text):
         return propositions
     if not any(
         item.operator_type == "condition"
@@ -933,8 +1013,13 @@ def _operators_for_clause(
             status = (
                 ItemStatus.RESOLVED
                 if re.search(
-                    r"(?:完了|終了|成功|可|不可)(?:。|、|$)",
+                    r"(?:完了|終了|成功|可|不可)(?:。|、|$|ではない)",
                     consequent,
+                )
+                or (
+                    semantic_value == "general_condition"
+                    and match.group(0) == "限り"
+                    and re.search(r"完了|終了", consequent)
                 )
                 else ItemStatus.AMBIGUOUS
             )
@@ -2218,10 +2303,7 @@ class DeterministicReadingRuntime:
         propositions = _rewrite_generic_request_propositions(
             propositions,
             frame_by_clause,
-        ) if any(
-            item.operator_type == "condition"
-            for item in operators
-        ) else propositions
+        )
         propositions = _ensure_completion_criteria_propositions(
             propositions,
             clauses,
@@ -2246,6 +2328,13 @@ class DeterministicReadingRuntime:
             operators,
         )
         propositions = _dedupe_propositions(propositions)
+        propositions = _normalize_concessive_and_contrast_propositions(
+            propositions,
+            original_text=original_text,
+            operators=operators,
+            discourse=discourse,
+        )
+        propositions = _prune_redundant_observations(propositions)
         if _COMPLETION_WITH_HOLDING_RE.search(original_text) and any(
             item.intent_type == "completion_criteria"
             for item in propositions

@@ -16,6 +16,9 @@ PATTERN = re.compile(
 _DISCOURSE_MENTION = re.compile(
     r"(?P<value>[^、。！？\s]{1,30}?)(?:が|を|は|も)"
 )
+_DISCOURSE_OBJECT = re.compile(
+    r"(?P<value>[^、。！？\sはが]{1,20}?)を"
+)
 _PRONOUN_MENTIONS = {
     "これ",
     "それ",
@@ -60,6 +63,23 @@ class AnaphoraResolver:
             if not value or value in _PRONOUN_MENTIONS:
                 continue
             if len(value) > 30:
+                continue
+            values.append((match.start("value"), value))
+        return list(dict.fromkeys(
+            value for _, value in sorted(values, key=lambda item: item[0])
+        ))
+
+    @staticmethod
+    def mentions_from_objects(
+        text: str,
+        *,
+        before: int | None = None,
+    ) -> list[str]:
+        end = before if before is not None else len(text)
+        values: list[tuple[int, str]] = []
+        for match in _DISCOURSE_OBJECT.finditer(text, 0, end):
+            value = match.group("value").strip(" 「」『』\"'")
+            if not value or value in _PRONOUN_MENTIONS:
                 continue
             values.append((match.start("value"), value))
         return list(dict.fromkeys(
@@ -175,11 +195,15 @@ class AnaphoraResolver:
         candidate: str,
         source: str,
         rank: int,
+        *,
+        original_text: str | None = None,
+        reference_end: int | None = None,
     ) -> int:
         base = {
             "known": 110,
             "current": 100,
             "context": 70,
+            "object": 95,
         }[source]
         score = base - min(30, rank * 4)
         head = self._head(reference)
@@ -209,6 +233,19 @@ class AnaphoraResolver:
                 or re.search(r"(?:ください|して|する|なら)", candidate)
             ):
                 score -= 120
+        if reference == "それ" and source == "object":
+            score += 150
+        if (
+            reference == "それ"
+            and original_text is not None
+            and reference_end is not None
+            and reference_end < len(original_text)
+            and original_text[reference_end:reference_end + 1] == "を"
+        ):
+            if source == "object":
+                score += 250
+            elif candidate.endswith("さん"):
+                score -= 80
         return score
 
     def resolve_intents(
@@ -234,8 +271,17 @@ class AnaphoraResolver:
                 if original_text
                 else []
             )
+            object_mentions = (
+                self.mentions_from_objects(
+                    original_text,
+                    before=intent.span.start,
+                )
+                if original_text
+                else []
+            )
             effective_mentions = list(dict.fromkeys([
                 *discourse_mentions,
+                *object_mentions,
                 *current_mentions,
             ]))
             if reference in _GENERIC and not context and not known and not effective_mentions:
@@ -255,6 +301,9 @@ class AnaphoraResolver:
                 if reference not in value and value not in reference
             ]
             pool = self._pool(filtered_mentions, context, known)
+            for rank, value in enumerate(reversed(object_mentions)):
+                if value and value not in {item[0] for item in pool}:
+                    pool.append((value, "object", rank))
             if reference == "前者":
                 pair = [value for value in context[-2:] if value]
                 selected = pair[0] if len(pair) == 2 else None
@@ -276,7 +325,14 @@ class AnaphoraResolver:
                 ranked = sorted(
                     (
                         (
-                            self._score(reference, value, source, rank),
+                            self._score(
+                                reference,
+                                value,
+                                source,
+                                rank,
+                                original_text=original_text,
+                                reference_end=intent.span.end,
+                            ),
                             value,
                             source,
                         )

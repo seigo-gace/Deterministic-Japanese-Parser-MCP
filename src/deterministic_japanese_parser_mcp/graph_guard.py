@@ -144,8 +144,22 @@ class GraphGuard:
                     blocked.append("INSUFFICIENT_ATTRIBUTION")
 
         for unresolved in graph.unresolved:
-            related = set(unresolved.get("related_proposition_ids", []))
             status = unresolved.get("status")
+            if (
+                unresolved.get("type") == "reference"
+                and status in {
+                    ItemStatus.INSUFFICIENT.value,
+                    ItemStatus.AMBIGUOUS.value,
+                }
+                and executable
+            ):
+                if not all(
+                    item.speech_act == "polite_request"
+                    for item in executable
+                ):
+                    blocked.append("AMBIGUOUS_OR_INSUFFICIENT_REFERENCE")
+                continue
+            related = set(unresolved.get("related_proposition_ids", []))
             if related and related.intersection(closure):
                 if status in {
                     ItemStatus.AMBIGUOUS.value,
