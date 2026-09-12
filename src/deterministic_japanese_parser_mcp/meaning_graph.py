@@ -86,6 +86,72 @@ def _suppress_conditional_connection_proposition(
     return True
 
 
+def _completion_criteria_rank(proposition: Proposition) -> tuple[int, int, int]:
+    span = proposition.source_span.end - proposition.source_span.start
+    return (span, len(proposition.evidence_ids), -proposition.source_span.start)
+
+
+def _dedupe_completion_criteria_propositions(
+    propositions: list[Proposition],
+    clause_by_id: dict[str, Clause],
+) -> list[Proposition]:
+    grouped: dict[tuple[str | None, str], list[Proposition]] = {}
+    for proposition in propositions:
+        if (
+            proposition.intent_type != "completion_criteria"
+            or proposition.predicate != "完了条件とする"
+        ):
+            continue
+        key = (proposition.clause_id, proposition.predicate)
+        grouped.setdefault(key, []).append(proposition)
+
+    drop: set[str] = set()
+    for items in grouped.values():
+        if len(items) < 2:
+            continue
+        keeper = max(items, key=_completion_criteria_rank)
+        drop.update(
+            item.proposition_id
+            for item in items
+            if item.proposition_id != keeper.proposition_id
+        )
+
+    if not drop:
+        return propositions
+
+    merged_evidence: dict[str, list[str]] = {}
+    for key, items in grouped.items():
+        if len(items) < 2:
+            continue
+        keeper = max(items, key=_completion_criteria_rank)
+        merged_evidence[keeper.proposition_id] = list(dict.fromkeys(
+            evidence_id
+            for item in items
+            for evidence_id in item.evidence_ids
+        ))
+
+    output: list[Proposition] = []
+    for proposition in propositions:
+        if proposition.proposition_id in drop:
+            continue
+        evidence_ids = merged_evidence.get(proposition.proposition_id)
+        if evidence_ids is not None:
+            proposition = proposition.model_copy(update={
+                "evidence_ids": evidence_ids,
+            })
+        output.append(proposition)
+
+    for clause_id, clause in clause_by_id.items():
+        clause_by_id[clause_id] = clause.model_copy(update={
+            "proposition_ids": [
+                proposition_id
+                for proposition_id in clause.proposition_ids
+                if proposition_id not in drop
+            ],
+        })
+    return output
+
+
 def _suppress_redundant_conditional_action(
     intent: Intent,
     intents: list[Intent],
@@ -390,6 +456,10 @@ class MeaningGraphBuilder:
                     "reason": "interrogative clauses are not executable commands",
                 })
 
+        propositions = _dedupe_completion_criteria_propositions(
+            propositions,
+            clause_by_id,
+        )
         clauses = [clause_by_id[item.clause_id] for item in clauses]
         proposition_by_id = {
             item.proposition_id: item for item in propositions

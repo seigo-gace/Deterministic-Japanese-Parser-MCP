@@ -342,16 +342,36 @@ def test_conditional_connection_omits_condition_proposition(engine):
 
 def test_deploy_completion_criteria_sentence_is_complete(engine):
     response = _analyze(engine, "デプロイ確認ができたら完了。")
+    propositions = response.meaning_graph.propositions
+    completion = [
+        item for item in propositions if item.intent_type == "completion_criteria"
+    ]
+    predicates = {item.predicate for item in propositions}
 
     assert response.overall_status.value == "COMPLETE"
-    assert any(
-        item.intent_type == "completion_criteria"
-        for item in response.meaning_graph.propositions
-    )
+    assert len(completion) == 1
+    assert completion[0].predicate == "完了条件とする"
+    assert "条件とする" not in predicates
+    assert "実行する" not in predicates
+    assert "質問する" not in predicates
     assert not any(
         item.get("type") == "reading_scope_target"
         for item in response.meaning_graph.unresolved
     )
+
+
+def test_completion_criteria_dedupe_keeps_single_proposition_for_plain_criterion(
+    engine,
+):
+    response = _analyze(engine, "完了条件は全テスト成功。")
+    completion = [
+        item
+        for item in response.meaning_graph.propositions
+        if item.intent_type == "completion_criteria"
+    ]
+
+    assert len(completion) == 1
+    assert completion[0].predicate == "完了条件とする"
 
 
 @pytest.mark.parametrize(
