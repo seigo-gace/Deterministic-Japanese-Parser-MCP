@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from time import perf_counter
 
 from .anaphora import AnaphoraResolver
 from .canonical import Canonicalizer
-from .config import SETTINGS, Settings
+from .config import DEFAULT_DICT_ROOT, SETTINGS, Settings
 from .contradictions import detect
 from .dictionaries import DictionaryBundle
 from .graph_contradictions import detect_graph
@@ -42,6 +43,19 @@ def _semantic_runtime_root(settings: Settings):
     return compiled / "semantic_data"
 
 
+def _resolve_semantic_profiles_path(settings: Settings) -> Path:
+    primary = settings.system_dict_dir / "semantic_profiles.yaml"
+    if primary.is_file():
+        return primary
+    fallback = DEFAULT_DICT_ROOT / "system" / "semantic_profiles.yaml"
+    if fallback.is_file():
+        return fallback
+    raise FileNotFoundError(
+        "semantic_profiles.yaml not found under "
+        f"{settings.system_dict_dir} or {DEFAULT_DICT_ROOT / 'system'}"
+    )
+
+
 class ParserEngine:
     def __init__(self, settings: Settings = SETTINGS):
         self.settings = settings
@@ -66,7 +80,7 @@ class ParserEngine:
             max_scope_edges=settings.max_scope_edges,
         )
         self.enricher = SemanticEnricher(
-            settings.system_dict_dir / "semantic_profiles.yaml",
+            _resolve_semantic_profiles_path(settings),
             self.canonicalizer,
         )
         self.reading = DeterministicReadingRuntime(

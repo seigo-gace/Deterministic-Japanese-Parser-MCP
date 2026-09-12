@@ -7,10 +7,15 @@ from pathlib import Path
 
 import pytest
 
+from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.config import Settings
 from deterministic_japanese_parser_mcp.models import OriginalSpan, Token
 from deterministic_japanese_parser_mcp.open_lexicon_runtime import OpenLexiconRuntime
 from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
 from tools.compile_direct_final_runtime import compile_direct_final_runtime
+from tools.prepare_direct_final_runtime import _link_system_companions
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_jsonl_gzip(path: Path, rows: list[dict]) -> tuple[int, str]:
@@ -291,6 +296,40 @@ def test_direct_final_does_not_reuse_corrupted_integration_counts(tmp_path: Path
     )
     assert result.get("reused") is False
     assert result["source_runtime_records"] == 3
+
+
+def test_parser_engine_analyzes_direct_final_system_with_companions(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+
+    compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=tmp_path / "work",
+        semantic_shard_size=100,
+    )
+    _link_system_companions(dest_system_root=system_root)
+
+    settings = Settings(
+        system_dict_dir=system_root,
+        user_dict_dir=REPO_ROOT / "dictionaries/user",
+        hard_deadline_ms=5000,
+    )
+    engine = ParserEngine(settings)
+    samples = [
+        "UIは残せ。APIだけ変更しろ。",
+        "橋を渡る",
+        "箸で食べる",
+    ]
+    for text in samples:
+        response = engine.analyze(
+            AnalyzeRequest(original_text=text, deadline_ms=5000)
+        )
+        assert response.meaning_graph.semantic_hash
+        assert str(response.overall_status) != "FAILED"
 
 
 def test_direct_final_rejects_factory_output(tmp_path: Path) -> None:

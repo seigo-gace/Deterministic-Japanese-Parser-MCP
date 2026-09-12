@@ -198,7 +198,7 @@ flowchart TD
 
 Open LexiconはJMdict由来の語彙情報を、語彙同定専用として12 Shardへ分割したものです。すべてのShardを一つの辞書として読み込み、同形異義語は一候補へ潰さず保持します。これは12万語すべての意味・語用・実行意図を理解できるという意味ではありません。
 
-完成版の意味つきRuntimeとしてデプロイする場合は、GitHubで管理されたDirect Final Runtime Bundle（Release asset、Actions artifact、またはbranch上の明示的なbundle）を`tools/compile_direct_final_runtime.py`で既存ABIへCompileし、`scripts/direct_final_deployment_contract.py --require-direct-final`を通過した成果物だけを使用します。ローカル運用では`tools/prepare_direct_final_runtime.py`がGitHub Releaseから`work/`へ展開・Compileし、出力JSONの`DJPMCP_SYSTEM_DICT_DIR`をRuntime辞書ルートとして使います。DriveやNotionはRuntime正本ではありません。手順と境界条件は[`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)に記載しています。
+完成版の意味つきRuntimeとしてデプロイする場合は、GitHubで管理されたDirect Final Runtime Bundle（Release asset、Actions artifact、またはbranch上の明示的なbundle）を`tools/compile_direct_final_runtime.py`で既存ABIへCompileし、`scripts/direct_final_deployment_contract.py --require-direct-final`を通過した成果物だけを使用します。ローカル運用では`tools/prepare_direct_final_runtime.py`がGitHub Releaseから`work/`へ展開・Compileし、repoの`dictionaries/system`からprofiles/rules等を同じ`work/` systemへリンクしたうえで、出力JSONの`DJPMCP_SYSTEM_DICT_DIR`を`ParserEngine`の辞書ルートとして使います。DriveやNotionはRuntime正本ではありません。手順と境界条件は[`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)に記載しています。
 
 加工パイプラインでは、PR #26でJMdict意味候補を付与済みの12万件を、特殊語彙・方言・擬音語・若者言葉など約5,000件と合わせた125,000件の固定Review Queueとして扱います。5,000件だけを優先したり、12万件をReviewから除外したりしません。未承認の意味候補は標準Runtimeへ入りません。
 

@@ -25,6 +25,39 @@ DEFAULT_INPUT_ROOT = Path("work/direct-final-release-input")
 DEFAULT_SYSTEM_ROOT = Path("work/direct-final-compiled/system")
 DEFAULT_WORK_ROOT = Path("work/direct-final-runtime")
 
+_REPO_SYSTEM = _REPO_ROOT / "dictionaries" / "system"
+_COMPANION_NAMES = (
+    "semantic_profiles.yaml",
+    "rules",
+    "metaphors",
+    "task_templates.yaml",
+    "task_templates.d",
+    "synonyms.yaml",
+    "synonyms.d",
+    "language_features.d",
+    "lexicon.d",
+)
+
+
+def _link_system_companions(
+    *,
+    repo_system: Path = _REPO_SYSTEM,
+    dest_system_root: Path,
+) -> list[str]:
+    """Symlink repo system companions into work system_root (skip existing)."""
+    dest_system_root.mkdir(parents=True, exist_ok=True)
+    linked: list[str] = []
+    for name in _COMPANION_NAMES:
+        src = repo_system / name
+        if not src.exists():
+            continue
+        dest = dest_system_root / name
+        if dest.exists() or dest.is_symlink():
+            continue
+        dest.symlink_to(src.resolve())
+        linked.append(name)
+    return linked
+
 
 def _locate_manifest(input_root: Path) -> Path | None:
     direct = input_root / "manifest.json"
@@ -182,6 +215,7 @@ def prepare_direct_final_runtime(
         semantic_shard_size=semantic_shard_size,
         force_recompile=force_recompile,
     )
+    companions_linked = _link_system_companions(dest_system_root=system_root)
     manifest_sha = _sha(manifest_path)
     system_root_resolved = system_root.resolve()
     return {
@@ -192,6 +226,7 @@ def prepare_direct_final_runtime(
         "source_manifest_sha256": manifest_sha,
         "system_root": str(system_root_resolved),
         "DJPMCP_SYSTEM_DICT_DIR": str(system_root_resolved),
+        "companions_linked": companions_linked,
     }
 
 

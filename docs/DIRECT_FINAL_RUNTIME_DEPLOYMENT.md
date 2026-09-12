@@ -111,7 +111,13 @@ approved.
 ## Local Compile
 
 Repo-native preparation from GitHub Release (default output under `work/` so the
-checked-in 120k baseline under `dictionaries/system` is not overwritten):
+checked-in 120k baseline under `dictionaries/system` is not overwritten). After
+`prepare_direct_final_runtime.py`, `work/direct-final-compiled/system` includes
+compiled Direct Final output plus repo-linked companions (`semantic_profiles.yaml`,
+rules, metaphors, templates, synonyms, and related `.d` trees) so you can pass
+that path to `ParserEngine` via `Settings(system_dict_dir=...)` or
+`DJPMCP_SYSTEM_DICT_DIR` without missing system files:
+
 
 ```bash
 python tools/prepare_direct_final_runtime.py \

@@ -148,3 +148,54 @@ def test_prepare_skips_part_sha_and_gh_when_compiled_abi_is_reusable(tmp_path: P
     assert payload["reused"] is True
     assert payload["downloaded"] is False
     assert payload["source_runtime_records"] == 3
+
+
+def test_companion_links_do_not_overwrite_compiled(tmp_path: Path) -> None:
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    _fixture(input_root)
+    system_root = tmp_path / "system"
+    work_root = tmp_path / "work"
+
+    prepare_direct_final_runtime(
+        release_tag="unused-tag",
+        expected_records=3,
+        input_root=input_root,
+        system_root=system_root,
+        work_root=work_root,
+        semantic_shard_size=100,
+    )
+    integration = system_root / "compiled/direct_final_integration.json"
+    assert integration.is_file()
+    before = integration.read_text(encoding="utf-8")
+
+    prepare_direct_final_runtime(
+        release_tag="unused-tag",
+        expected_records=3,
+        input_root=input_root,
+        system_root=system_root,
+        work_root=work_root / "again",
+        semantic_shard_size=100,
+    )
+    assert integration.read_text(encoding="utf-8") == before
+
+
+def test_companion_links_semantic_profiles(tmp_path: Path) -> None:
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    _fixture(input_root)
+    system_root = tmp_path / "system"
+
+    payload = prepare_direct_final_runtime(
+        release_tag="unused-tag",
+        expected_records=3,
+        input_root=input_root,
+        system_root=system_root,
+        work_root=tmp_path / "work",
+        semantic_shard_size=100,
+    )
+
+    profiles = system_root / "semantic_profiles.yaml"
+    assert profiles.exists()
+    assert profiles.is_symlink()
+    assert "semantic_profiles.yaml" in payload.get("companions_linked", [])
