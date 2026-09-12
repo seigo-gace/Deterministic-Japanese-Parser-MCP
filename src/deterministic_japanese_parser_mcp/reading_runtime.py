@@ -616,7 +616,18 @@ def _operators_for_clause(
             ]
         if operator_type == "question" and not targets:
             return
-        status = ItemStatus.RESOLVED if targets else ItemStatus.AMBIGUOUS
+        if operator_type == "condition" and not targets:
+            consequent = operands[-1].source_text if len(operands) > 1 else ""
+            status = (
+                ItemStatus.RESOLVED
+                if re.search(
+                    r"(?:完了|終了|成功|可|不可)(?:。|、|$)",
+                    consequent,
+                )
+                else ItemStatus.AMBIGUOUS
+            )
+        else:
+            status = ItemStatus.RESOLVED if targets else ItemStatus.AMBIGUOUS
         operator_id = f"SO-{start_number + len(output):03d}"
         output.append(ScopeOperator(
             operator_id=operator_id,
@@ -1882,6 +1893,21 @@ class DeterministicReadingRuntime:
                 {**item, "reading_analysis": True}
                 for item in unresolved
             ],
+        ]
+        propositions = [
+            item.model_copy(update={
+                "pragmatic_markers": list(dict.fromkeys([
+                    *item.pragmatic_markers,
+                    "pragmatic.capability_question",
+                ])),
+                "inference_sources": list(dict.fromkeys([
+                    *item.inference_sources,
+                    "pragmatic_profile:pragmatic.capability_question",
+                ])),
+            })
+            if item.speech_act == "capability_question"
+            else item
+            for item in propositions
         ]
         quality = {
             **graph.quality_annotations,

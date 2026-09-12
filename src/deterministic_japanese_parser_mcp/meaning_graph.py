@@ -64,11 +64,43 @@ _CONDITIONAL_CONNECTION_MARKERS = re.compile(
 )
 def _suppress_conditional_connection_proposition(
     intent: Intent,
+    intents: list[Intent],
     original_text: str,
 ) -> bool:
     if intent.type != "condition":
         return False
-    return bool(_CONDITIONAL_CONNECTION_MARKERS.search(original_text))
+    if not _CONDITIONAL_CONNECTION_MARKERS.search(original_text):
+        return False
+    if any(
+        other.type == "completion_criteria"
+        for other in intents
+        if other is not intent
+    ):
+        return True
+    if any(
+        other.type in {"request", "modify", "remove", "prohibition"}
+        for other in intents
+        if other is not intent
+    ):
+        return False
+    return True
+
+
+def _suppress_redundant_conditional_action(
+    intent: Intent,
+    intents: list[Intent],
+    original_text: str,
+) -> bool:
+    if intent.type != "action":
+        return False
+    if not _CONDITIONAL_CONNECTION_MARKERS.search(original_text):
+        return False
+    has_explicit_matrix = any(
+        other.type in {"request", "modify", "remove", "prohibition"}
+        for other in intents
+        if other is not intent
+    )
+    return not has_explicit_matrix
 
 
 def _compact(value: str) -> str:
@@ -255,6 +287,13 @@ class MeaningGraphBuilder:
                 continue
             if _suppress_conditional_connection_proposition(
                 intent,
+                intents,
+                original_text,
+            ):
+                continue
+            if _suppress_redundant_conditional_action(
+                intent,
+                intents,
                 original_text,
             ):
                 continue

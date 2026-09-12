@@ -278,6 +278,9 @@ def test_conditional_clause_keeps_matrix_observation_proposition(engine):
     }
 
     assert "中止する" in predicates
+    assert "実行する" not in {
+        item.predicate for item in response.meaning_graph.propositions
+    }
     assert "条件とする" not in {
         item.predicate for item in response.meaning_graph.propositions
     }
@@ -329,11 +332,46 @@ def test_conditional_connection_omits_condition_proposition(engine):
     predicates = {item.predicate for item in response.meaning_graph.propositions}
 
     assert "中止する" in predicates
+    assert "実行する" not in predicates
     assert "条件とする" not in predicates
     assert any(
         item.operator_type == "condition"
         for item in response.meaning_graph.reading_analysis.scope_operators
     )
+
+
+def test_deploy_completion_criteria_sentence_is_complete(engine):
+    response = _analyze(engine, "デプロイ確認ができたら完了。")
+
+    assert response.overall_status.value == "COMPLETE"
+    assert any(
+        item.intent_type == "completion_criteria"
+        for item in response.meaning_graph.propositions
+    )
+    assert not any(
+        item.get("type") == "reading_scope_target"
+        for item in response.meaning_graph.unresolved
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "この端末で処理できますか。",
+        "今週中の修正は可能ですか。",
+    ],
+)
+def test_capability_question_keeps_pragmatic_marker(engine, text):
+    response = _analyze(engine, text, external=True)
+
+    matching = [
+        item
+        for item in response.meaning_graph.propositions
+        if "pragmatic.capability_question" in item.pragmatic_markers
+        and item.speech_act == "capability_question"
+    ]
+    assert matching
+    assert not response.execution_allowed
 
 
 def test_invariant_preserve_phrase_is_not_failed(engine):
