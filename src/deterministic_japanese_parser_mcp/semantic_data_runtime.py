@@ -311,6 +311,27 @@ def _destination_tokens_for_verb(tokens: list[Token]) -> list[Token]:
     return destinations
 
 
+def _marked_case_phrase_surfaces(tokens: list[Token]) -> dict[str, str]:
+    phrases: dict[str, str] = {}
+    buffer: list[str] = []
+    for token in tokens:
+        if token.surface in {"が", "を"} and buffer:
+            phrases[token.surface] = "".join(buffer)
+            buffer = []
+            continue
+        if token.surface in _CASE_BUFFER_RESET_SURFACES:
+            buffer = []
+            continue
+        if _is_function_word_token(token):
+            continue
+        buffer.append(token.surface)
+    return phrases
+
+
+def _clause_surface(tokens: list[Token]) -> str:
+    return "".join(token.surface for token in tokens)
+
+
 def _collocate_sense_adjustment(
     candidate: dict[str, Any],
     *,
@@ -323,6 +344,17 @@ def _collocate_sense_adjustment(
         return 0, []
     neighbor_norm = _normalize(neighbor_definitions)
     lemma = _normalize(token.normalized or token.surface)
+    effective_lemma = lemma
+    if any("サ変" in part for part in (token.pos or [])):
+        for other in tokens:
+            if other.span.start <= token.span.start:
+                continue
+            if _normalize(other.normalized or other.surface) in {
+                _SURU_LIGHT_VERB,
+                _normalize("為る"),
+            }:
+                effective_lemma = _normalize(f"{token.normalized or token.surface}する")
+                break
     score = 0
     evidence: list[str] = []
 
@@ -383,6 +415,162 @@ def _collocate_sense_adjustment(
     ):
         score += 30
         evidence.append("semantic_pack_food_collocate_ingestion_boost")
+
+    case_phrases = _marked_case_phrase_surfaces(tokens)
+    object_phrase = case_phrases.get("を", "")
+    agent_phrase = case_phrases.get("が", "")
+    collocate_text = "\n".join(
+        part for part in (object_phrase, agent_phrase, neighbor_definitions) if part
+    )
+    clause_text = _clause_surface(tokens)
+
+    polite_request = "ください" in clause_text or "下さい" in clause_text
+
+    if effective_lemma == _normalize("読む") or token.normalized == "読む":
+        printed_object = any(
+            marker in object_phrase
+            for marker in ("本", "書", "紙", "新聞", "雑誌", "記事")
+        )
+        printed_definition = any(
+            marker in collocate_text
+            for marker in ("印刷", "書かれ", "読み物", "ページ", "文字")
+        )
+        if printed_object or printed_definition:
+            if any(
+                marker in label
+                for marker in ("印象", "意味を伝", "伝える", "示す")
+            ):
+                score -= 35
+                evidence.append("semantic_pack_read_printed_matter_demotion")
+            elif any(
+                marker in label
+                for marker in ("読", "書", "文字", "ページ", "文")
+            ):
+                score += 30
+                evidence.append("semantic_pack_read_printed_matter_boost")
+
+    if effective_lemma == _normalize("降る") or token.normalized == "降る":
+        weather_agent = any(
+            marker in agent_phrase for marker in ("雨", "雪", "雹", "みぞれ")
+        )
+        weather_definition = any(
+            marker in collocate_text
+            for marker in ("降水", "天候", "気象", "雲")
+        )
+        if weather_agent or weather_definition:
+            if any(
+                marker in label
+                for marker in ("重力", "落下", "歯止め", "地に落")
+            ):
+                score -= 35
+                evidence.append("semantic_pack_precipitation_fall_demotion")
+            elif any(
+                marker in label
+                for marker in ("降水", "雨", "雪", "雲", "天候")
+            ):
+                score += 30
+                evidence.append("semantic_pack_precipitation_boost")
+
+    if effective_lemma == _normalize("来る") or token.normalized == "来る":
+        person_agent = bool(
+            agent_phrase
+            and (
+                agent_phrase.endswith(("さん", "様", "君", "ちゃん"))
+                or any(
+                    marker in collocate_text
+                    for marker in ("人", "氏", "訪問", "来客")
+                )
+            )
+        )
+        if person_agent:
+            if any(
+                marker in label
+                for marker in ("存在", "起きる", "ある一連")
+            ):
+                score -= 35
+                evidence.append("semantic_pack_arrival_existence_demotion")
+            elif any(
+                marker in label
+                for marker in ("来訪", "到着", "訪", "やって来", "来た")
+            ):
+                score += 30
+                evidence.append("semantic_pack_arrival_boost")
+
+    if effective_lemma in {_normalize("やめる"), _normalize("止める")} or token.normalized in {
+        "やめる",
+        "止める",
+    }:
+        if polite_request:
+            if any(marker in label for marker in ("痛む", "古語", "方言")):
+                score -= 40
+                evidence.append("semantic_pack_polite_stop_pain_demotion")
+            elif any(
+                marker in label
+                for marker in ("中止", "停止", "やめ", "辞め", "止め")
+            ):
+                score += 30
+                evidence.append("semantic_pack_polite_stop_boost")
+
+    if effective_lemma == _normalize("行く") or token.normalized == "行く":
+        if "ないで" in clause_text and polite_request:
+            if any(marker in label for marker in ("形勢", "動作について")):
+                score -= 35
+                evidence.append("semantic_pack_go_prohibition_demotion")
+            elif any(
+                marker in label
+                for marker in ("移動", "向か", "行き", "赴", "出向")
+            ):
+                score += 25
+                evidence.append("semantic_pack_go_motion_boost")
+
+    if effective_lemma == _normalize("中止する") or token.normalized in {
+        "中止",
+        "中止する",
+    }:
+        conditional_clause = "なら" in clause_text or "もし" in clause_text
+        if conditional_clause:
+            if any(
+                marker in label
+                for marker in ("国文法", "述語用言", "連用形", "区切")
+            ):
+                score -= 55
+                evidence.append("semantic_pack_conditional_cancel_grammar_demotion")
+            elif any(
+                marker in label
+                for marker in (
+                    "中止",
+                    "取消",
+                    "キャンセル",
+                    "止める",
+                    "中断",
+                    "とりやめ",
+                    "予定",
+                )
+            ):
+                score += 45
+                evidence.append("semantic_pack_conditional_cancel_boost")
+
+    if effective_lemma in {_normalize("開く"), _normalize("開ける")} or token.normalized in {
+        "開く",
+        "開ける",
+    }:
+        physical_object = any(
+            marker in object_phrase
+            for marker in ("ドア", "扉", "戸", "窓", "蓋", "栓")
+        )
+        if physical_object or object_phrase:
+            if any(
+                marker in label
+                for marker in ("成長", "進化", "展開", "分化", "進歩")
+            ):
+                score -= 40
+                evidence.append("semantic_pack_open_physical_demotion")
+            elif any(
+                marker in label
+                for marker in ("開", "閉", "戸", "扉", "解錠")
+            ):
+                score += 25
+                evidence.append("semantic_pack_open_physical_boost")
 
     return score, evidence
 

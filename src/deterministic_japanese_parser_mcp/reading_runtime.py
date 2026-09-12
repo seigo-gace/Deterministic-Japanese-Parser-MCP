@@ -50,6 +50,20 @@ _POLITE_REQUEST_AUXILIARIES = frozenset({
     "欲しい",
     "ほしい",
 })
+_POLITE_REQUEST_TAIL_SURFACES = frozenset({
+    "ください",
+    "下さい",
+    "ください。",
+    "下さい。",
+})
+_WH_COPULA_HEADS = frozenset({"何", "誰", "なに", "だれ", "なん"})
+_STRUCTURAL_PROPOSITION_INTENTS = frozenset({
+    "reference",
+    "question",
+    "condition",
+    "action",
+})
+_GRATITUDE_RE = re.compile(r"ありがとう(?:ございます)?")
 _CASE_ROLES = {
     "が": "agent",
     "は": "topic",
@@ -176,6 +190,8 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
                 and previous.surface in {"て", "で"}
             ):
                 continue
+            if token.surface.rstrip("。！？!?") in _POLITE_REQUEST_TAIL_SURFACES:
+                continue
             next_token = (
                 tokens[indices[position + 1]]
                 if position + 1 < len(indices)
@@ -194,6 +210,9 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
             following = tokens[indices[position + 1]]
             if following.surface in _COPULAS:
                 heads.append(index)
+            continue
+        if token.surface in _WH_COPULA_HEADS:
+            heads.append(index)
     return heads
 
 
@@ -206,6 +225,99 @@ def _primary_predicate_frame(frames: list[PredicateFrame]) -> PredicateFrame:
     if substantive:
         return substantive[-1]
     return frames[-1]
+
+
+def _overlap_span(left: OriginalSpan, right: OriginalSpan) -> bool:
+    return left.start < right.end and right.start < left.end
+
+
+def _clause_needs_matrix_observation(
+    related: list[Proposition],
+    clause_frames: list[PredicateFrame],
+    main: PredicateFrame,
+    *,
+    clause_text: str,
+) -> bool:
+    if not clause_frames:
+        return False
+    if not related:
+        return True
+    if any(
+        item.intent_type == "observation"
+        and item.predicate == main.predicate
+        for item in related
+    ):
+        return False
+    if all(item.intent_type in _STRUCTURAL_PROPOSITION_INTENTS for item in related):
+        return True
+    premise_conditional = "もし" in clause_text or "なら" in clause_text
+    if (
+        premise_conditional
+        and any(
+            item.intent_type in {"condition", "action"}
+            for item in related
+        )
+        and main.predicate not in {item.predicate for item in related}
+    ):
+        return True
+    return False
+
+
+def _align_observation_propositions_with_frames(
+    propositions: list[Proposition],
+    frame_by_clause: dict[str, list[PredicateFrame]],
+) -> list[Proposition]:
+    updated = list(propositions)
+    for index, proposition in enumerate(updated):
+        if proposition.intent_type != "observation" or not proposition.clause_id:
+            continue
+        clause_frames = frame_by_clause.get(proposition.clause_id, [])
+        if not clause_frames:
+            continue
+        main = _primary_predicate_frame(clause_frames)
+        if proposition.predicate == main.predicate:
+            continue
+        if len(clause_frames) == 1 or _overlap_span(
+            proposition.source_span,
+            main.source_span,
+        ):
+            updated[index] = proposition.model_copy(update={
+                "predicate": main.predicate,
+                "surface_predicate": main.surface_predicate,
+                "arguments": main.arguments or proposition.arguments,
+                "source_span": main.source_span,
+            })
+    return updated
+
+
+def _ensure_gratitude_proposition(
+    propositions: list[Proposition],
+    clauses: list[Clause],
+    original_text: str,
+) -> list[Proposition]:
+    if propositions:
+        return propositions
+    match = _GRATITUDE_RE.search(original_text)
+    if not match:
+        return propositions
+    clause = clauses[0] if clauses else None
+    proposition = Proposition(
+        proposition_id=f"P-{len(propositions) + 1:03d}",
+        predicate="感謝する",
+        surface_predicate=match.group(0),
+        intent_type="observation",
+        value=original_text.strip(),
+        polarity="positive",
+        sentence_mood="declarative",
+        speech_act="gratitude",
+        epistemic_status="asserted",
+        executable_candidate=False,
+        clause_id=clause.clause_id if clause else None,
+        source_span=_span(match.start(), match.end(), original_text),
+        evidence_ids=["READING:GRATITUDE"],
+        inference_sources=["deterministic-reading-runtime"],
+    )
+    return [*propositions, proposition]
 
 
 def _predicate_bounds(
@@ -236,6 +348,14 @@ def _predicate_bounds(
             token.normalized in _ASPECT_AUXILIARIES
             and previous.surface in {"て", "で"}
         ):
+            end_position = cursor
+            cursor += 1
+            continue
+        if token.surface in _COPULAS:
+            end_position = cursor
+            cursor += 1
+            continue
+        if token.surface.rstrip("。！？!?") in _POLITE_REQUEST_TAIL_SURFACES:
             end_position = cursor
             cursor += 1
             continue
@@ -424,6 +544,9 @@ def _scope_target_frame_ids(
         ]
         return [following[0].frame_id] if following else []
 
+    if operator_type == "question":
+        return [ordered[-1].frame_id]
+
     if operator_type == "quantifier":
         following = [
             frame for frame in ordered if frame.source_span.start >= end
@@ -488,6 +611,8 @@ def _operators_for_clause(
                 _span(clause.source_span.start, end, original),
                 _span(end, clause.source_span.end, original),
             ]
+        if operator_type == "question" and not targets:
+            return
         status = ItemStatus.RESOLVED if targets else ItemStatus.AMBIGUOUS
         operator_id = f"SO-{start_number + len(output):03d}"
         output.append(ScopeOperator(
@@ -1566,7 +1691,15 @@ class DeterministicReadingRuntime:
         for frame in frames:
             frame_by_clause.setdefault(frame.clause_id, []).append(frame)
 
-        propositions = list(graph.propositions)
+        propositions = _ensure_gratitude_proposition(
+            list(graph.propositions),
+            graph.clauses,
+            original_text,
+        )
+        propositions = _align_observation_propositions_with_frames(
+            propositions,
+            frame_by_clause,
+        )
         clauses: list[Clause] = []
         frame_index_by_id = {
             item.frame_id: index for index, item in enumerate(frames)
@@ -1578,8 +1711,20 @@ class DeterministicReadingRuntime:
                 for item in propositions
                 if item.clause_id == clause.clause_id
             ]
-            if not related and clause_frames:
-                main = _primary_predicate_frame(clause_frames)
+            main = (
+                _primary_predicate_frame(clause_frames)
+                if clause_frames
+                else None
+            )
+            if (
+                main is not None
+                and _clause_needs_matrix_observation(
+                    related,
+                    clause_frames,
+                    main,
+                    clause_text=clause.text,
+                )
+            ):
                 proposition = Proposition(
                     proposition_id=f"P-{len(propositions) + 1:03d}",
                     predicate=main.predicate,
@@ -1611,7 +1756,11 @@ class DeterministicReadingRuntime:
                     inference_sources=["deterministic-reading-runtime"],
                 )
                 propositions.append(proposition)
-                related = [proposition]
+                related = [
+                    item
+                    for item in propositions
+                    if item.clause_id == clause.clause_id
+                ]
             related_ids = [item.proposition_id for item in related]
             for frame in clause_frames:
                 index = frame_index_by_id[frame.frame_id]

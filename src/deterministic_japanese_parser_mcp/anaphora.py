@@ -180,6 +180,17 @@ class AnaphoraResolver:
 
         for intent in reference_intents:
             reference = intent.value
+            if reference in _GENERIC and not context and not known and not current_mentions:
+                output.append(ReferenceResolution(
+                    expression=reference,
+                    candidates=[reference],
+                    selected=reference,
+                    candidate_scores={reference: 100},
+                    resolution_reason="deictic:situational",
+                    span=intent.span,
+                    status=ItemStatus.RESOLVED,
+                ))
+                continue
             filtered_mentions = [
                 value
                 for value in current_mentions

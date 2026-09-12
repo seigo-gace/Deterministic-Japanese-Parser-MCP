@@ -1246,3 +1246,66 @@ def test_direct_final_collocate_sense_selection() -> None:
             "predicate": proposition.predicate,
             "sense_label": label,
         }
+
+
+def test_direct_final_everyday_matrix_sense_regression() -> None:
+    system_root = ROOT / "work/direct-final-compiled/system"
+    if not (system_root / "compiled").is_dir():
+        pytest.skip("direct-final compiled runtime is not prepared locally")
+
+    settings = Settings(
+        system_dict_dir=system_root,
+        hard_deadline_ms=5000,
+    )
+    engine = ParserEngine(settings)
+    expectations = {
+        "本を読む": ("読む", ("書か", "印刷", "解釈"), ("印象", "意味を伝")),
+        "本を読んでください": ("読む", ("書か", "印刷", "解釈"), ("印象", "意味を伝")),
+        "雨が降る": ("降る", ("雲", "降水", "雨"), ("重力", "歯止め")),
+        "雪が降る": ("降る", ("雨", "雪", "落ち"), ("重力", "歯止め")),
+        "田中さんが来た": ("来る", ("着", "来訪", "到着"), ("存在", "起きる")),
+        "やめてください": ("やめる", ("止", "終", "已"), ("痛む",)),
+        "行かないでください": ("行く", ("移動", "前進", "旅"), ("形勢",)),
+        "ドアを開けてください": ("開ける", ("開",), ("成長", "進化", "展開")),
+        "もし雨なら中止する": ("中止する", ("とりやめ", "中止", "予定"), ("国文法", "述語用言")),
+        "本当にありがとう": ("感謝する", ("謝意", "感謝"), ()),
+        "橋を渡る": ("渡る", ("横切", "通り越"), ()),
+        "電話をかける": ("かける", ("phone", "call", "電話"), ()),
+        "猫が魚を食べた": ("食べる", ("食物", "摂取", "固形"), ()),
+    }
+    for text, (predicate, positive_markers, negative_markers) in expectations.items():
+        response = engine.analyze(
+            AnalyzeRequest(original_text=text, deadline_ms=5000)
+        )
+        assert str(response.overall_status) != "FAILED", text
+        matrix = next(
+            (
+                item
+                for item in response.meaning_graph.propositions
+                if item.predicate == predicate
+            ),
+            None,
+        )
+        assert matrix is not None, {
+            "text": text,
+            "predicates": [item.predicate for item in response.meaning_graph.propositions],
+        }
+        label = matrix.sense_label or ""
+        if positive_markers:
+            assert any(marker in label for marker in positive_markers), {
+                "text": text,
+                "predicate": matrix.predicate,
+                "sense_label": label,
+            }
+        for marker in negative_markers:
+            assert marker not in label, {
+                "text": text,
+                "predicate": matrix.predicate,
+                "sense_label": label,
+            }
+
+    for text in ("それは何ですか", "これはペンです", "あの人は誰ですか"):
+        response = engine.analyze(
+            AnalyzeRequest(original_text=text, deadline_ms=5000)
+        )
+        assert str(response.overall_status) != "FAILED", text

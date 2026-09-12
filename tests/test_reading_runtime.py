@@ -244,3 +244,51 @@ def test_negated_te_kudasai_keeps_matrix_verb_as_proposition(engine):
     assert frames[0].predicate == "行く"
     assert "下さる" not in proposition.predicate
     assert all(frame.predicate != "下さる" for frame in frames)
+
+
+def test_te_kudasai_keeps_causative_matrix_verb(engine):
+    response = _analyze(engine, "ドアを開けてください。")
+    matrix = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.intent_type == "observation"
+    )
+    frame = response.meaning_graph.reading_analysis.predicate_frames[0]
+
+    assert matrix.predicate == "開ける"
+    assert frame.predicate == "開ける"
+
+
+def test_gratitude_expression_yields_proposition(engine):
+    response = _analyze(engine, "本当にありがとう。")
+
+    assert str(response.overall_status) != "FAILED"
+    assert response.meaning_graph.propositions
+    gratitude = response.meaning_graph.propositions[0]
+    assert gratitude.predicate == "感謝する"
+    assert gratitude.speech_act == "gratitude"
+
+
+def test_conditional_clause_keeps_matrix_observation_proposition(engine):
+    response = _analyze(engine, "もし雨なら中止する。")
+    predicates = {
+        item.predicate
+        for item in response.meaning_graph.propositions
+        if item.intent_type == "observation"
+    }
+
+    assert "中止する" in predicates
+    assert any(
+        item.operator_type == "condition"
+        for item in response.meaning_graph.reading_analysis.scope_operators
+    )
+
+
+def test_copula_identification_is_not_failed_without_antecedent(engine):
+    response = _analyze(engine, "これはペンです。")
+
+    assert str(response.overall_status) != "FAILED"
+    assert any(
+        item.predicate == "ペン"
+        for item in response.meaning_graph.propositions
+    )
