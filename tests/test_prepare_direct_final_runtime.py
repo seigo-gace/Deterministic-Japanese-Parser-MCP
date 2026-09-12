@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.test_direct_final_runtime_integration import _fixture
+from tools.compile_direct_final_runtime import _sha as compile_sha
 from tools.prepare_direct_final_runtime import prepare_direct_final_runtime
 
 
@@ -80,3 +81,52 @@ def test_prepare_reuses_compile_without_calling_gh(tmp_path: Path) -> None:
     run_mock.assert_not_called()
     assert second["reused"] is True
     assert second["source_runtime_records"] == 3
+
+
+def test_prepare_skips_part_sha_and_gh_when_compiled_abi_is_reusable(tmp_path: Path) -> None:
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    _fixture(input_root)
+    system_root = tmp_path / "system"
+    work_root = tmp_path / "work"
+
+    prepare_direct_final_runtime(
+        release_tag="unused-tag",
+        expected_records=3,
+        input_root=input_root,
+        system_root=system_root,
+        work_root=work_root,
+        semantic_shard_size=100,
+    )
+
+    manifest_path = input_root / "manifest.json"
+    for path in input_root.iterdir():
+        if path != manifest_path:
+            if path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                import shutil
+
+                shutil.rmtree(path)
+
+    with (
+        patch("tools.prepare_direct_final_runtime.subprocess.run") as run_mock,
+        patch("tools.prepare_direct_final_runtime._inputs_match_manifest") as match_mock,
+        patch("tools.prepare_direct_final_runtime._sha", wraps=compile_sha) as sha_mock,
+    ):
+        payload = prepare_direct_final_runtime(
+            release_tag="unused-tag",
+            expected_records=3,
+            input_root=input_root,
+            system_root=system_root,
+            work_root=work_root / "reuse-only",
+            semantic_shard_size=100,
+        )
+
+    run_mock.assert_not_called()
+    match_mock.assert_not_called()
+    assert sha_mock.call_count == 1
+    assert sha_mock.call_args[0][0].name == "manifest.json"
+    assert payload["reused"] is True
+    assert payload["downloaded"] is False
+    assert payload["source_runtime_records"] == 3

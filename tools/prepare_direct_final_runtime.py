@@ -13,7 +13,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from tools.compile_direct_final_runtime import _sha, compile_direct_final_runtime
+from tools.compile_direct_final_runtime import (
+    _sha,
+    _try_reuse_direct_final_runtime,
+    compile_direct_final_runtime,
+)
 
 DEFAULT_REPO = "seigo-gace/Deterministic-Japanese-Parser-MCP"
 DEFAULT_ASSET_PATTERN = "mcp-runtime-final-*"
@@ -22,13 +26,20 @@ DEFAULT_SYSTEM_ROOT = Path("work/direct-final-compiled/system")
 DEFAULT_WORK_ROOT = Path("work/direct-final-runtime")
 
 
-def _find_manifest(input_root: Path) -> Path:
+def _locate_manifest(input_root: Path) -> Path | None:
     direct = input_root / "manifest.json"
     if direct.is_file():
         return direct
     for path in input_root.rglob("manifest.json"):
         return path
-    raise FileNotFoundError(f"manifest.json not found under {input_root}")
+    return None
+
+
+def _find_manifest(input_root: Path) -> Path:
+    manifest_path = _locate_manifest(input_root)
+    if manifest_path is None:
+        raise FileNotFoundError(f"manifest.json not found under {input_root}")
+    return manifest_path
 
 
 def _extract_archives(input_root: Path) -> None:
@@ -117,7 +128,8 @@ def prepare_direct_final_runtime(
     downloaded = False
     gh: str | None = None
 
-    if force_download or not (input_root / "manifest.json").is_file():
+    manifest_path = _locate_manifest(input_root)
+    if manifest_path is None:
         gh = _require_gh()
         _gh_download(
             gh,
@@ -127,8 +139,8 @@ def prepare_direct_final_runtime(
             patterns=["manifest.json"],
         )
         downloaded = True
+        manifest_path = _find_manifest(input_root)
 
-    manifest_path = _find_manifest(input_root)
     input_root = manifest_path.parent
     record_count = _manifest_record_count(manifest_path)
     if record_count != expected_records:
@@ -136,19 +148,30 @@ def prepare_direct_final_runtime(
             f"expected-records mismatch: expected={expected_records} manifest={record_count}"
         )
 
-    if force_download or not _inputs_match_manifest(input_root, manifest_path):
-        if gh is None:
-            gh = _require_gh()
-        _gh_download(
-            gh,
-            release_tag=release_tag,
-            repo=repo,
-            input_root=input_root,
-            patterns=["manifest.json", asset_pattern, "mcp-runtime-support.jsonl.gz"],
+    compiled_abi_reusable = (
+        not force_recompile
+        and _try_reuse_direct_final_runtime(
+            manifest_path=manifest_path,
+            system_root=system_root,
+            force_recompile=False,
         )
-        downloaded = True
-        manifest_path = _find_manifest(input_root)
-        input_root = manifest_path.parent
+        is not None
+    )
+
+    if not compiled_abi_reusable:
+        if force_download or not _inputs_match_manifest(input_root, manifest_path):
+            if gh is None:
+                gh = _require_gh()
+            _gh_download(
+                gh,
+                release_tag=release_tag,
+                repo=repo,
+                input_root=input_root,
+                patterns=["manifest.json", asset_pattern, "mcp-runtime-support.jsonl.gz"],
+            )
+            downloaded = True
+            manifest_path = _find_manifest(input_root)
+            input_root = manifest_path.parent
 
     result = compile_direct_final_runtime(
         manifest_path=manifest_path,
