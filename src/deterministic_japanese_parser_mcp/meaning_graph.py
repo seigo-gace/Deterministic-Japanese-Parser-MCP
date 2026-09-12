@@ -708,12 +708,23 @@ class MeaningGraphBuilder:
             (item.intent_type, item.source_span.start, item.source_span.end)
             for item in graph.propositions
         }
-        output = [
-            item
-            for item in candidates
-            if item.type == "reference"
-            or (item.type, item.span.start, item.span.end) in represented
-        ]
+        seen: set[tuple[str, int, int]] = set()
+        output: list[Intent] = []
+        for item in candidates:
+            key = (item.type, item.span.start, item.span.end)
+            if key in seen:
+                continue
+            if item.type == "reference":
+                output.append(item)
+                seen.add(key)
+                continue
+            if item.type in {"condition", "preserve", "request", "question"}:
+                output.append(item)
+                seen.add(key)
+                continue
+            if (item.type, item.span.start, item.span.end) in represented:
+                output.append(item)
+                seen.add(key)
         return sorted(
             output,
             key=lambda item: (

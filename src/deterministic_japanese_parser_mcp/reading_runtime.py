@@ -95,6 +95,9 @@ _CONDITION_PATTERNS = (
     (re.compile(r"(?:れば|けば|えば|せば|なければ)"), "general_condition"),
     (re.compile(r"たら(?!しい)"), "event_condition"),
     (re.compile(r"なら(?:ば)?"), "premise_condition"),
+    (re.compile(r"の場合(?:は|に)?"), "premise_condition"),
+    (re.compile(r"(?:限り|まで)"), "general_condition"),
+    (re.compile(r"(?:とき|時)(?:は|に)"), "event_condition"),
     (re.compile(r"と(?=[、,])"), "natural_condition"),
     (re.compile(r"(?:ても|でも)"), "concessive_condition"),
 )
@@ -110,6 +113,7 @@ _MODALITY_PATTERNS = (
 )
 _QUANTIFIER_PATTERNS = (
     (re.compile(r"すべて|全て|全部|必ず"), "universal"),
+    (re.compile(r"(?:のみ|だけ)(?=.{0,8}(?:完了|終了|成功))"), "restrictive"),
     (re.compile(r"(?:一部|いくつか|少なくとも)"), "existential_or_lower_bound"),
     (re.compile(r"(?:最大で|多くとも|以下|未満)"), "upper_bound"),
     (re.compile(r"(?:以上|を超える)"), "lower_bound"),
@@ -213,21 +217,38 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
             following = tokens[indices[position + 1]]
             if following.surface in _COPULAS:
                 heads.append(index)
+                continue
+            tail = "".join(
+                tokens[indices[item]].surface
+                for item in range(position + 1, len(indices))
+            )
+            if re.search(r"(?:でしょう|だろう)か", tail):
+                heads.append(index)
             continue
         if token.surface in _WH_COPULA_HEADS:
             heads.append(index)
     return heads
 
 
-def _primary_predicate_frame(frames: list[PredicateFrame]) -> PredicateFrame:
+def _substantive_predicate_frames(frames: list[PredicateFrame]) -> list[PredicateFrame]:
     substantive = [
         frame
         for frame in frames
         if frame.predicate not in _POLITE_REQUEST_AUXILIARIES
     ]
-    if substantive:
-        return substantive[-1]
-    return frames[-1]
+    if not substantive:
+        return frames
+    lexical = [
+        frame
+        for frame in substantive
+        if not re.fullmatch(r"(?:長|短|高|低|大|小|早|遅|多|少)い", frame.predicate)
+    ]
+    return lexical or substantive
+
+
+def _primary_predicate_frame(frames: list[PredicateFrame]) -> PredicateFrame:
+    substantive = _substantive_predicate_frames(frames)
+    return substantive[-1]
 
 
 def _overlap_span(left: OriginalSpan, right: OriginalSpan) -> bool:
@@ -250,6 +271,8 @@ def _clause_needs_matrix_observation(
         and item.predicate == main.predicate
         for item in related
     ):
+        return False
+    if any(item.intent_type == "action" for item in related):
         return False
     if all(item.intent_type in _STRUCTURAL_PROPOSITION_INTENTS for item in related):
         return True
@@ -298,10 +321,10 @@ def _ensure_gratitude_proposition(
     clauses: list[Clause],
     original_text: str,
 ) -> list[Proposition]:
-    if propositions:
-        return propositions
     match = _GRATITUDE_RE.search(original_text)
     if not match:
+        return propositions
+    if any(item.predicate == "感謝する" for item in propositions):
         return propositions
     clause = clauses[0] if clauses else None
     proposition = Proposition(
@@ -321,6 +344,295 @@ def _ensure_gratitude_proposition(
         inference_sources=["deterministic-reading-runtime"],
     )
     return [*propositions, proposition]
+
+
+_COMPLETION_WITH_HOLDING_RE = re.compile(
+    r"(?:を)?もって(?:完了|終了)(?:と(?:する|みなす)|と(?:する|みなす)?)"
+)
+_COMPLETION_ONLY_RE = re.compile(
+    r"(?:のみ|だけ)(?:完了|終了)(?:です|だ|である)?"
+)
+_COMPLETION_CRITERIA_NOMINAL_RE = re.compile(
+    r"(?:全(?:件|テスト)|すべて)(?:が|の).{0,24}?(?:通|成功).{0,12}?(?:のみ|だけ)?(?:完了|終了)"
+)
+
+
+def _clause_has_condition_scope(
+    clause_id: str | None,
+    operators: list[ScopeOperator],
+) -> bool:
+    if clause_id is None:
+        return False
+    return any(
+        item.clause_id == clause_id and item.operator_type == "condition"
+        for item in operators
+    )
+
+
+def _drop_conditional_connection_propositions(
+    propositions: list[Proposition],
+    operators: list[ScopeOperator],
+) -> list[Proposition]:
+    output: list[Proposition] = []
+    for item in propositions:
+        if (
+            item.intent_type == "condition"
+            and item.predicate == "条件とする"
+            and _clause_has_condition_scope(item.clause_id, operators)
+        ):
+            bound_action = any(
+                other.clause_id == item.clause_id
+                and other.intent_type in {
+                    "action",
+                    "modify",
+                    "remove",
+                    "prohibition",
+                }
+                for other in propositions
+                if other is not item
+            )
+            if bound_action:
+                output.append(item)
+                continue
+            continue
+        output.append(item)
+    return output
+
+
+def _rewrite_generic_request_propositions(
+    propositions: list[Proposition],
+    frame_by_clause: dict[str, list[PredicateFrame]],
+) -> list[Proposition]:
+    updated: list[Proposition] = []
+    for item in propositions:
+        if (
+            item.intent_type == "request"
+            and item.predicate == "要求する"
+            and item.clause_id
+        ):
+            if any(
+                other.clause_id == item.clause_id
+                and other.intent_type == "action"
+                for other in propositions
+                if other is not item
+            ):
+                updated.append(item)
+                continue
+            frames = frame_by_clause.get(item.clause_id, [])
+            main = _primary_predicate_frame(frames) if frames else None
+            if main is not None and main.predicate not in {"要求する", "下さる"}:
+                updated.append(item.model_copy(update={
+                    "intent_type": "observation",
+                    "predicate": main.predicate,
+                    "surface_predicate": main.surface_predicate,
+                    "arguments": main.arguments or item.arguments,
+                    "speech_act": "request",
+                    "executable_candidate": False,
+                    "source_span": main.source_span,
+                    "evidence_ids": list(dict.fromkeys([
+                        *item.evidence_ids,
+                        "READING:PREDICATE_FRAME",
+                    ])),
+                }))
+                continue
+        updated.append(item)
+    return updated
+
+
+def _ensure_completion_criteria_propositions(
+    propositions: list[Proposition],
+    clauses: list[Clause],
+    original_text: str,
+    operators: list[ScopeOperator],
+) -> list[Proposition]:
+    if any(item.intent_type == "completion_criteria" for item in propositions):
+        return [
+            item
+            for item in propositions
+            if not (
+                item.intent_type == "observation"
+                and item.predicate == "持つ"
+                and _COMPLETION_WITH_HOLDING_RE.search(original_text)
+            )
+        ]
+    patterns = (
+        _COMPLETION_WITH_HOLDING_RE,
+        _COMPLETION_ONLY_RE,
+        _COMPLETION_CRITERIA_NOMINAL_RE,
+    )
+    if not any(item.search(original_text) for item in patterns):
+        return propositions
+    clause = clauses[0] if clauses else None
+    proposition = Proposition(
+        proposition_id=f"P-{len(propositions) + 1:03d}",
+        predicate="完了条件とする",
+        surface_predicate=original_text.strip(),
+        intent_type="completion_criteria",
+        value=original_text.strip(),
+        polarity="positive",
+        sentence_mood="declarative",
+        speech_act="assertion",
+        epistemic_status="asserted",
+        executable_candidate=False,
+        clause_id=clause.clause_id if clause else None,
+        source_span=clause.source_span if clause else _span(0, len(original_text), original_text),
+        evidence_ids=["READING:COMPLETION_CRITERIA"],
+        inference_sources=["deterministic-reading-runtime"],
+    )
+    return [*propositions, proposition]
+
+
+def _dedupe_propositions(propositions: list[Proposition]) -> list[Proposition]:
+    seen: set[tuple[str | None, str, str, int, int]] = set()
+    output: list[Proposition] = []
+    for item in propositions:
+        span = item.source_span
+        key = (
+            item.clause_id,
+            item.intent_type,
+            item.predicate,
+            span.start,
+            span.end,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output
+
+
+def _ensure_observations_for_predicate_frames(
+    propositions: list[Proposition],
+    clauses: list[Clause],
+    frame_by_clause: dict[str, list[PredicateFrame]],
+    operators: list[ScopeOperator],
+) -> list[Proposition]:
+    updated = list(propositions)
+    for clause in clauses:
+        if any(
+            item.clause_id == clause.clause_id
+            and item.intent_type == "action"
+            for item in updated
+        ) and _clause_has_condition_scope(clause.clause_id, operators):
+            continue
+        clause_frames = _substantive_predicate_frames(
+            frame_by_clause.get(clause.clause_id, [])
+        )
+        if not clause_frames:
+            continue
+        covered = {
+            item.predicate
+            for item in updated
+            if item.clause_id == clause.clause_id
+            and item.intent_type in {"observation", "request", "prohibition"}
+        }
+        for frame in clause_frames:
+            if frame.predicate in covered:
+                continue
+            updated.append(Proposition(
+                proposition_id=f"P-{len(updated) + 1:03d}",
+                predicate=frame.predicate,
+                surface_predicate=frame.surface_predicate,
+                intent_type="observation",
+                value=clause.text,
+                polarity=frame.polarity,
+                sentence_mood=(
+                    "interrogative"
+                    if re.search(r"[？?]|(?:でしょう|だろう)か", clause.text)
+                    else "declarative"
+                ),
+                speech_act=(
+                    "question"
+                    if re.search(r"[？?]|(?:でしょう|だろう)か", clause.text)
+                    else "assertion"
+                ),
+                epistemic_status="asserted",
+                executable_candidate=False,
+                clause_id=clause.clause_id,
+                source_span=frame.source_span,
+                evidence_ids=["READING:PREDICATE_FRAME"],
+                inference_sources=["deterministic-reading-runtime"],
+            ))
+            covered.add(frame.predicate)
+    return updated
+
+
+def _drop_spurious_preserve_propositions(
+    propositions: list[Proposition],
+    frame_by_clause: dict[str, list[PredicateFrame]],
+    *,
+    original_text: str,
+    operators: list[ScopeOperator],
+) -> list[Proposition]:
+    if not re.search(r"(?:ても|でも)", original_text):
+        return propositions
+    if not any(
+        item.operator_type == "condition"
+        and item.semantic_value == "concessive_condition"
+        for item in operators
+    ):
+        return propositions
+    output: list[Proposition] = []
+    for item in propositions:
+        if item.intent_type != "preserve":
+            output.append(item)
+            continue
+        frames = frame_by_clause.get(item.clause_id or "", [])
+        if not frames:
+            continue
+        main = _primary_predicate_frame(frames)
+        if main.predicate in {"残す", "残る", "維持する", "保つ"}:
+            output.append(item)
+            continue
+        continue
+    return output
+
+
+def _rewrite_gratitude_with_incomplete_tail(
+    propositions: list[Proposition],
+    original_text: str,
+    frame_by_clause: dict[str, list[PredicateFrame]],
+) -> list[Proposition]:
+    if not _GRATITUDE_RE.search(original_text):
+        return propositions
+    if not re.search(r"まだ.{0,12}?(?:終わ|完了)", original_text):
+        return propositions
+    filtered = [
+        item
+        for item in propositions
+        if item.intent_type != "exception"
+    ]
+    if not any(item.predicate == "感謝する" for item in filtered):
+        filtered = _ensure_gratitude_proposition(filtered, [], original_text)
+    for clause_id, frames in frame_by_clause.items():
+        main = _primary_predicate_frame(frames) if frames else None
+        if main is None:
+            continue
+        if any(
+            item.clause_id == clause_id
+            and item.predicate == main.predicate
+            for item in filtered
+        ):
+            continue
+        if main.predicate in {"感謝する", "下さる"}:
+            continue
+        filtered.append(Proposition(
+            proposition_id=f"P-{len(filtered) + 1:03d}",
+            predicate=main.predicate,
+            surface_predicate=main.surface_predicate,
+            intent_type="observation",
+            value=original_text,
+            polarity=main.polarity,
+            sentence_mood="declarative",
+            speech_act="assertion",
+            epistemic_status="asserted",
+            executable_candidate=False,
+            clause_id=clause_id,
+            source_span=main.source_span,
+            evidence_ids=["READING:INCOMPLETE_TAIL"],
+            inference_sources=["deterministic-reading-runtime"],
+        ))
+    return filtered
 
 
 def _predicate_bounds(
@@ -665,12 +977,24 @@ def _operators_for_clause(
         for match in pattern.finditer(clause.text):
             if value == "inference" and _inside_ranges(match, polite_ranges):
                 continue
+            if (
+                value == "inference"
+                and match.group(0) in {"でしょう", "だろう"}
+                and re.search(r"(?:でしょう|だろう)か[。！？!?]?$", clause.text)
+            ):
+                continue
             add("modality", value, match)
     for pattern, value in _QUANTIFIER_PATTERNS:
         for match in pattern.finditer(clause.text):
             add("quantifier", value, match)
-    if re.search(r"[？?]|(?:の|ん|だ|です|ます)?か[。！？!?]?$", clause.text):
-        match = re.search(r"[？?]|か(?=[。！？!?]?$)", clause.text)
+    if re.search(
+        r"[？?]|(?:の|ん|だ|です|ます)?か[。！？!?]?$|(?:でしょう|だろう)か[。！？!?]?$",
+        clause.text,
+    ):
+        match = re.search(
+            r"[？?]|(?:でしょう|だろう)か|か(?=[。！？!?]?$)",
+            clause.text,
+        )
         if match:
             add("question", "interrogative", match)
     return output, unresolved
@@ -1887,6 +2211,51 @@ class DeterministicReadingRuntime:
             unresolved=unresolved,
             status=status,
         )
+        propositions = _drop_conditional_connection_propositions(
+            propositions,
+            operators,
+        )
+        propositions = _rewrite_generic_request_propositions(
+            propositions,
+            frame_by_clause,
+        ) if any(
+            item.operator_type == "condition"
+            for item in operators
+        ) else propositions
+        propositions = _ensure_completion_criteria_propositions(
+            propositions,
+            clauses,
+            original_text,
+            operators,
+        )
+        propositions = _rewrite_gratitude_with_incomplete_tail(
+            propositions,
+            original_text,
+            frame_by_clause,
+        )
+        propositions = _drop_spurious_preserve_propositions(
+            propositions,
+            frame_by_clause,
+            original_text=original_text,
+            operators=operators,
+        )
+        propositions = _ensure_observations_for_predicate_frames(
+            propositions,
+            clauses,
+            frame_by_clause,
+            operators,
+        )
+        propositions = _dedupe_propositions(propositions)
+        if _COMPLETION_WITH_HOLDING_RE.search(original_text) and any(
+            item.intent_type == "completion_criteria"
+            for item in propositions
+        ):
+            propositions = [
+                item
+                for item in propositions
+                if item.intent_type != "observation"
+                or item.predicate not in {"持つ", "為る", "する"}
+            ]
         graph_unresolved = [
             *graph.unresolved,
             *[

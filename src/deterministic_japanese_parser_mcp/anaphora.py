@@ -201,6 +201,14 @@ class AnaphoraResolver:
                 score -= 80
         if reference.startswith("同") and head and head in candidate:
             score += 25
+        if reference in _GENERIC:
+            if source == "context":
+                score += 90
+            if source == "current" and (
+                len(candidate) > 12
+                or re.search(r"(?:ください|して|する|なら)", candidate)
+            ):
+                score -= 120
         return score
 
     def resolve_intents(
