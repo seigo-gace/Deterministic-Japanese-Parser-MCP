@@ -448,6 +448,80 @@ def test_validation_subject_pass_toru_reading(engine, text):
     assert frame.predicate == "通る"
 
 
+@pytest.mark.parametrize(
+    ("text", "expected_predicates"),
+    [
+        ("子供が学校に行く。", {"行く"}),
+        ("窓を閉めてください。", {"閉める"}),
+        ("食べないでください。", {"食べる"}),
+        ("電車に乗る。", {"乗る"}),
+        ("風が吹く。", {"吹く"}),
+        ("火が消える。", {"消える"}),
+        ("電話が鳴る。", {"鳴る"}),
+        ("宿題を忘れないでください。", {"忘れる"}),
+        ("誰が来ましたか。", {"来る", "誰"}),
+        ("何を食べますか。", {"食べる", "何"}),
+        ("どこへ行きますか。", {"行く"}),
+        ("この本は面白い。", {"面白い"}),
+    ],
+)
+def test_daily_unknown_sentences_stay_complete_without_meta(
+    engine,
+    text,
+    expected_predicates,
+):
+    response = _analyze(engine, text)
+    reading = response.meaning_graph.reading_analysis
+
+    assert str(response.overall_status) != "OverallStatus.FAILED"
+    assert expected_predicates <= _predicates(response)
+    assert "条件とする" not in _predicates(response)
+    assert "実行する" not in _predicates(response)
+    assert not _has_question_meta(response) or any(
+        item.operator_type == "question" for item in reading.scope_operators
+    )
+
+
+def test_book_purchase_opens_discourse_sore(engine):
+    response = _analyze(engine, "本を買った。それを開いた。")
+    resolution = next(
+        item for item in response.references if item.expression == "それ"
+    )
+
+    assert resolution.selected == "本"
+    assert "開く" in _predicates(response)
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+
+
+def test_kanojo_discourse_and_copula_complete(engine):
+    response = _analyze(engine, "彼女は学生です。彼女は本を読む。")
+    resolutions = {
+        item.expression: item.selected
+        for item in response.references
+    }
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert resolutions == {"彼女": "彼女"}
+    assert not response.meaning_graph.unresolved
+    assert {"学生", "読む"} <= _predicates(response)
+
+
+def test_conditional_time_invitation_no_condition_meta(engine):
+    response = _analyze(engine, "もし時間があれば来てください。")
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert "来る" in _predicates(response)
+    assert "条件とする" not in _predicates(response)
+    assert _condition_scopes(response)
+
+
+def test_rain_cancellation_causal_discourse(engine):
+    response = _analyze(engine, "昨日雨が降ったから試合は中止です。")
+
+    assert str(response.overall_status) != "OverallStatus.FAILED"
+    assert {"降る", "中止"} <= _predicates(response)
+
+
 def test_rule_trigger_extraction_tolerates_unparseable_pattern():
     """rule_engine._extract_proven_triggers はルール索引のトリガー抽出用。
     壊れた正規表現は空タプルを返し analyze 結果は変えない（誤解析の隠蔽ではない）。

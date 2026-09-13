@@ -28,6 +28,9 @@ _PRONOUN_MENTIONS = {
     "それら",
 }
 _PERSONAL_PRONOUNS = {"彼", "彼女"}
+_PERSONAL_PRONOUN_AT = re.compile(
+    r"彼(?=[はがをにもので])|彼女(?=[はがをにもので])"
+)
 _HEAD_PREFIX = re.compile(
     r"^(?:直前の|以前の|前の|先ほどの|上記の?|下記の?|この|その|あの|同)"
 )
@@ -248,6 +251,20 @@ class AnaphoraResolver:
                 score -= 80
         return score
 
+    @staticmethod
+    def _prior_personal_pronoun_mentions(
+        reference: str,
+        original_text: str,
+        before: int,
+    ) -> list[re.Match[str]]:
+        if reference not in _PERSONAL_PRONOUNS:
+            return []
+        return [
+            match
+            for match in _PERSONAL_PRONOUN_AT.finditer(original_text, 0, before)
+            if match.group(0) == reference
+        ]
+
     def resolve_intents(
         self,
         reference_intents: list[Intent],
@@ -366,6 +383,27 @@ class AnaphoraResolver:
                     ):
                         selected = top[1]
                         reason = f"ranked:{top[2]}:{top[0]}"
+
+            if (
+                reference in _PERSONAL_PRONOUNS
+                and not selected
+                and original_text
+            ):
+                prior = self._prior_personal_pronoun_mentions(
+                    reference,
+                    original_text,
+                    intent.span.start,
+                )
+                if prior:
+                    selected = reference
+                    candidates = [reference]
+                    scores = {reference: 120}
+                    reason = "discourse:same_personal_pronoun"
+                elif not candidates:
+                    selected = reference
+                    candidates = [reference]
+                    scores = {reference: 95}
+                    reason = "entity:personal_pronoun"
 
             status = (
                 ItemStatus.RESOLVED
