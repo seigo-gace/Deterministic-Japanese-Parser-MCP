@@ -522,6 +522,103 @@ def test_rain_cancellation_causal_discourse(engine):
     assert {"降る", "中止"} <= _predicates(response)
 
 
+def test_triple_nested_conditional_gate_records_three_scopes(engine):
+    response = _analyze(
+        engine,
+        "もし雨なら、承認された場合だけ、責任者がいるときに中止する。",
+    )
+    reading = response.meaning_graph.reading_analysis
+    conditions = _condition_scopes(response)
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert "中止する" in _predicates(response)
+    assert len(conditions) == 3
+    assert not response.meaning_graph.unresolved
+    assert "条件とする" not in _predicates(response)
+
+
+def test_jikan_areba_invitation_without_spurious_are(engine):
+    response = _analyze(engine, "時間あれば来てください。")
+    reading = response.meaning_graph.reading_analysis
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert _predicates(response) == {"来る"}
+    assert _condition_scopes(response)
+    assert not response.references
+    assert not response.meaning_graph.unresolved
+    assert "有る" not in _predicates(response)
+
+
+def test_sore_imperative_with_conversation_context(engine):
+    response = _analyze(engine, "それ、見て。", context=["報告書"])
+    resolution = next(
+        item for item in response.references if item.expression == "それ"
+    )
+
+    assert resolution.selected == "報告書"
+    assert "見る" in _predicates(response)
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "件数が通った。",
+        "ケースが通った。",
+    ],
+)
+def test_count_and_case_pass_toru_sense(engine, text):
+    response = _analyze(engine, text)
+    toru = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate in {"通う", "通る"}
+    )
+
+    assert toru.predicate == "通る"
+    assert toru.sense_id == "pass.test"
+    assert toru.sense_label == "test_or_validation_pass"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("電車に乗る。", "乗る"),
+        ("電車で学校に通う。", "通う"),
+        ("橋を渡る。", "渡る"),
+    ],
+)
+def test_motion_verbs_are_not_collapsed_to_toru(engine, text, expected):
+    response = _analyze(engine, text)
+    predicates = _predicates(response)
+
+    assert expected in predicates
+    assert "通る" not in predicates or expected == "通う"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "食べないで。",
+        "行かないで。",
+    ],
+)
+def test_casual_negated_te_form_keeps_matrix_verb(engine, text):
+    response = _analyze(engine, text)
+    reading = response.meaning_graph.reading_analysis
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert any(item.operator_type == "negation" for item in reading.scope_operators)
+    assert "条件とする" not in _predicates(response)
+
+
+def test_window_close_elided_imperative(engine):
+    response = _analyze(engine, "窓閉めて。")
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert "閉める" in _predicates(response)
+
+
 def test_rule_trigger_extraction_tolerates_unparseable_pattern():
     """rule_engine._extract_proven_triggers はルール索引のトリガー抽出用。
     壊れた正規表現は空タプルを返し analyze 結果は変えない（誤解析の隠蔽ではない）。

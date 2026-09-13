@@ -214,6 +214,15 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
                     next_token is not None and next_token.surface == "て"
                 ):
                     continue
+            if (
+                token.surface == "あれ"
+                and token.normalized in {"有る", "ある"}
+                and next_token is not None
+                and next_token.surface == "ば"
+                and previous is not None
+                and _pos0(previous) == "名詞"
+            ):
+                continue
             heads.append(index)
             continue
         if _pos0(token) == "名詞" and position + 1 < len(indices):
@@ -234,7 +243,7 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
 
 
 _TEST_PASS_SUBJECT_ALT = (
-    r"(?:テスト|試験|検証|チェック|ビルド|CI|ユニット|全件|全テスト|すべて|検査)"
+    r"(?:テスト|試験|検証|チェック|ビルド|CI|ユニット|全件|全テスト|すべて|検査|件数|ケース)"
 )
 _TEST_PASS_SUBJECT = re.compile(_TEST_PASS_SUBJECT_ALT)
 _TEST_PASS_CONTEXT = re.compile(

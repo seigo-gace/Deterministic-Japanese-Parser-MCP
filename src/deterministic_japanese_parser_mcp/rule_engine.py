@@ -224,7 +224,15 @@ class RuleEngine:
         )
         kept_reference_ids: set[int] = set()
         kept_references: list[Intent] = []
+        from .anaphora import is_spurious_are_reference
+
         for item in reference_results:
+            if is_spurious_are_reference(
+                original,
+                item.span.start,
+                item.span.end,
+            ):
+                continue
             if any(
                 existing.span.start <= item.span.start
                 and existing.span.end >= item.span.end

@@ -5,7 +5,7 @@ from .models import Intent, ItemStatus, ReferenceResolution
 from .normalizer import span_to_original
 
 PATTERN = re.compile(
-    r"これ|それ|あれ|それら|両方|前者|後者|前の案|先ほどの内容|"
+    r"これ|それ|(?<!間)あれ(?=[はがをにもので、])|それら|両方|前者|後者|前の案|先ほどの内容|"
     r"上記|下記|同じもの|この内容|その件|同ページ|同ファイル|"
     r"同リポジトリ|同ブランチ|"
     r"(?:この|その|あの)(?:API|UI|DB|ページ|ファイル|案|仕様|内容|"
@@ -47,6 +47,21 @@ _GENERIC = {
     "その件",
     "先ほどの内容",
 }
+
+
+def is_spurious_are_reference(original_text: str, start: int, end: int) -> bool:
+    if original_text[start:end] != "あれ":
+        return False
+    if start > 0 and original_text[start - 1] == "間":
+        return True
+    if (
+        end < len(original_text)
+        and original_text[end] == "ば"
+        and start > 0
+        and original_text[start - 1] not in "、。！？\n"
+    ):
+        return True
+    return False
 
 
 class AnaphoraResolver:
