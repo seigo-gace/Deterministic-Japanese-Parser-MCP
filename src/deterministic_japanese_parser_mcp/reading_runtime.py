@@ -223,11 +223,23 @@ def _predicate_heads(indices: list[int], tokens: list[Token]) -> list[int]:
                 and _pos0(previous) == "名詞"
             ):
                 continue
+            if token.normalized in {"知れる", "しれる"} and token.surface in {
+                "しれ",
+                "知れ",
+            }:
+                window = "".join(
+                    tokens[indices[item]].surface
+                    for item in range(max(0, position - 4), min(len(indices), position + 2))
+                )
+                if re.search(r"かもしれ", window):
+                    continue
             heads.append(index)
             continue
         if _pos0(token) == "名詞" and position + 1 < len(indices):
             following = tokens[indices[position + 1]]
             if following.surface in _COPULAS:
+                if token.normalized in {"筈", "はず"}:
+                    continue
                 heads.append(index)
                 continue
             tail = "".join(
@@ -275,6 +287,118 @@ def _disambiguate_toru_predicate(
     if test_pass:
         return frame.model_copy(update={"predicate": "通る"})
     return frame
+
+
+_HOMOGRAPH_SURFACE_RULES = (
+    (
+        re.compile(r"診"),
+        "診る",
+        "examine.medical",
+        "medical_examination",
+    ),
+    (
+        re.compile(r"聴"),
+        "聴く",
+        "listen.audio",
+        "listen_to_audio_or_music",
+    ),
+)
+_CAUSATIVE_SURFACE_PREDICATES = (
+    (re.compile(r"読(?:ま|ん)?せ(?:る|た|て)"), "読ませる"),
+)
+
+
+def _disambiguate_homograph_predicate(frame: PredicateFrame) -> PredicateFrame:
+    surface = frame.surface_predicate or ""
+    for pattern, lemma, _sense_id, _sense_label in _HOMOGRAPH_SURFACE_RULES:
+        if not pattern.search(surface):
+            continue
+        if frame.predicate == lemma:
+            return frame
+        return frame.model_copy(update={"predicate": lemma})
+    if "causative" in frame.voice:
+        for pattern, lemma in _CAUSATIVE_SURFACE_PREDICATES:
+            if pattern.search(surface):
+                return frame.model_copy(update={"predicate": lemma})
+    return frame
+
+
+def _refine_predicate_frame(
+    frame: PredicateFrame,
+    *,
+    clause_text: str,
+) -> PredicateFrame:
+    adjusted = _disambiguate_toru_predicate(frame, clause_text=clause_text)
+    return _disambiguate_homograph_predicate(adjusted)
+
+
+def _apply_homograph_sense_to_propositions(
+    propositions: list[Proposition],
+) -> list[Proposition]:
+    output: list[Proposition] = []
+    for item in propositions:
+        if item.intent_type != "observation":
+            output.append(item)
+            continue
+        surface = item.surface_predicate or item.predicate
+        updated = item
+        for pattern, lemma, sense_id, sense_label in _HOMOGRAPH_SURFACE_RULES:
+            if not pattern.search(surface):
+                continue
+            if item.predicate == lemma and item.sense_id == sense_id:
+                break
+            updated = item.model_copy(update={
+                "predicate": lemma,
+                "sense_id": sense_id,
+                "sense_label": sense_label,
+                "sense_confidence": 1.0,
+                "inference_sources": list(dict.fromkeys([
+                    *item.inference_sources,
+                    f"reading_runtime:{sense_id}",
+                ])),
+            })
+            break
+        if "causative" in (updated.voice or item.voice or []):
+            for pattern, lemma in _CAUSATIVE_SURFACE_PREDICATES:
+                if pattern.search(surface):
+                    updated = updated.model_copy(update={"predicate": lemma})
+                    break
+        output.append(updated)
+    return output
+
+
+def _drop_spurious_structural_propositions(
+    propositions: list[Proposition],
+    *,
+    original_text: str,
+) -> list[Proposition]:
+    substantive_predicates = {
+        item.predicate
+        for item in propositions
+        if item.intent_type in {"observation", "request", "prohibition", "action"}
+        and item.predicate not in {"参照する", "例外とする", "知れる", "筈"}
+    }
+    filtered: list[Proposition] = []
+    for item in propositions:
+        if (
+            item.intent_type == "reference"
+            and item.predicate == "参照する"
+            and substantive_predicates
+        ):
+            if re.search(r"(?:それ|これ|あれ).{0,6}(?:見|読|守)", original_text):
+                continue
+            if "彼" in original_text and substantive_predicates - {"参照する"}:
+                continue
+        if (
+            item.intent_type == "exception"
+            and item.predicate == "例外とする"
+            and re.search(r"(?:これ|それ|あれ)だけは", original_text)
+        ):
+            continue
+        if item.predicate in {"知れる", "筈"}:
+            continue
+        filtered.append(item)
+    return filtered
 
 
 def _apply_test_pass_sense_to_propositions(
@@ -857,6 +981,9 @@ def _arguments_before(
         if _is_punctuation(token):
             buffer = []
             continue
+        if _pos0(token) == "接続詞":
+            buffer = []
+            continue
         role = _CASE_ROLES.get(token.surface)
         marker = token.surface
         next_token = (
@@ -880,15 +1007,32 @@ def _arguments_before(
                 marker = "によって"
         if role is None:
             if _pos0(token) not in {"助詞", "助動詞"}:
-                buffer.append(index)
+                if token.normalized == "毎日":
+                    buffer = [index]
+                else:
+                    buffer.append(index)
             continue
         if not buffer:
+            continue
+        if (
+            role == "recipient"
+            and marker == "に"
+            and len(buffer) == 1
+            and tokens[buffer[0]].normalized == "先"
+        ):
+            buffer = []
             continue
         start_index = buffer[0]
         end_index = buffer[-1]
         start = tokens[start_index].span.start
         end = tokens[end_index].span.end
         value = original[start:end].strip()
+        if role == "recipient" and value.startswith("毎日") and len(value) > 2:
+            trimmed = re.sub(r"^毎日", "", value).strip()
+            if trimmed:
+                trim_start = start + (len(value) - len(trimmed))
+                value = trimmed
+                start = trim_start
         if value:
             output.append((Argument(
                 role=role,
@@ -929,14 +1073,17 @@ def _aspect(text: str) -> list[str]:
 def _voice(text: str) -> list[str]:
     if re.search(r"(?:させられる|せられる)", text):
         return ["causative_passive"]
-    if re.search(r"(?:させる|せる)", text):
-        return ["causative"]
     if re.search(r"(?:された|される|されて|られた|られる|られて)", text):
         return ["passive"]
+    if re.search(
+        r"(?:できる|出来る|話せる|読める|書ける|聞ける|見える|行ける|飲める|食べられる|可能だ|可能です)",
+        text,
+    ):
+        return ["potential"]
+    if re.search(r"(?:させる|(?:読|書|食|飲|見|聞|行|走|書|話)(?:ま|ん)?せ(?:る|た|て))", text):
+        return ["causative"]
     if re.search(r"(?:られる|れる)", text):
         return ["passive_or_potential"]
-    if re.search(r"(?:できる|可能だ|可能です)", text):
-        return ["potential"]
     return ["active"]
 
 
@@ -951,21 +1098,40 @@ def _arguments_for_voice(
     arguments: list[Argument],
     voice: list[str],
 ) -> list[Argument]:
-    if not _has_passive_voice(voice):
-        return arguments
     updated: list[Argument] = []
+    potential_skill_topics: set[str] = set()
     for argument in arguments:
+        if (
+            "potential" in voice
+            and argument.role == "agent"
+            and argument.case_marker == "が"
+            and (
+                argument.value.endswith("語")
+                or re.fullmatch(r"(?:日本語|英語|中国語|韓国語)", argument.value)
+            )
+        ):
+            potential_skill_topics.add(argument.value)
+            updated.append(argument.model_copy(update={"role": "topic"}))
+            continue
+        updated.append(argument)
+    if not _has_passive_voice(voice):
+        return updated
+    remapped: list[Argument] = []
+    for argument in updated:
+        if argument.value in potential_skill_topics:
+            remapped.append(argument)
+            continue
         if argument.case_marker == "によって":
-            updated.append(argument.model_copy(update={"role": "agent"}))
+            remapped.append(argument.model_copy(update={"role": "agent"}))
             continue
         if (
             argument.role in {"agent", "topic"}
             and argument.case_marker in {"が", "は"}
         ):
-            updated.append(argument.model_copy(update={"role": "patient"}))
+            remapped.append(argument.model_copy(update={"role": "patient"}))
             continue
-        updated.append(argument)
-    return updated
+        remapped.append(argument)
+    return remapped
 
 
 def _modalities(text: str) -> list[str]:
@@ -2176,7 +2342,7 @@ class DeterministicReadingRuntime:
                     "voice": _voice(local_text),
                     "modality": _modalities(local_text),
                 })
-                frame_updates[frame.frame_id] = _disambiguate_toru_predicate(
+                frame_updates[frame.frame_id] = _refine_predicate_frame(
                     adjusted,
                     clause_text=clause.text,
                 )
@@ -2417,6 +2583,11 @@ class DeterministicReadingRuntime:
             discourse=discourse,
         )
         propositions = _prune_redundant_observations(propositions)
+        propositions = _drop_spurious_structural_propositions(
+            propositions,
+            original_text=original_text,
+        )
+        propositions = _apply_homograph_sense_to_propositions(propositions)
         propositions = _apply_test_pass_sense_to_propositions(
             propositions,
             original_text=original_text,

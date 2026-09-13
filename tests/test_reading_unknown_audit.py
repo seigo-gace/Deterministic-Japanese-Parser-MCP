@@ -619,6 +619,141 @@ def test_window_close_elided_imperative(engine):
     assert "閉める" in _predicates(response)
 
 
+def _sense_map(response) -> dict[str, tuple[str | None, str | None]]:
+    return {
+        item.predicate: (item.sense_id, item.sense_label)
+        for item in response.meaning_graph.propositions
+    }
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_predicates", "forbidden"),
+    [
+        ("時間あれば来て。", {"来る"}, {"条件とする", "有る"}),
+        ("窓閉めて。", {"閉める"}, set()),
+        ("もう帰っていい？", {"帰る", "良い"}, {"質問する"}),
+        ("先に行っといて。", {"行く"}, set()),
+        ("子供に本を読ませる。", {"読ませる"}, set()),
+        ("窓が開けられた。", {"開ける"}, set()),
+        ("この本は読める。", {"読む"}, set()),
+        ("先生がいらっしゃいました。", {"いらっしゃる"}, set()),
+        ("コーヒーを召し上がってください。", {"召し上がる"}, set()),
+        ("資料を拝見しました。", {"拝見する"}, set()),
+        ("雨が降っている。", {"降る"}, set()),
+        ("鍵をかけてしまった。", {"かける"}, set()),
+        ("明日は晴れるかもしれない。", {"晴れる"}, {"知れる"}),
+        ("彼は来るはずだ。", {"来る"}, {"筈", "参照する"}),
+        ("田中さんは「行かないで」と言った。", {"言う", "行く"}, set()),
+        ("疲れたから休む。", {"疲れる", "休む"}, set()),
+        ("呼んだのに来ない。", {"呼ぶ", "来る"}, set()),
+        ("弟に本をあげる。", {"上げる"}, set()),
+        ("友達が本をくれた。", {"呉れる"}, set()),
+        ("水しか飲まない。", {"飲む"}, set()),
+        ("これだけは守って。", {"守る"}, {"例外とする", "参照する"}),
+        ("電車よりバスが速い。", {"速い"}, set()),
+        ("医者が患者を診る。", {"診る"}, {"見る"}),
+        ("音楽を聴く。", {"聴く"}, {"聞く"}),
+        ("話を聞く。", {"聞く"}, set()),
+        ("ドアが開く。", {"開く"}, set()),
+        ("ドアを開ける。", {"開ける"}, set()),
+        ("目を覚ます。", {"覚ます"}, set()),
+        ("終わったら連絡する。", {"終わる", "連絡する"}, set()),
+        ("見に行ってもいい？", {"見る", "行く", "良い"}, set()),
+        ("行ってくる。", {"行く"}, set()),
+        ("昨日買った本を読んだ。", {"買う", "読む"}, set()),
+        ("行かないでください", {"行く"}, set()),
+        ("本当にありがとう", {"感謝する"}, set()),
+        ("これはペンです", {"ペン"}, set()),
+    ],
+)
+def test_colloquial_and_multisense_reading_audit(
+    engine,
+    text,
+    expected_predicates,
+    forbidden,
+):
+    response = _analyze(engine, text)
+    predicates = _predicates(response)
+    reading = response.meaning_graph.reading_analysis
+
+    assert str(response.overall_status) != "OverallStatus.FAILED"
+    assert reading.status.value == "RESOLVED"
+    assert expected_predicates <= predicates
+    assert not (forbidden & predicates)
+    assert "条件とする" not in predicates
+    assert "実行する" not in predicates
+    assert not response.meaning_graph.unresolved
+
+
+def test_sore_mite_colloquial_without_reference_meta(engine):
+    response = _analyze(engine, "それ見て。", context=["報告書"])
+    predicates = _predicates(response)
+    resolution = next(
+        item for item in response.references if item.expression == "それ"
+    )
+
+    assert predicates == {"見る"}
+    assert "参照する" not in predicates
+    assert resolution.selected == "報告書"
+
+
+def test_japanese_potential_skill_topic(engine):
+    response = _analyze(engine, "日本語が話せる。")
+    frame = response.meaning_graph.reading_analysis.predicate_frames[0]
+
+    assert "話す" in _predicates(response)
+    assert {(item.role, item.value) for item in frame.arguments} == {
+        ("topic", "日本語"),
+    }
+
+
+def test_medical_examine_and_music_listen_senses(engine):
+    examine = _analyze(engine, "医者が患者を診る。")
+    listen = _analyze(engine, "音楽を聴く。")
+    senses = _sense_map(examine)
+    listen_senses = _sense_map(listen)
+
+    assert senses["診る"] == ("examine.medical", "medical_examination")
+    assert listen_senses["聴く"] == ("listen.audio", "listen_to_audio_or_music")
+
+
+def test_commute_and_conjoined_review_agents(engine):
+    commute = _analyze(engine, "毎日学校に通う")
+    commute_frame = commute.meaning_graph.reading_analysis.predicate_frames[0]
+    joined = _analyze(engine, "テストが通って、かつレビューが終わったら完了。")
+    end_frame = next(
+        frame
+        for frame in joined.meaning_graph.reading_analysis.predicate_frames
+        if frame.predicate == "終わる"
+    )
+
+    assert commute_frame.predicate == "通う"
+    assert {(item.role, item.value) for item in commute_frame.arguments} == {
+        ("recipient", "学校"),
+    }
+    assert {(item.role, item.value) for item in end_frame.arguments} == {
+        ("agent", "レビュー"),
+    }
+
+
+def test_regression_baseline_sentences_remain_stable(engine):
+    cases = {
+        "本を読む": "読む",
+        "雨が降る": "降る",
+        "やめてください": "やめる",
+        "ドアを開けてください": "開ける",
+        "もし雨なら中止する": "中止する",
+        "毎日学校に通う": "通う",
+        "電車で学校に通う": "通う",
+        "電車に乗る": "乗る",
+        "田中さんが来た。彼は本を読んだ。": "読む",
+    }
+    for text, needle in cases.items():
+        response = _analyze(engine, text)
+        assert needle in _predicates(response)
+        assert str(response.overall_status) != "OverallStatus.FAILED"
+
+
 def test_rule_trigger_extraction_tolerates_unparseable_pattern():
     """rule_engine._extract_proven_triggers はルール索引のトリガー抽出用。
     壊れた正規表現は空タプルを返し analyze 結果は変えない（誤解析の隠蔽ではない）。
