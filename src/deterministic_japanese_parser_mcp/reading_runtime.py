@@ -127,6 +127,16 @@ _POLITE_REQUEST = re.compile(
     r"(?:して|していただけ|してもらえ)"
     r"(?:ますか|ませんか|ないでしょうか)"
 )
+_PERMISSION_TE_MO_TAIL = re.compile(
+    r"(?:よい|いい|良い|か|よろし)",
+)
+
+
+def _is_permission_te_mo(clause_text: str, match: re.Match[str]) -> bool:
+    if match.group(0) != "ても":
+        return False
+    tail = clause_text[match.end():]
+    return bool(_PERMISSION_TE_MO_TAIL.match(tail))
 _DISCOURSE_MARKERS = (
     (re.compile(r"^(?:そのため|だから|従って|よって|結果として)"), "causes"),
     (re.compile(r"^(?:しかし|ただし|一方|ところが|もっとも)"), "contrasts_with"),
@@ -1301,6 +1311,8 @@ def _operators_for_clause(
                 match,
                 polite_ranges,
             ):
+                continue
+            if _is_permission_te_mo(clause.text, match):
                 continue
             add("condition", value, match)
     for pattern, value in _MODALITY_PATTERNS:

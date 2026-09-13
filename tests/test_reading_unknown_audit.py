@@ -737,6 +737,63 @@ def test_shika_exclusive_quantifier_with_negation(engine):
     assert not _has_question_meta(response)
 
 
+def test_permission_te_mo_i_is_not_concessive_condition(engine):
+    response = _analyze(engine, "見に行ってもいい？")
+    reading = response.meaning_graph.reading_analysis
+    scopes = {
+        (item.operator_type, item.semantic_value)
+        for item in reading.scope_operators
+    }
+    predicates = _predicates(response)
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert scopes >= {("modality", "permission"), ("question", "interrogative")}
+    assert ("condition", "concessive_condition") not in scopes
+    assert {"見る", "行く", "良い"} <= predicates
+    assert [frame.predicate for frame in reading.predicate_frames] == [
+        "見る",
+        "行く",
+        "良い",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "呼んだのに来ない。",
+        "水しか飲まない。",
+        "疲れたから休む。",
+        "行かないでください",
+    ],
+)
+def test_permission_te_mo_regression_sentences(engine, text):
+    response = _analyze(engine, text)
+    reading = response.meaning_graph.reading_analysis
+    scopes = {
+        (item.operator_type, item.semantic_value)
+        for item in reading.scope_operators
+    }
+
+    assert str(response.overall_status) != "OverallStatus.FAILED"
+    if text == "呼んだのに来ない。":
+        assert ("condition", "concessive_condition") not in scopes
+        assert any(
+            item.relation == "contrasts_with" and item.marker == "のに"
+            for item in reading.discourse_relations
+        )
+        assert {"呼ぶ", "来る"} <= _predicates(response)
+    if text == "水しか飲まない。":
+        assert scopes >= {("negation", "negation"), ("quantifier", "exclusive")}
+    if text == "疲れたから休む。":
+        assert any(
+            item.relation == "causes" and item.marker == "から"
+            for item in reading.discourse_relations
+        )
+    if text == "行かないでください":
+        assert ("negation", "negation") in scopes
+        assert "行く" in _predicates(response)
+
+
 def test_kara_causal_discourse_within_single_clause(engine):
     response = _analyze(engine, "疲れたから休む。")
     reading = response.meaning_graph.reading_analysis
