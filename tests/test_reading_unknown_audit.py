@@ -644,11 +644,11 @@ def _sense_map(response) -> dict[str, tuple[str | None, str | None]]:
         ("明日は晴れるかもしれない。", {"晴れる"}, {"知れる"}),
         ("彼は来るはずだ。", {"来る"}, {"筈", "参照する"}),
         ("田中さんは「行かないで」と言った。", {"言う", "行く"}, set()),
-        ("疲れたから休む。", {"疲れる", "休む"}, set()),
+        ("疲れたから休む。", {"疲れる", "休む"}, {"条件とする", "質問する"}),
         ("呼んだのに来ない。", {"呼ぶ", "来る"}, set()),
         ("弟に本をあげる。", {"上げる"}, set()),
         ("友達が本をくれた。", {"呉れる"}, set()),
-        ("水しか飲まない。", {"飲む"}, set()),
+        ("水しか飲まない。", {"飲む"}, {"条件とする", "質問する"}),
         ("これだけは守って。", {"守る"}, {"例外とする", "参照する"}),
         ("電車よりバスが速い。", {"速い"}, set()),
         ("医者が患者を診る。", {"診る"}, {"見る"}),
@@ -715,6 +715,64 @@ def test_medical_examine_and_music_listen_senses(engine):
 
     assert senses["診る"] == ("examine.medical", "medical_examination")
     assert listen_senses["聴く"] == ("listen.audio", "listen_to_audio_or_music")
+
+
+def test_shika_exclusive_quantifier_with_negation(engine):
+    response = _analyze(engine, "水しか飲まない。")
+    reading = response.meaning_graph.reading_analysis
+    scopes = {
+        (item.operator_type, item.semantic_value)
+        for item in reading.scope_operators
+    }
+    drink = next(
+        item
+        for item in response.meaning_graph.propositions
+        if item.predicate == "飲む"
+    )
+
+    assert str(response.overall_status) == "OverallStatus.COMPLETE"
+    assert scopes >= {("negation", "negation"), ("quantifier", "exclusive")}
+    assert drink.polarity == "negative"
+    assert "条件とする" not in _predicates(response)
+    assert not _has_question_meta(response)
+
+
+def test_kara_causal_discourse_within_single_clause(engine):
+    response = _analyze(engine, "疲れたから休む。")
+    reading = response.meaning_graph.reading_analysis
+    relation = reading.discourse_relations[0]
+
+    assert [frame.predicate for frame in reading.predicate_frames] == [
+        "疲れる",
+        "休む",
+    ]
+    assert relation.relation == "causes"
+    assert relation.marker == "から"
+    assert {"疲れる", "休む"} <= _predicates(response)
+    assert "条件とする" not in _predicates(response)
+    assert not _has_question_meta(response)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "本を読む",
+        "雨が降る",
+        "医者が患者を診る。",
+        "音楽を聴く。",
+        "毎日学校に通う",
+        "テストが通る",
+        "ドアを開ける。",
+        "ドアが開く。",
+        "行かないでください",
+    ],
+)
+def test_reading_regression_after_shika_and_kara_fixes(engine, text):
+    response = _analyze(engine, text)
+
+    assert str(response.overall_status) != "OverallStatus.FAILED"
+    assert "条件とする" not in _predicates(response)
+    assert "質問する" not in _predicates(response)
 
 
 def test_commute_and_conjoined_review_agents(engine):

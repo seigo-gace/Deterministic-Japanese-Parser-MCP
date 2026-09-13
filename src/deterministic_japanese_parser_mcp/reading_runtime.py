@@ -116,6 +116,7 @@ _MODALITY_PATTERNS = (
 )
 _QUANTIFIER_PATTERNS = (
     (re.compile(r"すべて|全て|全部|必ず"), "universal"),
+    (re.compile(r"しか(?=[^、。！？!?]{0,32}?ない)"), "exclusive"),
     (re.compile(r"(?:のみ|だけ)(?=.{0,8}(?:完了|終了|成功))"), "restrictive"),
     (re.compile(r"(?:一部|いくつか|少なくとも)"), "existential_or_lower_bound"),
     (re.compile(r"(?:最大で|多くとも|以下|未満)"), "upper_bound"),
@@ -1329,7 +1330,43 @@ def _operators_for_clause(
     return output, unresolved
 
 
-def _discourse_relations(clauses: list[Clause]) -> list[DiscourseRelation]:
+def _intra_clause_discourse_relations(
+    clauses: list[Clause],
+    frames: list[PredicateFrame],
+    original_text: str,
+) -> list[DiscourseRelation]:
+    output: list[DiscourseRelation] = []
+    frames_by_clause: dict[str, list[PredicateFrame]] = {}
+    for frame in frames:
+        frames_by_clause.setdefault(frame.clause_id, []).append(frame)
+    for clause in clauses:
+        clause_frames = sorted(
+            frames_by_clause.get(clause.clause_id, []),
+            key=lambda item: item.source_span.start,
+        )
+        if len(clause_frames) < 2:
+            continue
+        for left, right in zip(clause_frames, clause_frames[1:]):
+            between = original_text[left.source_span.end:right.source_span.start]
+            marker = between.strip()
+            if marker == "から":
+                output.append(DiscourseRelation(
+                    relation_id=f"DR-{len(output) + 1:03d}",
+                    source_clause_id=clause.clause_id,
+                    target_clause_id=clause.clause_id,
+                    relation="causes",
+                    marker="から",
+                    confidence=0.98,
+                ))
+    return output
+
+
+def _discourse_relations(
+    clauses: list[Clause],
+    *,
+    frames: list[PredicateFrame] | None = None,
+    original_text: str = "",
+) -> list[DiscourseRelation]:
     output: list[DiscourseRelation] = []
     ordered = sorted(clauses, key=lambda item: item.source_span.start)
     for previous, current in zip(ordered, ordered[1:]):
@@ -1365,6 +1402,15 @@ def _discourse_relations(clauses: list[Clause]) -> list[DiscourseRelation]:
                 confidence=0.98,
             ))
             break
+    if frames is not None and original_text:
+        for relation in _intra_clause_discourse_relations(
+            ordered,
+            frames,
+            original_text,
+        ):
+            output.append(relation.model_copy(update={
+                "relation_id": f"DR-{len(output) + 1:03d}",
+            }))
     return output
 
 
@@ -2498,7 +2544,11 @@ class DeterministicReadingRuntime:
                 ],
             ))
 
-        discourse = _discourse_relations(clauses)
+        discourse = _discourse_relations(
+            clauses,
+            frames=frames,
+            original_text=original_text,
+        )
         attributions = _attributions(original_text, clauses, frames)
         unresolved.extend([
             {
