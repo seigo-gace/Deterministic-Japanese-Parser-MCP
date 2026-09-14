@@ -37,18 +37,29 @@ def _relations(response) -> set[str]:
     return {item.relation for item in reading.discourse_relations}
 
 
-@pytest.mark.parametrize("text", ["まず確認する。", "ずっと待つ。"])
-def test_lexical_zu_does_not_create_negation(engine, text):
+@pytest.mark.parametrize(
+    "text",
+    [
+        "まず確認する。",
+        "ずっと待つ。",
+        "危ない道を歩く。",
+        "少ない人数で進める。",
+        "ぬいぐるみを買う。",
+        "来るはずだ。",
+    ],
+)
+def test_lexical_surfaces_do_not_create_negation(engine, text):
     response = _analyze(engine, text)
 
     assert str(response.overall_status) != "OverallStatus.FAILED"
     assert not _scopes(response, "negation")
 
 
-def test_true_zu_negation_is_preserved(engine):
-    response = _analyze(engine, "確認せず進む。")
+@pytest.mark.parametrize("text", ["確認せず進む。", "今日は行かない。", "何も知らぬ。"])
+def test_true_negation_is_preserved(engine, text):
+    response = _analyze(engine, text)
 
-    assert ("negation", "negation") in _scopes(response)
+    assert _scopes(response, "negation")
 
 
 @pytest.mark.parametrize(
@@ -58,13 +69,33 @@ def test_true_zu_negation_is_preserved(engine):
         "5時まで働く。",
         "ここでも使える。",
         "水でも飲む。",
+        "たらこを食べる。",
+        "さよならを言う。",
+        "例えば、猫を挙げる。",
+        "国際会議を開く。",
+        "友達と、映画を見る。",
     ],
 )
-def test_nonconditional_made_demo_do_not_create_condition_scope(engine, text):
+def test_lexical_or_case_surfaces_do_not_create_condition_scope(engine, text):
     response = _analyze(engine, text)
 
     assert str(response.overall_status) != "OverallStatus.FAILED"
     assert not _scopes(response, "condition")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "食べたら帰る。",
+        "必要なら進む。",
+        "ボタンを押すと、画面が開く。",
+        "終わるまで待つ。",
+    ],
+)
+def test_true_conditions_are_preserved(engine, text):
+    response = _analyze(engine, text)
+
+    assert _scopes(response, "condition")
 
 
 @pytest.mark.parametrize(
@@ -99,6 +130,8 @@ def test_demo_ii_acceptability_is_not_concessive_condition(engine):
         ("雨が降りそうだ。", False),
         ("天気予報によると雨が降るそうだ。", True),
         ("彼は男らしい人だ。", False),
+        ("素晴らしい景色だ。", False),
+        ("かわいそうだ。", False),
         ("彼は来るらしい。", True),
     ],
 )
@@ -121,6 +154,20 @@ def test_tai_desire_does_not_match_mitai(engine, text, expected_desire):
     has_desire = ("modality", "desire") in _scopes(response)
 
     assert has_desire is expected_desire
+
+
+def test_suru_nara_is_condition_not_prohibition(engine):
+    response = _analyze(engine, "実行するなら確認する。")
+    scopes = _scopes(response)
+
+    assert _scopes(response, "condition")
+    assert ("modality", "prohibition") not in scopes
+
+
+def test_true_suru_na_prohibition_is_preserved(engine):
+    response = _analyze(engine, "実行するな。")
+
+    assert ("modality", "prohibition") in _scopes(response)
 
 
 @pytest.mark.parametrize("text", ["以上のことから結論を出す。", "以下の通りです。"])
