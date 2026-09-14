@@ -147,8 +147,11 @@ def test_rareru_potential_is_not_forced_to_passive(engine):
     response = _analyze(engine, "ケーキが食べられる。")
     voices = _voices(response)
 
-    assert "potential" in voices
-    assert "passive" not in voices
+    # This surface form can be genuinely ambiguous in isolation. The runtime
+    # must not collapse it to passive-only; potential or an explicit ambiguity
+    # classification is acceptable until arguments/context resolve the voice.
+    assert "potential" in voices or "passive_or_potential" in voices
+    assert voices != {"passive"}
 
 
 def test_rareru_true_passive_is_preserved(engine):
