@@ -26,7 +26,15 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: mkdir -p reports
       - name: Apply candidate reading fix in workspace
-        run: python scripts/apply_reading_boundary_fix.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/apply_reading_boundary_fix.py")
+          text = p.read_text(encoding="utf-8")
+          p.write_text(text.replace("'''", '\"\"\"'), encoding="utf-8")
+          PY
+          python -m py_compile scripts/apply_reading_boundary_fix.py
+          python scripts/apply_reading_boundary_fix.py
       - name: Probe token and reading boundaries
         run: python scripts/reading_boundary_probe.py > reports/reading-probe-${{ matrix.python-version }}.json
       - name: Reading boundary audit only
