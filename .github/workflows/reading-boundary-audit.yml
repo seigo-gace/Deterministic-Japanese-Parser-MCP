@@ -1,0 +1,28 @@
+name: Reading Boundary Audit
+
+on:
+  push:
+    branches:
+      - audit/reading-boundary-20260915
+
+permissions:
+  contents: read
+
+jobs:
+  boundary-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Reading boundary audit only
+        run: pytest -q tests/test_reading_boundary_audit.py
