@@ -11,7 +11,7 @@ permissions:
 jobs:
   boundary-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -27,22 +27,47 @@ jobs:
       - run: mkdir -p reports
       - name: Apply candidate reading fix in workspace
         run: |
-          python -m py_compile scripts/apply_reading_boundary_fix_v2.py
-          python scripts/apply_reading_boundary_fix_v2.py
+          python -m py_compile scripts/apply_reading_boundary_fix_v2.py scripts/apply_reading_boundary_fix_v3.py
+          python scripts/apply_reading_boundary_fix_v3.py
           python -m py_compile src/deterministic_japanese_parser_mcp/reading_runtime.py
       - name: Probe token and reading boundaries
         run: python scripts/reading_boundary_probe.py > reports/reading-probe-${{ matrix.python-version }}.json
-      - name: Reading boundary audit only
+      - name: Reading boundary audit
         run: |
           set -o pipefail
           pytest -q tests/test_reading_boundary_audit.py 2>&1 | tee reports/reading-boundary-${{ matrix.python-version }}.txt
+      - name: Deployment preflight
+        run: |
+          set -o pipefail
+          python scripts/preflight.py | tee reports/preflight-${{ matrix.python-version }}.json
+      - name: Runtime lexicon provenance and license validation
+        run: |
+          set -o pipefail
+          python tools/lexicon_validator.py | tee reports/lexicon-validator-${{ matrix.python-version }}.txt
+      - name: Dictionary and Gold validation
+        run: |
+          set -o pipefail
+          python tools/validator.py | tee reports/validator-${{ matrix.python-version }}.txt
+      - name: Supported semantic profile quality contract
+        run: python scripts/semantic_quality_contract.py --check --output reports/semantic-quality-${{ matrix.python-version }}.json
+      - name: Independent semantic holdout contract
+        run: python scripts/semantic_holdout_contract.py --check --output reports/semantic-holdout-${{ matrix.python-version }}.json
+      - name: Full pytest
+        run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
+      - name: Existing benchmark regression gate
+        run: |
+          set -o pipefail
+          python scripts/benchmark.py --check --rounds 50 | tee reports/benchmark-${{ matrix.python-version }}.json
+      - name: 10ms target and 20x dictionary performance contract
+        run: python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 10 --output reports/performance-${{ matrix.python-version }}.json
+      - name: Astera call-through 10ms target and 50ms hard limit
+        run: python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 --target-ms 10 --hard-ms 50 --output reports/astera-latency-${{ matrix.python-version }}.json
+      - run: python -m compileall -q src tools scripts tests
       - name: Preserve boundary evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reading-boundary-${{ matrix.python-version }}
-          path: |
-            reports/reading-boundary-${{ matrix.python-version }}.txt
-            reports/reading-probe-${{ matrix.python-version }}.json
+          path: reports
           if-no-files-found: warn
           retention-days: 30
