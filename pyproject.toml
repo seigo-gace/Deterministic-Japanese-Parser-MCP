@@ -15,15 +15,18 @@ dependencies = [
   "pydantic>=2.13.4,<3",
   "PyYAML>=6.0.3,<7",
   "regex>=2026.7.19,<2027",
+  "starlette>=0.40,<1",
+  "uvicorn>=0.30,<1",
   "sudachipy==0.6.11",
   "sudachidict-core==20260428",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<10", "pytest-cov>=6,<7"]
+dev = ["pytest>=8.3,<10", "pytest-cov>=6,<7", "httpx>=0.27,<1"]
 
 [project.scripts]
 djpmcp = "deterministic_japanese_parser_mcp.server:main"
+djpmcp-http = "deterministic_japanese_parser_mcp.http_server:main"
 djpmcp-validate = "deterministic_japanese_parser_mcp.cli:validate_main"
 
 [tool.setuptools]
@@ -88,30 +91,14 @@ where = ["src"]
   "dictionaries/system/compiled/canonical_dictionary_public/*.json",
   "dictionaries/system/compiled/canonical_dictionary_public/*.jsonl",
 ]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/indexes" = [
-  "dictionaries/system/compiled/canonical_dictionary_public/indexes/*.json.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/records" = [
-  "dictionaries/system/compiled/canonical_dictionary_public/records/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime" = [
-  "dictionaries/system/compiled/canonical_dictionary_runtime/*.json",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/indexes" = [
-  "dictionaries/system/compiled/canonical_dictionary_runtime/indexes/*.json.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/records" = [
-  "dictionaries/system/compiled/canonical_dictionary_runtime/records/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/direct_final_support" = [
-  "dictionaries/system/compiled/direct_final_support/*.jsonl.gz",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = [
-  "dictionaries/system/compiled/*.json",
-]
-"share/deterministic-japanese-parser-mcp/dictionaries/sources" = [
-  "dictionaries/sources/*.json",
-]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/indexes" = ["dictionaries/system/compiled/canonical_dictionary_public/indexes/*.json.gz"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_public/records" = ["dictionaries/system/compiled/canonical_dictionary_public/records/*.jsonl.gz"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime" = ["dictionaries/system/compiled/canonical_dictionary_runtime/*.json"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/indexes" = ["dictionaries/system/compiled/canonical_dictionary_runtime/indexes/*.json.gz"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/canonical_dictionary_runtime/records" = ["dictionaries/system/compiled/canonical_dictionary_runtime/records/*.jsonl.gz"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled/direct_final_support" = ["dictionaries/system/compiled/direct_final_support/*.jsonl.gz"]
+"share/deterministic-japanese-parser-mcp/dictionaries/system/compiled" = ["dictionaries/system/compiled/*.json"]
+"share/deterministic-japanese-parser-mcp/dictionaries/sources" = ["dictionaries/sources/*.json"]
 "share/deterministic-japanese-parser-mcp/dictionaries/user" = [
   "dictionaries/user/metaphor.json",
   "dictionaries/user/rules.yaml",
