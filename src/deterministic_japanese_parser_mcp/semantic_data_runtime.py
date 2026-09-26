@@ -203,7 +203,7 @@ _JP_OVERLAP_SEGMENT_RE = re.compile(
 )
 _KANJI_RUN_RE = re.compile(r"[\u4E00-\u9FFF]{2,}")
 
-_CASE_MARKED_PARTICLE_SURFACES = frozenset({"を", "へ", "で"})
+_CASE_MARKED_PARTICLE_SURFACES = frozenset({"を", "は", "へ", "で"})
 _CASE_BUFFER_RESET_SURFACES = frozenset({"が", "は", "も", "の", "と", "から", "まで", "より"})
 
 _OVERLAP_STOP_SEGMENTS = frozenset({
@@ -255,31 +255,25 @@ def _salient_kanji_overlap_score(
 ) -> int:
     if not neighbor_definitions.strip():
         return 0
-    neighbor_runs = _KANJI_RUN_RE.findall(neighbor_definitions)
-    if not neighbor_runs:
-        return 0
-    neighbor_kanji = set("".join(neighbor_runs))
-    score = 0
-    for text in context_texts or []:
-        gloss_runs = _KANJI_RUN_RE.findall(str(text))
-        if not gloss_runs:
-            continue
-        gloss_kanji = set("".join(gloss_runs))
-        gloss_kanji -= {
-            char
-            for char in gloss_kanji
-            if _normalize(char) in excluded
+
+    def bigrams(texts: Iterable[str]) -> set[str]:
+        output: set[str] = set()
+        for text in texts:
+            for run in _KANJI_RUN_RE.findall(str(text)):
+                output.update(
+                    run[index:index + 2]
+                    for index in range(len(run) - 1)
+                )
+        return {
+            gram
+            for gram in output
+            if not any(gram in value for value in excluded)
         }
-        shared = gloss_kanji & neighbor_kanji
-        if not shared:
-            continue
-        meaningful = set()
-        for run in neighbor_runs:
-            if any(char in shared for char in run):
-                meaningful.update(char for char in run if char in shared)
-        if meaningful:
-            score += min(len(meaningful), 4) * 10
-    return score
+
+    neighbor_bigrams = bigrams([neighbor_definitions])
+    candidate_bigrams = bigrams(context_texts)
+    shared = candidate_bigrams.intersection(neighbor_bigrams)
+    return min(len(shared), 4) * 10
 
 
 def _case_marked_argument_tokens(tokens: list[Token]) -> list[Token]:
@@ -292,6 +286,8 @@ def _case_marked_argument_tokens(tokens: list[Token]) -> list[Token]:
                 buffer = []
             elif token.surface in _CASE_BUFFER_RESET_SURFACES:
                 buffer = []
+            continue
+        if token.pos and token.pos[0] == "連体詞":
             continue
         buffer.append(token)
     return marked
@@ -315,7 +311,7 @@ def _marked_case_phrase_surfaces(tokens: list[Token]) -> dict[str, str]:
     phrases: dict[str, str] = {}
     buffer: list[str] = []
     for token in tokens:
-        if token.surface in {"が", "を"} and buffer:
+        if token.surface in {"が", "は", "を", "に", "へ", "で"} and buffer:
             phrases[token.surface] = "".join(buffer)
             buffer = []
             continue
@@ -571,6 +567,23 @@ def _collocate_sense_adjustment(
             ):
                 score += 25
                 evidence.append("semantic_pack_open_physical_boost")
+
+    if effective_lemma == _normalize("残す") or token.normalized == "残す":
+        retained_object = object_phrase or case_phrases.get("は", "")
+        recipient = case_phrases.get("に", "") or case_phrases.get("へ", "")
+        if retained_object and not recipient:
+            if any(
+                marker in label
+                for marker in ("割り当て", "特定の人", "資源を", "与える")
+            ):
+                score -= 45
+                evidence.append("semantic_pack_retained_object_allocation_demotion")
+            elif any(
+                marker in label
+                for marker in ("続ける", "取っておく", "維持", "保持", "保存")
+            ):
+                score += 35
+                evidence.append("semantic_pack_retained_object_preservation_boost")
 
     return score, evidence
 
@@ -866,6 +879,31 @@ def _neighbor_surfaces_for_token(
             seen.add(normalized)
             neighbors.append(value)
     return neighbors
+
+
+def _clause_context_tokens(
+    graph: MeaningGraph,
+    tokens: list[Token],
+    *,
+    current: Token,
+) -> list[Token]:
+    clause = next(
+        (
+            item
+            for item in graph.clauses
+            if item.source_span.start <= current.span.start
+            and current.span.end <= item.source_span.end
+        ),
+        None,
+    )
+    if clause is None:
+        return tokens
+    return [
+        token
+        for token in tokens
+        if clause.source_span.start <= token.span.start
+        and token.span.end <= clause.source_span.end
+    ]
 
 
 class SemanticDataRuntime:
@@ -1572,9 +1610,17 @@ class SemanticDataRuntime:
         for token in tokens:
             if _is_function_word_token(token):
                 continue
-            neighbor_surfaces = _neighbor_surfaces_for_token(tokens, current=token)
-            neighbor_definitions = _case_linked_neighbor_definitions(
+            context_tokens = _clause_context_tokens(
+                graph,
                 tokens,
+                current=token,
+            )
+            neighbor_surfaces = _neighbor_surfaces_for_token(
+                context_tokens,
+                current=token,
+            )
+            neighbor_definitions = _case_linked_neighbor_definitions(
+                context_tokens,
                 current=token,
                 neighbor_definition_by_span_start=neighbor_definition_by_span_start,
             )
@@ -1607,7 +1653,7 @@ class SemanticDataRuntime:
                         record,
                         candidate,
                         token=token,
-                        tokens=tokens,
+                        tokens=context_tokens,
                         context_text=context_text,
                         social_markers=social_markers,
                         discourse_markers=record_discourse_markers,

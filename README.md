@@ -548,8 +548,11 @@ cache hit時も `requested_deadline_ms`、latency、deadline判定などRequest�
 | `DJPMCP_SYSTEM_DICT_DIR` | bundled system dict | system dictionary root |
 | `DJPMCP_USER_DICT_DIR` | bundled user dict | user dictionary root |
 | `DJPMCP_SEMANTIC_DATA_RUNTIME_DIR` | unset | semantic runtime root override |
+| `DJPMCP_REQUIRE_DIRECT_FINAL` | `false` | Direct Final runtimeを必須化 |
 
 `target_latency_ms` は1以上、`hard_deadline_ms >= target_latency_ms`、Graph上限は32以上でなければ起動時に拒否されます。
+
+完成版の意味つきRuntimeとしてデプロイする場合は、GitHubで管理されたDirect Final Runtime Bundle（Release asset、Actions artifact、またはbranch上の明示的なbundle）を`tools/compile_direct_final_runtime.py`で既存ABIへCompileし、`scripts/direct_final_deployment_contract.py --require-direct-final`を通過した成果物だけを使用します。ローカル運用では`tools/prepare_direct_final_runtime.py`がGitHub Releaseから`work/`へ展開・Compileし、repoの`dictionaries/system`からprofiles/rules等を同じ`work/` systemへリンクしたうえで、出力JSONの`DJPMCP_SYSTEM_DICT_DIR`を`ParserEngine`の辞書ルートとして使います。本番Processではさらに`DJPMCP_REQUIRE_DIRECT_FINAL=true`を設定し、Direct Finalのmanifest、件数、Runtime fileが欠損・不整合なら起動をfail closedさせます。このflagを設定しない通常利用では、portableな`dictionaries/system`既定値と既存fallbackを維持します。DriveやNotionはRuntime正本ではありません。手順と境界条件は[`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)に記載しています。
 
 ### HTTP Server
 
@@ -601,13 +604,16 @@ dictionaries/system/
 
 ### Runtime rootの選択
 
-Semantic Runtimeは次の優先順で解決されます。
+通常ModeのSemantic Runtimeは次の優先順で解決されます。
 
 1. `DJPMCP_SEMANTIC_DATA_RUNTIME_DIR`
 2. `compiled/canonical_dictionary_runtime` が存在すればそれを使用
 3. `compiled/semantic_data`
 
 この境界により、内部正本・公開可能Data・実行用projectionを混同しない設計になっています。
+`DJPMCP_REQUIRE_DIRECT_FINAL=true`の場合は例外で、同じsystem root配下の
+`compiled/canonical_dictionary_runtime`を必須とし、legacy fallbackや別rootへの
+overrideを許可しません。
 
 詳細：
 
@@ -836,5 +842,5 @@ Hosted Service Termsは、RepositoryのMIT Licenseで既に付与されたProgra
 - [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
 
 <!-- project-control-ja:start -->
-プロジェクトの管理方針、Official Release、Hosted / Commercial Offering、名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
+プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
 <!-- project-control-ja:end -->

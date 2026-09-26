@@ -226,6 +226,7 @@ def prepare_direct_final_runtime(
         "source_manifest_sha256": manifest_sha,
         "system_root": str(system_root_resolved),
         "DJPMCP_SYSTEM_DICT_DIR": str(system_root_resolved),
+        "DJPMCP_REQUIRE_DIRECT_FINAL": "true",
         "companions_linked": companions_linked,
     }
 

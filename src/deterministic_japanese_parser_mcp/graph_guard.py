@@ -161,6 +161,9 @@ class GraphGuard:
                 continue
             related = set(unresolved.get("related_proposition_ids", []))
             if related and related.intersection(closure):
+                if unresolved.get("type") == "lexical_action_ambiguity":
+                    blocked.append("AMBIGUOUS_ACTION_LEXEME")
+                    continue
                 if status in {
                     ItemStatus.AMBIGUOUS.value,
                     ItemStatus.INSUFFICIENT.value,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from scripts.direct_final_deployment_contract import evaluate_contract
@@ -58,3 +59,42 @@ def test_compiled_direct_final_runtime_is_deployable(tmp_path: Path) -> None:
     assert report["completed_semantic_deployable"] is True
     assert report["open_lexicon_records"] == 3
     assert report["semantic_records"] == 2
+
+
+def test_required_contract_rejects_runtime_checksum_mismatch(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+    compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=tmp_path / "work",
+        semantic_shard_size=100,
+    )
+
+    open_manifest_path = system_root / "compiled/open_lexicon/manifest.json"
+    open_manifest = json.loads(open_manifest_path.read_text(encoding="utf-8"))
+    open_manifest["sqlite"]["sha256"] = "0" * 64
+    open_manifest_path.write_text(
+        json.dumps(open_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    integration_path = system_root / "compiled/direct_final_integration.json"
+    integration = json.loads(integration_path.read_text(encoding="utf-8"))
+    integration["open_lexicon"] = open_manifest
+    integration_path.write_text(
+        json.dumps(integration, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    report = evaluate_contract(
+        compiled_root=system_root / "compiled",
+        require_direct_final=True,
+    )
+
+    assert report["status"] == "FAIL"
+    assert "database sha256 mismatch" in " ".join(report["failures"])

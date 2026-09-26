@@ -8,6 +8,10 @@ from .canonical import Canonicalizer
 from .config import DEFAULT_DICT_ROOT, SETTINGS, Settings
 from .contradictions import detect
 from .dictionaries import DictionaryBundle
+from .direct_final_contract import (
+    DirectFinalContractError,
+    require_direct_final_runtime,
+)
 from .graph_contradictions import detect_graph
 from .graph_guard import GraphGuard
 from .logger import append_log
@@ -34,6 +38,22 @@ from .version import VERSION
 
 
 def _semantic_runtime_root(settings: Settings):
+    canonical = (
+        settings.system_dict_dir
+        / "compiled"
+        / "canonical_dictionary_runtime"
+    )
+    if settings.direct_final_required:
+        if (
+            settings.semantic_data_runtime_dir is not None
+            and settings.semantic_data_runtime_dir.resolve() != canonical.resolve()
+        ):
+            raise DirectFinalContractError(
+                "Direct Final required contract failed: semantic runtime override "
+                "must resolve to compiled/canonical_dictionary_runtime under "
+                f"DJPMCP_SYSTEM_DICT_DIR: {settings.semantic_data_runtime_dir}"
+            )
+        return canonical
     if settings.semantic_data_runtime_dir is not None:
         return settings.semantic_data_runtime_dir
     compiled = settings.system_dict_dir / "compiled"
@@ -59,6 +79,12 @@ def _resolve_semantic_profiles_path(settings: Settings) -> Path:
 class ParserEngine:
     def __init__(self, settings: Settings = SETTINGS):
         self.settings = settings
+        self.direct_final_required = settings.direct_final_required
+        self.direct_final_contract = (
+            require_direct_final_runtime(settings.system_dict_dir)
+            if settings.direct_final_required
+            else None
+        )
         self.bundle = DictionaryBundle(
             settings.system_dict_dir,
             settings.user_dict_dir,
@@ -90,6 +116,33 @@ class ParserEngine:
         self.semantic_data = SemanticDataRuntime(
             _semantic_runtime_root(settings),
         )
+        if self.direct_final_contract is not None:
+            if not self.bundle.open_lexicon.available:
+                raise DirectFinalContractError(
+                    "Direct Final required contract failed: open lexicon runtime "
+                    "is unavailable"
+                )
+            if not self.semantic_data.available:
+                raise DirectFinalContractError(
+                    "Direct Final required contract failed: canonical semantic "
+                    "runtime is unavailable"
+                )
+            if (
+                self.bundle.open_lexicon.record_count
+                != self.direct_final_contract["open_lexicon_records"]
+            ):
+                raise DirectFinalContractError(
+                    "Direct Final required contract failed: loaded open lexicon "
+                    "record count is inconsistent"
+                )
+            if (
+                self.semantic_data.record_count
+                != self.direct_final_contract["semantic_records"]
+            ):
+                raise DirectFinalContractError(
+                    "Direct Final required contract failed: loaded semantic "
+                    "record count is inconsistent"
+                )
         self.lexical_graph = LexicalGraphEnricher(
             max_nodes=settings.max_graph_nodes,
         )
@@ -425,6 +478,16 @@ class ParserEngine:
                 ItemStatus.INSUFFICIENT,
             }
         ]
+        unresolved_propositions = [
+            item
+            for item in meaning_graph.propositions
+            if item.status in {
+                ItemStatus.AMBIGUOUS,
+                ItemStatus.INSUFFICIENT,
+                ItemStatus.UNSUPPORTED,
+                ItemStatus.TIMEOUT,
+            }
+        ]
         unsupported = []
         if not meaning_graph.propositions and not metaphors:
             unsupported.append({
@@ -456,6 +519,7 @@ class ParserEngine:
             contradictions
             or unresolved_references
             or unresolved_metaphors
+            or unresolved_propositions
             or meaning_graph.unresolved
             or unsupported
             or timeouts

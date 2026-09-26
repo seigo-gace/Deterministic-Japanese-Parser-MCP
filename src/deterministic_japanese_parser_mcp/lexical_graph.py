@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import deque
 from typing import Iterable
 
+from .grammar_kernel import ACTION_INTENTS
 from .models import (
     ItemStatus,
     LexicalCandidate,
@@ -62,6 +64,17 @@ _DOMAIN_CONTEXT_CUES: dict[str, tuple[str, ...]] = {
 
 _KANJI = re.compile(r"[一-龥々〆ヵヶ]")
 _KANA_ONLY = re.compile(r"^[ぁ-ゖァ-ヺー]+$")
+_FUNCTION_WORD_POS_HEADS = frozenset({
+    "助詞",
+    "助動詞",
+    "記号",
+    "補助記号",
+    "接続詞",
+    "連体詞",
+    "接頭辞",
+    "接尾辞",
+    "フィラー",
+})
 
 
 def _katakana_to_hiragana(value: str) -> str:
@@ -110,6 +123,67 @@ def _related_propositions(
         ):
             same_clause.append(proposition)
     return direct or same_clause
+
+
+def _is_function_word(token: Token) -> bool:
+    if token.pos and token.pos[0] in _FUNCTION_WORD_POS_HEADS:
+        return True
+    return bool(
+        len(token.pos) >= 2
+        and token.pos[:2] == ["動詞", "非自立可能"]
+        and (token.normalized or token.surface) in {"する", "為る"}
+    )
+
+
+def _token_is_proposition_head(token: Token, proposition: Proposition) -> bool:
+    normalized = token.normalized or token.surface
+    if normalized == proposition.predicate:
+        return True
+    return (
+        "サ変可能" in token.pos
+        and proposition.predicate == f"{normalized}する"
+    )
+
+
+def _token_grounded_sense_ids(
+    token: Token,
+    propositions: Iterable[Proposition],
+) -> list[str]:
+    sense_ids: list[str] = []
+    for proposition in propositions:
+        if _token_is_proposition_head(token, proposition) and proposition.sense_id:
+            sense_ids.append(proposition.sense_id)
+        sense_ids.extend(
+            argument.sense_id
+            for argument in proposition.arguments
+            if argument.sense_id
+            and argument.span is not None
+            and _overlap(token.span, argument.span)
+        )
+    return list(dict.fromkeys(sense_ids))
+
+
+def _action_relevance_ids(graph: MeaningGraph) -> set[str]:
+    seeds = {
+        proposition.proposition_id
+        for proposition in graph.propositions
+        if proposition.intent_type in ACTION_INTENTS
+        and proposition.executable_candidate
+    }
+    adjacency: dict[str, set[str]] = {}
+    for edge in graph.scope_edges:
+        adjacency.setdefault(edge.source_id, set()).add(edge.target_id)
+        adjacency.setdefault(edge.target_id, set()).add(edge.source_id)
+    closure = set(seeds)
+    queue = deque(seeds)
+    while queue:
+        current = queue.popleft()
+        for neighbor in adjacency.get(current, set()):
+            if neighbor in closure:
+                continue
+            closure.add(neighbor)
+            queue.append(neighbor)
+    return closure
 
 
 class LexicalGraphEnricher:
@@ -240,8 +314,13 @@ class LexicalGraphEnricher:
         lexical_nodes: list[LexicalNode] = []
         resolved = 0
         ambiguous = 0
+        function_word_ambiguous = 0
+        substantive_ambiguous = 0
+        action_sensitive_ambiguous = 0
         candidate_count = 0
         truncated_nodes = 0
+        unresolved = list(graph.unresolved)
+        action_relevance = _action_relevance_ids(graph)
 
         for token in tokens:
             if not token.lexical_candidates:
@@ -271,6 +350,10 @@ class LexicalGraphEnricher:
                 resolved += 1
             else:
                 ambiguous += 1
+                if _is_function_word(token):
+                    function_word_ambiguous += 1
+                else:
+                    substantive_ambiguous += 1
             candidate_count += token.lexical_candidate_total
 
             related = _related_propositions(token, graph.propositions)
@@ -280,11 +363,33 @@ class LexicalGraphEnricher:
                 for argument in proposition.arguments
                 if argument.entity_id
             ))
-            related_sense_ids = list(dict.fromkeys(
-                proposition.sense_id
-                for proposition in related
-                if proposition.sense_id
-            ))
+            related_sense_ids = _token_grounded_sense_ids(token, related)
+            action_related_ids = [
+                item.proposition_id
+                for item in related
+                if item.proposition_id in action_relevance
+            ]
+            if (
+                not selected_record_id
+                and not _is_function_word(token)
+                and action_related_ids
+                and not related_sense_ids
+            ):
+                action_sensitive_ambiguous += 1
+                unresolved.append({
+                    "type": "lexical_action_ambiguity",
+                    "lexical_node_id": f"L-{len(lexical_nodes) + 1:03d}",
+                    "surface": token.surface,
+                    "candidate_record_ids": [
+                        item[1].record_id for item in ranked
+                    ],
+                    "candidate_list_truncated": (
+                        token.lexical_candidate_total > len(ranked)
+                    ),
+                    "related_proposition_ids": action_related_ids,
+                    "status": ItemStatus.AMBIGUOUS.value,
+                    "source_span": token.span.model_dump(),
+                })
             lexical_nodes.append(LexicalNode(
                 lexical_node_id=f"L-{len(lexical_nodes) + 1:03d}",
                 surface=token.surface,
@@ -319,6 +424,11 @@ class LexicalGraphEnricher:
             "lexical_node_count": len(lexical_nodes),
             "resolved_lexical_nodes": resolved,
             "ambiguous_lexical_nodes": ambiguous,
+            "function_word_ambiguous_lexical_nodes": function_word_ambiguous,
+            "substantive_ambiguous_lexical_nodes": substantive_ambiguous,
+            "action_sensitive_ambiguous_lexical_nodes": (
+                action_sensitive_ambiguous
+            ),
             "lexical_candidate_count": candidate_count,
             "lexical_node_limit_skips": truncated_nodes,
             "context_candidate_registry_used": False,
@@ -329,6 +439,7 @@ class LexicalGraphEnricher:
         }
         updated = graph.model_copy(update={
             "lexical_nodes": lexical_nodes,
+            "unresolved": unresolved,
             "quality_annotations": quality,
         })
         updated = updated.model_copy(update={
@@ -338,6 +449,13 @@ class LexicalGraphEnricher:
             "lexical_node_count": len(lexical_nodes),
             "resolved_lexical_node_count": resolved,
             "ambiguous_lexical_node_count": ambiguous,
+            "function_word_ambiguous_lexical_node_count": (
+                function_word_ambiguous
+            ),
+            "substantive_ambiguous_lexical_node_count": substantive_ambiguous,
+            "action_sensitive_ambiguous_lexical_node_count": (
+                action_sensitive_ambiguous
+            ),
             "lexical_candidate_count": candidate_count,
             "lexical_node_limit_skip_count": truncated_nodes,
             "lexical_context_registry_used": 0,

@@ -9,6 +9,10 @@ import pytest
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 from deterministic_japanese_parser_mcp.config import Settings
+from deterministic_japanese_parser_mcp.dictionaries import DictionaryBundle
+from deterministic_japanese_parser_mcp.direct_final_contract import (
+    DirectFinalContractError,
+)
 from deterministic_japanese_parser_mcp.models import OriginalSpan, Token
 from deterministic_japanese_parser_mcp.open_lexicon_runtime import OpenLexiconRuntime
 from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
@@ -147,6 +151,40 @@ def _token(surface: str, *, reading: str | None = None) -> Token:
         reading=reading,
         pos=["名詞", "普通名詞", "一般"],
         span=OriginalSpan(start=0, end=len(surface), source_text=surface),
+    )
+
+
+def _compiled_system(tmp_path: Path) -> Path:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+    compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=tmp_path / "work",
+        semantic_shard_size=100,
+    )
+    _link_system_companions(dest_system_root=system_root)
+    return system_root
+
+
+def _settings(system_root: Path, *, required: bool) -> Settings:
+    return Settings(
+        system_dict_dir=system_root,
+        user_dict_dir=REPO_ROOT / "dictionaries/user",
+        hard_deadline_ms=5000,
+        direct_final_required=required,
+    )
+
+
+def _rewrite_json(path: Path, **updates: object) -> None:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload.update(updates)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
 
 
@@ -299,26 +337,12 @@ def test_direct_final_does_not_reuse_corrupted_integration_counts(tmp_path: Path
 
 
 def test_parser_engine_analyzes_direct_final_system_with_companions(tmp_path: Path) -> None:
-    source_root = tmp_path / "source"
-    source_root.mkdir()
-    manifest_path = _fixture(source_root)
-    system_root = tmp_path / "system"
-
-    compile_direct_final_runtime(
-        manifest_path=manifest_path,
-        input_root=source_root,
-        system_root=system_root,
-        work_root=tmp_path / "work",
-        semantic_shard_size=100,
-    )
-    _link_system_companions(dest_system_root=system_root)
-
-    settings = Settings(
-        system_dict_dir=system_root,
-        user_dict_dir=REPO_ROOT / "dictionaries/user",
-        hard_deadline_ms=5000,
-    )
+    system_root = _compiled_system(tmp_path)
+    settings = _settings(system_root, required=True)
     engine = ParserEngine(settings)
+    assert engine.direct_final_required is True
+    assert engine.bundle.open_lexicon.record_count == 3
+    assert engine.semantic_data.record_count == 2
     samples = [
         "UIは残せ。APIだけ変更しろ。",
         "橋を渡る",
@@ -330,6 +354,149 @@ def test_parser_engine_analyzes_direct_final_system_with_companions(tmp_path: Pa
         )
         assert response.meaning_graph.semantic_hash
         assert str(response.overall_status) != "FAILED"
+
+
+def test_direct_final_required_missing_semantic_manifest_fails_closed(
+    tmp_path: Path,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    manifest = system_root / "compiled/canonical_dictionary_runtime/manifest.json"
+    manifest.unlink()
+
+    with pytest.raises(
+        DirectFinalContractError,
+        match="semantic runtime manifest missing",
+    ):
+        ParserEngine(_settings(system_root, required=True))
+
+
+@pytest.mark.parametrize("damage", ["missing", "invalid"])
+def test_direct_final_required_invalid_open_manifest_fails_closed(
+    tmp_path: Path,
+    damage: str,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    manifest = system_root / "compiled/open_lexicon/manifest.json"
+    if damage == "missing":
+        manifest.unlink()
+        match = "open lexicon manifest missing"
+    else:
+        _rewrite_json(manifest, exact_lookup_only=False)
+        match = "open lexicon safety flag mismatch"
+
+    with pytest.raises(DirectFinalContractError, match=match):
+        ParserEngine(_settings(system_root, required=True))
+
+
+def test_direct_final_required_missing_integration_manifest_fails_closed(
+    tmp_path: Path,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    (system_root / "compiled/direct_final_integration.json").unlink()
+
+    with pytest.raises(
+        DirectFinalContractError,
+        match="integration manifest missing",
+    ):
+        ParserEngine(_settings(system_root, required=True))
+
+
+def test_direct_final_required_inconsistent_counts_fail_closed(
+    tmp_path: Path,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    integration = system_root / "compiled/direct_final_integration.json"
+    _rewrite_json(integration, source_runtime_records=4)
+
+    with pytest.raises(
+        DirectFinalContractError,
+        match="open lexicon record count mismatch",
+    ):
+        ParserEngine(_settings(system_root, required=True))
+
+
+def test_direct_final_required_does_not_fall_back_to_semantic_data(
+    tmp_path: Path,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    legacy = system_root / "compiled/semantic_data"
+    legacy.symlink_to(
+        REPO_ROOT / "dictionaries/system/compiled/semantic_data",
+        target_is_directory=True,
+    )
+    (system_root / "compiled/canonical_dictionary_runtime/manifest.json").unlink()
+
+    with pytest.raises(
+        DirectFinalContractError,
+        match="semantic runtime manifest missing",
+    ):
+        ParserEngine(_settings(system_root, required=True))
+
+
+def test_direct_final_required_does_not_fall_back_to_legacy_lexicon(
+    tmp_path: Path,
+) -> None:
+    system_root = _compiled_system(tmp_path)
+    assert (system_root / "lexicon.d").exists()
+    (system_root / "compiled/open_lexicon/manifest.json").unlink()
+
+    with pytest.raises(
+        DirectFinalContractError,
+        match="open lexicon manifest missing",
+    ):
+        ParserEngine(_settings(system_root, required=True))
+
+
+def test_non_required_mode_preserves_semantic_data_fallback(tmp_path: Path) -> None:
+    system_root = _compiled_system(tmp_path)
+    legacy = system_root / "compiled/semantic_data"
+    legacy.symlink_to(
+        REPO_ROOT / "dictionaries/system/compiled/semantic_data",
+        target_is_directory=True,
+    )
+    (system_root / "compiled/canonical_dictionary_runtime/manifest.json").unlink()
+
+    engine = ParserEngine(_settings(system_root, required=False))
+
+    assert engine.direct_final_required is False
+    assert engine.semantic_data.available is True
+    assert engine.semantic_data.root == legacy
+
+
+def test_non_required_mode_preserves_raw_lexicon_fallback(tmp_path: Path) -> None:
+    system_root = tmp_path / "system"
+    lexicon_root = system_root / "lexicon.d"
+    lexicon_root.mkdir(parents=True)
+    (lexicon_root / "fixture.jsonl").write_text(
+        json.dumps(
+            {
+                "record_id": "legacy-1",
+                "lemma": "既存語",
+                "surfaces": ["既存語"],
+                "review_status": "approved",
+                "source": {"version": "fixture"},
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    bundle = DictionaryBundle(
+        system_root,
+        REPO_ROOT / "dictionaries/user",
+    )
+
+    assert bundle.open_lexicon.available is False
+    assert bundle.lexicon["lookup_backend"] == "raw-jsonl"
+    assert bundle.lexicon["record_count"] == 1
+
+
+def test_direct_final_required_setting_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DJPMCP_REQUIRE_DIRECT_FINAL", "true")
+    assert Settings().direct_final_required is True
 
 
 def test_direct_final_rejects_factory_output(tmp_path: Path) -> None:

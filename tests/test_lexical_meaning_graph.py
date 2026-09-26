@@ -5,6 +5,7 @@ from deterministic_japanese_parser_mcp.models import (
     LexicalCandidate,
     MeaningGraph,
     OriginalSpan,
+    Proposition,
     Token,
 )
 
@@ -154,3 +155,106 @@ def test_truncated_candidate_lists_cannot_be_resolved():
     assert node.selected_record_id is None
     assert node.resolution_reason == "candidate_list_truncated"
     assert node.status == ItemStatus.AMBIGUOUS
+
+
+def _ambiguous_candidates(surface: str) -> list[LexicalCandidate]:
+    return [
+        LexicalCandidate(
+            record_id=f"LEX-{index}",
+            lemma=surface,
+            matched_text=surface,
+            match_type="surface",
+            part_of_speech=["verb"],
+            source_dataset="fixture",
+            source_version="1",
+            source_license="MIT",
+        )
+        for index in range(2)
+    ]
+
+
+def test_only_ungrounded_substantive_action_ambiguity_is_fail_closed():
+    span = OriginalSpan(start=0, end=2, source_text="実行")
+    token = Token(
+        surface="実行",
+        normalized="実行",
+        pos=["名詞", "普通名詞", "サ変可能"],
+        span=span,
+        lexical_candidates=_ambiguous_candidates("実行"),
+        lexical_candidate_total=2,
+        lexical_status="AMBIGUOUS",
+    )
+    action = Proposition(
+        proposition_id="P-001",
+        predicate="実行する",
+        intent_type="action",
+        value="実行",
+        executable_candidate=True,
+        source_span=span,
+    )
+
+    unresolved = LexicalGraphEnricher().enrich(
+        MeaningGraph(propositions=[action]),
+        tokens=[token],
+        original_text="実行",
+        conversation_context=[],
+        known_entities=[],
+    )
+    grounded = LexicalGraphEnricher().enrich(
+        MeaningGraph(propositions=[action.model_copy(update={
+            "sense_id": "execute.action",
+            "sense_label": "処理を実行する",
+        })]),
+        tokens=[token],
+        original_text="実行",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    assert unresolved.unresolved[0]["type"] == "lexical_action_ambiguity"
+    assert unresolved.quality_annotations[
+        "action_sensitive_ambiguous_lexical_nodes"
+    ] == 1
+    assert grounded.unresolved == []
+    assert grounded.quality_annotations[
+        "action_sensitive_ambiguous_lexical_nodes"
+    ] == 0
+
+
+def test_function_word_ambiguity_is_counted_but_not_fail_closed():
+    span = OriginalSpan(start=0, end=1, source_text="は")
+    token = Token(
+        surface="は",
+        normalized="は",
+        reading="ハ",
+        pos=["助詞", "係助詞"],
+        span=span,
+        lexical_candidates=_ambiguous_candidates("は"),
+        lexical_candidate_total=2,
+        lexical_status="AMBIGUOUS",
+    )
+    action = Proposition(
+        proposition_id="P-001",
+        predicate="実行する",
+        intent_type="action",
+        value="は",
+        executable_candidate=True,
+        source_span=span,
+    )
+
+    graph = LexicalGraphEnricher().enrich(
+        MeaningGraph(propositions=[action]),
+        tokens=[token],
+        original_text="は",
+        conversation_context=[],
+        known_entities=[],
+    )
+
+    assert graph.lexical_nodes[0].status == ItemStatus.AMBIGUOUS
+    assert graph.unresolved == []
+    assert graph.quality_annotations[
+        "function_word_ambiguous_lexical_nodes"
+    ] == 1
+    assert graph.quality_annotations[
+        "substantive_ambiguous_lexical_nodes"
+    ] == 0
