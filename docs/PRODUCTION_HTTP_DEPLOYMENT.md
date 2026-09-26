@@ -1,6 +1,6 @@
 # Production HTTP Deployment / Production HTTP配置ガイド
 
-Version 1.0 — 2026-09-26
+Version 1.1 — 2026-09-26
 
 ## 目的
 
@@ -66,12 +66,12 @@ Productionでは最低限、次を満たします。
 | `DJPMCP_HTTP_PORT` | `8765` | Listen port |
 | `DJPMCP_HTTP_WORKERS` | `1` | Uvicorn worker数 |
 | `DJPMCP_HTTP_API_KEY` | empty | HTTP/MCP保護Key |
-| `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED` | false | 明示的な認証無効化 |
+| `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED` | false | 明示的な認証無効化。loopback bind専用 |
 | `DJPMCP_HTTP_MAX_BODY_BYTES` | `1048576` | 最大request body |
 | `DJPMCP_HTTP_ALLOWED_ORIGINS` | empty | CORS allowed origins |
 | `DJPMCP_HTTP_ALLOWED_HOSTS` | loopback系 | DNS rebinding protection用host |
 
-Parser Engine側設定についてはREADMEのConfiguration sectionを参照してください。
+Parser Engine側設定についてはConfiguration Documentを参照してください。
 
 ---
 
@@ -91,7 +91,27 @@ X-API-Key: <key>
 
 比較にはconstant-time comparisonが使われます。
 
-### 注意
+### 無認証Modeの強制境界
+
+`DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1` は、明示的なlocal development用途だけに限定されます。
+
+次のloopback bindでは起動可能です。
+
+```text
+127.0.0.1
+::1
+localhost
+```
+
+無認証Modeで起動した場合、起動Logへ次の形式のWARNINGを出します。
+
+```text
+[SECURITY WARNING] unauthenticated HTTP mode is enabled ...
+```
+
+一方、`0.0.0.0`、private/public address、hostname等の**non-loopback bind + 無認証**は起動時に拒否します。外部bindが必要な場合は`DJPMCP_HTTP_API_KEY`を設定してください。
+
+### Commercial APIとの境界
 
 この単一Runtime API Keyは、**Multi-tenant paid customer credential systemそのものではありません**。
 
@@ -114,9 +134,22 @@ Customer credential
 
 Service processが応答可能かを確認します。
 
+Responseには認証状態も含まれます。
+
+```json
+{
+  "ok": true,
+  "service": "deterministic-japanese-parser",
+  "version": "...",
+  "unauthenticated": false
+}
+```
+
+local unauthenticated modeでは`"unauthenticated": true`になります。
+
 ### `/readyz`
 
-Startup lifespan内で`prewarm()`が完了し、RuntimeがTrafficを受けられる状態になってから`200`を返します。Readyでない場合は`503`です。
+Startup lifespan内で`prewarm()`が完了し、RuntimeがTrafficを受けられる状態になってから`200`を返します。Readyでない場合は`503`です。`/readyz`にも`unauthenticated`を含めます。
 
 Load Balancer / Reverse Proxy / Orchestratorでは、Traffic可否の判定に`/readyz`を優先します。
 
@@ -144,6 +177,9 @@ DJPMCPはServing前にprewarmを行います。
 現行HTTP Serverには次のProtectionがあります。
 
 - API key middleware
+- unauthenticated modeのloopback-only enforcement
+- unauthenticated stateのhealth/readiness公開
+- non-loopback security configuration warnings
 - `application/json` Content-Type validation
 - Content-Length validation
 - Actual body size validation
@@ -196,6 +232,8 @@ docker run --rm \
 
 上記は例です。Production SecretをShell historyへ残す運用を推奨するものではありません。実運用ではOrchestrator/Secret Store等から注入してください。
 
+`Dockerfile.http`はContainer内で`0.0.0.0`へbindするため、API Keyなしで`DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1`を設定するとRuntime Guardにより起動を拒否します。
+
 ---
 
 ## 10. CORS
@@ -208,13 +246,15 @@ Commercial PlatformではBrowser -> DJPMCP直接接続より、Browser -> Astera
 
 ---
 
-## 11. Allowed Hosts
+## 11. Allowed Hosts / Origins
 
-既定はloopback向けです。
+既定Allowed Hostsはloopback向けです。
 
 Custom hostnameやContainer/Gateway経路を使う場合は、Deploymentに必要なHostだけを`DJPMCP_HTTP_ALLOWED_HOSTS`へ設定します。
 
-広すぎるWildcardを常用するのではなく、Environmentごとに許可Hostを固定することを推奨します。
+non-loopback bindで`DJPMCP_HTTP_ALLOWED_HOSTS`または`DJPMCP_HTTP_ALLOWED_ORIGINS`が未設定の場合、RuntimeはSecurity WARNINGを記録します。これはAPI Key認証の代替ではなく、Host/Origin境界の設定不足を運用者へ知らせるための警告です。
+
+広すぎるWildcardを常用するのではなく、Environmentごとに許可Host/Originを固定することを推奨します。
 
 ---
 
@@ -247,7 +287,7 @@ Productionでは、利用するDictionary / Semantic Runtime Bundleを明示的�
 
 - bundle/versionを追跡可能にする
 - manifest/digestを保持する
--未承認Review QueueをRuntimeへ直接読み込ませない
+- 未承認Review QueueをRuntimeへ直接読み込ませない
 - rollout前にvalidation gateを通す
 - rollback可能なartifactを維持する
 
