@@ -1,12 +1,42 @@
+from __future__ import annotations
+
+import atexit
 import json
+import os
+import queue
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 _EMAIL = re.compile(r"(?<![\w.-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}(?![\w.-])")
 _BEARER = re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _API_KEY = re.compile(r"(?i)(?:api[_-]?key|token|secret)\s*[:=]\s*['\"]?[A-Za-z0-9._~+/=-]{8,}")
 _LONG_NUMBER = re.compile(r"(?<!\d)\d{12,19}(?!\d)")
+
+_DEFAULT_TGS_URL = ""
+_DEFAULT_TGS_PROJECT_ID = "P006"
+_DEFAULT_QUEUE_SIZE = 2048
+_DEFAULT_BATCH_SIZE = 32
+_DEFAULT_TIMEOUT_MS = 250
+_MAX_RETRIES = 2
+
+_queue: queue.Queue[dict[str, Any]] | None = None
+_worker: threading.Thread | None = None
+_worker_lock = threading.Lock()
+_stop_event = threading.Event()
+_stats_lock = threading.Lock()
+_stats = {
+    "enqueued": 0,
+    "sent": 0,
+    "batches": 0,
+    "failed": 0,
+    "dropped": 0,
+}
 
 
 def mask_sensitive_text(text: str) -> str:
@@ -17,11 +47,264 @@ def mask_sensitive_text(text: str) -> str:
     return value
 
 
-def append_log(path: Path, payload: dict) -> None:
+def _mask_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return mask_sensitive_text(value)
+    if isinstance(value, dict):
+        return {str(key): _mask_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_mask_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_mask_value(item) for item in value]
+    return value
+
+
+def _sink_mode() -> str:
+    explicit = os.getenv("DJPMCP_LOG_SINK", "auto").strip().lower()
+    if explicit not in {"auto", "tgserver", "file", "none"}:
+        raise ValueError("DJPMCP_LOG_SINK must be auto, tgserver, file, or none")
+    if explicit != "auto":
+        return explicit
+    return "tgserver" if _tgs_url() else "file"
+
+
+def _tgs_url() -> str:
+    return os.getenv("DJPMCP_TGS_LOG_URL", _DEFAULT_TGS_URL).strip()
+
+
+def _tgs_bulk_url() -> str:
+    url = _tgs_url().rstrip("/")
+    if not url:
+        return ""
+    return f"{url}/bulk" if url.endswith("/ingest") else f"{url}/ingest/bulk"
+
+
+def _tgs_project_id() -> str:
+    value = os.getenv("DJPMCP_TGS_PROJECT_ID", _DEFAULT_TGS_PROJECT_ID).strip()
+    if not re.fullmatch(r"P\d+", value):
+        raise ValueError("DJPMCP_TGS_PROJECT_ID must match P<number>")
+    return value
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if value < 1:
+        raise ValueError(f"{name} must be at least 1")
+    return value
+
+
+def _queue_size() -> int:
+    return _positive_env_int("DJPMCP_TGS_LOG_QUEUE_SIZE", _DEFAULT_QUEUE_SIZE)
+
+
+def _batch_size() -> int:
+    return _positive_env_int("DJPMCP_TGS_LOG_BATCH_SIZE", _DEFAULT_BATCH_SIZE)
+
+
+def _timeout_seconds() -> float:
+    return _positive_env_int("DJPMCP_TGS_LOG_TIMEOUT_MS", _DEFAULT_TIMEOUT_MS) / 1000
+
+
+def _severity(payload: dict[str, Any]) -> str:
+    status = str(payload.get("overall_status", "")).upper()
+    if status == "FAILED":
+        return "error"
+    if status == "PARTIAL":
+        return "warn"
+    return "info"
+
+
+def _increment(name: str, amount: int = 1) -> None:
+    with _stats_lock:
+        _stats[name] += amount
+
+
+def get_log_stats() -> dict[str, int]:
+    with _stats_lock:
+        return dict(_stats)
+
+
+def _build_tgs_entry(payload: dict[str, Any]) -> dict[str, Any]:
+    safe_payload = _mask_value(payload)
+    return {
+        "project_id": _tgs_project_id(),
+        "severity": _severity(safe_payload),
+        "message": json.dumps(
+            safe_payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        "hint": "djpmcp-runtime",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _post_tgs_bulk(entries: list[dict[str, Any]]) -> None:
+    url = _tgs_bulk_url()
+    if not url:
+        raise RuntimeError("DJPMCP_TGS_LOG_URL is required for tgserver log sink")
+    body = json.dumps(
+        {"logs": entries},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    req = urllib_request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib_request.urlopen(req, timeout=_timeout_seconds()) as response:
+        if response.status < 200 or response.status >= 300:
+            raise RuntimeError(f"TGserver bulk ingest returned HTTP {response.status}")
+        result = json.loads(response.read() or b"{}")
+        results = result.get("results")
+        if not isinstance(results, list) or len(results) != len(entries):
+            raise RuntimeError("TGserver bulk ingest returned an invalid receipt set")
+        rejected = [item for item in results if item.get("status") == "rejected"]
+        if rejected:
+            raise RuntimeError("TGserver bulk ingest rejected one or more logs")
+
+
+def _take_batch(first: dict[str, Any]) -> list[dict[str, Any]]:
+    assert _queue is not None
+    batch = [first]
+    while len(batch) < _batch_size():
+        try:
+            batch.append(_queue.get_nowait())
+        except queue.Empty:
+            break
+    return batch
+
+
+def _worker_loop() -> None:
+    assert _queue is not None
+    while not _stop_event.is_set() or not _queue.empty():
+        try:
+            first = _queue.get(timeout=0.05)
+        except queue.Empty:
+            continue
+        payloads = _take_batch(first)
+        try:
+            # Sanitization and JSON serialization are intentionally performed
+            # here, never on the parser request path.
+            entries = [_build_tgs_entry(payload) for payload in payloads]
+            sent = False
+            for attempt in range(_MAX_RETRIES + 1):
+                try:
+                    _post_tgs_bulk(entries)
+                    _increment("sent", len(entries))
+                    _increment("batches")
+                    sent = True
+                    break
+                except (OSError, RuntimeError, urllib_error.URLError):
+                    if attempt < _MAX_RETRIES:
+                        time.sleep(0.05 * (2 ** attempt))
+            if not sent:
+                _increment("failed", len(entries))
+        except Exception:
+            # Log delivery must never crash the parser process.
+            _increment("failed", len(payloads))
+        finally:
+            for _ in payloads:
+                _queue.task_done()
+
+
+def _ensure_worker() -> queue.Queue[dict[str, Any]]:
+    global _queue, _worker
+    if _queue is not None and _worker is not None and _worker.is_alive():
+        return _queue
+    with _worker_lock:
+        if _queue is None:
+            _queue = queue.Queue(maxsize=_queue_size())
+        if _worker is None or not _worker.is_alive():
+            _stop_event.clear()
+            _worker = threading.Thread(
+                target=_worker_loop,
+                name="djpmcp-tgserver-log-sink",
+                daemon=True,
+            )
+            _worker.start()
+    return _queue
+
+
+def prewarm_logger() -> None:
+    """Start the asynchronous worker before request serving when configured."""
+    if _sink_mode() == "tgserver":
+        _ensure_worker()
+
+
+def _enqueue_tgs(payload: dict[str, Any]) -> None:
+    target = _ensure_worker()
+    # Copy the top-level envelope only. The request path does no masking,
+    # serialization, network I/O, or disk I/O.
+    queued = dict(payload)
+    try:
+        target.put_nowait(queued)
+        _increment("enqueued")
+        return
+    except queue.Full:
+        pass
+
+    # Under prolonged TGserver outage, preserve parser latency: discard the
+    # oldest unsent evidence, account for it, and prefer the newest evidence.
+    try:
+        target.get_nowait()
+        target.task_done()
+        _increment("dropped")
+    except queue.Empty:
+        _increment("dropped")
+    try:
+        target.put_nowait(queued)
+        _increment("enqueued")
+    except queue.Full:
+        _increment("dropped")
+
+
+def _append_file(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    safe = dict(payload)
-    if isinstance(safe.get("original_text"), str):
-        safe["original_text"] = mask_sensitive_text(safe["original_text"])
+    safe = _mask_value(payload)
     row = {"timestamp": datetime.now(timezone.utc).isoformat(), **safe}
     with path.open("a", encoding="utf-8") as file:
         file.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def append_log(path: Path, payload: dict[str, Any]) -> None:
+    """Emit parser evidence without letting log I/O dominate parser latency.
+
+    Astera/server deployments set DJPMCP_LOG_SINK=tgserver and hand evidence to
+    a bounded in-memory worker. The worker batches evidence into TGserver
+    POST /ingest/bulk calls. The parser thread does not mask, serialize, wait for
+    network I/O, or spill failures to persistent disk in tgserver mode.
+    Public/self-hosted users may retain the file sink.
+    """
+    mode = _sink_mode()
+    if mode == "none":
+        return
+    if mode == "tgserver":
+        _enqueue_tgs(payload)
+        return
+    _append_file(path, payload)
+
+
+def flush_logs(timeout: float = 1.0) -> bool:
+    """Best-effort drain for tests and orderly shutdown; never used per request."""
+    target = _queue
+    if target is None:
+        return True
+    deadline = time.monotonic() + max(timeout, 0.0)
+    while target.unfinished_tasks and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return target.unfinished_tasks == 0
+
+
+def shutdown_logger(timeout: float = 0.5) -> None:
+    _stop_event.set()
+    flush_logs(timeout)
+
+
+atexit.register(shutdown_logger)
