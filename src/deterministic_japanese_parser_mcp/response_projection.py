@@ -107,7 +107,12 @@ def project_structured_response(
     names = INCLUDE_SECTIONS if include is None else tuple(dict.fromkeys(include))
     for name in names:
         projected[name] = full[name]
-    return projected
+
+    # Server-side validation keeps MCP and REST on one authoritative wire schema.
+    return AnalyzeToolResponse.model_validate(projected).model_dump(
+        mode="json",
+        exclude_none=True,
+    )
 
 
 def project_response(
@@ -116,11 +121,7 @@ def project_response(
 ) -> dict[str, Any]:
     """Project a typed full response and validate the public wire contract."""
 
-    projected = project_structured_response(
+    return project_structured_response(
         response.model_dump(mode="json"),
         include,
-    )
-    return AnalyzeToolResponse.model_validate(projected).model_dump(
-        mode="json",
-        exclude_none=True,
     )
