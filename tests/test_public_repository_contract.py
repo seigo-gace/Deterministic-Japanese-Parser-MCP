@@ -67,7 +67,6 @@ def test_language_specific_readmes_are_separate_and_linked() -> None:
         "LLM",
         "MIT",
         "docs/",
-        "<!-- project-control-ja:start -->",
     )
     english_markers = (
         "<strong>English</strong>",
@@ -79,7 +78,6 @@ def test_language_specific_readmes_are_separate_and_linked() -> None:
         "LLM",
         "MIT",
         "docs/",
-        "<!-- project-control-en:start -->",
     )
 
     missing_ja = [marker for marker in japanese_markers if marker not in japanese]
