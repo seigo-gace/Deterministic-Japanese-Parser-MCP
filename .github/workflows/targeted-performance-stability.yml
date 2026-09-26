@@ -1,0 +1,64 @@
+name: Targeted Performance Stability
+on:
+  push:
+    branches:
+      - ci/performance-flake-resilience-20260926
+
+permissions:
+  contents: read
+
+jobs:
+  stability:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Run strict performance contract three times
+        run: |
+          mkdir -p reports
+          for n in 1 2 3; do
+            python scripts/performance_contract.py \
+              --check \
+              --rounds 50 \
+              --stdio-rounds 30 \
+              --scale 20 \
+              --max-ready-ms 10 \
+              --output "reports/performance-${{ matrix.python-version }}-${n}.json"
+          done
+      - name: Verify relative scale and repeated-run stability
+        run: |
+          python scripts/performance_stability_contract.py \
+            reports/performance-${{ matrix.python-version }}-1.json \
+            reports/performance-${{ matrix.python-version }}-2.json \
+            reports/performance-${{ matrix.python-version }}-3.json \
+            --min-runs 3 \
+            --max-scale-ratio 2.5 \
+            --max-run-spread 2.5 \
+            --output reports/stability-${{ matrix.python-version }}.json
+      - name: Keep Astera absolute latency contract strict
+        run: |
+          python scripts/astera_latency_contract.py \
+            --check \
+            --rounds 50 \
+            --stdio-rounds 30 \
+            --target-ms 10 \
+            --hard-ms 50 \
+            --output reports/astera-${{ matrix.python-version }}.json
+      - name: Compile
+        run: python -m compileall -q src scripts tests
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-stability-${{ matrix.python-version }}
+          path: reports
+          retention-days: 7
