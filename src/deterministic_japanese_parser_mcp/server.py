@@ -21,6 +21,7 @@ from .models import (
     OverallStatus,
 )
 from .normalizer import normalize_with_map
+from .response_projection import AnalyzeToolResponse, project_structured_response
 
 SERVER_NAME = "deterministic-japanese-parser"
 SERVER_VERSION = "0.4.0"
@@ -44,14 +45,15 @@ def _response_cache_key(
     request: AnalyzeRequest,
     instance: ParserEngine,
 ) -> tuple[object, str]:
-    """Bind a cached response to every semantic input and the engine snapshot.
+    """Bind a cached full response to semantic input and engine snapshot.
 
-    Requested deadlines at or above the configured hard limit are semantically
-    equivalent because ParserEngine clamps them to that limit. The original
-    requested value remains request-specific diagnostic data and is refreshed
-    on a cache hit.
+    `include` is intentionally excluded because it only controls wire projection.
+    Different projections of the same semantic request reuse one full analysis.
+    Requested deadlines at or above the configured hard limit are equivalent
+    because ParserEngine clamps them to that limit.
     """
     payload = request.model_dump(mode="json")
+    payload.pop("include", None)
     payload["deadline_ms"] = min(
         request.deadline_ms,
         instance.settings.hard_deadline_ms,
@@ -133,7 +135,7 @@ def analyze_japanese(
     analysis_depth: AnalysisDepth = AnalysisDepth.AUTO,
     deadline_ms: int = 50,
 ) -> AnalyzeResponse:
-    """Backwards-compatible direct Python entrypoint for the MCP tool."""
+    """Backwards-compatible direct Python entrypoint for the full response."""
     return engine().analyze(AnalyzeRequest(
         original_text=original_text,
         conversation_context=conversation_context or [],
@@ -150,15 +152,13 @@ def prewarm() -> ParserEngine:
     instance = engine()
     sample = "UIは残せ。APIだけ変更しろ。"
 
-    # Sudachi performs lazy initialization on its first tokenization. That work
-    # belongs to readiness, not to the 50 ms serving contract. Warm every lazy
-    # component explicitly before validating the first deadline-bound response.
     normalized, mapping = normalize_with_map(sample)
     instance.tokenizer.tokenize(normalized, mapping, sample)
     instance.rules.candidate_indices(normalized)
     instance.metaphors.literal_matcher.matched_literals(normalized)
     AnalyzeRequest.model_json_schema()
     AnalyzeResponse.model_json_schema()
+    AnalyzeToolResponse.model_json_schema()
 
     request = AnalyzeRequest(
         original_text=sample,
@@ -185,10 +185,11 @@ async def list_tools() -> list[types.Tool]:
                 "Deterministically read Japanese text and return lexical meaning, "
                 "predicate-argument structure, negation/condition/modality scope, "
                 "quotation attribution, discourse relations, a MeaningGraph, and "
-                "downstream TaskGraph and external-action safety decisions."
+                "downstream TaskGraph and external-action safety decisions. "
+                "Use include to project response sections without changing analysis."
             ),
             inputSchema=AnalyzeRequest.model_json_schema(),
-            outputSchema=AnalyzeResponse.model_json_schema(),
+            outputSchema=AnalyzeToolResponse.model_json_schema(),
         )
     ]
 
@@ -216,8 +217,8 @@ async def call_tool(
 
     instance = engine()
     cache_started = perf_counter()
-    structured = _get_cached_response(request, instance)
-    if structured is None:
+    full_structured = _get_cached_response(request, instance)
+    if full_structured is None:
         response = instance.analyze(request)
         response = response.model_copy(update={
             "metrics": {
@@ -225,34 +226,36 @@ async def call_tool(
                 "response_cache_hit": 0,
             },
         })
-        structured = response.model_dump(mode="json")
-        _store_cached_response(request, instance, response, structured)
+        full_structured = response.model_dump(mode="json")
+        _store_cached_response(request, instance, response, full_structured)
     else:
-        structured = _cache_hit_response(
-            structured,
+        full_structured = _cache_hit_response(
+            full_structured,
             request,
             instance,
             cache_started,
         )
+
     summary = {
-        "overall_status": structured["overall_status"],
-        "execution_allowed": structured["execution_allowed"],
-        "proposition_count": len(structured["meaning_graph"]["propositions"]),
+        "overall_status": full_structured["overall_status"],
+        "execution_allowed": full_structured["execution_allowed"],
+        "proposition_count": len(full_structured["meaning_graph"]["propositions"]),
         "predicate_frame_count": len(
-            structured["meaning_graph"]["reading_analysis"]["predicate_frames"]
+            full_structured["meaning_graph"]["reading_analysis"]["predicate_frames"]
         ),
         "scope_operator_count": len(
-            structured["meaning_graph"]["reading_analysis"]["scope_operators"]
+            full_structured["meaning_graph"]["reading_analysis"]["scope_operators"]
         ),
-        "action_task_count": len(structured["task_graph"]["tasks"]),
-        "semantic_hash": structured["meaning_graph"]["semantic_hash"],
+        "action_task_count": len(full_structured["task_graph"]["tasks"]),
+        "semantic_hash": full_structured["meaning_graph"]["semantic_hash"],
     }
+    projected = project_structured_response(full_structured, request.include)
     return types.CallToolResult(
         content=[types.TextContent(
             type="text",
             text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
         )],
-        structuredContent=structured,
+        structuredContent=projected,
         isError=False,
     )
 
