@@ -4,11 +4,13 @@ from .semantic_contextual_refinement import (
     install_semantic_holdout_refinement as install_semantic_contextual_refinement,
 )
 from .language_feature_refinement import install_language_feature_runtime
+from .reproducibility import install_reproducibility_fingerprint
 
 install_semantic_refinement()
 install_semantic_completion()
 install_semantic_contextual_refinement()
 install_language_feature_runtime()
+install_reproducibility_fingerprint()
 
 from .engine import ParserEngine
 from .low_latency_client import LowLatencyClientSession
