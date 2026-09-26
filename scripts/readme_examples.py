@@ -6,34 +6,28 @@ from pathlib import Path
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
 
 
-README_RESPONSE_FIELDS = (
-    "overall_status",
-    "execution_allowed",
-    "blocked_reasons",
-    "analysis_path",
-    "ambiguities",
-    "contradictions",
-    "missing_information",
-    "unsupported_elements",
-)
-
-
 def _dump_response(engine: ParserEngine, request: AnalyzeRequest) -> dict:
     response = engine.analyze(request)
     return response.model_dump(mode="json")
 
 
 def _compact_example(request: AnalyzeRequest, response: dict) -> dict:
-    compact_response = {
-        field: response[field]
-        for field in README_RESPONSE_FIELDS
-    }
-    compact_response["semantic_hash"] = response["meaning_graph"]["semantic_hash"]
-    compact_response["task_count"] = len(response["task_graph"]["tasks"])
-    compact_response["proposition_count"] = len(response["meaning_graph"]["propositions"])
+    """Create the README display view mechanically from the full runtime response."""
     return {
         "request": request.model_dump(mode="json"),
-        "response": compact_response,
+        "response": {
+            "overall_status": response["overall_status"],
+            "execution_allowed": response["execution_allowed"],
+            "blocked_reasons": response["blocked_reasons"],
+            "analysis_path": response["analysis_path"],
+            "semantic_hash": response["meaning_graph"]["semantic_hash"],
+            "proposition_count": len(response["meaning_graph"]["propositions"]),
+            "task_count": len(response["task_graph"]["tasks"]),
+            "ambiguity_count": len(response["ambiguities"]),
+            "contradiction_count": len(response["contradictions"]),
+            "missing_information_count": len(response["missing_information"]),
+            "unsupported_element_count": len(response["unsupported_elements"]),
+        },
     }
 
 
