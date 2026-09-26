@@ -1,7 +1,7 @@
 # Deterministic Japanese Parser MCP
 
 <p align="center">
-  <strong>An MCP server that reads Japanese and turns lexical meaning, sentence structure, semantic scope, and discourse relations into reproducible structures without generative AI</strong>
+  <strong>A deterministic MCP server that turns Japanese lexical meaning, sentence structure, semantic scope, reference, and discourse relations into reproducible machine structures without an LLM</strong>
 </p>
 
 <p align="center">
@@ -12,50 +12,165 @@
   <a href="https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
-| Item | Value |
+## Overview
+
+Deterministic Japanese Parser MCP (DJPMCP) reads Japanese **before a generative model has to guess what the text means** and converts that reading into reusable, testable structures.
+
+Its primary authority is the `MeaningGraph`. The parser preserves lexical candidates, entities, clauses, propositions, predicate-argument structure, negation, conditions, quantification, modality, attribution, reference resolution, discourse relations, and unresolved elements instead of reducing the input to a single intent label. When actionable instructions are present, the same reading can also produce a `TaskGraph` and an external-action safety decision.
+
+DJPMCP does **not** generate answers. It also does not intentionally fill unresolved subjects, targets, word senses, or causal relations with unsupported guesses.
+
+| Item | Current implementation |
 |---|---|
+| Version | `0.4.0` |
 | MCP tool | `analyze_japanese` |
-| Runtime model | Non-AI, non-generative, deterministic |
-| Interfaces | MCP stdio and Python API |
-| Supported environment | Python 3.10+ |
-| External connections | No AI API or dictionary API calls at runtime |
+| MCP transports | stdio / Streamable HTTP |
+| Parser REST API | `POST /v1/analyze` |
+| Python API | `ParserEngine().analyze(AnalyzeRequest(...))` |
+| Python | 3.10+ |
+| Morphology | SudachiPy + SudachiDict Core |
+| Runtime LLM | None |
+| External dictionary API at runtime | None |
 | Program license | MIT |
 
-[Quick start](#quick-start) ｜ [Connect an MCP client](#connect-an-mcp-client) ｜ [Input and output](#input-and-output) ｜ [Dictionary data](#dictionary-data) ｜ [Validation](#validation) ｜ [Limitations](#limitations)
+---
 
-## What this MCP does
+## Distribution model: public OSS and official hosted service
 
-The primary purpose of this MCP is to read Japanese correctly and return a reusable machine structure. Safety decisions and task construction are downstream consumers of that reading; they are not the primary purpose. The MCP generates no answer text and analyzes ordinary descriptions as well as instructions.
+DJPMCP is designed for two delivery modes.
 
-- surface form, reading, part of speech, sense candidates, and contextual meaning;
-- predicate-argument structure: who did what, to whom, where, and how;
-- scope for negation, quantity, degree, conditions, tense, aspect, voice, and modality;
-- evidence and unresolved items for omission, reference, quotation, hearsay, questions, honorifics, and social relations;
-- causal, contrastive, rephrasing, exemplification, evidential, and concluding relations between clauses;
-- task candidates derived after reading, plus reasons an external action may proceed or remain blocked.
+### Public OSS / self-host
 
-For example, `開発者が設定を変更した。` yields the predicate “change,” agent “developer,” object “setting,” and past tense. In `すべての問題を解決できるわけではない。`, universal quantification and partial negation remain separate scopes. A Task Graph and external-action decision are added only when the text contains an actionable instruction.
+The program code in this repository is distributed under the MIT License. Users may install and operate it on their own PC, server, container, or private network and may use the stdio MCP, Streamable HTTP, REST, or Python interfaces.
 
-### What it does and does not do
+In a self-hosted deployment, infrastructure, authentication, scaling, monitoring, backups, availability, and operational support are the operator's responsibility. Third-party data may remain governed by its own source license.
 
-| It does | It does not |
-|---|---|
-| Convert ordinary Japanese and instructions into a typed Meaning Graph | Generate answers or conversation text |
-| Structure predicates, arguments, tense, aspect, voice, negation, conditions, quantity, and modality | Guess an omitted subject, word sense, or causal relation without evidence |
-| Organize tasks and constraints into a Task Graph | Operate external services directly |
-| Preserve the scope of conditions, negation, quotation, and questions | Present commonsense-only inference as fact |
-| Block external action on unresolved, contradictory, or timed-out analysis | Call an LLM or external dictionary API at runtime |
-| Produce the same semantic hash from the same input conditions | Claim human-level understanding of all Japanese |
+### Astera hosted commercial service
+
+The Project Owner also intends to operate DJPMCP as a managed runtime behind Astera Platform / AsteraApp and provide access as a commercial API.
+
+The commercial value is not based on hiding the open parser core. It is based on operating the core as a managed platform with service-layer capabilities such as:
+
+- customer accounts and authentication;
+- API credential lifecycle;
+- authorization;
+- usage metering;
+- credit and quota enforcement;
+- billing and plan integration;
+- rate limiting and abuse protection;
+- tenant isolation;
+- monitoring, rollout, and rollback;
+- support and commercial terms;
+- official Astera integration.
+
+The repository endpoint `POST /v1/analyze` is a **parser-runtime interface**. It is not, by itself, the permanent customer-facing commercial API contract. A paid Astera API should place a platform gateway and commercial control plane in front of the parser runtime.
+
+```mermaid
+flowchart LR
+    U[Customer / AsteraApp] --> G[Astera API Gateway]
+    G --> C[Auth / Metering / Credit / Billing / Rate Policy]
+    C --> P[DJPMCP Managed Runtime]
+    P --> M[MeaningGraph / TaskGraph]
+    M --> G
+    G --> U
+```
+
+Customer-facing commercial URLs, pricing, plans, SLA, and service terms should be treated as authoritative only when published by the Astera service layer, not inferred from the parser repository version.
+
+See:
+
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md)
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
+
+---
+
+## What DJPMCP can do
+
+### Meaning Graph
+
+The parser can preserve:
+
+- source-text and normalized-text mapping;
+- tokens and lexical information;
+- entities and mentions;
+- clauses and propositions;
+- sense candidates and confidence;
+- predicate-argument structure;
+- dependency relations;
+- negation, condition, quantity, degree, tense, aspect, voice, and modality scope;
+- quotation, hearsay, and attribution;
+- anaphora, demonstratives, ellipsis, and conversation context;
+- causal, contrastive, sequential, purpose, and other discourse relations;
+- ambiguity, missing information, contradictions, and unsupported elements;
+- `semantic_hash` for the graph.
+
+### Reading runtime
+
+`meaning_graph.reading_analysis` exposes structures such as:
+
+- `predicate_frames`;
+- `dependency_arcs`;
+- `scope_operators`;
+- `attribution_frames`;
+- `discourse_relations`;
+- unresolved reading elements.
+
+### Task Graph and fail-closed external action
+
+When the input contains actionable instructions, DJPMCP may construct a `TaskGraph` and evaluate whether an external action may proceed.
+
+Typical blocking conditions include:
+
+- unresolved targets;
+- unresolved references;
+- material semantic ambiguity;
+- conflicts with `protected_elements`;
+- contradictions;
+- unsupported elements relevant to execution;
+- deadline overruns;
+- ambiguous action/social language features.
+
+When blocked, the response exposes `execution_allowed=false` and `blocked_reasons`.
+
+DJPMCP itself does not operate external services. The caller remains responsible for real execution.
+
+---
+
+## Parser architecture
+
+```mermaid
+flowchart TD
+    A[Japanese Input] --> B[Normalize + Source Span Map]
+    B --> C[Sudachi Tokenization]
+    C --> D[Indexed Rules / Reference Discovery / Metaphor]
+    D --> E[Meaning Graph Builder]
+    E --> F[Semantic Enrichment]
+    F --> G[Deterministic Reading Runtime]
+    G --> H[Approved Semantic Data Runtime]
+    H --> I[Lexical Graph Enrichment]
+    I --> J[Language Feature Runtime]
+    J --> K[Task Graph]
+    J --> L[Contradiction Detection]
+    K --> M[Graph Guard]
+    L --> M
+    M --> N[AnalyzeResponse]
+```
+
+The central implementation is `ParserEngine.analyze()`. stdio MCP, Streamable HTTP MCP, REST, and Python interfaces all use the same engine and Pydantic request/response contract.
+
+---
 
 ## Quick start
 
-### Linux and macOS
+### Linux / macOS
 
 ```bash
 git clone https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP.git
 cd Deterministic-Japanese-Parser-MCP
 python -m venv .venv
 . .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -e .
 djpmcp-validate
 ```
@@ -67,15 +182,28 @@ git clone https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP.git
 cd Deterministic-Japanese-Parser-MCP
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -e .
 djpmcp-validate
 ```
 
-Use `pip install -e ".[dev]"` only when you need the development and full-test dependencies.
+For development and the full test suite:
 
-## Connect an MCP client
+```bash
+pip install -e ".[dev]"
+```
 
-Add the server to your MCP client's configuration. Using the absolute path to the `djpmcp` executable inside the virtual environment is the most reliable option.
+---
+
+## MCP over stdio
+
+The installed server entrypoint is:
+
+```bash
+djpmcp
+```
+
+Example MCP client configuration:
 
 ```json
 {
@@ -87,54 +215,105 @@ Add the server to your MCP client's configuration. Using the absolute path to th
 }
 ```
 
-On Windows, use a path such as `C:\\path\\Deterministic-Japanese-Parser-MCP\\.venv\\Scripts\\djpmcp.exe`. After the client connects, call the `analyze_japanese` tool.
+On Windows, use a path such as:
 
-## Input and output
+```text
+C:\path\Deterministic-Japanese-Parser-MCP\.venv\Scripts\djpmcp.exe
+```
 
-### `analyze_japanese` input
+The server performs prewarm before entering the serving loop so that Sudachi lazy initialization, schemas, rule indexes, and representative parser paths are prepared outside the runtime deadline.
+
+---
+
+## MCP over Streamable HTTP
+
+The HTTP entrypoint is:
+
+```bash
+djpmcp-http
+```
+
+Set an API key:
+
+```bash
+export DJPMCP_HTTP_API_KEY='replace-with-a-long-random-secret'
+djpmcp-http
+```
+
+Defaults:
+
+```text
+Host: 127.0.0.1
+Port: 8765
+MCP endpoint: /mcp
+Parser REST endpoint: /v1/analyze
+Health: /healthz
+Readiness: /readyz
+```
+
+Protected endpoints accept either:
+
+```http
+Authorization: Bearer <DJPMCP_HTTP_API_KEY>
+```
+
+or:
+
+```http
+X-API-Key: <DJPMCP_HTTP_API_KEY>
+```
+
+`/healthz` and `/readyz` are public. The HTTP runtime also provides DNS-rebinding protection, allowed-host/origin controls, request-body limits, JSON content-type validation, and stateless Streamable HTTP MCP handling.
+
+For production boundaries, see [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md).
+
+---
+
+## Parser REST API
+
+### `POST /v1/analyze`
+
+```bash
+curl -X POST http://127.0.0.1:8765/v1/analyze \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "original_text": "UIは維持する。APIだけ変更しろ。",
+    "protected_elements": ["UI"],
+    "execution_mode": "external_action",
+    "analysis_depth": "auto",
+    "deadline_ms": 50
+  }'
+```
+
+This is the parser runtime API, not the complete paid Astera customer API.
+
+---
+
+## `analyze_japanese` input
 
 | Field | Required | Default | Description |
 |---|---:|---|---|
-| `original_text` | Yes | — | Japanese text to analyze; it must not be empty |
-| `conversation_context` | No | `[]` | Earlier utterances used for reference resolution |
+| `original_text` | Yes | — | Japanese text to analyze; must not be empty |
+| `conversation_context` | No | `[]` | Earlier utterances used for context/reference resolution |
 | `known_entities` | No | `[]` | Known people, objects, organizations, or targets |
 | `protected_elements` | No | `[]` | Targets that must not be changed |
-| `social_context` | No | Empty | Speaker, addressee, relationship, setting, and formality |
-| `discourse_state` | No | `{}` | Discourse state maintained by the caller |
+| `social_context` | No | empty model | Speaker/addressee/social context |
+| `discourse_state` | No | `{}` | Caller-maintained discourse state |
 | `execution_mode` | No | `analysis` | `analysis` / `comparison` / `planning` / `external_action` |
 | `analysis_depth` | No | `auto` | `auto` / `fast` / `deep` |
-| `deadline_ms` | No | `50` | 1 to 60,000 milliseconds |
+| `deadline_ms` | No | `50` | 1–60,000ms, clamped to the configured hard deadline during execution |
 
-Example MCP tool arguments:
+The MCP tool advertises `AnalyzeRequest.model_json_schema()` and `AnalyzeResponse.model_json_schema()` as its input and output contracts.
 
-```json
-{
-  "original_text": "UIは維持する。APIだけ変更しろ。",
-  "protected_elements": ["UI"],
-  "execution_mode": "external_action",
-  "analysis_depth": "auto",
-  "deadline_ms": 50
-}
-```
+The successful MCP result includes both:
 
-### Main output fields
+1. complete `structuredContent` containing the `AnalyzeResponse`;
+2. compact text content containing status, execution permission, graph counts, task count, and semantic hash.
 
-| Output | Contents |
-|---|---|
-| `overall_status` | Overall result: `COMPLETE` / `PARTIAL` / `FAILED` |
-| `meaning_graph` | Entities, clauses, propositions, lexical candidates, reading structures, and unresolved items |
-| `meaning_graph.reading_analysis` | Predicates and arguments, dependency arcs, scope, attribution, and discourse relations |
-| `task_graph` | Tasks, dependencies, preservation, prohibitions, conditions, and verification criteria |
-| `execution_allowed` | Whether an external action may proceed |
-| `blocked_reasons` | Reasons the action was blocked |
-| `ambiguities` / `contradictions` | Ambiguity and conflicting requirements |
-| `missing_information` / `unsupported_elements` | Missing information and unsupported elements |
-| `versions` | Dictionary, rule, and graph versions |
-| `metrics` | Timing, deadline, and other runtime information |
+---
 
-The same input, conversation context, dictionaries, and rule versions produce the same `meaning_graph.semantic_hash`.
-
-### Python API
+## Python API
 
 ```python
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
@@ -151,149 +330,162 @@ response = ParserEngine().analyze(
 print(response.meaning_graph)
 print(response.task_graph)
 print(response.execution_allowed)
-print(response.blocked_reasons)
 ```
 
-## Processing flow
+`LowLatencyClientSession` is also exported for schema-safe low-latency MCP clients.
 
-```mermaid
-flowchart TD
-    A["Japanese input"] --> B["Normalization and morphology"]
-    B --> C["Lexical meaning and predicates"]
-    C --> D["Scope, attribution, discourse"]
-    D --> E["Meaning Graph"]
-    E --> F["Task candidates"]
-    F --> G["External Action Guard"]
+---
+
+## Runtime configuration
+
+Important parser settings include:
+
+```text
+DJPMCP_MAX_INPUT_LENGTH=20000
+DJPMCP_MAX_CONTEXT_ITEMS=20
+DJPMCP_MAX_CANDIDATES=8
+DJPMCP_REGEX_TIMEOUT_MS=25
+DJPMCP_TARGET_LATENCY_MS=10
+DJPMCP_HARD_DEADLINE_MS=50
+DJPMCP_MAX_GRAPH_NODES=512
+DJPMCP_MAX_SCOPE_EDGES=1024
+DJPMCP_LOG_PATH=...
+DJPMCP_SYSTEM_DICT_DIR=...
+DJPMCP_USER_DICT_DIR=...
+DJPMCP_SEMANTIC_DATA_RUNTIME_DIR=...
 ```
 
-The parser preserves original text positions while combining Sudachi morphology, approved dictionaries, prebuilt rule indexes, deterministic predicate-argument analysis, and scope, reference, discourse, and contradiction detection. An ordinary statement is never promoted to an executable command. Material unresolved items remain explicit instead of being guessed. See [`docs/JAPANESE_READING_CONTRACT.md`](docs/JAPANESE_READING_CONTRACT.md) for the capability layers, output contract, and current boundaries.
+Important HTTP settings include:
 
-## Safety
-
-The following are not treated directly as executable actions:
-
-- quoted or reported commands: “I was told to delete it”;
-- questions: “Should this be deleted?”;
-- hypotheses: “Delete it if it is unnecessary”;
-- instructions with an unresolved target: “Change that”;
-- instructions that conflict with a preservation requirement;
-- input whose critical meaning cannot be resolved before the deadline.
-
-When an external action cannot be allowed, the response includes `execution_allowed=false` and explanatory `blocked_reasons`. The caller remains responsible for deciding whether to perform any real-world operation.
-
-## Dictionary data
-
-### Data used by the default runtime
-
-| Data | Count | Runtime role |
-|---|---:|---|
-| Open Lexicon | 120,000 | Lexical identity such as surface, reading, and part of speech; meanings are not auto-approved |
-| Metaphor, idiom, and pragmatic expressions | 452 | Fixed-expression interpretation |
-| Deterministic intent rules | 340 | Requests, prohibitions, conditions, and related decisions |
-| Intent types | 21 | Classification of detected intent |
-| Synonym groups | 100 | Surface and semantic normalization |
-| Task Templates | 63 | Task structure generation |
-| Workflows | 42 | Sequence and dependency generation |
-| Gold Cases | 649 | Regression and quality validation |
-
-The Open Lexicon contains JMdict-derived lexical information split into twelve shards for lexical identification only. The runtime loads the shards as one dictionary and retains all homograph candidates instead of collapsing them. This does not imply complete semantic, pragmatic, or executable-intent understanding of all 120,000 records.
-
-For completed semantic runtime deployment, compile a GitHub-managed Direct Final Runtime Bundle, such as a Release asset, Actions artifact, or explicit branch bundle, into the existing ABIs with `tools/compile_direct_final_runtime.py` and deploy only artifacts that pass `scripts/direct_final_deployment_contract.py --require-direct-final`. Drive and Notion are not runtime sources of truth. The process and boundaries are documented in [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md).
-
-For the processing pipeline, the 120,000 records already enriched with JMdict meaning candidates by PR #26 are combined with approximately 5,000 special-vocabulary, dialect, onomatopoeia, and youth-language records in one digest-locked 125,000-record Review Queue. The pipeline neither prioritizes only the 5,000 records nor excludes the 120,000 records from review. Unapproved meaning candidates are never loaded by the default runtime.
-
-See [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md) for reconstruction, index, and ambiguity-retention evidence for the 120,000-record lexicon.
-
-### Automated dictionary processing and integration
-
-New data passes through the same non-AI pipeline regardless of its source.
-
-| Input type | Ingest path | Separation model |
-|---|---|---|
-| Open Lexicon — 120,000 records | `dictionaries/system/lexicon.d/` | Preserve JMdict meaning candidates and enter the common Review Queue |
-| Special and contextual vocabulary — 5,000 records | `research/context_collection/expansion_v3/` | Adapt to the common schema and enter the same Review Queue |
-| Domain dictionaries | `dictionaries/domain_packs/<domain>/` | Physically separated from core data |
-| User data | `dictionaries/user_packs/<pack>/` | Coexists without silently replacing project data |
-
-The pipeline performs these stages:
-
-1. adapt each source to the common schema and apply NFKC normalization;
-2. organize readings, part of speech, morphology, and spelling variants;
-3. validate source, version, license, and SHA-256 evidence;
-4. detect duplicates, homographs, collisions, and possible relations to existing data;
-5. place all 125,000 records in one Review Queue, then split it into review batches of no more than 20 records;
-6. judge polarity, intensity from 0.0 to 1.0, required and excluded contexts, task candidates, and External Action Risk for every record;
-7. write judgments to `research/semantic_decisions/decision_ledger.jsonl` and apply only explicit approvals;
-8. compile approved scopes into separate `core`, `domains`, and `user` packs;
-9. run Gold, independent holdout, safety, performance, and offline-wheel gates.
-
-Approval is field-scoped rather than one Boolean for the entire record: `lexical`, `semantic`, `pragmatic`, `task`, and `external_action`. The compiler removes fields from every unapproved scope.
-
-The current pipeline does not use an LLM API. The GPT app acts as the external operator: it reads the 125,000-record review workload in order and writes user-directed judgments to the Decision Ledger. It preserves the existing JMdict meanings for the 120,000 records and adds only the missing polarity, intensity, context, task-candidate, and External Action Risk judgments. The pipeline does not make judgments or approve records on its own. When review remains, GitHub Actions preserves the evidence and stops the publication gate with `REVIEW_REQUIRED`.
-
-Example commands:
-
-```bash
-python tools/unified_semantic_data_pipeline.py --compile-approved
-python tools/unified_semantic_data_pipeline.py --check
-python tools/unified_semantic_data_pipeline.py --require-review-complete
+```text
+DJPMCP_HTTP_HOST=127.0.0.1
+DJPMCP_HTTP_PORT=8765
+DJPMCP_HTTP_WORKERS=1
+DJPMCP_HTTP_API_KEY=...
+DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=0
+DJPMCP_HTTP_MAX_BODY_BYTES=1048576
+DJPMCP_HTTP_ALLOWED_ORIGINS=...
+DJPMCP_HTTP_ALLOWED_HOSTS=...
 ```
 
-See [`docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md`](docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md) for the schemas, review contract, generated artifacts, and workflow details.
+In the Astera commercial platform, customer credentials should not be reused as the internal parser runtime key.
 
-## Validation
+---
 
-Install the development dependencies before running the full suite.
+## Dictionary and runtime data
+
+The repository separates authored dictionaries, imported lexical data, public views, runtime projections, and compiled assets rather than treating one file as the authority for every layer.
+
+The semantic runtime root resolves in this order:
+
+1. `DJPMCP_SEMANTIC_DATA_RUNTIME_DIR` when explicitly set;
+2. `compiled/canonical_dictionary_runtime` when present;
+3. `compiled/semantic_data`.
+
+The internal canonical master dictionary is intentionally not packaged in the default public wheel. Publicly redistributable views and runtime projections remain separate.
+
+See:
+
+- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
+- [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)
+- [`NOTICE.md`](NOTICE.md)
+
+---
+
+## Validation and performance contracts
+
+CI runs on Python 3.10 and 3.12 and includes, among other gates:
+
+- deployment preflight;
+- lexicon provenance and license validation;
+- dictionary and Gold validation;
+- supported semantic quality contract;
+- independent semantic holdout contract;
+- unit/importer/supply-chain/MCP stdio E2E tests;
+- benchmark regression checks;
+- 10ms target and 20x dictionary performance contract;
+- Astera call-through 10ms target / 50ms hard-limit contract;
+- Python compile validation;
+- preserved evidence artifacts.
+
+Representative local checks:
 
 ```bash
 pip install -e ".[dev]"
+python scripts/preflight.py
 python tools/lexicon_validator.py
 python tools/validator.py
+python scripts/semantic_quality_contract.py --check
+python scripts/semantic_holdout_contract.py --check
 pytest
-python scripts/benchmark.py --check
-python scripts/performance_contract.py --check --max-ready-ms 10
-python scripts/astera_latency_contract.py --check --target-ms 10 --hard-ms 50
-python -m compileall -q src tools scripts tests
+python scripts/benchmark.py --check --rounds 50
+python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 10
+python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 --target-ms 10 --hard-ms 50
 ```
 
-CI validates dictionary integrity, Meaning Graph and Task Graph behavior, quotation, question, negation, hypothesis, and reference safety, MCP stdio, offline wheels, and performance at twenty times the dictionary scale.
+The 10ms and 50ms values are performance contract targets/gates, not a claim that every machine and every input always completes in the same wall-clock time.
 
-| Performance boundary | Contract |
-|---|---:|
-| Optimized resident processing goal | 5 ms or less |
-| Normal call-through target | p95 at 10 ms or less |
-| Absolute hard limit | 50 ms or less |
-| Not completed within the limit | Return `TIMEOUT` and block external action |
+---
 
-See [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md) for quality gates and [`docs/PERFORMANCE_AND_RELEASE_CONTRACT.md`](docs/PERFORMANCE_AND_RELEASE_CONTRACT.md) for performance gates.
+## Status model
+
+- `COMPLETE` — no material unresolved element, contradiction, unsupported item, or timeout remains.
+- `PARTIAL` — useful analysis exists, but unresolved or incomplete elements remain.
+- `FAILED` — the parser could not construct a usable meaning result.
+
+For `external_action`, callers should always inspect both `execution_allowed` and `blocked_reasons`.
+
+---
 
 ## Limitations
 
-- The parser cannot fully handle irony, broad world knowledge, complex ellipsis, or long multi-paragraph discourse.
-- Expressions that strongly depend on region, generation, or community remain unresolved when evidence is insufficient.
-- The 120,000-record Open Lexicon provides lexical identity, not complete semantic understanding.
-- Current predicate-argument analysis is deterministic and based on morphology plus case particles; it is not a complete dependency parser for unrestricted word order, long-distance dependencies, or complex coordination.
-- `execution_allowed` is a parser safety decision. It does not replace authentication, authorization, business policy, or legal judgment.
-- This MCP does not execute external actions. The caller remains responsible for execution.
+DJPMCP may still return `PARTIAL`, `AMBIGUOUS`, or `UNSUPPORTED` for cases such as:
 
-## Documentation and support
+- word senses without enough dictionary/rule/semantic evidence;
+- long-distance ellipsis and anaphora;
+- implications requiring broad world knowledge;
+- advanced irony, new slang, or newly coined words;
+- social relations that cannot be resolved from supplied context;
+- sentences with multiple valid scope interpretations;
+- inputs that exceed graph or deadline limits.
 
-| Purpose | Document or channel |
-|---|---|
-| Documentation index | [`docs/README.md`](docs/README.md) |
-| Usage, installation, and unconfirmed parser findings | [GitHub Discussions](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/discussions) |
-| Reproducible defects | [GitHub Issues](https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/issues/new?template=bug_report.yml) |
-| Security reports | [`SECURITY.md`](SECURITY.md) |
-| Validation participation | [`VALIDATION.md`](VALIDATION.md) |
-| Contributions | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Change history | [`CHANGELOG.md`](CHANGELOG.md) |
+The design goal is to keep unresolved meaning explicit rather than pretending it was understood.
 
-## License and provenance
+---
 
-Program code is licensed under MIT. See [`LICENSE`](LICENSE).
+## Documentation map
 
-Data derived from external dictionaries remains governed by the source license recorded on each record and in its source manifest. The current JMdict-derived Open Lexicon is CC BY-SA 4.0 and retains attribution to the Electronic Dictionary Research and Development Group on each record. See [`NOTICE.md`](NOTICE.md) for third-party dependencies and dictionary-data notices.
+### Distribution / commercial / production
 
-<!-- project-control-en:start -->
-See [`GOVERNANCE.md`](GOVERNANCE.md) and [`TRADEMARK.md`](TRADEMARK.md) for project governance and use of names and logos.
-<!-- project-control-en:end -->
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md)
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
+- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)
+
+### Parser and semantic contracts
+
+- [`docs/JAPANESE_READING_CONTRACT.md`](docs/JAPANESE_READING_CONTRACT.md)
+- [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md)
+- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
+- [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
+- [`docs/PERFORMANCE_AND_RELEASE_CONTRACT.md`](docs/PERFORMANCE_AND_RELEASE_CONTRACT.md)
+
+### Project policy
+
+- [`LICENSE`](LICENSE)
+- [`NOTICE.md`](NOTICE.md)
+- [`GOVERNANCE.md`](GOVERNANCE.md)
+- [`TRADEMARK.md`](TRADEMARK.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+---
+
+## License, data, commercial terms, and brand
+
+Program code is licensed under MIT. Third-party dictionary and language data remain governed by their recorded source licenses. Project Marks, including DJPMCP/Shiori and the separate Astera brand, are governed independently from the program-code license.
+
+The Project Owner may provide an official hosted service under separate pricing, SLA, support, and service terms. Those hosted-service terms do not retroactively revoke program-code rights already granted by the repository's MIT License.
+
+See [`LICENSE`](LICENSE), [`NOTICE.md`](NOTICE.md), [`GOVERNANCE.md`](GOVERNANCE.md), [`TRADEMARK.md`](TRADEMARK.md), and [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md).

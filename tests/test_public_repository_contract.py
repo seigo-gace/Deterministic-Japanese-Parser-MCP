@@ -54,45 +54,36 @@ def test_language_specific_readmes_are_separate_and_linked() -> None:
     japanese = _read("README.md")
     english = _read("README_EN.md")
 
+    # Lock durable public/product contracts rather than a specific heading
+    # layout. README information architecture can evolve without weakening the
+    # actual parser, safety, licensing, or language-navigation contract.
     japanese_markers = (
         "<strong>日本語</strong>",
         'href="README_EN.md"',
-        "## 何をするMCPか",
-        "## すぐに試す",
-        "## MCPへ接続する",
-        "## 入力と出力",
-        "## 辞書データ",
-        "### 辞書データの自動加工・統合",
-        "## 検証",
-        "## 限界",
         "analyze_japanese",
-        "非AI",
-        "意味グラフ",
-        "外部操作",
-        "<!-- project-control-ja:start -->",
+        "MeaningGraph",
+        "TaskGraph",
+        "Fail Closed",
+        "LLM",
+        "MIT",
+        "docs/",
     )
     english_markers = (
         "<strong>English</strong>",
         'href="README.md"',
-        "## What this MCP does",
-        "## Quick start",
-        "## Connect an MCP client",
-        "## Input and output",
-        "## Dictionary data",
-        "### Automated dictionary processing and integration",
-        "## Validation",
-        "## Limitations",
         "analyze_japanese",
-        "Non-AI",
-        "Meaning Graph",
-        "External Action Guard",
-        "<!-- project-control-en:start -->",
+        "MeaningGraph",
+        "TaskGraph",
+        "fail-closed",
+        "LLM",
+        "MIT",
+        "docs/",
     )
 
     missing_ja = [marker for marker in japanese_markers if marker not in japanese]
     missing_en = [marker for marker in english_markers if marker not in english]
-    assert not missing_ja, f"Japanese README is missing entrypoints: {missing_ja}"
-    assert not missing_en, f"English README is missing entrypoints: {missing_en}"
+    assert not missing_ja, f"Japanese README is missing stable contracts: {missing_ja}"
+    assert not missing_en, f"English README is missing stable contracts: {missing_en}"
 
     assert "## English" not in japanese
     assert "## 日本語" not in english
@@ -106,7 +97,8 @@ def test_readme_status_ui_uses_only_the_native_ci_badge() -> None:
         assert readme.count("<img ") == 1, f"unexpected image badge count: {relative_path}"
         assert "actions/workflows/ci.yml/badge.svg" in readme
         assert "shields.io" not in readme
-        assert "Python 3.10" in readme
+        assert "Python" in readme
+        assert "3.10" in readme
         assert "MIT" in readme
         assert "MCP" in readme
 
