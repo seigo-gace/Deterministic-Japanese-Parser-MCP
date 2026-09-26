@@ -842,5 +842,5 @@ Hosted Service Termsは、RepositoryのMIT Licenseで既に付与されたProgra
 - [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
 
 <!-- project-control-ja:start -->
-プロジェクトの管理方針、Official Release、Hosted / Commercial Offering、名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
+プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
 <!-- project-control-ja:end -->

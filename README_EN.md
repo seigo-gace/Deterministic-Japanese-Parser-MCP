@@ -489,3 +489,7 @@ Program code is licensed under MIT. Third-party dictionary and language data rem
 The Project Owner may provide an official hosted service under separate pricing, SLA, support, and service terms. Those hosted-service terms do not retroactively revoke program-code rights already granted by the repository's MIT License.
 
 See [`LICENSE`](LICENSE), [`NOTICE.md`](NOTICE.md), [`GOVERNANCE.md`](GOVERNANCE.md), [`TRADEMARK.md`](TRADEMARK.md), and [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md).
+
+<!-- project-control-en:start -->
+See [`GOVERNANCE.md`](GOVERNANCE.md) and [`TRADEMARK.md`](TRADEMARK.md) for project governance and use of names and logos.
+<!-- project-control-en:end -->
