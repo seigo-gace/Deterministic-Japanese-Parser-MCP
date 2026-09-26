@@ -30,7 +30,7 @@ def test_tgserver_entry_masks_nested_sensitive_text(monkeypatch):
     assert entry["project_id"] == "P006"
     assert entry["severity"] == "warn"
     decoded = json.loads(entry["message"])
-    assert decoded["original_text"] == "mail <EMAIL>> Bearer <TOKEN>".replace("<EMAIL>>", "<EMAIL>")
+    assert decoded["original_text"] == "mail <EMAIL> Bearer <TOKEN>"
     assert decoded["nested"]["secret"] == "<SECRET>"
 
 
