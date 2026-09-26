@@ -21,6 +21,7 @@ _LONG_NUMBER = re.compile(r"(?<!\d)\d{12,19}(?!\d)")
 _DEFAULT_TGS_URL = ""
 _DEFAULT_TGS_PROJECT_ID = "P006"
 _DEFAULT_QUEUE_SIZE = 2048
+_DEFAULT_BATCH_SIZE = 32
 _DEFAULT_TIMEOUT_MS = 250
 _MAX_RETRIES = 2
 
@@ -29,7 +30,13 @@ _worker: threading.Thread | None = None
 _worker_lock = threading.Lock()
 _stop_event = threading.Event()
 _stats_lock = threading.Lock()
-_stats = {"enqueued": 0, "sent": 0, "failed": 0, "dropped": 0}
+_stats = {
+    "enqueued": 0,
+    "sent": 0,
+    "batches": 0,
+    "failed": 0,
+    "dropped": 0,
+}
 
 
 def mask_sensitive_text(text: str) -> str:
@@ -65,6 +72,13 @@ def _tgs_url() -> str:
     return os.getenv("DJPMCP_TGS_LOG_URL", _DEFAULT_TGS_URL).strip()
 
 
+def _tgs_bulk_url() -> str:
+    url = _tgs_url().rstrip("/")
+    if not url:
+        return ""
+    return f"{url}/bulk" if url.endswith("/ingest") else f"{url}/ingest/bulk"
+
+
 def _tgs_project_id() -> str:
     value = os.getenv("DJPMCP_TGS_PROJECT_ID", _DEFAULT_TGS_PROJECT_ID).strip()
     if not re.fullmatch(r"P\d+", value):
@@ -72,24 +86,26 @@ def _tgs_project_id() -> str:
     return value
 
 
-def _queue_size() -> int:
+def _positive_env_int(name: str, default: int) -> int:
     try:
-        value = int(os.getenv("DJPMCP_TGS_LOG_QUEUE_SIZE", str(_DEFAULT_QUEUE_SIZE)))
+        value = int(os.getenv(name, str(default)))
     except ValueError as exc:
-        raise ValueError("DJPMCP_TGS_LOG_QUEUE_SIZE must be an integer") from exc
+        raise ValueError(f"{name} must be an integer") from exc
     if value < 1:
-        raise ValueError("DJPMCP_TGS_LOG_QUEUE_SIZE must be at least 1")
+        raise ValueError(f"{name} must be at least 1")
     return value
 
 
+def _queue_size() -> int:
+    return _positive_env_int("DJPMCP_TGS_LOG_QUEUE_SIZE", _DEFAULT_QUEUE_SIZE)
+
+
+def _batch_size() -> int:
+    return _positive_env_int("DJPMCP_TGS_LOG_BATCH_SIZE", _DEFAULT_BATCH_SIZE)
+
+
 def _timeout_seconds() -> float:
-    try:
-        timeout_ms = int(os.getenv("DJPMCP_TGS_LOG_TIMEOUT_MS", str(_DEFAULT_TIMEOUT_MS)))
-    except ValueError as exc:
-        raise ValueError("DJPMCP_TGS_LOG_TIMEOUT_MS must be an integer") from exc
-    if timeout_ms < 1:
-        raise ValueError("DJPMCP_TGS_LOG_TIMEOUT_MS must be at least 1")
-    return timeout_ms / 1000
+    return _positive_env_int("DJPMCP_TGS_LOG_TIMEOUT_MS", _DEFAULT_TIMEOUT_MS) / 1000
 
 
 def _severity(payload: dict[str, Any]) -> str:
@@ -127,11 +143,15 @@ def _build_tgs_entry(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _post_tgs(entry: dict[str, Any]) -> None:
-    url = _tgs_url()
+def _post_tgs_bulk(entries: list[dict[str, Any]]) -> None:
+    url = _tgs_bulk_url()
     if not url:
         raise RuntimeError("DJPMCP_TGS_LOG_URL is required for tgserver log sink")
-    body = json.dumps(entry, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    body = json.dumps(
+        {"logs": entries},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
     req = urllib_request.Request(
         url,
         data=body,
@@ -140,37 +160,58 @@ def _post_tgs(entry: dict[str, Any]) -> None:
     )
     with urllib_request.urlopen(req, timeout=_timeout_seconds()) as response:
         if response.status < 200 or response.status >= 300:
-            raise RuntimeError(f"TGserver ingest returned HTTP {response.status}")
+            raise RuntimeError(f"TGserver bulk ingest returned HTTP {response.status}")
+        result = json.loads(response.read() or b"{}")
+        results = result.get("results")
+        if not isinstance(results, list) or len(results) != len(entries):
+            raise RuntimeError("TGserver bulk ingest returned an invalid receipt set")
+        rejected = [item for item in results if item.get("status") == "rejected"]
+        if rejected:
+            raise RuntimeError("TGserver bulk ingest rejected one or more logs")
+
+
+def _take_batch(first: dict[str, Any]) -> list[dict[str, Any]]:
+    assert _queue is not None
+    batch = [first]
+    while len(batch) < _batch_size():
+        try:
+            batch.append(_queue.get_nowait())
+        except queue.Empty:
+            break
+    return batch
 
 
 def _worker_loop() -> None:
     assert _queue is not None
     while not _stop_event.is_set() or not _queue.empty():
         try:
-            payload = _queue.get(timeout=0.05)
+            first = _queue.get(timeout=0.05)
         except queue.Empty:
             continue
+        payloads = _take_batch(first)
         try:
             # Sanitization and JSON serialization are intentionally performed
             # here, never on the parser request path.
-            entry = _build_tgs_entry(payload)
+            entries = [_build_tgs_entry(payload) for payload in payloads]
             sent = False
             for attempt in range(_MAX_RETRIES + 1):
                 try:
-                    _post_tgs(entry)
-                    _increment("sent")
+                    _post_tgs_bulk(entries)
+                    _increment("sent", len(entries))
+                    _increment("batches")
                     sent = True
                     break
                 except (OSError, RuntimeError, urllib_error.URLError):
                     if attempt < _MAX_RETRIES:
                         time.sleep(0.05 * (2 ** attempt))
             if not sent:
-                _increment("failed")
+                _increment("failed", len(entries))
         except Exception:
             # Log delivery must never crash the parser process.
-            _increment("failed")
+            _increment("failed", len(payloads))
         finally:
-            _queue.task_done()
+            for _ in payloads:
+                _queue.task_done()
 
 
 def _ensure_worker() -> queue.Queue[dict[str, Any]]:
@@ -189,6 +230,12 @@ def _ensure_worker() -> queue.Queue[dict[str, Any]]:
             )
             _worker.start()
     return _queue
+
+
+def prewarm_logger() -> None:
+    """Start the asynchronous worker before request serving when configured."""
+    if _sink_mode() == "tgserver":
+        _ensure_worker()
 
 
 def _enqueue_tgs(payload: dict[str, Any]) -> None:
@@ -229,12 +276,12 @@ def _append_file(path: Path, payload: dict[str, Any]) -> None:
 def append_log(path: Path, payload: dict[str, Any]) -> None:
     """Emit parser evidence without letting log I/O dominate parser latency.
 
-    Astera/server deployments set DJPMCP_LOG_SINK=tgserver and send through the
-    bounded in-memory worker to TGserver POST /ingest. The parser thread does
-    not mask, serialize, wait for network I/O, or spill failures to persistent
-    disk in tgserver mode. Public/self-hosted users may retain the file sink.
+    Astera/server deployments set DJPMCP_LOG_SINK=tgserver and hand evidence to
+    a bounded in-memory worker. The worker batches evidence into TGserver
+    POST /ingest/bulk calls. The parser thread does not mask, serialize, wait for
+    network I/O, or spill failures to persistent disk in tgserver mode.
+    Public/self-hosted users may retain the file sink.
     """
-
     mode = _sink_mode()
     if mode == "none":
         return
