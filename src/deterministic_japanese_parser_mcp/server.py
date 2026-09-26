@@ -13,6 +13,7 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
+from .logger import prewarm_logger
 from .models import (
     AnalysisDepth,
     AnalyzeRequest,
@@ -150,9 +151,12 @@ def prewarm() -> ParserEngine:
     instance = engine()
     sample = "UIは残せ。APIだけ変更しろ。"
 
+    # Server logging worker startup belongs to readiness, not request latency.
+    prewarm_logger()
+
     # Sudachi performs lazy initialization on its first tokenization. That work
-    # belongs to readiness, not to the 50 ms serving contract. Warm every lazy
-    # component explicitly before validating the first deadline-bound response.
+    # belongs to readiness, not to the runtime serving contract. Warm every
+    # lazy component explicitly before validating the first deadline-bound response.
     normalized, mapping = normalize_with_map(sample)
     instance.tokenizer.tokenize(normalized, mapping, sample)
     instance.rules.candidate_indices(normalized)
@@ -193,26 +197,14 @@ async def list_tools() -> list[types.Tool]:
     ]
 
 
-@server.call_tool(validate_input=False)
-async def call_tool(
-    name: str,
-    arguments: dict[str, Any],
-) -> types.CallToolResult:
+@server.call_tool()
+async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
     if name != TOOL_NAME:
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=f"Unknown tool: {name}")],
-            isError=True,
-        )
+        raise ValueError(f"unknown tool: {name}")
     try:
         request = AnalyzeRequest.model_validate(arguments)
-    except ValidationError as error:
-        return types.CallToolResult(
-            content=[types.TextContent(
-                type="text",
-                text=f"Input validation error: {error.errors(include_url=False)}",
-            )],
-            isError=True,
-        )
+    except ValidationError as exc:
+        raise ValueError(str(exc)) from exc
 
     instance = engine()
     cache_started = perf_counter()
@@ -245,23 +237,14 @@ async def call_tool(
             structured["meaning_graph"]["reading_analysis"]["scope_operators"]
         ),
         "action_task_count": len(structured["task_graph"]["tasks"]),
-        "semantic_hash": structured["meaning_graph"]["semantic_hash"],
     }
     return types.CallToolResult(
-        content=[types.TextContent(
-            type="text",
-            text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
-        )],
+        content=[types.TextContent(type="text", text=json.dumps(summary, ensure_ascii=False))],
         structuredContent=structured,
-        isError=False,
     )
 
 
-def analyze_sync(request: AnalyzeRequest) -> AnalyzeResponse:
-    return engine().analyze(request)
-
-
-async def run() -> None:
+async def run_stdio() -> None:
     prewarm()
     async with mcp_stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -279,8 +262,4 @@ async def run() -> None:
 
 
 def main() -> None:
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
-    main()
+    asyncio.run(run_stdio())
