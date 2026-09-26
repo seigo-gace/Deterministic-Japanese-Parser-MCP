@@ -75,7 +75,7 @@ def test_language_specific_readmes_are_separate_and_linked() -> None:
         "analyze_japanese",
         "MeaningGraph",
         "TaskGraph",
-        "Fail Closed",
+        "fail-closed",
         "LLM",
         "MIT",
         "docs/",
