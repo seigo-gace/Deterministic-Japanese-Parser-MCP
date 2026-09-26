@@ -29,12 +29,7 @@ _worker: threading.Thread | None = None
 _worker_lock = threading.Lock()
 _stop_event = threading.Event()
 _stats_lock = threading.Lock()
-_stats = {
-    "enqueued": 0,
-    "sent": 0,
-    "failed": 0,
-    "dropped": 0,
-}
+_stats = {"enqueued": 0, "sent": 0, "failed": 0, "dropped": 0}
 
 
 def mask_sensitive_text(text: str) -> str:
@@ -152,10 +147,13 @@ def _worker_loop() -> None:
     assert _queue is not None
     while not _stop_event.is_set() or not _queue.empty():
         try:
-            entry = _queue.get(timeout=0.05)
+            payload = _queue.get(timeout=0.05)
         except queue.Empty:
             continue
         try:
+            # Sanitization and JSON serialization are intentionally performed
+            # here, never on the parser request path.
+            entry = _build_tgs_entry(payload)
             sent = False
             for attempt in range(_MAX_RETRIES + 1):
                 try:
@@ -168,6 +166,9 @@ def _worker_loop() -> None:
                         time.sleep(0.05 * (2 ** attempt))
             if not sent:
                 _increment("failed")
+        except Exception:
+            # Log delivery must never crash the parser process.
+            _increment("failed")
         finally:
             _queue.task_done()
 
@@ -192,16 +193,18 @@ def _ensure_worker() -> queue.Queue[dict[str, Any]]:
 
 def _enqueue_tgs(payload: dict[str, Any]) -> None:
     target = _ensure_worker()
-    entry = _build_tgs_entry(payload)
+    # Copy the top-level envelope only. The request path does no masking,
+    # serialization, network I/O, or disk I/O.
+    queued = dict(payload)
     try:
-        target.put_nowait(entry)
+        target.put_nowait(queued)
         _increment("enqueued")
         return
     except queue.Full:
         pass
 
-    # Keep the parser non-blocking under a stalled TGserver. Prefer the newest
-    # evidence and account for the discarded item instead of writing to disk.
+    # Under prolonged TGserver outage, preserve parser latency: discard the
+    # oldest unsent evidence, account for it, and prefer the newest evidence.
     try:
         target.get_nowait()
         target.task_done()
@@ -209,7 +212,7 @@ def _enqueue_tgs(payload: dict[str, Any]) -> None:
     except queue.Empty:
         _increment("dropped")
     try:
-        target.put_nowait(entry)
+        target.put_nowait(queued)
         _increment("enqueued")
     except queue.Full:
         _increment("dropped")
@@ -227,10 +230,9 @@ def append_log(path: Path, payload: dict[str, Any]) -> None:
     """Emit parser evidence without letting log I/O dominate parser latency.
 
     Astera/server deployments set DJPMCP_LOG_SINK=tgserver and send through the
-    bounded in-memory worker to TGserver POST /ingest. The parser thread never
-    waits for the network and never spills TGserver failures to persistent disk.
-    Public/self-hosted users can retain the legacy file sink explicitly or by
-    leaving TGserver unconfigured.
+    bounded in-memory worker to TGserver POST /ingest. The parser thread does
+    not mask, serialize, wait for network I/O, or spill failures to persistent
+    disk in tgserver mode. Public/self-hosted users may retain the file sink.
     """
 
     mode = _sink_mode()
@@ -243,8 +245,7 @@ def append_log(path: Path, payload: dict[str, Any]) -> None:
 
 
 def flush_logs(timeout: float = 1.0) -> bool:
-    """Best-effort drain for tests and orderly shutdown; not used on request path."""
-
+    """Best-effort drain for tests and orderly shutdown; never used per request."""
     target = _queue
     if target is None:
         return True
