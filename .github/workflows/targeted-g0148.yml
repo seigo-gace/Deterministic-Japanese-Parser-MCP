@@ -20,33 +20,17 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - name: Capture transition diagnostics
+      - name: Regression tests
         run: |
           mkdir -p reports
-          python - <<'PY' > reports/g0148-diagnostic-${{ matrix.python-version }}.json
-          import json
-          from dataclasses import replace
-          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
-          from deterministic_japanese_parser_mcp.config import SETTINGS
-          from deterministic_japanese_parser_mcp.normalizer import normalize_with_map
-
-          text = "旧仕様ではなく新仕様を採用する。ただしUIは変更するな。"
-          engine = ParserEngine(settings=replace(SETTINGS, hard_deadline_ms=60_000))
-          normalized, mapping = normalize_with_map(text)
-          raw, raw_timeouts = engine.rules.extract(normalized, mapping, text)
-          response = engine.analyze(AnalyzeRequest(original_text=text, deadline_ms=60_000))
-          payload = {
-              "raw": [item.model_dump(mode="json") for item in raw],
-              "raw_timeouts": raw_timeouts,
-              "propositions": [item.model_dump(mode="json") for item in response.meaning_graph.propositions],
-              "legacy_intents": [item.model_dump(mode="json") for item in response.intents],
-              "scope_edges": [item.model_dump(mode="json") for item in response.meaning_graph.scope_edges],
-              "quality_annotations": response.meaning_graph.quality_annotations,
-          }
-          print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-          PY
-      - name: Regression tests
-        run: pytest tests/test_exception_intent_regression.py -vv --junitxml=reports/g0148-${{ matrix.python-version }}.xml
+          pytest -q \
+            tests/test_exception_intent_regression.py \
+            tests/test_reading_unknown_audit.py \
+            --junitxml=reports/g0148-${{ matrix.python-version }}.xml
+      - name: Gold validator
+        run: |
+          set -o pipefail
+          python tools/validator.py | tee reports/validator-${{ matrix.python-version }}.txt
       - name: Preserve diagnostics
         if: always()
         uses: actions/upload-artifact@v4
