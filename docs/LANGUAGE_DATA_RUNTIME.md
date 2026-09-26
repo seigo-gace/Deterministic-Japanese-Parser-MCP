@@ -6,6 +6,36 @@
 
 Runtimeは非AI・非生成・Offline・決定論的のままとし、Web検索、外部辞書取得、YAML解析、辞書Merge、語義生成、Index構築をユーザー要求の処理中に行わない。
 
+## Semantic Hash と再現性Hash
+
+`semantic_hash` は従来どおり **Meaning Graphそのものの意味構造Identity** とする。既存Client互換性のためAlgorithmとFieldを変更しない。
+
+Runtime/辞書Versionまで含めて「どの決定論的実行環境でその意味構造が生成されたか」を検証するため、`AnalyzeResponse.versions` に移行用 `semantic_hash_v2` を併記する。
+
+| Evidence | `semantic_hash` v1 | `versions.semantic_hash_v2` |
+|---|---:|---:|
+| MeaningGraph内容 | 含む | v1 hash経由で含む |
+| 正規化Text | Graphに含まれる範囲 | 明示的に含む |
+| Engine / Schema / Parser Version set | 含めない | `engine_versions_sha256`として含む |
+| System/User Dictionary Snapshot | 結果Graphに反映された内容のみ | `dictionary_snapshot_sha256`として含む |
+| Semantic Data Runtime Manifest | 結果Graphに反映された内容のみ | `semantic_runtime_sha256`として含む |
+| Language Feature Compiled Asset | 結果Graphに反映された内容のみ | `language_feature_asset_sha256`として含む |
+
+`semantic_hash_v2` のAlgorithm IDは `sha256-semantic-runtime-v2`。入力は、正規化Text、v1 `semantic_hash`、Engine Version集合のDigest、Dictionary Snapshot Digest、Semantic Runtime Digest、Language Feature Asset DigestをKey名順にCanonical JSON化したByte列である。
+
+この分離により、同じMeaningGraphを異なるRuntime Versionが生成した場合でもv1のMeaning Identityは維持しつつ、v2で再現環境差を検出できる。`include`のようなTransport-only指定、Latency、Cache Hit/Miss、Metricsはv2へ含めない。
+
+`versions`には監査用として次も常時出力する。
+
+- `semantic_hash_v1`
+- `semantic_hash_v2`
+- `semantic_hash_v2_algorithm`
+- `engine_versions_sha256`
+- `dictionary_snapshot_sha256`
+- `semantic_runtime_sha256`
+- `language_feature_asset_sha256`
+- `language_feature_asset`
+
 ## 受入Data
 
 収集Entryは最低限、次を持つ。
@@ -160,6 +190,9 @@ CIで次を強制する。
 - `はい。`を相槌として認識する
 - `死ね。`の語尾を終助詞「ね」と誤認しない
 - `よね`と`よ`・`ね`の重複抑止
+- 同一入力・同一Runtime Snapshotでv1/v2 Hashが再現する
+- Dictionary / Semantic Runtime / Language Feature AssetのSnapshot差がv2へ反映される
+- v2追加で既存v1 `semantic_hash`値を変更しない
 - 既存Gold、External Action Guard、Offline Wheel、10ms/50ms契約を維持する
 
 ## 完了条件
@@ -172,3 +205,4 @@ CIで次を強制する。
 - RuntimeがMeaning Graphへ反映する
 - 曖昧なAction / Social解釈を外部実行へ通さない
 - 既存Intent / Task / External Action Guardを削除しない
+- v1 Meaning Identityとv2 Runtime Reproducibilityを分離して監査できる
