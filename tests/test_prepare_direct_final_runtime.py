@@ -51,6 +51,7 @@ def test_prepare_skips_download_when_local_fixture_is_complete(tmp_path: Path) -
     assert payload["semantic_records"] == 2
     assert Path(payload["system_root"]).is_dir()
     assert payload["DJPMCP_SYSTEM_DICT_DIR"] == payload["system_root"]
+    assert payload["DJPMCP_REQUIRE_DIRECT_FINAL"] == "true"
 
 
 def test_prepare_exits_on_expected_records_mismatch(tmp_path: Path) -> None:

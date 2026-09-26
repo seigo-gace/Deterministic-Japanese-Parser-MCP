@@ -7,6 +7,8 @@ def test_checked_in_120k_lexicon_is_one_connected_runtime() -> None:
     engine = ParserEngine()
     runtime = engine.bundle.open_lexicon
 
+    assert engine.settings.system_dict_dir.name == "system"
+    assert engine.direct_final_required is False
     assert engine.bundle.lexicon["lookup_backend"] == "compiled-index"
     assert engine.bundle.lexicon["record_count"] == 120000
     assert runtime.available is True

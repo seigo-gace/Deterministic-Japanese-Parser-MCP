@@ -1178,6 +1178,22 @@ def _has_semantic_negation(text: str) -> bool:
     )
 
 
+def _negative_imperative_tail(frame, clause, tokens):
+    for token in sorted(tokens, key=lambda x: x.span.start):
+        if token.span.start != frame.source_span.end:
+            continue
+        pos = token.pos or []
+        if (
+            token.surface == "な"
+            and len(pos) >= 2
+            and pos[0] == "助詞"
+            and pos[1] == "終助詞"
+        ):
+            return token
+        return None
+    return None
+
+
 def _scope_target_frame_ids(
     operator_type: str,
     start: int,
@@ -1228,6 +1244,7 @@ def _operators_for_clause(
     clause: Clause,
     original: str,
     frames: list[PredicateFrame],
+    tokens: list[Token],
     start_number: int,
 ) -> tuple[list[ScopeOperator], list[dict]]:
     output: list[ScopeOperator] = []
@@ -1329,6 +1346,35 @@ def _operators_for_clause(
     for pattern, value in _QUANTIFIER_PATTERNS:
         for match in pattern.finditer(clause.text):
             add("quantifier", value, match)
+
+    for frame in frames:
+        tail = _negative_imperative_tail(frame, clause, tokens)
+        if tail is None:
+            continue
+
+        output.append(ScopeOperator(
+            operator_id=f"SO-{start_number + len(output):03d}",
+            clause_id=clause.clause_id,
+            operator_type="negation",
+            semantic_value="prohibitive_negation",
+            marker=tail.surface,
+            source_span=tail.span,
+            operand_spans=[clause.source_span],
+            target_frame_ids=[frame.frame_id],
+            status=ItemStatus.RESOLVED,
+        ))
+
+        output.append(ScopeOperator(
+            operator_id=f"SO-{start_number + len(output):03d}",
+            clause_id=clause.clause_id,
+            operator_type="modality",
+            semantic_value="prohibition",
+            marker=tail.surface,
+            source_span=tail.span,
+            operand_spans=[clause.source_span],
+            target_frame_ids=[frame.frame_id],
+            status=ItemStatus.RESOLVED,
+        ))
     if re.search(
         r"[？?]|(?:の|ん|だ|です|ます)?か[。！？!?]?$|(?:でしょう|だろう)か[。！？!?]?$",
         clause.text,
@@ -2389,10 +2435,11 @@ class DeterministicReadingRuntime:
                 )
                 local_end = max(local_end, frame.source_span.end)
                 local_text = original_text[frame.source_span.start:local_end]
+                neg_imp = _negative_imperative_tail(frame, clause, tokens)
                 adjusted = frame.model_copy(update={
                     "polarity": (
                         "negative"
-                        if _has_semantic_negation(local_text)
+                        if _has_semantic_negation(local_text) or neg_imp
                         else "positive"
                     ),
                     "tense": _tense(local_text),
@@ -2522,6 +2569,7 @@ class DeterministicReadingRuntime:
                 clause,
                 original_text,
                 frame_by_clause.get(clause.clause_id, []),
+                tokens,
                 len(operators) + 1,
             )
             remaining = self.max_operators - len(operators)

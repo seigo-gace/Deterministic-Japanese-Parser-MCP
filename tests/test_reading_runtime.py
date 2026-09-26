@@ -84,6 +84,137 @@ def test_negation_targets_only_the_modified_predicate(engine):
     assert negation.target_frame_ids == [change.frame_id]
 
 
+@pytest.mark.parametrize(
+    ("text", "predicate"),
+    [
+        ("壊すな。", "壊す"),
+        ("触るな。", "触る"),
+        ("変更するな。", "変更する"),
+        ("削除するな。", "削除する"),
+        ("実行するな。", "実行する"),
+    ],
+)
+def test_negative_imperative_targets_only_prohibited_predicate(
+    engine,
+    text,
+    predicate,
+):
+    response = _analyze(engine, text)
+    reading = response.meaning_graph.reading_analysis
+    frame = next(
+        item for item in reading.predicate_frames
+        if item.predicate == predicate
+    )
+
+    assert frame.polarity == "negative"
+    prohibitive_negations = [
+        item for item in reading.scope_operators
+        if item.operator_type == "negation"
+        and item.semantic_value == "prohibitive_negation"
+    ]
+    prohibitions = [
+        item for item in reading.scope_operators
+        if item.operator_type == "modality"
+        and item.semantic_value == "prohibition"
+    ]
+    assert prohibitive_negations
+    assert prohibitions
+    assert all(
+        item.target_frame_ids == [frame.frame_id]
+        for item in [*prohibitive_negations, *prohibitions]
+    )
+    assert all(
+        other.frame_id not in item.target_frame_ids
+        for other in reading.predicate_frames
+        if other.frame_id != frame.frame_id
+        for item in [*prohibitive_negations, *prohibitions]
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "predicate"),
+    [
+        ("壊さない", "壊す"),
+        ("変更しない", "変更する"),
+    ],
+)
+def test_existing_plain_negation_reading_is_preserved(engine, text, predicate):
+    response = _analyze(engine, text)
+    reading = response.meaning_graph.reading_analysis
+    frame = next(
+        item for item in reading.predicate_frames
+        if item.predicate == predicate
+    )
+    negation = next(
+        item for item in reading.scope_operators
+        if item.operator_type == "negation"
+    )
+
+    assert frame.polarity == "negative"
+    assert negation.target_frame_ids == [frame.frame_id]
+
+
+def test_existing_tewaikenai_prohibition_reading_is_preserved(engine):
+    response = _analyze(engine, "変更してはいけない")
+    reading = response.meaning_graph.reading_analysis
+
+    assert any(
+        frame.predicate == "変更する"
+        for frame in reading.predicate_frames
+    )
+    assert any(
+        item.operator_type == "modality"
+        and item.semantic_value == "prohibition"
+        and item.target_frame_ids
+        for item in reading.scope_operators
+    )
+
+
+def test_direct_final_quality_sentence_keeps_prohibition_and_partial_status(
+    engine,
+):
+    response = _analyze(
+        engine,
+        "このUIは残せ。ただしAPIだけ変更して、既存の認証処理は壊すな。",
+    )
+    reading = response.meaning_graph.reading_analysis
+    frames = {item.predicate: item for item in reading.predicate_frames}
+    broken = frames["壊す"]
+
+    assert broken.polarity == "negative"
+    prohibited = [
+        item for item in reading.scope_operators
+        if (
+            item.operator_type == "negation"
+            and item.semantic_value == "prohibitive_negation"
+        )
+        or (
+            item.operator_type == "modality"
+            and item.semantic_value == "prohibition"
+        )
+    ]
+    assert {item.operator_type for item in prohibited} == {
+        "negation",
+        "modality",
+    }
+    assert all(item.target_frame_ids == [broken.frame_id] for item in prohibited)
+    assert all(
+        frame.frame_id not in item.target_frame_ids
+        for predicate, frame in frames.items()
+        if predicate != "壊す"
+        for item in prohibited
+    )
+    modify = next(
+        item for item in response.meaning_graph.propositions
+        if item.proposition_id == "P-006"
+    )
+    assert modify.intent_type == "modify"
+    assert modify.predicate == "変更する"
+    assert modify.status.value == "INSUFFICIENT"
+    assert modify.executable_candidate is False
+    assert response.overall_status.value == "PARTIAL"
+
+
 def test_condition_targets_only_the_consequent_predicate(engine):
     response = _analyze(engine, "テストが通ったら、結果を保存する。")
     reading = response.meaning_graph.reading_analysis

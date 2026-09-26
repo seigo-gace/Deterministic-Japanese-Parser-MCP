@@ -9,6 +9,7 @@ import pytest
 
 from deterministic_japanese_parser_mcp.models import (
     AnalyzeRequest,
+    Clause,
     ItemStatus,
     MeaningGraph,
     OriginalSpan,
@@ -19,7 +20,12 @@ from deterministic_japanese_parser_mcp.models import (
 )
 from deterministic_japanese_parser_mcp.config import Settings
 from deterministic_japanese_parser_mcp.engine import ParserEngine
-from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
+from deterministic_japanese_parser_mcp.semantic_data_runtime import (
+    SemanticDataRuntime,
+    _clause_context_tokens,
+    _collocate_sense_adjustment,
+    _salient_kanji_overlap_score,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -1221,6 +1227,141 @@ def test_neighbor_definition_overlap_prefers_crossing_wataru_sense(
     assert "semantic_pack_neighbor_definition_overlap" in cross.evidence
 
 
+def test_neighbor_overlap_uses_unique_kanji_bigrams() -> None:
+    meaningful = _salient_kanji_overlap_score(
+        ["構築物を横切る", "構築物を横切る"],
+        "川を渡るための構築物",
+        excluded=set(),
+    )
+    single_character_noise = _salient_kanji_overlap_score(
+        ["資源を特定の人または目的に与える"],
+        "記録を特別な形式で保存する",
+        excluded=set(),
+    )
+
+    assert meaningful == 20
+    assert single_character_noise == 0
+
+
+def test_semantic_neighbor_context_does_not_cross_clause_boundaries() -> None:
+    text = "UIを残す。資源を割り当てる。"
+    tokens = [
+        Token(
+            surface="UI",
+            normalized="UI",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=2, source_text="UI"),
+        ),
+        Token(
+            surface="を",
+            normalized="を",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=2, end=3, source_text="を"),
+        ),
+        Token(
+            surface="残す",
+            normalized="残す",
+            pos=["動詞"],
+            span=OriginalSpan(start=3, end=5, source_text="残す"),
+        ),
+        Token(
+            surface="資源",
+            normalized="資源",
+            pos=["名詞"],
+            span=OriginalSpan(start=6, end=8, source_text="資源"),
+        ),
+    ]
+    graph = MeaningGraph(clauses=[
+        Clause(
+            clause_id="C-001",
+            text="UIを残す。",
+            source_span=OriginalSpan(start=0, end=6, source_text="UIを残す。"),
+        ),
+        Clause(
+            clause_id="C-002",
+            text="資源を割り当てる。",
+            source_span=OriginalSpan(
+                start=6,
+                end=len(text),
+                source_text="資源を割り当てる。",
+            ),
+        ),
+    ])
+
+    scoped = _clause_context_tokens(graph, tokens, current=tokens[2])
+
+    assert [item.surface for item in scoped] == ["UI", "を", "残す"]
+
+
+def test_nokosu_collocate_uses_object_and_recipient_cases() -> None:
+    preserve = {"label": "特別の使用のために続けるまたは取っておく"}
+    allocate = {"label": "資源を特定の人または目的に与え、割り当てる"}
+    retained_tokens = [
+        Token(
+            surface="設定",
+            normalized="設定",
+            pos=["名詞"],
+            span=OriginalSpan(start=0, end=2, source_text="設定"),
+        ),
+        Token(
+            surface="を",
+            normalized="を",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=2, end=3, source_text="を"),
+        ),
+        Token(
+            surface="残す",
+            normalized="残す",
+            pos=["動詞"],
+            span=OriginalSpan(start=3, end=5, source_text="残す"),
+        ),
+    ]
+    recipient_tokens = [
+        *retained_tokens[:2],
+        Token(
+            surface="部署",
+            normalized="部署",
+            pos=["名詞"],
+            span=OriginalSpan(start=3, end=5, source_text="部署"),
+        ),
+        Token(
+            surface="に",
+            normalized="に",
+            pos=["助詞", "格助詞"],
+            span=OriginalSpan(start=5, end=6, source_text="に"),
+        ),
+        retained_tokens[2].model_copy(update={
+            "span": OriginalSpan(start=6, end=8, source_text="残す"),
+        }),
+    ]
+
+    preserve_score, preserve_evidence = _collocate_sense_adjustment(
+        preserve,
+        token=retained_tokens[2],
+        tokens=retained_tokens,
+        neighbor_definitions="",
+    )
+    allocate_score, allocate_evidence = _collocate_sense_adjustment(
+        allocate,
+        token=retained_tokens[2],
+        tokens=retained_tokens,
+        neighbor_definitions="",
+    )
+    recipient_score, recipient_evidence = _collocate_sense_adjustment(
+        allocate,
+        token=recipient_tokens[-1],
+        tokens=recipient_tokens,
+        neighbor_definitions="",
+    )
+
+    assert preserve_score > 0
+    assert "semantic_pack_retained_object_preservation_boost" in preserve_evidence
+    assert allocate_score < 0
+    assert "semantic_pack_retained_object_allocation_demotion" in allocate_evidence
+    assert recipient_score == 0
+    assert recipient_evidence == []
+
+
 def test_direct_final_collocate_sense_selection() -> None:
     system_root = ROOT / "work/direct-final-compiled/system"
     if not (system_root / "compiled").is_dir():
@@ -1272,6 +1413,15 @@ def test_direct_final_everyday_matrix_sense_regression() -> None:
         "橋を渡る": ("渡る", ("横切", "通り越"), ()),
         "電話をかける": ("かける", ("phone", "call", "電話"), ()),
         "猫が魚を食べた": ("食べる", ("食物", "摂取", "固形"), ()),
+        "UIを残す": ("残す", ("続ける", "取っておく"), ("割り当て",)),
+        "設定を残す": ("残す", ("続ける", "取っておく"), ("割り当て",)),
+        "データを残す": ("残す", ("続ける", "取っておく"), ("割り当て",)),
+        "記録を残す": ("残す", ("続ける", "取っておく"), ("割り当て",)),
+        "このUIは残せ。ただしAPIだけ変更して、既存の認証処理は壊すな。": (
+            "残す",
+            ("続ける", "取っておく"),
+            ("割り当て",),
+        ),
     }
     for text, (predicate, positive_markers, negative_markers) in expectations.items():
         response = engine.analyze(

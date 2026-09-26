@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import os
 import sys
@@ -10,6 +10,20 @@ DEFAULT_DICT_ROOT = (
     if (SOURCE_ROOT / "dictionaries/system").exists()
     else INSTALLED_ROOT / "dictionaries"
 )
+
+
+def _environment_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of true/false, 1/0, yes/no, or on/off"
+    )
 
 
 @dataclass(frozen=True)
@@ -36,6 +50,11 @@ class Settings:
         if os.getenv("DJPMCP_SEMANTIC_DATA_RUNTIME_DIR")
         else None
     )
+    direct_final_required: bool = field(
+        default_factory=lambda: _environment_bool(
+            "DJPMCP_REQUIRE_DIRECT_FINAL",
+        )
+    )
 
     def __post_init__(self) -> None:
         if self.target_latency_ms < 1:
@@ -46,6 +65,8 @@ class Settings:
             raise ValueError("max_graph_nodes must be at least 32")
         if self.max_scope_edges < 32:
             raise ValueError("max_scope_edges must be at least 32")
+        if not isinstance(self.direct_final_required, bool):
+            raise ValueError("direct_final_required must be a boolean")
 
 
 SETTINGS = Settings()
