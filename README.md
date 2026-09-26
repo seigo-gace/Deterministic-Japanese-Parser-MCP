@@ -21,6 +21,27 @@ DJPMCP自身は回答文を生成せず、外部サービスも操作しませ�
 
 現在の公開Toolは`analyze_japanese`、Program CodeはMIT、Python 3.10+対応です。Self-hosted OSSとOfficial Astera Hosted Commercial Serviceの境界は[`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)を参照してください。
 
+## 基本提議｜Purpose and Result
+
+**目的**は、日本語入力を**0.5秒以下で、LLM・生成AIによる推測に頼らず、決定論的に正確に読解し、後段AI／Astera／Agentが日本語を読み直したり推測したりせず、そのまま判断材料として使えるMeaningGraphへ変換すること**です。
+
+そのため、文意・意図・対象・条件・否定・例外・照応・文脈・作用範囲・談話・語用・曖昧性・不足情報をEvidence付きで構造化します。曖昧または不足した情報を勝手に確定せず、External Actionに重要な未解決・矛盾・保護対象競合があればFail Closedにします。同じ入力・同じContext・同じRuntime Data・同じ設定では同じ意味結果を返し、RuntimeではLLMを使用せず、Offline実行可能性を維持します。
+
+**速度のために読解精度、MeaningGraph、曖昧性保持、Reading Evidence、Fail Closedを削りません。** MCP全体の最上位性能条件は、必要な完全日本語読解結果を**0.5秒以下**で返すことです。10ms / 50ms等のより厳しい値は内部最適化目標・局所Gateであり、この目的を置き換えません。
+
+各入力に対する必須結果は、少なくとも次です。
+
+- `overall_status`: `COMPLETE | PARTIAL | FAILED`
+- `meaning_graph`: 日本語の意味構造の正本
+- `reading_analysis`: 述語項、Scope、照応、談話、語用等の読解Evidence
+- `task_graph`: 実行候補がある場合にMeaningGraphから派生するAction / Constraint構造
+- `ambiguities` / `missing_information` / `contradictions`: 未確定要素を隠さず保持
+- `execution_allowed` / `blocked_reasons`: External Actionの安全判定
+- `semantic_hash` / `versions`: 再現性確認に必要な識別情報
+- `metrics.total_ms`: 0.5秒以下の完走を検証する処理時間Evidence
+
+`COMPLETE`を無理に作ること自体は目的ではありません。解決不能な参照、曖昧性、矛盾、未対応、Timeoutは`PARTIAL`または`FAILED`として明示し、External Actionで重要な未解決要素が残る場合は実行を許可しません。
+
 ## なぜ決定論的か
 
 同じ入力・Context・Runtime Data・設定から同等の意味構造を再現し、**なぜその読解結果になったかをTest・Hash・Evidenceで検証可能にするため**です。
