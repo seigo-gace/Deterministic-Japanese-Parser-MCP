@@ -116,7 +116,10 @@ checked-in 120k baseline under `dictionaries/system` is not overwritten). After
 compiled Direct Final output plus repo-linked companions (`semantic_profiles.yaml`,
 rules, metaphors, templates, synonyms, and related `.d` trees) so you can pass
 that path to `ParserEngine` via `Settings(system_dict_dir=...)` or
-`DJPMCP_SYSTEM_DICT_DIR` without missing system files:
+`DJPMCP_SYSTEM_DICT_DIR` without missing system files. Production processes
+that require this data must also set `DJPMCP_REQUIRE_DIRECT_FINAL=true`; this
+makes startup fail closed if any Direct Final manifest, count, safety boundary,
+or required runtime file is missing or inconsistent:
 
 
 ```bash
@@ -127,7 +130,15 @@ export DJPMCP_SYSTEM_DICT_DIR="$(python -c 'import json,sys; print(json.load(sys
   < <(python tools/prepare_direct_final_runtime.py \
         --release-tag <GitHub Release tag> \
         --expected-records <manifest full_json_records_validated>)
+export DJPMCP_REQUIRE_DIRECT_FINAL=true
 ```
+
+`DJPMCP_SYSTEM_DICT_DIR` remains only a path binding. It does not itself enable
+required mode. Without `DJPMCP_REQUIRE_DIRECT_FINAL=true`, the portable
+`dictionaries/system` default and the existing non-required fallback behavior
+remain unchanged. Required mode never falls back from
+`compiled/canonical_dictionary_runtime` to `compiled/semantic_data`, or from
+`compiled/open_lexicon` to `lexicon.d`.
 
 Low-level compile when the Direct Final bundle is already on disk:
 
@@ -162,6 +173,7 @@ available through the package data or set:
 
 ```bash
 export DJPMCP_SYSTEM_DICT_DIR=/absolute/path/to/dictionaries/system
+export DJPMCP_REQUIRE_DIRECT_FINAL=true
 ```
 
 ## PR Evidence
