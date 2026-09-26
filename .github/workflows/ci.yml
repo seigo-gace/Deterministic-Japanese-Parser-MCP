@@ -48,6 +48,7 @@ jobs:
       - name: Unit, importer, supply-chain and MCP stdio E2E tests
         run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
       - name: README runtime examples
+        if: always()
         run: python scripts/readme_examples.py > reports/readme-examples-${{ matrix.python-version }}.json
       - name: Existing benchmark regression gate
         run: |
