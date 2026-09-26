@@ -768,10 +768,19 @@ def _normalize_concessive_and_contrast_propositions(
             if item.predicate != "関わる"
         ]
     if has_tadashi:
+        prohibition_clause_ids = {
+            item.clause_id
+            for item in filtered
+            if item.intent_type == "prohibition"
+            and item.clause_id is not None
+        }
         filtered = [
             item
             for item in filtered
-            if item.intent_type != "exception"
+            if (
+                item.intent_type != "exception"
+                or item.clause_id in prohibition_clause_ids
+            )
         ]
     return filtered
 

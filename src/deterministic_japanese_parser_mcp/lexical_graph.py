@@ -126,7 +126,13 @@ def _related_propositions(
 
 
 def _is_function_word(token: Token) -> bool:
-    return bool(token.pos and token.pos[0] in _FUNCTION_WORD_POS_HEADS)
+    if token.pos and token.pos[0] in _FUNCTION_WORD_POS_HEADS:
+        return True
+    return bool(
+        len(token.pos) >= 2
+        and token.pos[:2] == ["動詞", "非自立可能"]
+        and (token.normalized or token.surface) in {"する", "為る"}
+    )
 
 
 def _token_is_proposition_head(token: Token, proposition: Proposition) -> bool:

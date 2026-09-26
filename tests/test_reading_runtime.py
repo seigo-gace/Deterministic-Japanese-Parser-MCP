@@ -215,6 +215,40 @@ def test_direct_final_quality_sentence_keeps_prohibition_and_partial_status(
     assert response.overall_status.value == "PARTIAL"
 
 
+def test_tadashi_exception_coexists_with_negative_imperative(engine):
+    response = _analyze(
+        engine,
+        "旧仕様ではなく新仕様を採用する。ただしUIは変更するな。",
+    )
+    intent_types = {item.type for item in response.intents}
+    reading = response.meaning_graph.reading_analysis
+    change = next(
+        item for item in reading.predicate_frames
+        if item.predicate == "変更する"
+    )
+
+    assert {
+        "correction",
+        "decision",
+        "exception",
+        "preserve",
+        "prohibition",
+    } <= intent_types
+    assert change.polarity == "negative"
+    assert any(
+        item.operator_type == "negation"
+        and item.semantic_value == "prohibitive_negation"
+        and item.target_frame_ids == [change.frame_id]
+        for item in reading.scope_operators
+    )
+    assert any(
+        item.operator_type == "modality"
+        and item.semantic_value == "prohibition"
+        and item.target_frame_ids == [change.frame_id]
+        for item in reading.scope_operators
+    )
+
+
 def test_condition_targets_only_the_consequent_predicate(engine):
     response = _analyze(engine, "テストが通ったら、結果を保存する。")
     reading = response.meaning_graph.reading_analysis
