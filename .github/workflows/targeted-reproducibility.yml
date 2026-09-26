@@ -1,0 +1,68 @@
+name: Targeted Reproducibility Hash
+on:
+  push:
+    branches:
+      - feat/reproducibility-fingerprint-20260926
+
+permissions:
+  contents: read
+
+jobs:
+  reproducibility:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Reproducibility tests
+        run: |
+          mkdir -p reports
+          pytest -q tests/test_reproducibility_hash.py \
+            --junitxml=reports/reproducibility-${{ matrix.python-version }}.xml
+      - name: Capture hash evidence
+        run: |
+          python - <<'PY' > reports/hash-evidence-${{ matrix.python-version }}.json
+          import json
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+
+          engine = ParserEngine()
+          first = engine.analyze(AnalyzeRequest(original_text="UIは維持する。APIだけ変更しろ。"))
+          second = engine.analyze(AnalyzeRequest(original_text="UIは維持する。APIだけ変更しろ。"))
+          keys = [
+              "semantic_hash_v1",
+              "semantic_hash_v2",
+              "semantic_hash_v2_algorithm",
+              "engine_versions_sha256",
+              "dictionary_snapshot_sha256",
+              "semantic_runtime_sha256",
+              "language_feature_asset_sha256",
+              "language_feature_asset",
+          ]
+          payload = {
+              "meaning_graph_semantic_hash": first.meaning_graph.semantic_hash,
+              "stable_v1": first.meaning_graph.semantic_hash == second.meaning_graph.semantic_hash,
+              "stable_v2": first.versions["semantic_hash_v2"] == second.versions["semantic_hash_v2"],
+              "versions": {key: first.versions[key] for key in keys},
+          }
+          print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+          PY
+      - name: Existing semantic and latency smoke
+        run: |
+          python scripts/preflight.py
+          python scripts/astera_latency_contract.py --check --rounds 20 --stdio-rounds 10 --target-ms 10 --hard-ms 50
+          python -m compileall -q src tests
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducibility-${{ matrix.python-version }}
+          path: reports
+          retention-days: 7
