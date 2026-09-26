@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from .models import AnalyzeRequest
+from .response_projection import project_response
 from .server import SERVER_NAME, SERVER_VERSION, analyze_sync, prewarm, server
 
 _DEFAULT_MAX_BODY_BYTES = 1_048_576
@@ -161,7 +162,7 @@ def create_app():
             )
 
         response = analyze_sync(parsed)
-        return JSONResponse(response.model_dump(mode="json"))
+        return JSONResponse(project_response(response, parsed.include))
 
     @contextlib.asynccontextmanager
     async def lifespan(app: Starlette) -> AsyncIterator[None]:

@@ -11,14 +11,14 @@ from pydantic import TypeAdapter
 
 from mcp.shared.session import ProgressFnT
 
-from .models import AnalyzeResponse
+from .response_projection import AnalyzeToolResponse
 
 
 class LowLatencyClientSession(ClientSession):
     """Schema-safe MCP client with all validators prepared before readiness.
 
     The upstream ClientSession.call_tool path invokes jsonschema.validate for
-    every response. For this parser's advertised AnalyzeResponse schema, the
+    every response. For this parser's advertised projected response schema, the
     authoritative Pydantic TypeAdapter is compiled once and reused. Unknown
     tools retain a compiled JSON Schema validator fallback.
     """
@@ -26,7 +26,7 @@ class LowLatencyClientSession(ClientSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._known_output_adapters: dict[str, TypeAdapter] = {
-            "analyze_japanese": TypeAdapter(AnalyzeResponse),
+            "analyze_japanese": TypeAdapter(AnalyzeToolResponse),
         }
         self._pydantic_output_validators: dict[str, TypeAdapter] = {}
         self._jsonschema_output_validators: dict[str, Validator | None] = {}

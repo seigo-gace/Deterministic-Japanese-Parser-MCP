@@ -1,0 +1,73 @@
+name: Targeted Response Projection
+on:
+  push:
+    branches:
+      - feat/response-include-projection-20260926
+
+permissions:
+  contents: read
+
+jobs:
+  projection:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Projection tests
+        run: |
+          mkdir -p reports
+          pytest -q \
+            tests/test_response_projection.py \
+            tests/test_server_response_cache.py \
+            tests/test_mcp_stdio_e2e.py \
+            tests/test_http_api.py \
+            --junitxml=reports/projection-${{ matrix.python-version }}.xml
+      - name: Payload measurement
+        run: |
+          python - <<'PY' > reports/projection-size-${{ matrix.python-version }}.json
+          import json
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          from deterministic_japanese_parser_mcp.response_projection import project_response
+
+          engine = ParserEngine()
+          response = engine.analyze(AnalyzeRequest(original_text="UIは維持する。APIだけ変更しろ。"))
+          full = project_response(response, None)
+          core = project_response(response, [])
+          graph = project_response(response, ["meaning_graph"])
+
+          def size(value):
+              return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+          full_bytes = size(full)
+          core_bytes = size(core)
+          graph_bytes = size(graph)
+          payload = {
+              "full_bytes": full_bytes,
+              "decision_core_bytes": core_bytes,
+              "meaning_graph_bytes": graph_bytes,
+              "decision_core_reduction_percent": round((1 - core_bytes / full_bytes) * 100, 2),
+              "meaning_graph_reduction_percent": round((1 - graph_bytes / full_bytes) * 100, 2),
+              "semantic_hash": full["semantic_hash"],
+              "core_semantic_hash": core["semantic_hash"],
+              "graph_semantic_hash": graph["semantic_hash"],
+          }
+          print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+          PY
+      - name: Compile
+        run: python -m compileall -q src tests
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: response-projection-${{ matrix.python-version }}
+          path: reports
+          retention-days: 7
