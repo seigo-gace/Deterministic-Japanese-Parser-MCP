@@ -54,9 +54,9 @@ def test_language_specific_readmes_are_separate_and_linked() -> None:
     japanese = _read("README.md")
     english = _read("README_EN.md")
 
-    # Lock stable public contracts, not a particular README information
-    # architecture. README sections may be reorganized without weakening the
-    # product contract or requiring a test rewrite for every heading change.
+    # Lock durable public/product contracts rather than a specific heading
+    # layout. README information architecture can evolve without weakening the
+    # actual parser, safety, licensing, or language-navigation contract.
     japanese_markers = (
         "<strong>日本語</strong>",
         'href="README_EN.md"',
@@ -152,11 +152,57 @@ def test_bug_form_and_pull_request_template_cover_public_safety() -> None:
 
     required_terms = (
         "commit SHA",
-        "Python",
-        "OS",
-        "security",
-        "privacy",
+        "private URL",
+        "secret",
+        "test",
         "license",
     )
     missing = [term for term in required_terms if term.lower() not in combined.lower()]
-    assert not missing, f"public contribution templates are missing safeguards: {missing}"
+    assert not missing, f"public bug and pull request forms are missing safeguards: {missing}"
+
+
+def test_discussion_forms_cover_validation_boundaries() -> None:
+    discussion_paths = (
+        ".github/DISCUSSION_TEMPLATE/validation-campaigns.yml",
+        ".github/DISCUSSION_TEMPLATE/validation-results.yml",
+        ".github/DISCUSSION_TEMPLATE/japanese-language-review.yml",
+        ".github/DISCUSSION_TEMPLATE/environment-validation.yml",
+        ".github/DISCUSSION_TEMPLATE/evidence-review.yml",
+    )
+    combined = "\n".join(_read(path) for path in discussion_paths)
+
+    required_terms = (
+        "validation",
+        "reproduce",
+        "secret",
+        "license",
+        "External Action",
+        "runtime",
+        "Discussion",
+        "Bug Issue",
+    )
+    missing = [term for term in required_terms if term.lower() not in combined.lower()]
+    assert not missing, f"discussion validation forms are missing boundaries: {missing}"
+
+    for path in discussion_paths:
+        content = _read(path)
+        assert "body:" in content, f"discussion form missing body: {path}"
+        assert "validations:" in content, f"discussion form missing required fields: {path}"
+
+
+def test_public_documentation_index_links_core_contracts() -> None:
+    index = _read("docs/README.md")
+    required_links = (
+        "../README.md",
+        "../README_EN.md",
+        "../VALIDATION.md",
+        "../SUPPORT.md",
+        "../CONTRIBUTING.md",
+        "../SECURITY.md",
+        "../CHANGELOG.md",
+        "OPEN_LEXICON_ACCURACY.md",
+        "OPEN_DICTIONARY_SUPPLY_CHAIN.md",
+        "PUBLIC_RELEASE_CHECKLIST.md",
+    )
+    missing = [link for link in required_links if link not in index]
+    assert not missing, f"documentation index is incomplete: {missing}"
