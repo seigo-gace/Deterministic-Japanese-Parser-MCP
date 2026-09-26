@@ -14,24 +14,91 @@
 
 ## 概要
 
-Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AIに推測させる前に、機械が検証・再利用できる構造へ変換する**ためのMCPサーバーです。
+Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AIに推測させる前に、機械が検証・再利用できる構造へ変換する**ための決定論的Parser / MCP Serverです。
 
 中心となる出力は `MeaningGraph` です。入力文を単なる「意図ラベル」へ縮約せず、語彙候補、Entity、Clause、Proposition、述語・項、否定・条件・数量・モダリティ、引用帰属、照応、談話関係、未解決要素などを保持します。命令・依頼など実行候補を含む場合は、同じ読解結果から `TaskGraph` と外部操作可否も導出します。
 
-このプロジェクトは**回答文を生成するAIではありません**。また、曖昧な主語・対象・語義・因果を根拠なく補完して外部操作へ進めることを目的としていません。
+このプロジェクトは**回答文を生成するAIではありません**。曖昧な主語・対象・語義・因果を根拠なく補完して外部操作へ進めることも目的としていません。
 
 | 項目 | 現行実装 |
 |---|---|
 | Version | `0.4.0` |
 | MCP Tool | `analyze_japanese` |
 | MCP Transport | stdio / Streamable HTTP |
-| REST API | `POST /v1/analyze` |
+| Parser REST API | `POST /v1/analyze` |
 | Python API | `ParserEngine().analyze(AnalyzeRequest(...))` |
 | Python | 3.10以上 |
 | 形態解析 | SudachiPy + SudachiDict Core |
 | 実行時LLM | 使用しない |
 | 外部辞書API | Runtimeでは使用しない |
 | Program License | MIT |
+
+---
+
+## 利用形態：Public OSSとOfficial Hosted Service
+
+DJPMCPは、**公開RepositoryからDownloadして自分で実行するOpen Source Parser Core**と、Project OwnerがServer上で運用しAstera Platform / AsteraAppから提供する**Official Hosted Commercial Service**の両方を前提に設計されています。
+
+この二つは「機能を削った無料版」と「閉じた有料版」という関係ではありません。
+
+| | Public OSS / Self-host | Astera Hosted Commercial Service |
+|---|---|---|
+| Parser Core | GitHubから取得して利用 | Managed Runtimeとして利用 |
+| Install / Upgrade | 利用者が管理 | 運営側が管理 |
+| Infrastructure | 利用者が用意 | 運営側が提供 |
+| Account / Auth | 利用者側で構築 | Astera Platformで提供 |
+| Usage Metering | 利用者側で構築 | Platformで提供 |
+| Credit / Billing | 利用者側で構築 | Platformで提供 |
+| Rate / Quota | 利用者側で構築 | Platformで提供 |
+| Monitoring / Rollback | 利用者側 | 運営側 |
+| Support / SLA | OSSとして保証なし | Commercial Termsで定義可能 |
+| Astera Integration | 別途 | Official Integrationとして提供可能 |
+
+### Public OSS Distribution
+
+RepositoryのProgram CodeはMIT Licenseです。利用者は、自分のPC・Server・Container・Private Network等へInstallして、stdio MCP、Streamable HTTP、REST、Python APIを利用できます。
+
+Self-host時のInfrastructure、Authentication、Monitoring、Scaling、Backup、Availability等は利用者側の責務です。また、Third-party DataにはProgram Codeとは別のSource Licenseが適用される場合があります。
+
+### Astera Hosted Commercial API
+
+Project Owner管理Server上のDJPMCP Runtimeを、AsteraApp / Astera Platformから**Managed APIとして有料提供する構成**を想定しています。
+
+商用価値は公開Coreを隠すことではなく、Coreの外側へ次を統合して、Install・運用なしで利用できるPlatformにすることです。
+
+- Customer account / authentication
+- API credential lifecycle
+- authorization
+- usage metering
+- credit / quota
+- billing / plan integration
+- rate limiting
+- tenant isolation
+- abuse protection
+- operational monitoring
+- version rollout / rollback
+- support / commercial terms
+- Astera integration
+
+**重要:** このRepositoryの `POST /v1/analyze` はParser RuntimeのHTTP interfaceです。将来のCustomer-facing有料APIは、これをInternetへそのまま公開するのではなく、Astera API Gateway / Commercial Control Planeの内側に置く設計を推奨します。
+
+```mermaid
+flowchart LR
+    U[Customer / AsteraApp] --> G[Astera API Gateway]
+    G --> C[Auth / Metering / Credit / Billing / Rate Policy]
+    C --> P[DJPMCP Managed Runtime]
+    P --> M[MeaningGraph / TaskGraph]
+    M --> G
+    G --> U
+```
+
+商用PlatformのCustomer-facing URL、料金、Plan、SLAなどは、このParser RepositoryのVersionだけから推測せず、Astera Platform側で正式公開された情報をAuthorityとします。
+
+詳しい境界：
+
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md) — OSS配布と商用Hosted Serviceの関係
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md) — Astera有料APIの責務分離・Request Flow・Metering/Billing境界
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) — Production HTTP Runtimeの公開可能な安全構成
 
 ---
 
@@ -60,7 +127,7 @@ Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AI�
 
 `reading_analysis` では、単語列だけではなく文の内部構造を返します。
 
-主な構造は次のとおりです。
+主な構造：
 
 - `predicate_frames`
 - `dependency_arcs`
@@ -69,13 +136,13 @@ Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AI�
 - `discourse_relations`
 - unresolved reading elements
 
-たとえば、
+例：
 
 ```text
 すべての問題を解決できるわけではない。
 ```
 
-のような文では、数量表現と否定を一つのラベルに潰さず、適用範囲を分離して保持することを狙います。
+このような文では、数量表現と否定を一つのラベルに潰さず、適用範囲を分離して保持することを狙います。
 
 ### 3. 語彙・意味Runtime
 
@@ -90,7 +157,7 @@ Engineは複数の意味情報源を段階的に統合します。
 - metaphor / idiom rules
 - deterministic intent rules
 
-複数語義をContextだけで一意に決められない場合は、候補を残し `AMBIGUOUS` として扱えます。実行に関係する曖昧性は、外部操作モードでFail Closedの材料になります。
+複数語義をContextだけで一意に決められない場合は、候補を残し `AMBIGUOUS` として扱えます。実行に関係する曖昧性は、External Action ModeでFail Closedの材料になります。
 
 ### 4. 指示・依頼をTask Graphへ変換
 
@@ -128,7 +195,7 @@ Engineは複数の意味情報源を段階的に統合します。
 
 ---
 
-## アーキテクチャ
+## Parser Architecture
 
 ```mermaid
 flowchart TD
@@ -174,11 +241,11 @@ Engineの中心処理は `ParserEngine.analyze()` に集約されています。
 18. 必要時のみdiagnostic log出力
 19. compiled language-feature runtimeによる最終補強
 
-`analysis_depth` は入力契約として `auto / fast / deep` を受けます。現行実装で `deep` はDEEP結果を明示的に要求でき、`auto` は解析結果にscope・reference・discourse・ambiguity等が含まれるかで `analysis_path` を決定します。
+`analysis_depth` は `auto / fast / deep` を受けます。`deep` はDEEP結果を明示的に要求でき、`auto` はscope・reference・discourse・ambiguity等の解析結果から `analysis_path` を決定します。
 
 ---
 
-## インストール
+## Quick Start — Public OSS / Self-host
 
 ### Linux / macOS
 
@@ -214,13 +281,13 @@ pip install -e ".[dev]"
 
 ## MCP: stdioで使う
 
-インストール後のMCP server entrypointは `djpmcp` です。
+インストール後のMCP Server entrypointは `djpmcp` です。
 
 ```bash
 djpmcp
 ```
 
-MCP client設定例：
+MCP Client設定例：
 
 ```json
 {
@@ -232,13 +299,13 @@ MCP client設定例：
 }
 ```
 
-Windowsでは例として次のような実行ファイルを指定します。
+Windowsでは例として：
 
 ```text
 C:\path\Deterministic-Japanese-Parser-MCP\.venv\Scripts\djpmcp.exe
 ```
 
-server起動時にはprewarmを行い、Sudachiのlazy initialization、schema生成、rule index、metaphor matcherなどをRuntime deadlineの外側で準備します。
+Server起動時にはprewarmを行い、Sudachiのlazy initialization、schema生成、rule index、metaphor matcher等をRuntime deadlineの外側で準備します。
 
 ---
 
@@ -246,16 +313,16 @@ server起動時にはprewarmを行い、Sudachiのlazy initialization、schema�
 
 HTTP entrypointは `djpmcp-http` です。
 
-### 推奨: API Keyを設定
+### API Keyを設定
 
-Linux / macOS:
+Linux / macOS：
 
 ```bash
 export DJPMCP_HTTP_API_KEY='replace-with-a-long-random-secret'
 djpmcp-http
 ```
 
-PowerShell:
+PowerShell：
 
 ```powershell
 $env:DJPMCP_HTTP_API_KEY = 'replace-with-a-long-random-secret'
@@ -268,20 +335,18 @@ djpmcp-http
 Host: 127.0.0.1
 Port: 8765
 MCP endpoint: /mcp
-REST endpoint: /v1/analyze
+Parser REST endpoint: /v1/analyze
 Health: /healthz
 Readiness: /readyz
 ```
 
 `/healthz` と `/readyz` 以外は認証対象です。
 
-認証ヘッダーはどちらかを使用できます。
-
 ```http
 Authorization: Bearer <DJPMCP_HTTP_API_KEY>
 ```
 
-または
+または：
 
 ```http
 X-API-Key: <DJPMCP_HTTP_API_KEY>
@@ -294,11 +359,9 @@ export DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1
 djpmcp-http
 ```
 
-これは明示的に信頼できるローカル環境向けです。公開インターフェースでの使用は推奨しません。
+これは明示的に信頼できるローカル環境向けです。Public Networkでは使用しないでください。
 
-### HTTP Transportの安全設定
-
-現行実装には以下があります。
+### HTTP Transportの現行Protection
 
 - API Key middleware
 - constant-time key comparison
@@ -311,11 +374,15 @@ djpmcp-http
 - `/healthz`
 - prewarm完了後だけ200となる `/readyz`
 
+Production配置の詳細：[`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
+
 ---
 
-## REST API
+## Parser REST API
 
 ### `POST /v1/analyze`
+
+これは**Parser Runtime interface**です。AsteraのCustomer-facing有料API Contractそのものではありません。
 
 ```bash
 curl -X POST http://127.0.0.1:8765/v1/analyze \
@@ -347,7 +414,7 @@ curl -X POST http://127.0.0.1:8765/v1/analyze \
 
 ### `analyze_japanese`
 
-MCP serverが公開するToolは現行 `analyze_japanese` です。
+MCP Serverが公開するToolは現行 `analyze_japanese` です。
 
 #### Input
 
@@ -378,9 +445,9 @@ MCP引数例：
 MCP `CallToolResult` は2種類の表現を同時に返します。
 
 1. `structuredContent` — 完全な `AnalyzeResponse`
-2. text content — クライアントが素早く確認できるcompact summary
+2. text content — compact summary
 
-summaryには次が含まれます。
+summary：
 
 ```text
 overall_status
@@ -417,7 +484,7 @@ semantic_hash
 | `versions` | Runtime / dictionary等のversion情報 |
 | `metrics` | 各phase latency・件数・deadline判定等 |
 
-MCP serverは `AnalyzeRequest.model_json_schema()` と `AnalyzeResponse.model_json_schema()` をそのままToolのinput/output schemaとして公開します。
+MCP Serverは `AnalyzeRequest.model_json_schema()` と `AnalyzeResponse.model_json_schema()` をToolのinput/output schemaとして公開します。
 
 ---
 
@@ -443,23 +510,23 @@ print(response.execution_allowed)
 print(response.blocked_reasons)
 ```
 
-低遅延MCP clientを組み込む場合は `LowLatencyClientSession` も公開されています。`analyze_japanese` のoutput schemaをPydantic `TypeAdapter` と照合し、validatorをreadiness時に準備して毎回のschema構築コストを避けます。
+低遅延MCP Clientを組み込む場合は `LowLatencyClientSession` も公開されています。`analyze_japanese` のoutput schemaをPydantic `TypeAdapter` と照合し、validatorをreadiness時に準備して毎回のschema構築コストを避けます。
 
 ---
 
 ## DeterminismとCache
 
-MCP stdio serverは、完全成功かつhard deadline内の応答だけを**最大128件のin-process LRU response cache**へ保存します。
+MCP stdio Serverは、完全成功かつhard deadline内の応答だけを**最大128件のin-process LRU response cache**へ保存します。
 
-cache keyには以下が含まれます。
+cache keyには次を含みます。
 
 - AnalyzeRequestの全semantic input
 - Engine instance
 - hard deadlineへclampしたeffective deadline
 
-cache hit時も `requested_deadline_ms`、latency、deadline判定などrequest固有metricsは更新されます。
+cache hit時も `requested_deadline_ms`、latency、deadline判定などRequest固有metricsは更新されます。
 
-`MeaningGraph.semantic_hash` はGraph内容から生成されます。同じ入力・文脈・辞書・Runtime versionから再現可能な意味構造を得ることが、本プロジェクトの重要な設計目標です。
+`MeaningGraph.semantic_hash` はGraph内容から生成されます。同じ入力・文脈・辞書・Runtime versionから再現可能な意味構造を得ることが重要な設計目標です。
 
 ---
 
@@ -491,19 +558,21 @@ cache hit時も `requested_deadline_ms`、latency、deadline判定などrequest�
 | `DJPMCP_HTTP_HOST` | `127.0.0.1` | bind host |
 | `DJPMCP_HTTP_PORT` | `8765` | port |
 | `DJPMCP_HTTP_WORKERS` | `1` | Uvicorn workers |
-| `DJPMCP_HTTP_API_KEY` | unset | API Key |
+| `DJPMCP_HTTP_API_KEY` | unset | Runtime API Key |
 | `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED` | `false` | 認証なし起動を明示許可 |
 | `DJPMCP_HTTP_MAX_BODY_BYTES` | `1048576` | request body上限 |
 | `DJPMCP_HTTP_ALLOWED_ORIGINS` | empty | CORS許可originのCSV |
 | `DJPMCP_HTTP_ALLOWED_HOSTS` | localhost系 | Transport security許可hostのCSV |
 
-`DJPMCP_HTTP_API_KEY` が空で、かつ `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1` でもない場合、HTTP appは起動を拒否します。
+`DJPMCP_HTTP_API_KEY` が空で、かつ `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1` でもない場合、HTTP Appは起動を拒否します。
+
+Astera Commercial Platformでは、このRuntime KeyをCustomer API Keyと兼用しません。Customer CredentialはGateway側、Runtime CredentialはInternal Service側で分離します。
 
 ---
 
 ## 辞書・Runtime Data
 
-このRepositoryは、単一の巨大YAMLだけに全責務を持たせず、役割ごとにdataとcompiled runtimeを分離しています。
+このRepositoryは、単一の巨大YAMLだけに全責務を持たせず、役割ごとにDataとCompiled Runtimeを分離しています。
 
 主な配布対象：
 
@@ -538,9 +607,14 @@ Semantic Runtimeは次の優先順で解決されます。
 2. `compiled/canonical_dictionary_runtime` が存在すればそれを使用
 3. `compiled/semantic_data`
 
-この境界により、内部正本・公開可能データ・実行用projectionを混同しない設計になっています。
+この境界により、内部正本・公開可能Data・実行用projectionを混同しない設計になっています。
 
-詳細は `docs/` 内のRuntime / reading contract / dictionary関連文書も参照してください。
+詳細：
+
+- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
+- [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)
+- [`NOTICE.md`](NOTICE.md)
 
 ---
 
@@ -548,7 +622,7 @@ Semantic Runtimeは次の優先順で解決されます。
 
 GitHub Actions CIはPython **3.10 / 3.12** のmatrixで動作します。
 
-CIで実行される主なGate：
+主なGate：
 
 1. deployment preflight
 2. runtime lexicon provenance / license validation
@@ -562,7 +636,7 @@ CIで実行される主なGate：
 10. `compileall`
 11. evidence artifact保存
 
-ローカルの基本検証：
+ローカル基本検証：
 
 ```bash
 pip install -e ".[dev]"
@@ -570,7 +644,7 @@ djpmcp-validate
 pytest
 ```
 
-よりCIに近い確認：
+CIに近い確認：
 
 ```bash
 python scripts/preflight.py
@@ -585,7 +659,7 @@ python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 
 python -m compileall -q src tools scripts tests
 ```
 
-> 10ms / 50msはCIで検証する**性能契約値**です。すべてのPC・入力・OSで常に同じwall-clock時間を保証する表現ではありません。`metrics` の `target_met` / `hard_deadline_met` で実測結果を確認してください。
+> 10ms / 50msはCIで検証する**性能契約値**です。すべてのPC・入力・OSで常に同じwall-clock時間を保証する表現ではありません。`metrics.target_met` / `metrics.hard_deadline_met` で実測結果を確認してください。
 
 ---
 
@@ -597,7 +671,7 @@ python -m compileall -q src tools scripts tests
 
 ### `PARTIAL`
 
-解析結果は存在するが、たとえば次のいずれかが残る状態です。
+解析結果は存在するが、たとえば次が残る状態です。
 
 - unresolved reference
 - unresolved metaphor
@@ -611,7 +685,7 @@ python -m compileall -q src tools scripts tests
 
 Meaning Graphとして有効なproposition等を構築できなかった場合に使用されます。
 
-`FAILED` や `PARTIAL` を、呼び出し側で「適当に成功扱い」することを前提としていません。特にExternal Actionでは `execution_allowed` と `blocked_reasons` を必ず確認してください。
+`FAILED` や `PARTIAL` を呼び出し側で無条件に成功扱いすることを前提としていません。特にExternal Actionでは `execution_allowed` と `blocked_reasons` を必ず確認してください。
 
 ---
 
@@ -625,13 +699,13 @@ Meaning Graphとして有効なproposition等を構築できなかった場合�
 
 引用・報告された命令は `quoted` / attribution / pragmatic refinement等の構造を使い、実際の操作命令と区別します。
 
-同様に、
+同様に：
 
 ```text
 設定を削除するべき？
 ```
 
-は疑問であり、命令として直接実行するべきではありません。
+これは疑問であり、命令として直接実行するべきではありません。
 
 ---
 
@@ -649,7 +723,7 @@ DJPMCPは決定論的な構文・規則・辞書・Runtime Dataを使うため�
 - 複数のscope解釈が成立する文
 - graph/deadline上限を超える入力
 
-重要なのは、これらを根拠なく「理解できた」と偽装せず、未解決情報を構造として返せることです。
+重要なのは、これらを根拠なく「理解できた」と偽装せず、未解決情報を構造として返すことです。
 
 ---
 
@@ -679,35 +753,88 @@ DJPMCPは決定論的な構文・規則・辞書・Runtime Dataを使うため�
 
 ---
 
-## セキュリティ上の注意
+## Documentation Map
 
-- stdio transportはMCP clientとlocal processの信頼境界内で使ってください。
-- HTTP公開時はAPI Keyを必須にし、TLS / reverse proxy / firewall等を外側で適切に構成してください。
-- `DJPMCP_HTTP_ALLOWED_HOSTS` と `DJPMCP_HTTP_ALLOWED_ORIGINS` は公開環境に合わせて明示してください。
-- parser結果だけを根拠に不可逆な外部操作を自動実行する場合、呼び出し側でも権限・対象・idempotency・audit log等の追加Gateを持たせることを推奨します。
-- Runtime dictionaryやcompiled artifactを差し替える場合はvalidator / provenance / license Gateを通してください。
+### 利用・商用・Deployment
+
+- [`docs/README.md`](docs/README.md) — 公開Document Index
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md) — OSS配布とOfficial Hosted Service
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md) — Astera商用API Platformの責務分離
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) — Production HTTP配置
+- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md) — Runtime Bundle Deployment
+
+### Parser / Semantic Contract
+
+- [`docs/JAPANESE_READING_CONTRACT.md`](docs/JAPANESE_READING_CONTRACT.md)
+- [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md)
+- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
+- [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
+- [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+- [`docs/PERFORMANCE_AND_RELEASE_CONTRACT.md`](docs/PERFORMANCE_AND_RELEASE_CONTRACT.md)
+
+### Project Policy
+
+- [`LICENSE`](LICENSE)
+- [`NOTICE.md`](NOTICE.md)
+- [`GOVERNANCE.md`](GOVERNANCE.md)
+- [`TRADEMARK.md`](TRADEMARK.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+---
+
+## Security
+
+- stdio transportはMCP Clientとlocal processの信頼境界内で使用してください。
+- Self-host HTTP公開時はAPI Key、TLS、Reverse Proxy、Firewall等を適切に構成してください。
+- `DJPMCP_HTTP_ALLOWED_HOSTS` と `DJPMCP_HTTP_ALLOWED_ORIGINS` はEnvironmentに合わせて明示してください。
+- Runtime DictionaryやCompiled Artifactを差し替える場合はvalidator / provenance / license Gateを通してください。
+- Production Secret、Customer Credential、Billing SecretをPublic Repositoryへ保存しないでください。
+- Astera Commercial APIでは、Customer CredentialをParser Runtime Keyと兼用せずGateway側で管理します。
+- Commercial Public APIにはParser HTTP Serverだけでなく、Customer Auth、Quota、Rate Limit、Billing Authority、Idempotency、Tenant Isolation等の外側のControlが必要です。
+
+詳細：[`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
 
 ---
 
 ## 開発方針
 
-このRepositoryでは、次の境界を重要視しています。
+このRepositoryでは次の境界を重視しています。
 
 - **生成と読解を分離する**
 - **Meaning GraphとTask Graphを分離する**
 - **通常文と実行指示を混同しない**
-- **辞書正本・公開データ・Runtime projectionを分離する**
+- **辞書正本・公開Data・Runtime projectionを分離する**
 - **曖昧性を無理に確定しない**
 - **外部操作はFail Closedにする**
+- **Parser CoreとCommercial Control Planeを分離する**
+- **Customer identity / billingをParserへ埋め込まない**
 - **性能値は宣伝文ではなくCI contractで検証する**
 - **出力schemaをMCP Tool contractそのものとして公開する**
 
 ---
 
-## License / Governance
+## License / Data / Commercial Terms / Brand
 
-Program licenseはMITです。辞書・取り込み元dataは個別のprovenance / redistribution条件を持つ場合があるため、Runtime dataの再配布時はRepository内のsource metadataとvalidation結果を確認してください。
+Program CodeはMIT Licenseです。MIT LicenseはProgram Codeについて利用・改変・再配布・販売等を許可します。Project OwnerがOfficial Hosted Commercial Serviceを有料提供することは、この公開Licenseと両立します。
+
+一方で、次はProgram CodeのMIT Licenseとは別の境界です。
+
+- Third-party Dictionary / DataのSource License
+- Astera / DJPMCP / Shiori等のProject Marks
+- Official Hosted Serviceの料金・SLA・Support・Terms
+- Customer Account / Billing / Platform Policy
+
+Hosted Service Termsは、RepositoryのMIT Licenseで既に付与されたProgram Code上の権利を遡って取り消すものではありません。
+
+詳細：
+
+- [`LICENSE`](LICENSE)
+- [`NOTICE.md`](NOTICE.md)
+- [`GOVERNANCE.md`](GOVERNANCE.md)
+- [`TRADEMARK.md`](TRADEMARK.md)
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
 
 <!-- project-control-ja:start -->
-プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
+プロジェクトの管理方針、Official Release、Hosted / Commercial Offering、名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
 <!-- project-control-ja:end -->
