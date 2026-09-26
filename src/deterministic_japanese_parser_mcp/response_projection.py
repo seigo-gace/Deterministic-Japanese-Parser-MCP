@@ -48,17 +48,17 @@ INCLUDE_SECTIONS: tuple[str, ...] = (
 
 
 class AnalyzeRequest(_models.AnalyzeRequest):
-    """Backward-compatible AnalyzeRequest with transport response projection.
+    """Backward-compatible AnalyzeRequest with response projection control.
 
-    `include` does not alter semantic analysis.  It is consumed only by MCP/REST
-    transport projection after the full AnalyzeResponse has been produced.
+    `include` is transport-only. ParserEngine still performs the complete
+    deterministic analysis and returns the complete AnalyzeResponse.
     """
 
     include: list[IncludeSection] | None = None
 
 
 class AnalyzeToolResponse(BaseModel):
-    """MCP/REST response contract supporting optional projected sections."""
+    """MCP/REST wire contract: required decision core + optional sections."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -87,35 +87,39 @@ class AnalyzeToolResponse(BaseModel):
 
 
 def install_analyze_request_projection() -> None:
-    """Expose the extended request as the package's authoritative model.
-
-    The project already installs deterministic semantic refinements during
-    package initialization.  This installer follows the same pattern while
-    leaving the engine response model unchanged.
-    """
+    """Expose the extended request as the package's authoritative model."""
 
     _models.AnalyzeRequest = AnalyzeRequest
 
 
-def project_response(
-    response: _models.AnalyzeResponse,
+def project_structured_response(
+    full: dict[str, Any],
     include: list[IncludeSection] | None,
 ) -> dict[str, Any]:
-    """Project an already-computed full response without changing semantics."""
+    """Project a full cached response without changing or rerunning analysis."""
 
-    full = response.model_dump(mode="json")
     projected: dict[str, Any] = {
         "overall_status": full["overall_status"],
         "execution_allowed": full["execution_allowed"],
         "blocked_reasons": full["blocked_reasons"],
         "semantic_hash": full["meaning_graph"]["semantic_hash"],
     }
-
     names = INCLUDE_SECTIONS if include is None else tuple(dict.fromkeys(include))
     for name in names:
         projected[name] = full[name]
+    return projected
 
-    # Validate the projected wire contract here so MCP and REST cannot diverge.
+
+def project_response(
+    response: _models.AnalyzeResponse,
+    include: list[IncludeSection] | None,
+) -> dict[str, Any]:
+    """Project a typed full response and validate the public wire contract."""
+
+    projected = project_structured_response(
+        response.model_dump(mode="json"),
+        include,
+    )
     return AnalyzeToolResponse.model_validate(projected).model_dump(
         mode="json",
         exclude_none=True,
