@@ -1,7 +1,7 @@
 # Deterministic Japanese Parser MCP
 
 <p align="center">
-  <strong>日本語の語彙・文構造・意味範囲・照応・談話関係を、LLMなしで再現可能な構造へ変換する決定論的MCPサーバー</strong>
+  <strong>日本語の語彙・文構造・意味・文脈・曖昧性を、LLMなしで再現可能な構造へ変換する決定論的MCPサーバー</strong>
 </p>
 
 <p align="center">
@@ -12,120 +12,246 @@
   <a href="https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/seigo-gace/Deterministic-Japanese-Parser-MCP/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
-## 概要
+## 1. 概要
 
-Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AIに推測させる前に、機械が検証・再利用できる構造へ変換する**ための決定論的Parser / MCP Serverです。
+Deterministic Japanese Parser MCP（DJPMCP）は、日本語入力を**生成AIや人間が判断する前段で、検証可能・再利用可能な構造へ変換する非AI・決定論的Parser**です。
 
-中心となる出力は `MeaningGraph` です。入力文を単なる「意図ラベル」へ縮約せず、語彙候補、Entity、Clause、Proposition、述語・項、否定・条件・数量・モダリティ、引用帰属、照応、談話関係、未解決要素などを保持します。命令・依頼など実行候補を含む場合は、同じ読解結果から `TaskGraph` と外部操作可否も導出します。
+主役は回答生成ではありません。入力を単純なIntentラベルへ潰さず、語彙候補、Entity、Clause、Proposition、述語・項、係り受け、否定・条件・数量・モダリティ、引用帰属、照応、談話関係、語義候補、未解決要素などを保持し、中心出力である `MeaningGraph` を形成します。命令・依頼などの実行候補がある場合は、その同じ意味解釈から `TaskGraph` と外部操作可否を導出します。
 
-このプロジェクトは**回答文を生成するAIではありません**。曖昧な主語・対象・語義・因果を根拠なく補完して外部操作へ進めることも目的としていません。
+DJPMCPは次をしません。
 
-| 項目 | 現行実装 |
+- RuntimeでLLMに意味を推測させる
+- 根拠のない意味・主語・対象・因果を補う
+- Unknownを既知として扱う
+- 曖昧な入力を無理に一意化する
+- Recovery結果だけを理由に外部操作を許可する
+- 外部サービスそのものを操作する
+
+曖昧なら曖昧、不足なら不足、未知なら未知として返し、**判断材料を捏造しないこと**が設計の中心です。
+
+---
+
+## 2. 現在の実装と固定済みTarget Architectureを分けて読む
+
+このRepositoryでは、**現行実装**と**実装中の固定済みTarget Architecture**を混同しません。
+
+| 項目 | 状態 |
 |---|---|
-| Version | `0.4.0` |
+| Package Version | `0.4.0` |
 | MCP Tool | `analyze_japanese` |
 | MCP Transport | stdio / Streamable HTTP |
 | Parser REST API | `POST /v1/analyze` |
 | Python API | `ParserEngine().analyze(AnalyzeRequest(...))` |
 | Python | 3.10以上 |
 | 形態解析 | SudachiPy + SudachiDict Core |
-| 実行時LLM | 使用しない |
-| 外部辞書API | Runtimeでは使用しない |
+| Runtime LLM | 使用しない |
+| Runtime外部辞書API | 使用しない |
+| MeaningGraph | `2.3.0` を既存Coreとして再利用 |
+| TaskGraph / GraphGuard | 既存Coreとして再利用 |
 | Program License | MIT |
 
----
+### 固定済みTarget Architecture
 
-## 利用形態：Public OSSとOfficial Hosted Service
+現在の最終設計は次です。
 
-DJPMCPは、**公開RepositoryからDownloadして自分で実行するOpen Source Parser Core**と、Project OwnerがServer上で運用しAstera Platform / AsteraAppから提供する**Official Hosted Commercial Service**の両方を前提に設計されています。
-
-この二つは「機能を削った無料版」と「閉じた有料版」という関係ではありません。
-
-| | Public OSS / Self-host | Astera Hosted Commercial Service |
-|---|---|---|
-| Parser Core | GitHubから取得して利用 | Managed Runtimeとして利用 |
-| Install / Upgrade | 利用者が管理 | 運営側が管理 |
-| Infrastructure | 利用者が用意 | 運営側が提供 |
-| Account / Auth | 利用者側で構築 | Astera Platformで提供 |
-| Usage Metering | 利用者側で構築 | Platformで提供 |
-| Credit / Billing | 利用者側で構築 | Platformで提供 |
-| Rate / Quota | 利用者側で構築 | Platformで提供 |
-| Monitoring / Rollback | 利用者側 | 運営側 |
-| Support / SLA | OSSとして保証なし | Commercial Termsで定義可能 |
-| Astera Integration | 別途 | Official Integrationとして提供可能 |
-
-### Public OSS Distribution
-
-RepositoryのProgram CodeはMIT Licenseです。利用者は、自分のPC・Server・Container・Private Network等へInstallして、stdio MCP、Streamable HTTP、REST、Python APIを利用できます。
-
-Self-host時のInfrastructure、Authentication、Monitoring、Scaling、Backup、Availability等は利用者側の責務です。また、Third-party DataにはProgram Codeとは別のSource Licenseが適用される場合があります。
-
-### Astera Hosted Commercial API
-
-Project Owner管理Server上のDJPMCP Runtimeを、AsteraApp / Astera Platformから**Managed APIとして有料提供する構成**を想定しています。
-
-商用価値は公開Coreを隠すことではなく、Coreの外側へ次を統合して、Install・運用なしで利用できるPlatformにすることです。
-
-- Customer account / authentication
-- API credential lifecycle
-- authorization
-- usage metering
-- credit / quota
-- billing / plan integration
-- rate limiting
-- tenant isolation
-- abuse protection
-- operational monitoring
-- version rollout / rollback
-- support / commercial terms
-- Astera integration
-
-**重要:** このRepositoryの `POST /v1/analyze` はParser RuntimeのHTTP interfaceです。将来のCustomer-facing有料APIは、これをInternetへそのまま公開するのではなく、Astera API Gateway / Commercial Control Planeの内側に置く設計を推奨します。
-
-```mermaid
-flowchart LR
-    U[Customer / AsteraApp] --> G[Astera API Gateway]
-    G --> C[Auth / Metering / Credit / Billing / Rate Policy]
-    C --> P[DJPMCP Managed Runtime]
-    P --> M[MeaningGraph / TaskGraph]
-    M --> G
-    G --> U
+```text
+Canonical processed records
+  ↓
+日本語機能別Projection
+  ↓
+multi-lane Front Router
+  ↓
+必要IndexだけProgressive Retrieval
+  ↓
+Hard Gate
+  ↓
+Soft Ranking
+  ↓
+必要時だけRecovery Zone
+  ↓
+bounded Candidate Lattice
+  ↓
+whole-sentence Top-K decode
+  ↓
+Margin / Evidence Gate
+  ↓
+既存 MeaningGraph 2.3.0
+  ↓
+TaskGraph
+  ↓
+GraphGuard
 ```
 
-商用PlatformのCustomer-facing URL、料金、Plan、SLAなどは、このParser RepositoryのVersionだけから推測せず、Astera Platform側で正式公開された情報をAuthorityとします。
+このTargetの詳細正本は [`docs/PARSER_ARCHITECTURE.md`](docs/PARSER_ARCHITECTURE.md) です。
 
-詳しい境界：
-
-- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md) — OSS配布と商用Hosted Serviceの関係
-- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md) — Astera有料APIの責務分離・Request Flow・Metering/Billing境界
-- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) — Production HTTP Runtimeの公開可能な安全構成
+**重要:** 設計をRepositoryへ記載したことは実装完了の証拠ではありません。Target Architectureの各層は、Source・Test・Full Build/Audit・性能・Runtime readbackを個別に閉じて初めてPASSになります。
 
 ---
 
-## 何ができるか
+## 3. Architectureの最重要原則
 
-### 1. 日本語をMeaning Graphへ変換
+### Original is Authority
 
-次の情報を独立した構造として保持します。
+原文をAuthorityとして保持します。正規化・表記揺れ処理・誤字Recoveryが行われても、原文を上書きしません。
 
-- 原文と正規化文の対応
-- Token / 語彙情報
-- Entityとmention
+### Evidence only
+
+根拠がないものを補強して「もっともらしい意味」にしません。Sourceが意味を持たない補助Evidenceなら、そのEvidenceから語義を生成しません。
+
+### Ambiguity retention
+
+候補が競合し、Evidence/Score marginが不足する場合は `AMBIGUOUS` / `UNRESOLVED` を維持します。新語や未知表現を自動的に誤字扱いしません。
+
+### Fail closed
+
+`execution_mode="external_action"` では、安全に確定できない重要意味が残ると外部操作を止めます。RecoveryによりAction意味が新しく成立した、または変化した場合も自動許可しません。
+
+### Source / rights / provenance separation
+
+Source全体を一括で「利用可」とみなしません。意味・読み・用法・ランキングEvidence・Provenance等はField-levelで由来と権利を管理するTargetです。
+
+### Runtime without LLM
+
+候補生成、Routing、Lattice、Ranking、Safety Gateまで、Runtimeは非AI・決定論的に閉じます。
+
+---
+
+## 4. 日本語機能別Projection
+
+9,852,513件のCanonical processed recordsを一つの巨大検索対象として毎回総当たりするのではなく、同じCanonical Authorityから**日本語機能別のProjection**を構築する設計です。
+
+Primary laneは以下です。
+
+1. `Orthography/Reading`
+2. `Noun-Entity`
+3. `Predicate-Inflection`
+4. `Function Words`
+5. `Connective-Modifier`
+6. `Onomatopoeia`
+7. `Multiword`
+8. `Syntax-Case-Clause`
+9. `Sense-Semantic Relation`
+10. `Usage-Context-Pragmatics`
+11. `Document Structure`
+12. `Evidence-Provenance-Rights`
+
+Domain、translation、sentiment、temporal、frequency等はSecondary Facetです。Domain分類だけを主Routerにして意味解釈を決めません。
+
+ProjectionはCanonical Recordの派生View/Indexであり、別の意味正本ではありません。
+
+---
+
+## 5. Front multi-lane RouterとProgressive Retrieval
+
+Front Routerは入力を見て、必要なLane・Facet・Indexを決定論的に選択します。
+
+Routerの責務は**意味を決めることではなく、何を検索すべきかを絞ること**です。
+
+Router Traceでは少なくとも以下を追跡可能にするTargetです。
+
+- 検出した入力Feature
+- 選択したLane
+- 読まなかったLaneと理由
+- 使用したSecondary Facet
+- Retrieval制限
+- Recovery候補の必要性
+- Router/Projection Version
+
+Progressive Retrievalは機能を削る仕組みではありません。必要なEvidenceから段階的に読み、解決できた時点で不要な深い検索を避ける仕組みです。
+
+---
+
+## 6. Purpose Routingの位置付け
+
+Purpose Routingは残しますが、意味の正本にはしません。
+
+Purpose / Source Roleが担当するもの：
+
+- Retrieval Hint
+- Role Mask
+- Consumer allow/deny
+- Permission境界
+- Provenance / Ranking / Evidence補助
+
+Purpose Routingが担当しないもの：
+
+- 最終意味の決定
+- Japanese-function laneの代替
+- 補助Evidenceからの語義生成
+- Field-level Rights Gateの迂回
+- Unknown Roleの暗黙許可
+
+つまり、**Purposeは「どの材料を誰が使えるか」の補助線であり、「この文はこの意味だ」と決めるAuthorityではありません。**
+
+---
+
+## 7. 誤字・崩れ文・Noisy Input Recovery
+
+### 誤字専用巨大DBは作らない
+
+誤字の全組み合わせを事前登録する方式ではありません。
+
+Target Recovery Flow：
+
+```text
+Original Input
+  ↓
+Safe Normalization
+  ↓
+Exact / Normal Analysis
+  ↓
+未解決・OOV・異常分割のみRecovery Zone
+  ↓
+Surface / Reading / Alias / Morphology / Split-Merge候補
+  ↓
+Deterministic Recovery Cost
+  ↓
+Bounded Candidate Lattice
+  ↓
+Whole-sentence Top-K Decode
+  ↓
+Grammar / Syntax / Sense / Context / Facet / Evidenceで再評価
+  ↓
+Margin + Evidence Gate
+  ├─ 十分 → Recovery採用
+  └─ 不足 → AMBIGUOUS / UNRESOLVED
+```
+
+候補ごとに独立修正するのではなく、文全体で競合候補を比較します。
+
+Recoveryでは次を守ります。
+
+- 原文を残す
+- 修正候補と採用理由を追跡できる
+- 未知語を誤字と断定しない
+- Protected Elementを勝手に変えない
+- RecoveryでAction意味が変わった場合はFail Closed
+
+---
+
+## 8. Existing MeaningGraph / TaskGraph / GraphGuard
+
+Target Architectureは既存Coreを捨てません。
+
+### MeaningGraph `2.3.0`
+
+現在のCoreは以下のような構造を保持します。
+
+- Entity
 - Clause
 - Proposition
-- 語義候補と確信度
-- 述語・項構造
-- 係り関係
-- 否定・条件・数量・程度・時制・相・態・モダリティのscope
-- 引用・伝聞・発話帰属
-- 指示語・省略・会話文脈を使った照応
-- 因果・対比・順序・目的などの談話関係
-- 曖昧性、不足情報、矛盾、未対応要素
-- 意味グラフの `semantic_hash`
+- Lexical Node
+- Scope Edge
+- Reading Analysis
+- Language Feature
+- Unresolved element
+- Decision state change
+- Evidence rule
+- Context version
+- Quality annotation
+- `semantic_hash`
 
-### 2. 読解専用Runtime
-
-`reading_analysis` では、単語列だけではなく文の内部構造を返します。
+### Reading Analysis
 
 主な構造：
 
@@ -134,118 +260,143 @@ flowchart LR
 - `scope_operators`
 - `attribution_frames`
 - `discourse_relations`
+- paragraph/document related analysis
 - unresolved reading elements
 
-例：
+### TaskGraph
 
-```text
-すべての問題を解決できるわけではない。
-```
+実行候補がある場合、意味解釈からTaskを構造化します。
 
-このような文では、数量表現と否定を一つのラベルに潰さず、適用範囲を分離して保持することを狙います。
+- Action
+- Target
+- Dependencies
+- Constraints
+- Completion criteria
+- Verification criteria
+- External-action flag
 
-### 3. 語彙・意味Runtime
+### GraphGuard
 
-Engineは複数の意味情報源を段階的に統合します。
+External Action時の最終安全境界です。
 
-- system / user dictionary
-- semantic profile
-- compiled semantic data
-- canonical dictionary runtime projection
-- lexical graph enrichment
-- language-feature runtime
-- metaphor / idiom rules
-- deterministic intent rules
+代表的Blocker：
 
-複数語義をContextだけで一意に決められない場合は、候補を残し `AMBIGUOUS` として扱えます。実行に関係する曖昧性は、External Action ModeでFail Closedの材料になります。
-
-### 4. 指示・依頼をTask Graphへ変換
-
-読解結果に実行候補がある場合は、`TaskGraph` を生成します。
-
-- Task
-- 対象
-- 依存関係
-- 順序
-- 維持条件
-- 禁止条件
-- protected elementとの衝突
-- 実行前に満たすべき条件
-
-通常の説明文や引用中の命令を、無条件に「実行指示」へ変換する設計ではありません。
-
-### 5. 外部操作をFail Closedで判定
-
-`execution_mode="external_action"` のとき、Graph Guardは読解結果を使って外部操作へ進めるかを判定します。
-
-代表的な停止要因：
-
-- 対象が未解決
-- 重要な照応が未解決
-- 意味上重要な曖昧性が残る
-- protected elementと変更指示が衝突する
-- contradictionが存在する
-- unsupported要素が実行判断に影響する
-- deadline超過
-- action/social系Language Featureが曖昧
+- 対象未解決
+- 重要Reference未解決
+- 意味上重要なAmbiguity
+- Protected Elementとの衝突
+- Contradiction
+- Actionに影響するUnsupported要素
+- Deadline / Processing failure
+- Recoveryにより新規・変更されたAction意味がEvidence Gateを満たさない
 
 停止時は `execution_allowed=false` と `blocked_reasons` を返します。
 
-> DJPMCP自身は外部サービスを変更しません。実際の操作は呼び出し側の責務です。
+DJPMCP自身は外部サービスを変更しません。
 
 ---
 
-## Parser Architecture
+## 9. semantic_hash互換性
 
-```mermaid
-flowchart TD
-    A[Japanese Input] --> B[Normalize + Source Span Map]
-    B --> C[Sudachi Tokenization]
-    C --> D[Indexed Rules / Reference Discovery / Metaphor]
-    D --> E[Meaning Graph Builder]
-    E --> F[Semantic Enrichment]
-    F --> G[Deterministic Reading Runtime]
-    G --> H[Approved Semantic Data Runtime]
-    H --> I[Lexical Graph Enrichment]
-    I --> J[Language Feature Runtime]
-    J --> K[Task Graph]
-    J --> L[Contradiction Detection]
-    K --> M[Graph Guard]
-    L --> M
-    M --> N[AnalyzeResponse]
+現行 `MeaningGraph` は `semantic_hash` 自身を除くGraph内容をHash対象にしています。
+
+そのため、MeaningGraphへDefault Fieldを追加しただけでも、既存入力のHashが変化する可能性があります。
+
+Router Trace、Recovery Evidence、Field-level Rights等をGraphへ接続する前に、**semantic_hash compatibility Gate**を先に実装します。
+
+許されるのは次のどちらかです。
+
+1. 既存Hash契約を変えずExtensionを保持できることをTestで証明する
+2. Hash/Graph Version Migrationを明示的に設計・Test・Releaseする
+
+意図しないHash driftは許可しません。
+
+---
+
+## 10. MCP Output Profile Target
+
+MCPは将来、同じSemantic Resultを用途別に運ぶため次のTransport Profileを持ちます。
+
+```text
+output_profile = compact | standard | full
+Default = full
 ```
 
-Engineの中心処理は `ParserEngine.analyze()` に集約されています。stdio MCP、Streamable HTTP MCP、REST API、Python APIは同じParser EngineとPydantic契約を利用します。
+これはCore `AnalyzeRequest` の意味入力ではなく、MCP Transport専用の設定として扱います。
 
-### 実行フェーズ
+### `full`
 
-現行Engineは概ね次の順に処理します。
+既存の完全 `AnalyzeResponse` を維持します。Backward CompatibilityのDefaultです。
 
-1. 入力長確認
-2. 正規化と原文位置Map生成
-3. Sudachi tokenization
-4. indexed ruleによるintent candidate抽出
-5. reference discovery
-6. metaphor detection
-7. reference resolution
-8. Meaning Graph生成
-9. semantic enrichment
-10. reading analysis
-11. approved semantic data enrichment
-12. lexical graph enrichment
-13. legacy intent/task view生成
-14. Action Task Graph生成
-15. contradiction detection
-16. Graph Guard評価
-17. status / metrics / version / hash確定
-18. 必要時のみdiagnostic log出力
-19. compiled language-feature runtimeによる最終補強
+### `standard`
 
-`analysis_depth` は `auto / fast / deep` を受けます。`deep` はDEEP結果を明示的に要求でき、`auto` はscope・reference・discourse・ambiguity等の解析結果から `analysis_path` を決定します。
+Status、Safety、Sentence Semantics、Task、Readingを保持し、Token/Lexical/Paragraph等の重いDetailを必要に応じて省きます。
+
+### `compact`
+
+Status、Safety、Ambiguity/Unresolved、Proposition、`semantic_hash` 等の最小判断材料を保持します。
+
+### 重要な互換条件
+
+- ProfileはParser意味解釈を変えない
+- Core `AnalyzeRequest` へ混ぜない
+- Cache Identityを変えない
+- `semantic_hash` を変えない
+- Text SummaryはBackward Compatible
+- Default `full` は既存MCP Clientを壊さない
+
+**現在のBaselineではこのProfile実装はまだ未適用です。** 設計済みであることとRuntime実装済みであることを区別します。
 
 ---
 
-## Quick Start — Public OSS / Self-host
+## 11. 現行MCP / Python Interface
+
+### MCP Tool
+
+```text
+analyze_japanese
+```
+
+現行Baselineの入力は `AnalyzeRequest` です。
+
+| Field | Required | Default | 内容 |
+|---|---:|---|---|
+| `original_text` | Yes | — | 解析対象の日本語。空文字不可 |
+| `conversation_context` | No | `[]` | 会話文脈 |
+| `known_entities` | No | `[]` | 既知Entity |
+| `protected_elements` | No | `[]` | 変更禁止対象 |
+| `social_context` | No | empty | 話者・相手・社会文脈 |
+| `discourse_state` | No | `{}` | 呼出側が保持する談話状態 |
+| `execution_mode` | No | `analysis` | `analysis / comparison / planning / external_action` |
+| `analysis_depth` | No | `auto` | `auto / fast / deep` |
+| `deadline_ms` | No | `50` | 1–60,000ms |
+
+現行の成功MCP Resultは、完全な `AnalyzeResponse` の `structuredContent` と、Status/Execution/Graph count/Task count/Hash等のText Summaryを返します。
+
+MCP Output Profileが実装されるまでは、上記がCurrent Contractです。
+
+### Python API
+
+```python
+from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+
+response = ParserEngine().analyze(
+    AnalyzeRequest(
+        original_text="UIは維持する。APIだけ変更しろ。",
+        protected_elements=["UI"],
+        execution_mode="external_action",
+        deadline_ms=50,
+    )
+)
+
+print(response.meaning_graph)
+print(response.task_graph)
+print(response.execution_allowed)
+```
+
+---
+
+## 12. Public OSS / Self-host Quick Start
 
 ### Linux / macOS
 
@@ -271,7 +422,7 @@ pip install -e .
 djpmcp-validate
 ```
 
-開発・全テストを実行する場合：
+開発用依存関係：
 
 ```bash
 pip install -e ".[dev]"
@@ -279,15 +430,15 @@ pip install -e ".[dev]"
 
 ---
 
-## MCP: stdioで使う
+## 13. MCP stdio
 
-インストール後のMCP Server entrypointは `djpmcp` です。
+Installed entrypoint：
 
 ```bash
 djpmcp
 ```
 
-MCP Client設定例：
+MCP Client例：
 
 ```json
 {
@@ -299,37 +450,32 @@ MCP Client設定例：
 }
 ```
 
-Windowsでは例として：
+Windows例：
 
 ```text
 C:\path\Deterministic-Japanese-Parser-MCP\.venv\Scripts\djpmcp.exe
 ```
 
-Server起動時にはprewarmを行い、Sudachiのlazy initialization、schema生成、rule index、metaphor matcher等をRuntime deadlineの外側で準備します。
+Serving loopへ入る前にprewarmし、Sudachi lazy initialization、Schema、Rule Index、代表経路などをRuntime deadline外で準備します。
 
 ---
 
-## MCP: Streamable HTTPで使う
+## 14. Streamable HTTP / REST
 
-HTTP entrypointは `djpmcp-http` です。
+HTTP entrypoint：
 
-### API Keyを設定
+```bash
+djpmcp-http
+```
 
-Linux / macOS：
+API Key：
 
 ```bash
 export DJPMCP_HTTP_API_KEY='replace-with-a-long-random-secret'
 djpmcp-http
 ```
 
-PowerShell：
-
-```powershell
-$env:DJPMCP_HTTP_API_KEY = 'replace-with-a-long-random-secret'
-djpmcp-http
-```
-
-既定値：
+既定：
 
 ```text
 Host: 127.0.0.1
@@ -340,7 +486,7 @@ Health: /healthz
 Readiness: /readyz
 ```
 
-`/healthz` と `/readyz` 以外は認証対象です。
+認証例：
 
 ```http
 Authorization: Bearer <DJPMCP_HTTP_API_KEY>
@@ -352,37 +498,9 @@ Authorization: Bearer <DJPMCP_HTTP_API_KEY>
 X-API-Key: <DJPMCP_HTTP_API_KEY>
 ```
 
-### ローカル限定で認証を無効化する場合
+`/healthz` と `/readyz` 以外は認証対象です。
 
-```bash
-export DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1
-djpmcp-http
-```
-
-これは明示的に信頼できるローカル環境向けです。Public Networkでは使用しないでください。
-
-### HTTP Transportの現行Protection
-
-- API Key middleware
-- constant-time key comparison
-- DNS rebinding protection
-- allowed host制限
-- allowed origin制限
-- request body size上限
-- JSON Content-Type検証
-- stateless Streamable HTTP MCP
-- `/healthz`
-- prewarm完了後だけ200となる `/readyz`
-
-Production配置の詳細：[`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
-
----
-
-## Parser REST API
-
-### `POST /v1/analyze`
-
-これは**Parser Runtime interface**です。AsteraのCustomer-facing有料API Contractそのものではありません。
+REST例：
 
 ```bash
 curl -X POST http://127.0.0.1:8765/v1/analyze \
@@ -397,450 +515,303 @@ curl -X POST http://127.0.0.1:8765/v1/analyze \
   }'
 ```
 
-主なHTTPエラー：
-
-| HTTP | 意味 |
-|---:|---|
-| 400 | malformed JSON / invalid Content-Length |
-| 401 | API Key不正または不足 |
-| 413 | body size上限超過 |
-| 415 | `Content-Type: application/json` ではない |
-| 422 | `AnalyzeRequest` validation error |
-| 503 | `/readyz` でprewarm未完了 |
+Production境界は [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) を参照してください。
 
 ---
 
-## MCP Tool Reference
+## 15. Canonical Data / Supply Chain
 
-### `analyze_japanese`
+DJPMCPは、Raw Source、Canonical Data、Public View、Runtime Projection、Compiled Indexを同一物として扱いません。
 
-MCP Serverが公開するToolは現行 `analyze_japanese` です。
-
-#### Input
-
-| Field | Required | Default | 内容 |
-|---|---:|---|---|
-| `original_text` | Yes | - | 解析する日本語。空文字列不可 |
-| `conversation_context` | No | `[]` | 直前までの発話。照応・文脈解決に使用 |
-| `known_entities` | No | `[]` | 呼び出し側が既知として渡す対象 |
-| `protected_elements` | No | `[]` | 変更してはいけない対象 |
-| `social_context` | No | empty model | 話者・相手・関係・場面など |
-| `discourse_state` | No | `{}` | 呼び出し側が保持する談話状態 |
-| `execution_mode` | No | `analysis` | `analysis` / `comparison` / `planning` / `external_action` |
-| `analysis_depth` | No | `auto` | `auto` / `fast` / `deep` |
-| `deadline_ms` | No | `50` | 1〜60,000ms。実処理ではhard deadline以下へclamp |
-
-MCP引数例：
-
-```json
-{
-  "original_text": "設定を確認してからAPIを変更しろ。UIは維持しろ。",
-  "protected_elements": ["UI"],
-  "execution_mode": "external_action"
-}
-```
-
-#### Output
-
-MCP `CallToolResult` は2種類の表現を同時に返します。
-
-1. `structuredContent` — 完全な `AnalyzeResponse`
-2. text content — compact summary
-
-summary：
+概念上の流れ：
 
 ```text
-overall_status
-execution_allowed
-proposition_count
-predicate_frame_count
-scope_operator_count
-action_task_count
-semantic_hash
+Frozen / Verified Source
+  ↓
+Source Adapter
+  ↓
+Schema / Provenance / Rights validation
+  ↓
+Review / Decision Ledger
+  ↓
+Canonical processed records
+  ↓
+Japanese-function Projection Compiler
+  ↓
+Runtime Bundles / Indexes
 ```
 
-完全なstructured outputの主要Field：
+Target Architectureで使用するCanonical processed setは最新設計時点で **9,852,513 records** です。
 
-| Field | 内容 |
-|---|---|
-| `overall_status` | `COMPLETE` / `PARTIAL` / `FAILED` |
-| `execution_allowed` | external actionへ進めるか |
-| `blocked_reasons` | Fail Closed理由 |
-| `original_text` | 入力原文 |
-| `normalized_text` | 正規化結果 |
-| `analysis_path` | `FAST` / `DEEP` / `FAILED` |
-| `tokens` | Token情報 |
-| `meaning_graph` | 読解の中心Graph |
-| `task_graph` | Action Task Graph |
-| `intents` | compatibility用intent view |
-| `metaphors` | 比喩・慣用表現解析 |
-| `references` | 照応解析 |
-| `tasks` | compatibility用task view |
-| `ambiguities` | 未解決の曖昧性 |
-| `missing_information` | 判断に不足する情報 |
-| `contradictions` | 矛盾・衝突 |
-| `unsupported_elements` | 未対応要素 |
-| `timeouts` | deadline関連情報 |
-| `versions` | Runtime / dictionary等のversion情報 |
-| `metrics` | 各phase latency・件数・deadline判定等 |
-
-MCP Serverは `AnalyzeRequest.model_json_schema()` と `AnalyzeResponse.model_json_schema()` をToolのinput/output schemaとして公開します。
-
----
-
-## Python API
-
-```python
-from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
-
-engine = ParserEngine()
-response = engine.analyze(
-    AnalyzeRequest(
-        original_text="UIは維持する。APIだけ変更しろ。",
-        protected_elements=["UI"],
-        execution_mode="external_action",
-        deadline_ms=50,
-    )
-)
-
-print(response.overall_status)
-print(response.meaning_graph)
-print(response.task_graph)
-print(response.execution_allowed)
-print(response.blocked_reasons)
-```
-
-低遅延MCP Clientを組み込む場合は `LowLatencyClientSession` も公開されています。`analyze_japanese` のoutput schemaをPydantic `TypeAdapter` と照合し、validatorをreadiness時に準備して毎回のschema構築コストを避けます。
-
----
-
-## DeterminismとCache
-
-MCP stdio Serverは、完全成功かつhard deadline内の応答だけを**最大128件のin-process LRU response cache**へ保存します。
-
-cache keyには次を含みます。
-
-- AnalyzeRequestの全semantic input
-- Engine instance
-- hard deadlineへclampしたeffective deadline
-
-cache hit時も `requested_deadline_ms`、latency、deadline判定などRequest固有metricsは更新されます。
-
-`MeaningGraph.semantic_hash` はGraph内容から生成されます。同じ入力・文脈・辞書・Runtime versionから再現可能な意味構造を得ることが重要な設計目標です。
-
----
-
-## Runtime設定
-
-### Parser Engine
-
-| Environment variable | Default | 内容 |
-|---|---:|---|
-| `DJPMCP_MAX_INPUT_LENGTH` | `20000` | 入力最大文字数 |
-| `DJPMCP_MAX_CONTEXT_ITEMS` | `20` | 会話Context最大件数 |
-| `DJPMCP_MAX_CANDIDATES` | `8` | 候補上限 |
-| `DJPMCP_REGEX_TIMEOUT_MS` | `25` | regex timeout |
-| `DJPMCP_TARGET_LATENCY_MS` | `10` | 目標latency |
-| `DJPMCP_HARD_DEADLINE_MS` | `50` | Runtime hard deadline |
-| `DJPMCP_MAX_GRAPH_NODES` | `512` | Graph node上限 |
-| `DJPMCP_MAX_SCOPE_EDGES` | `1024` | scope edge上限 |
-| `DJPMCP_LOG_PATH` | `logs/parser.jsonl` | PARTIAL/FAILED診断log |
-| `DJPMCP_SYSTEM_DICT_DIR` | bundled system dict | system dictionary root |
-| `DJPMCP_USER_DICT_DIR` | bundled user dict | user dictionary root |
-| `DJPMCP_SEMANTIC_DATA_RUNTIME_DIR` | unset | semantic runtime root override |
-| `DJPMCP_REQUIRE_DIRECT_FINAL` | `false` | Direct Final runtimeを必須化 |
-
-`target_latency_ms` は1以上、`hard_deadline_ms >= target_latency_ms`、Graph上限は32以上でなければ起動時に拒否されます。
-
-完成版の意味つきRuntimeとしてデプロイする場合は、GitHubで管理されたDirect Final Runtime Bundle（Release asset、Actions artifact、またはbranch上の明示的なbundle）を`tools/compile_direct_final_runtime.py`で既存ABIへCompileし、`scripts/direct_final_deployment_contract.py --require-direct-final`を通過した成果物だけを使用します。ローカル運用では`tools/prepare_direct_final_runtime.py`がGitHub Releaseから`work/`へ展開・Compileし、repoの`dictionaries/system`からprofiles/rules等を同じ`work/` systemへリンクしたうえで、出力JSONの`DJPMCP_SYSTEM_DICT_DIR`を`ParserEngine`の辞書ルートとして使います。本番Processではさらに`DJPMCP_REQUIRE_DIRECT_FINAL=true`を設定し、Direct Finalのmanifest、件数、Runtime fileが欠損・不整合なら起動をfail closedさせます。このflagを設定しない通常利用では、portableな`dictionaries/system`既定値と既存fallbackを維持します。DriveやNotionはRuntime正本ではありません。手順と境界条件は[`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)に記載しています。
-
-### HTTP Server
-
-| Environment variable | Default | 内容 |
-|---|---|---|
-| `DJPMCP_HTTP_HOST` | `127.0.0.1` | bind host |
-| `DJPMCP_HTTP_PORT` | `8765` | port |
-| `DJPMCP_HTTP_WORKERS` | `1` | Uvicorn workers |
-| `DJPMCP_HTTP_API_KEY` | unset | Runtime API Key |
-| `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED` | `false` | 認証なし起動を明示許可 |
-| `DJPMCP_HTTP_MAX_BODY_BYTES` | `1048576` | request body上限 |
-| `DJPMCP_HTTP_ALLOWED_ORIGINS` | empty | CORS許可originのCSV |
-| `DJPMCP_HTTP_ALLOWED_HOSTS` | localhost系 | Transport security許可hostのCSV |
-
-`DJPMCP_HTTP_API_KEY` が空で、かつ `DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1` でもない場合、HTTP Appは起動を拒否します。
-
-Astera Commercial Platformでは、このRuntime KeyをCustomer API Keyと兼用しません。Customer CredentialはGateway側、Runtime CredentialはInternal Service側で分離します。
-
----
-
-## 辞書・Runtime Data
-
-このRepositoryは、単一の巨大YAMLだけに全責務を持たせず、役割ごとにDataとCompiled Runtimeを分離しています。
-
-主な配布対象：
-
-```text
-dictionaries/system/
-├─ synonyms.yaml
-├─ semantic_profiles.yaml
-├─ task_templates.yaml
-├─ metaphors/
-├─ rules/
-├─ synonyms.d/
-├─ task_templates.d/
-├─ language_features.d/
-└─ compiled/
-   ├─ language_features.d/
-   ├─ open_lexicon/
-   ├─ semantic_data/
-   ├─ canonical_dictionary_public/
-   ├─ canonical_dictionary_runtime/
-   └─ direct_final_support/
-```
-
-### Canonical Dictionaryの公開境界
-
-内部canonical master dictionaryそのものはdefault public wheelへ含めません。再配布条件を満たすpublic viewとRuntime projectionを分離して配布する構成です。
-
-### Runtime rootの選択
-
-通常ModeのSemantic Runtimeは次の優先順で解決されます。
-
-1. `DJPMCP_SEMANTIC_DATA_RUNTIME_DIR`
-2. `compiled/canonical_dictionary_runtime` が存在すればそれを使用
-3. `compiled/semantic_data`
-
-この境界により、内部正本・公開可能Data・実行用projectionを混同しない設計になっています。
-`DJPMCP_REQUIRE_DIRECT_FINAL=true`の場合は例外で、同じsystem root配下の
-`compiled/canonical_dictionary_runtime`を必須とし、legacy fallbackや別rootへの
-overrideを許可しません。
+ただし、新Projection ArchitectureによるFull Build / All-record Auditはまだ実行済みとは扱いません。
 
 詳細：
 
-- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
+- [`docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md`](docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md)
 - [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+- [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
 - [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)
-- [`NOTICE.md`](NOTICE.md)
 
 ---
 
-## Quality / CI
+## 16. Logical Runtime Bundles
 
-GitHub Actions CIはPython **3.10 / 3.12** のmatrixで動作します。
+Targetの初期Logical Bundle：
 
-主なGate：
+- `router_core`
+- `grammar_core`
+- `lexical_semantic`
+- `context_evidence`
+- `recovery_index`
 
-1. deployment preflight
-2. runtime lexicon provenance / license validation
-3. dictionary / Gold validation
-4. semantic quality contract
-5. independent semantic holdout contract
-6. unit / importer / supply-chain / MCP stdio E2E tests
-7. benchmark regression gate
-8. 10ms target + 20x dictionary performance contract
-9. Astera call-through 10ms target / 50ms hard limit contract
-10. `compileall`
-11. evidence artifact保存
+これは責務分割です。5 Bundle = 5 DBという意味ではありません。
 
-ローカル基本検証：
+物理DB/File数は以下で決めます。
 
-```bash
-pip install -e ".[dev]"
-djpmcp-validate
-pytest
-```
-
-CIに近い確認：
-
-```bash
-python scripts/preflight.py
-python tools/lexicon_validator.py
-python tools/validator.py
-python scripts/semantic_quality_contract.py --check
-python scripts/semantic_holdout_contract.py --check
-pytest
-python scripts/benchmark.py --check --rounds 50
-python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --scale 20 --max-ready-ms 10
-python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 --target-ms 10 --hard-ms 50
-python -m compileall -q src tools scripts tests
-```
-
-> 10ms / 50msはCIで検証する**性能契約値**です。すべてのPC・入力・OSで常に同じwall-clock時間を保証する表現ではありません。`metrics.target_met` / `metrics.hard_deadline_met` で実測結果を確認してください。
+- build size
+- memory footprint
+- cold/warm latency
+- disk I/O
+- deploy atomicity
+- rollback
+- benchmark結果
 
 ---
 
-## Statusと失敗の扱い
+## 17. Performance
 
-### `COMPLETE`
+既存Repositoryには狭いScope向けの10ms target / 50ms hard-limit等の契約があります。これらは既存ContractのScopeでは維持します。
 
-必要な読解構造が得られ、重要な未解決要素・矛盾・timeout等が残っていない状態です。
-
-### `PARTIAL`
-
-解析結果は存在するが、たとえば次が残る状態です。
-
-- unresolved reference
-- unresolved metaphor
-- graph unresolved
-- contradiction
-- unsupported element
-- timeout
-- ambiguous language feature
-
-### `FAILED`
-
-Meaning Graphとして有効なproposition等を構築できなかった場合に使用されます。
-
-`FAILED` や `PARTIAL` を呼び出し側で無条件に成功扱いすることを前提としていません。特にExternal Actionでは `execution_allowed` と `blocked_reasons` を必ず確認してください。
-
----
-
-## 例: 実行してはいけない命令を区別する
-
-次のような文は、表面上命令形を含んでいてもそのまま実行対象にはしません。
+一方、Projection + Progressive Retrieval + Recoveryを含む**最終Architecture全体**の固定Acceptance Targetは、定義済みProduction代表Benchmarkで：
 
 ```text
-「設定を削除しろ」と書かれた例文を確認した。
+p95 < 500 ms
 ```
 
-引用・報告された命令は `quoted` / attribution / pragmatic refinement等の構造を使い、実際の操作命令と区別します。
+です。
 
-同様に：
+これは「遅くしてよい」という意味ではありません。最終機能を削らず、9.85M Canonical Authorityを全件ScanしないRouting/Index構造で閉じるための上限Gateです。より速い既存経路はその性能を維持・改善します。
+
+性能PASSにはLatencyだけでなく、同じ入力・同じ意味結果・同じSafety結果が維持されることが必要です。
+
+---
+
+## 18. Validation / Completion Gate
+
+最終Architectureは次をEvidence付きで閉じるまで「完成」としません。
+
+### Contract
+
+- MCP output profile
+- semantic_hash compatibility
+- Router Trace
+- Recovery Interpretation Evidence
+- Field-level Rights / Provenance
+- Projection Manifest / Version
+
+### Data
+
+- 9,852,513件 Full Build
+- All-record Audit
+- Input/Output/Rejected/Unresolved accounting
+- Rights/Provenance Audit
+- Deterministic rebuild/hash
+
+### Robustness
+
+- Clean Japanese
+- Noisy input
+- Typo
+- Broken/colloquial input
+- Segmentation ambiguity
+- Unknown/new expression
+- False-correction rate
+- Ambiguity retention
+- Recovery Action fail-closed
+
+### Runtime
+
+- Targeted Tests
+- Existing MCP Boundary Tests
+- Full Regression
+- Production-representative performance
+- Authorized deploy
+- Runtime readback
+
+Process起動、HTTP 200、空配列、Build成功、Test runner終了、CI greenの一つだけではSemantic completionのPASSにしません。
+
+---
+
+## 19. 固定Implementation Order
 
 ```text
-設定を削除するべき？
+M0-1 MCP compact / standard / full
+↓
+MCP targeted tests
+↓
+semantic_hash compatibility Gate
+↓
+Router Trace
+↓
+Recovery Interpretation Evidence
+↓
+Field-level Rights / Provenance
+↓
+Japanese-function Projection Compiler
+↓
+Front multi-lane Router
+↓
+Recovery Index / Lattice / Top-K
+↓
+Progressive Context Retrieval
+↓
+9.85M Full Build / Audit
+↓
+Clean + Noisy + Typo + Broken Regression
+↓
+False-correction / Ambiguity-retention
+↓
+p95 < 500 ms
+↓
+Full Regression
+↓
+Authorized Runtime readback
 ```
 
-これは疑問であり、命令として直接実行するべきではありません。
+途中工程のPASSから後段を推測でPASSにしません。
 
 ---
 
-## Limitations
+## 20. Target Architectureの現在Status
 
-DJPMCPは決定論的な構文・規則・辞書・Runtime Dataを使うため、LLMとは失敗特性が異なります。
+このREADME更新時点の境界です。
 
-現在も次のケースでは `PARTIAL` / `AMBIGUOUS` / `UNSUPPORTED` になり得ます。
-
-- 辞書・Rule・Semantic Runtimeに十分な根拠がない語義
-- 長距離の省略・照応
-- 世界知識が不可欠な含意
-- 高度な皮肉・新語・造語
-- 文脈なしでは一意に決められない社会関係
-- 複数のscope解釈が成立する文
-- graph/deadline上限を超える入力
-
-重要なのは、これらを根拠なく「理解できた」と偽装せず、未解決情報を構造として返すことです。
-
----
-
-## Repositoryで確認すべき主要実装
-
-| Path | 責務 |
+| Area | Status |
 |---|---|
-| `src/deterministic_japanese_parser_mcp/server.py` | stdio MCP / Tool schema / response cache / prewarm |
-| `src/deterministic_japanese_parser_mcp/http_server.py` | Streamable HTTP MCP / REST / auth / health |
-| `src/deterministic_japanese_parser_mcp/engine.py` | 全解析pipelineの統合 |
-| `src/deterministic_japanese_parser_mcp/models.py` | Pydantic input/output contract |
-| `src/deterministic_japanese_parser_mcp/reading_runtime.py` | 述語項・scope・attribution・discourse読解 |
-| `src/deterministic_japanese_parser_mcp/semantic_enrichment.py` | 意味補強 |
-| `src/deterministic_japanese_parser_mcp/semantic_data_runtime.py` | compiled semantic data runtime |
-| `src/deterministic_japanese_parser_mcp/lexical_graph.py` | lexical graph enrichment |
-| `src/deterministic_japanese_parser_mcp/language_features.py` | compiled language-feature runtime |
-| `src/deterministic_japanese_parser_mcp/language_feature_refinement.py` | Engineへのlanguage feature統合 / Fail Closed補強 |
-| `src/deterministic_japanese_parser_mcp/anaphora.py` | 照応・指示解決 |
-| `src/deterministic_japanese_parser_mcp/graph_guard.py` | External Action Guard |
-| `src/deterministic_japanese_parser_mcp/graph_contradictions.py` | Graph上の矛盾検出 |
-| `src/deterministic_japanese_parser_mcp/task_graph.py` | Action Task Graph |
-| `src/deterministic_japanese_parser_mcp/low_latency_client.py` | schema-safe低遅延MCP client |
-| `scripts/` | benchmark / quality / performance / deployment contracts |
-| `tools/` | dictionary compile / validation / import / review tooling |
-| `tests/` | unit / integration / E2E / regression / supply-chain検証 |
-| `.github/workflows/ci.yml` | 公開CI Gate |
+| MeaningGraph / TaskGraph / GraphGuard | 既存実装を再利用 |
+| MCP typed base | 既存実装を再利用 |
+| Semantic Quality / Holdout | 既存実装を再利用 |
+| Direct Final Manifest/Hash | 既存実装を再利用 |
+| Purpose Routing | PARTIAL |
+| MCP `compact/standard/full` | DESIGN FIXED / SOURCE NOT YET APPLIED at verified baseline |
+| semantic_hash compatibility Gate | NOT IMPLEMENTED |
+| Router Trace | NOT IMPLEMENTED |
+| Recovery Evidence / Index / Lattice / Top-K | NOT IMPLEMENTED |
+| Field-level Rights / Provenance Extension | NOT IMPLEMENTED |
+| Japanese-function Projection Compiler | NOT IMPLEMENTED |
+| Front multi-lane Router | NOT IMPLEMENTED |
+| Progressive Context Retrieval | NOT IMPLEMENTED |
+| 9.85M Final Rebuild / Audit | NOT RUN |
+| Final Robustness | NOT RUN |
+| Final p95 < 500ms | NOT RUN |
+| Final Full Regression | NOT RUN |
+| Target Architecture Runtime Deploy | NOT DEPLOYED |
+
+この表は意図的に保守的です。未検証をPASSにしません。
 
 ---
 
-## Documentation Map
+## 21. Public OSSとOfficial Hosted Service
 
-### 利用・商用・Deployment
+Public OSS / Self-hostとAstera Hosted Commercial Serviceは、Parser Coreの機能を意図的に削る関係ではありません。
 
-- [`docs/README.md`](docs/README.md) — 公開Document Index
-- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md) — OSS配布とOfficial Hosted Service
-- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md) — Astera商用API Platformの責務分離
-- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) — Production HTTP配置
-- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md) — Runtime Bundle Deployment
+### Public OSS
 
-### Parser / Semantic Contract
+利用者がRepositoryを取得し、自分のPC / Server / Container / Private Network等で実行できます。
+
+利用者側責務：
+
+- Infrastructure
+- Authentication
+- Monitoring
+- Scaling
+- Backup
+- Availability
+- Upgrade / Rollback
+
+### Astera Hosted Commercial Service
+
+Project OwnerがDJPMCPをManaged Runtimeとして運用し、その外側にPlatform Control Planeを置く構成です。
+
+```mermaid
+flowchart LR
+    U[Customer / AsteraApp] --> G[Astera API Gateway]
+    G --> C[Auth / Metering / Credit / Billing / Rate Policy]
+    C --> P[DJPMCP Managed Runtime]
+    P --> M[MeaningGraph / TaskGraph]
+    M --> G
+    G --> U
+```
+
+Commercial側の主責務：
+
+- Customer Account / Auth
+- API Credential Lifecycle
+- Authorization
+- Usage Metering
+- Credit / Quota
+- Billing / Plan
+- Rate limiting / Abuse protection
+- Tenant isolation
+- Monitoring
+- Version rollout / rollback
+- Support / Commercial Terms
+
+Repositoryの `POST /v1/analyze` をそのままCustomer-facing有料APIとして固定しません。
+
+詳細：
+
+- [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md)
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
+
+---
+
+## 22. Documentation Map
+
+最初に読むもの：
+
+- [`docs/PARSER_ARCHITECTURE.md`](docs/PARSER_ARCHITECTURE.md) — **固定済み総合Parser Architecture正本**
+- [`docs/README.md`](docs/README.md) — Documentation Index
+
+Parser / Data Contract：
 
 - [`docs/JAPANESE_READING_CONTRACT.md`](docs/JAPANESE_READING_CONTRACT.md)
 - [`docs/SEMANTIC_QUALITY_CONTRACT.md`](docs/SEMANTIC_QUALITY_CONTRACT.md)
+- [`docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md`](docs/UNIFIED_SEMANTIC_DATA_PIPELINE.md)
 - [`docs/LANGUAGE_DATA_RUNTIME.md`](docs/LANGUAGE_DATA_RUNTIME.md)
-- [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
 - [`docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md`](docs/OPEN_DICTIONARY_SUPPLY_CHAIN.md)
+- [`docs/OPEN_LEXICON_ACCURACY.md`](docs/OPEN_LEXICON_ACCURACY.md)
+- [`docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md`](docs/DIRECT_FINAL_RUNTIME_DEPLOYMENT.md)
 - [`docs/PERFORMANCE_AND_RELEASE_CONTRACT.md`](docs/PERFORMANCE_AND_RELEASE_CONTRACT.md)
 
-### Project Policy
+Distribution / Operation：
 
-- [`LICENSE`](LICENSE)
-- [`NOTICE.md`](NOTICE.md)
-- [`GOVERNANCE.md`](GOVERNANCE.md)
-- [`TRADEMARK.md`](TRADEMARK.md)
-- [`SECURITY.md`](SECURITY.md)
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)
-
----
-
-## Security
-
-- stdio transportはMCP Clientとlocal processの信頼境界内で使用してください。
-- Self-host HTTP公開時はAPI Key、TLS、Reverse Proxy、Firewall等を適切に構成してください。
-- `DJPMCP_HTTP_ALLOWED_HOSTS` と `DJPMCP_HTTP_ALLOWED_ORIGINS` はEnvironmentに合わせて明示してください。
-- Runtime DictionaryやCompiled Artifactを差し替える場合はvalidator / provenance / license Gateを通してください。
-- Production Secret、Customer Credential、Billing SecretをPublic Repositoryへ保存しないでください。
-- Astera Commercial APIでは、Customer CredentialをParser Runtime Keyと兼用せずGateway側で管理します。
-- Commercial Public APIにはParser HTTP Serverだけでなく、Customer Auth、Quota、Rate Limit、Billing Authority、Idempotency、Tenant Isolation等の外側のControlが必要です。
-
-詳細：[`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
-
----
-
-## 開発方針
-
-このRepositoryでは次の境界を重視しています。
-
-- **生成と読解を分離する**
-- **Meaning GraphとTask Graphを分離する**
-- **通常文と実行指示を混同しない**
-- **辞書正本・公開Data・Runtime projectionを分離する**
-- **曖昧性を無理に確定しない**
-- **外部操作はFail Closedにする**
-- **Parser CoreとCommercial Control Planeを分離する**
-- **Customer identity / billingをParserへ埋め込まない**
-- **性能値は宣伝文ではなくCI contractで検証する**
-- **出力schemaをMCP Tool contractそのものとして公開する**
-
----
-
-## License / Data / Commercial Terms / Brand
-
-Program CodeはMIT Licenseです。MIT LicenseはProgram Codeについて利用・改変・再配布・販売等を許可します。Project OwnerがOfficial Hosted Commercial Serviceを有料提供することは、この公開Licenseと両立します。
-
-一方で、次はProgram CodeのMIT Licenseとは別の境界です。
-
-- Third-party Dictionary / DataのSource License
-- Astera / DJPMCP / Shiori等のProject Marks
-- Official Hosted Serviceの料金・SLA・Support・Terms
-- Customer Account / Billing / Platform Policy
-
-Hosted Service Termsは、RepositoryのMIT Licenseで既に付与されたProgram Code上の権利を遡って取り消すものではありません。
-
-詳細：
-
-- [`LICENSE`](LICENSE)
-- [`NOTICE.md`](NOTICE.md)
-- [`GOVERNANCE.md`](GOVERNANCE.md)
-- [`TRADEMARK.md`](TRADEMARK.md)
 - [`docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](docs/COMMERCIAL_AND_DISTRIBUTION_MODEL.md)
+- [`docs/ASTERA_HOSTED_API_ARCHITECTURE.md`](docs/ASTERA_HOSTED_API_ARCHITECTURE.md)
+- [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md)
+- [`VALIDATION.md`](VALIDATION.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`GOVERNANCE.md`](GOVERNANCE.md)
 
-<!-- project-control-ja:start -->
-プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
-<!-- project-control-ja:end -->
+---
+
+## 23. License / Data / Brand Boundary
+
+Program CodeのLicense、Third-party DataのSource License、Project Mark/Trademark、Hosted Service Termsは別の権利体系です。
+
+- Program Code: [`LICENSE`](LICENSE)
+- Third-party notice: [`NOTICE.md`](NOTICE.md)
+- Governance: [`GOVERNANCE.md`](GOVERNANCE.md)
+- Trademark: [`TRADEMARK.md`](TRADEMARK.md)
+
+Public Runtimeへ含められるDataかどうかは、Code Licenseだけでは決まりません。
+
+---
+
+## 24. Definition of Done
+
+DJPMCPのTarget Architectureは、**設計文書・Source・Test・Canonical Build/Audit・Robustness・Performance・Full Regression・許可されたRuntime readbackが一致したときだけ完成**です。
+
+それまでは各工程を `PASS / FAIL / PARTIAL / BLOCKED / UNKNOWN / NOT_RUN / NOT_IMPLEMENTED` と分けて管理し、未実施・未検証を完成扱いしません。
