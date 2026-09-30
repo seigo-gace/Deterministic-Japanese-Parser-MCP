@@ -6,9 +6,13 @@
 
 ## 1. Purpose
 
-Deterministic Japanese Parser MCP (DJPMCP) exists to convert Japanese text into reproducible, inspectable structures **without runtime LLM inference** and without silently inventing missing meaning.
+Deterministic Japanese Parser MCP (DJPMCP) converts Japanese text into reproducible, inspectable structures **without runtime LLM inference** and without silently inventing missing meaning.
 
-The parser is not an answer-generation AI. Its job is to prepare reliable material for humans, AI systems, and downstream deterministic execution layers.
+The parser is not an answer-generation AI. Its job is to prepare reliable material for humans, AI systems, Astera, Agents, and deterministic downstream execution layers.
+
+The highest-level product requirement is:
+
+> **Return the necessary complete Japanese reading result within 0.5 seconds without deleting reading accuracy, MeaningGraph information, ambiguity retention, reading evidence, or fail-closed safety to achieve speed.**
 
 The architecture therefore prioritizes:
 
@@ -24,24 +28,22 @@ The architecture therefore prioritizes:
 
 ## 2. Non-negotiable invariants
 
-The following are architecture invariants, not optional optimizations.
-
 1. **The original text is authority.** Normalization or recovery must never overwrite the caller's original input.
 2. **No unsupported completion.** Missing subjects, targets, senses, causal relations, rights, or provenance are not invented.
-3. **Ambiguity is data.** When evidence is insufficient, keep `AMBIGUOUS`, `UNRESOLVED`, `INSUFFICIENT`, or an equivalent explicit state.
+3. **Ambiguity is data.** When evidence is insufficient, keep `AMBIGUOUS`, `UNRESOLVED`, `INSUFFICIENT`, or the equivalent explicit state.
 4. **Runtime is non-AI.** Runtime analysis must not depend on an LLM or an external dictionary API.
 5. **Source semantics remain distinct from inferred meaning.** Auxiliary evidence must not become semantic authority merely because it can be joined to a lexical record.
 6. **Purpose routing is not meaning authority.** Purpose/source roles may guide retrieval or permissions but do not replace Japanese-language function routing or sense resolution.
 7. **External actions fail closed.** If normalization/recovery changes or creates actionable meaning, execution must not be automatically allowed without the required evidence and safety gates.
 8. **Rights and provenance are field-level concerns.** A record being usable for one field or one distribution lane does not automatically authorize every derived field.
 9. **Semantic identity is compatibility-sensitive.** Changes that alter `MeaningGraph` hashing require an explicit compatibility/versioning gate.
-10. **Physical storage layout is not architecture authority.** Logical responsibilities are fixed; database/file count is chosen by measured runtime/build characteristics.
+10. **Physical storage layout is not architecture authority.** Logical responsibilities are fixed; database/file count is selected by measured runtime/build characteristics.
 
-## 3. Current reusable core
+## 3. Existing core to preserve
 
 The target architecture extends rather than replaces the existing core.
 
-The following existing contracts remain authoritative unless a separately reviewed migration changes them:
+The following existing contracts remain authoritative unless an explicitly reviewed migration changes them:
 
 - `AnalyzeRequest` / `AnalyzeResponse` typed contracts;
 - `MeaningGraph` graph version `2.3.0`;
@@ -58,43 +60,39 @@ The architecture does **not** require rewriting these components from zero.
 
 ## 4. Canonical end-to-end architecture
 
-The fixed target flow is:
-
 ```mermaid
 flowchart TD
     A[Japanese input] --> B[Original authority + safe normalization]
-    B --> C[Front multi-lane router]
-    C --> D[Japanese-function projections]
-    D --> E[Progressive retrieval]
-    E --> F[Hard gates]
-    F --> G[Soft ranking]
-    G --> H{Exact / sufficiently resolved?}
-    H -->|yes| M[Existing MeaningGraph 2.3.0 path]
-    H -->|no| I[Recovery zone]
-    I --> J[Bounded candidate lattice]
-    J --> K[Whole-sentence Top-K decode]
-    K --> L[Margin + evidence gate]
-    L -->|resolved| M
-    L -->|ambiguous / insufficient| U[Explicit unresolved / ambiguous result]
+    B --> C[Sudachi baseline]
+    C --> D[Front multi-lane router]
+    D --> E[Japanese-function projections]
+    E --> F[Progressive retrieval]
+    F --> G[Hard constraints]
+    G --> H[Soft ranking]
+    H --> I[Syntax / sense resolution]
+    I --> J{Sufficiently resolved?}
+    J -->|yes| M[Existing MeaningGraph 2.3.0 path]
+    J -->|no| K[Recovery zone]
+    K --> L[Bounded candidate lattice + whole-sentence Top-K]
+    L --> Q[Margin + evidence gate]
+    Q -->|resolved| R[Router re-evaluation]
+    R --> M
+    Q -->|ambiguous / insufficient| U[Explicit unresolved / ambiguous result]
     M --> N[TaskGraph]
     U --> N
     N --> O[GraphGuard]
     O --> P[AnalyzeResponse / MCP transport projection]
 ```
 
-Canonical processed data remains the build-time authority. The latest fixed design assumes **9,852,513 processed canonical records** as the source set to be projected and audited. The new projection/recovery architecture must not be described as runtime-complete until its full rebuild and all-record audit have actually run.
+Canonical processed data remains the build-time authority. The latest fixed design references **9,852,513 processed canonical records** as the source set to be projected and audited. The new projection/recovery architecture must not be described as runtime-complete until its full rebuild and all-record audit have actually run.
 
 ## 5. Japanese-function projections
 
-### 5.1 Why projections exist
-
-A single giant undifferentiated semantic store forces unrelated retrieval work into every request. The target architecture instead compiles the same canonical authority into logical projections optimized for Japanese-language responsibilities.
+A single giant undifferentiated semantic store must not become a per-request full-scan dependency. The target architecture compiles the same canonical authority into logical projections optimized for Japanese-language responsibilities.
 
 The projections are **derived indexes/views**, not new competing authorities.
 
-### 5.2 Primary language-function lanes
-
-The primary logical lanes are:
+### Primary language-function lanes
 
 | Lane | Main responsibility |
 |---|---|
@@ -108,10 +106,10 @@ The primary logical lanes are:
 | `Syntax-Case-Clause` | case, dependency, clause and predicate-argument evidence |
 | `Sense-Semantic Relation` | sense candidates and typed semantic/lexical relations |
 | `Usage-Context-Pragmatics` | register, social/pragmatic usage, context conditions |
-| `Document Structure` | paragraph/document structure, argumentation and summary-related evidence |
+| `Document Structure` | paragraph/document structure, argumentation and summary evidence |
 | `Evidence-Provenance-Rights` | source lineage, rights, license, evidence and field-level permission |
 
-### 5.3 Secondary facets
+### Secondary facets
 
 The following may be indexed and used for narrowing/ranking but are **secondary facets**, not primary lanes:
 
@@ -136,28 +134,36 @@ Required properties:
 - no silent field synthesis;
 - rights/provenance carried with the field or evidence that uses it;
 - counts and conservation checks recorded in a manifest;
-- deterministic build outputs where the source set and tool version are identical;
-- rejected/unmapped fields retained in an auditable queue rather than dropped silently.
+- deterministic build outputs for identical source set/tool version;
+- rejected/unmapped fields retained in an auditable queue rather than dropped silently;
+- every bundle bound to compatible `canonical_manifest_sha / schema_version / projection_policy_version / scoring_policy_version`;
+- incompatible bundle combinations rejected at startup;
+- bundle-set switch atomic and rollback-capable.
 
-A full build is not considered successful merely because the compiler exits with code 0. Validation must include input counts, output counts, rejected/unresolved counts, manifest/hash checks, and all-record auditing.
+A full build is not successful merely because the compiler exits with code 0. Validation must include input counts, output counts, rejected/unresolved counts, manifest/hash checks, rights/provenance checks, and all-record auditing.
 
 ## 7. Front multi-lane router
 
-The router is a deterministic front stage that decides **which logical evidence lanes are relevant to the current input**.
+The router deterministically decides **which logical evidence lanes are relevant to the current input**. It does not decide final meaning.
 
-The router does not decide final meaning. It produces retrieval requirements and trace evidence.
+The router must keep primary/secondary/fallback candidates instead of forcing a single lane too early.
 
 A router trace must make at least the following inspectable:
 
 - detected input features;
-- selected lanes;
+- `router_decision`;
+- `candidate_lanes`;
+- `selected_lanes`;
 - skipped lanes and why they were unnecessary;
 - secondary facets requested;
+- `fallback_reason`;
 - whether recovery is potentially needed;
 - routing version / projection version;
-- limits applied to retrieval.
+- retrieval limits.
 
-The router must be deterministic for identical input/context/configuration.
+Fallback or recovery is required when conditions such as `exact=0`, OOV, suspicious segmentation, grammar conflict, or syntax conflict make the narrow route insufficient. After recovery, the router is evaluated again.
+
+The router must be deterministic for identical input/context/runtime data/configuration.
 
 ## 8. Purpose routing boundary
 
@@ -175,7 +181,7 @@ It must **not**:
 
 - become the sole meaning classifier;
 - create lexical meaning from auxiliary evidence;
-- replace the Japanese-function lanes;
+- replace Japanese-function lanes;
 - bypass field-level rights/provenance;
 - turn an unknown source role into permission.
 
@@ -183,26 +189,29 @@ Unknown purpose/source roles fail closed where permission or consumption eligibi
 
 ## 9. Progressive retrieval
 
-The runtime should retrieve the smallest evidence set that can resolve the input, while preserving the full semantic contract.
+The runtime retrieves the smallest evidence set that can resolve the input while preserving the full semantic contract.
 
 Conceptually:
 
-1. run the front router;
-2. load router/grammar essentials;
-3. retrieve only the selected lexical/semantic/context evidence;
-4. apply hard eligibility gates;
-5. rank eligible candidates;
-6. stop when evidence/margin is sufficient;
-7. enter recovery only for unresolved/OOV/abnormal segmentation or similar bounded cases;
-8. load deeper context/evidence only when still required.
+1. preserve original authority and perform only safe normalization;
+2. run Sudachi baseline;
+3. run the front router;
+4. load router/grammar essentials;
+5. retrieve only selected lexical/semantic/context evidence;
+6. apply hard eligibility constraints;
+7. rank eligible candidates;
+8. resolve syntax/sense;
+9. load deeper context/domain evidence only when required;
+10. stop when evidence/margin is sufficient;
+11. enter recovery only for unresolved/OOV/abnormal segmentation/conflict or comparable bounded cases.
 
 "Progressive" means avoiding unnecessary work, **not deleting capabilities**.
 
-## 10. Hard gates and soft ranking
+## 10. Hard constraints and soft ranking
 
-Hard gates answer whether a candidate is permitted to participate. Soft ranking orders candidates that remain eligible.
+Hard constraints answer whether a candidate is permitted to participate. Soft ranking orders candidates that remain eligible.
 
-Examples of hard-gate dimensions:
+Hard-gate examples:
 
 - source/field rights;
 - incompatible reading/part-of-speech constraints;
@@ -212,10 +221,11 @@ Examples of hard-gate dimensions:
 - invalid or missing provenance where provenance is mandatory;
 - external-action safety constraints.
 
-Examples of ranking evidence:
+Ranking evidence examples:
 
 - exact surface/reading match;
 - morphology compatibility;
+- segmentation/connection compatibility;
 - syntax/case/clause compatibility;
 - sense/context fit;
 - domain facet match;
@@ -228,32 +238,37 @@ A high ranking score cannot override a hard prohibition.
 
 ### 11.1 No giant typo database
 
-The design explicitly does **not** create a separate giant database containing every possible typo.
+The design explicitly does **not** create a separate giant database containing every possible typo and does not fuzzy-match the whole sentence by default.
 
-Recovery is candidate-based and bounded.
+Recovery is candidate-based, local, bounded, and entered only when normal analysis fails to resolve a span sufficiently.
 
 ### 11.2 Recovery sequence
 
 1. preserve original text;
 2. perform only safe normalization;
 3. attempt exact/normal deterministic analysis;
-4. enter recovery only for unresolved/OOV/abnormal segmentation or a comparable detected need;
-5. generate a bounded candidate set from surface, reading, alias, morphology, and split/merge evidence;
-6. assign deterministic error/recovery costs;
-7. build a bounded candidate lattice;
-8. decode whole-sentence Top-K candidates;
-9. rerank with grammar, syntax, sense, context, domain facets, provenance and evidence;
-10. apply margin/evidence thresholds;
-11. return a recovered interpretation only when the gate is satisfied;
-12. otherwise preserve ambiguity/unresolved state.
+4. enter recovery only for unresolved/OOV/abnormal segmentation/conflict or a comparable detected need;
+5. include adjacent boundaries where split/merge is relevant;
+6. generate finite candidates for kana/katakana, dakuten/handakuten, small kana, long vowel, okurigana, contraction, insertion/deletion/substitution/transposition, split/merge and declared aliases;
+7. only promote candidates that land on an actual runtime surface/lemma/reading/alias;
+8. assign deterministic recovery/error costs;
+9. build a bounded local candidate lattice;
+10. decode whole-sentence Top-K/beam/Viterbi-style candidates;
+11. rerank with reading, POS/morphology, segmentation/connection, grammar, syntax/case, sense, usage/context, domain facet, provenance and evidence;
+12. apply margin/evidence thresholds;
+13. return a recovered interpretation only when the gate is satisfied;
+14. otherwise preserve ambiguity/unresolved state.
+
+The bounds (`beam width / max span / max candidates / max passes / recovery margin`) are not arbitrary permanent constants. They must be calibrated by Golden/Noise/Latency benchmarks.
 
 ### 11.3 Recovery safety rules
 
 - Unknown or newly coined expressions are not automatically treated as typos.
 - The original text remains available in output/evidence.
-- Recovery evidence and the chosen interpretation must be inspectable.
+- Recovery evidence and the chosen interpretation must be inspectable and tied to the original span.
 - A correction may not silently change a protected element.
-- If recovery creates or changes action semantics, external action must fail closed until the required safety evidence is satisfied.
+- Multiple valid meanings with insufficient margin remain ambiguous.
+- If recovery creates or changes action predicate/target/intent semantics, external action must fail closed with a dedicated reason such as `RECOVERY_CHANGED_ACTION_SEMANTICS` until the required safety evidence is satisfied.
 
 ## 12. Candidate lattice and whole-sentence decoding
 
@@ -265,7 +280,8 @@ The lattice is bounded by explicit limits such as:
 - alternative split/merge paths;
 - maximum total lattice nodes/edges;
 - Top-K path count;
-- maximum recovery time/work budget.
+- maximum recovery passes;
+- maximum recovery work/time budget.
 
 Whole-sentence scoring may combine:
 
@@ -273,6 +289,7 @@ Whole-sentence scoring may combine:
 - lexical evidence;
 - morphology;
 - grammar;
+- segmentation/connection;
 - dependency/case evidence;
 - semantic/sense compatibility;
 - discourse/context evidence;
@@ -285,7 +302,11 @@ The winner is accepted only when the top candidate has sufficient absolute evide
 
 Eligibility belongs to fields/evidence, not only to a whole source record.
 
-The runtime/build contracts must be able to answer:
+The contract must support values such as `senses / examples / translations / relations / metrics / aliases` being traced through:
+
+`evidence_id → source_id/version → field semantics → license/rights lane → allowed consumer/use → forbidden use`.
+
+The runtime/build contracts must therefore be able to answer:
 
 - which source produced a field or evidence item;
 - which source record/artifact it came from;
@@ -294,9 +315,9 @@ The runtime/build contracts must be able to answer:
 - which consumer may use it;
 - whether the field is semantic authority, ranking evidence, provenance only, or another declared role.
 
-Auxiliary evidence may strengthen ranking or provenance without becoming lexical/sense authority.
+Auxiliary evidence may strengthen ranking or provenance without becoming lexical/sense authority. Sentiment/temporal and similar context-dependent facets are lexical priors, not final contextual judgments.
 
-Unknown or incomplete rights information must never be converted into implicit permission.
+Unknown or incomplete rights information must never become implicit permission.
 
 ## 14. MeaningGraph and semantic-hash compatibility
 
@@ -306,18 +327,18 @@ This creates a strict migration rule:
 
 > Adding default fields directly to `MeaningGraph` can change hashes for existing inputs even when semantic behavior is otherwise unchanged.
 
-Therefore Router Trace, Recovery Evidence, field-level rights, and similar extensions must not be attached to the graph until a compatibility gate proves one of the following:
+Recovery/Interpretation Evidence, Router Trace, and field-level evidence references are target MeaningGraph extensions, but they must not be connected until a compatibility gate proves one of the following:
 
-1. the extension does not change the hashed semantic payload; or
-2. a deliberate graph/hash version migration is defined, tested and released.
+1. the extension does not change the existing hashed semantic payload unexpectedly; or
+2. a deliberate graph/hash version migration is defined, tested, and released.
 
-The compatibility gate must compare representative and regression corpus outputs before/after the change and detect unexpected hash drift.
+The compatibility gate must compare representative and regression-corpus outputs before/after the change and detect unexpected hash drift.
 
 ## 15. TaskGraph and GraphGuard
 
 `TaskGraph` remains downstream of semantic interpretation. Recovery must not bypass it.
 
-`GraphGuard` remains the final deterministic safety boundary for `execution_mode="external_action"`.
+`GraphGuard` remains the final deterministic semantic-safety boundary for `execution_mode="external_action"`.
 
 At minimum, execution is blocked when material uncertainty affects an action, including:
 
@@ -328,6 +349,8 @@ At minimum, execution is blocked when material uncertainty affects an action, in
 - unsupported action-relevant interpretation;
 - deadline/processing failure;
 - recovery-created or recovery-changed action semantics without the required evidence.
+
+Parser `execution_allowed` is a semantic-safety decision, not provider/OS authorization or human approval. Actual external action requires a separate caller-side authorization/approval boundary.
 
 DJPMCP returns a decision. It does not itself perform the external action.
 
@@ -340,27 +363,28 @@ Target contract:
 ```text
 McpAnalyzeRequest = AnalyzeRequest + transport-only output_profile
 output_profile = compact | standard | full
-Default = full
+Default = compact
 ```
 
 `output_profile` must be stripped before constructing the core `AnalyzeRequest`, so profile choice cannot change parser semantics, cache identity, or `semantic_hash`.
 
-### `full`
+### `compact`
 
-- preserves the existing full `AnalyzeResponse` structured shape;
-- is the default for backward compatibility.
+Default profile. Returns lightweight decision material such as status, principal Reading/Proposition information, important ambiguity/missing information, action safety, and semantic hash. It is a transport projection only; it must not reduce the internal MeaningGraph.
 
 ### `standard`
 
-Keeps the information normally required for semantic consumption, including status, safety, sentence semantics, tasks and reading results, while omitting heavy transport detail such as large token/lexical/paragraph structures where omission is schema-compatible.
+Progressively discloses more semantic structure, tasks, reading detail, and evidence-related information while still withholding the heaviest transport payload where omission is schema-compatible.
 
-### `compact`
+### `full`
 
-Keeps the minimum transport-safe semantic identity and decision material, including status/safety, ambiguity/unresolved signals, propositions and `semantic_hash`, while omitting heavy detail.
+Preserves the existing full `AnalyzeResponse` structured shape for callers that explicitly require all current transport detail.
 
 The text summary remains backward compatible and is derived from the full semantic response before transport projection.
 
-The runtime cache stores semantic/full results and must not create separate semantic identities for output profiles.
+The runtime cache stores the semantic/full result and must not create separate semantic identities for output profiles.
+
+Maximum profile bytes and exposed node/candidate limits are not fixed by guesswork. They are calibrated by context/latency benchmarks without using output truncation to weaken internal reading completeness.
 
 ## 17. Logical runtime bundles
 
@@ -376,31 +400,35 @@ These are responsibility boundaries. They do not require five physical databases
 
 ## 18. Performance contract
 
-The final architecture must be measured after the full projection/recovery implementation and the full canonical rebuild.
+The top-level product requirement is **the necessary complete Japanese reading result within 0.5 seconds**.
 
-The fixed final acceptance target for the new architecture is:
+Existing narrower internal targets such as `target_latency_ms=10` and `hard_deadline_ms=50` remain Hot-path/scoped contracts unless an explicit migration changes them. Recovery is not a reason to silently relax them.
 
-- production-representative **p95 < 500 ms** for the defined final benchmark workload;
-- bounded recovery work;
-- no unbounded scan of all 9.85M canonical records per request;
-- progressive retrieval proven by trace/benchmark evidence;
-- no correctness reduction merely to hit latency.
+Production acceptance must record at least:
 
-Existing narrower 10 ms / 50 ms contracts in the repository remain valid for the scopes they currently define until an explicit contract migration replaces them. They must not be confused with the final end-to-end architecture acceptance benchmark.
+- hardware / CPU / RAM;
+- warm vs cold conditions;
+- input-length class;
+- concurrency;
+- p50 / p95 / p99;
+- MCP / HTTP boundary;
+- phase-level work/latency where relevant.
+
+No single percentile metric may be used to replace the higher-level 0.5-second product requirement. Speed is not achieved by deleting reading accuracy, MeaningGraph content, ambiguity retention, evidence, or fail-closed behavior.
 
 ## 19. Build and validation gates
 
-The final architecture is not complete until all of the following are closed with evidence.
+The final architecture is not complete until all required gates are closed with evidence.
 
 ### Source and contract gates
 
-- output-profile transport contract;
+- MCP output-profile transport contract;
 - semantic-hash compatibility gate;
-- router trace contract;
-- recovery interpretation evidence contract;
+- Router Trace contract;
+- Recovery Interpretation Evidence contract;
 - field-level rights/provenance contract;
 - projection schema/manifest contract;
-- deterministic bundle/version contract.
+- deterministic bundle/version compatibility contract.
 
 ### Data gates
 
@@ -418,25 +446,39 @@ The final architecture is not complete until all of the following are closed wit
 - typographical errors;
 - broken/colloquial text;
 - segmentation ambiguity;
+- proper noun;
+- function word;
+- connective;
+- onomatopoeia;
+- multiword/fixed expression;
+- long text;
 - unknown/new expression handling;
+- Router lane recall / false exclusion / OOV fallback;
+- Recovery success;
 - false-correction rate;
 - ambiguity-retention rate;
-- external-action recovery safety.
+- recovered-action safety;
+- field-rights integrity;
+- MCP output size;
+- recovery latency.
+
+Clean Gold cases are paired with deterministic synthetic-noise cases. The goal is that Clean and Noisy inputs converge to the same meaning when evidence is sufficient, and remain correctly ambiguous when it is not. Recovery success alone is never enough; false correction is a mandatory metric.
 
 ### Regression and runtime gates
 
 - targeted unit/contract tests;
 - existing MCP boundary tests;
+- existing Semantic Quality and Independent Holdout;
 - full regression suite;
-- performance benchmark including p95;
-- actual runtime deployment when authorized;
+- production-representative performance evidence;
+- actual runtime deployment only when authorized;
 - runtime/provider readback where applicable.
 
-Process start, HTTP 200, empty output, test-runner exit, or CI green alone is not sufficient to prove semantic completion.
+Process start, HTTP 200, empty output, build success, test-runner exit, or CI green alone is not sufficient to prove semantic completion.
 
 ## 20. Implementation sequence
 
-The fixed implementation order is:
+The fixed near-term implementation order from the current checkpoint is:
 
 ```text
 M0-1: MCP compact / standard / full transport profile
@@ -445,19 +487,17 @@ MCP targeted tests
   ↓
 semantic_hash compatibility gate
   ↓
-Router Trace
-  ↓
-Recovery Interpretation Evidence
-  ↓
-Field-level Rights / Provenance
+Router Trace / Recovery Interpretation Evidence / Field-level Rights contract
   ↓
 Japanese-function Projection Compiler
   ↓
 Front multi-lane Router
   ↓
+existing MeaningGraph connection
+  ↓
 Recovery Index / Candidate Lattice / whole-sentence Top-K
   ↓
-Progressive Context Retrieval
+Progressive Context / Evidence Retrieval
   ↓
 9.85M full Build / Audit
   ↓
@@ -465,7 +505,7 @@ Clean + Noisy + Typo + Broken-text Regression
   ↓
 False-correction / Ambiguity-retention metrics
   ↓
-p95 < 500 ms final benchmark
+0.5-second complete-reading Performance Acceptance
   ↓
 Full Regression
   ↓
@@ -476,26 +516,24 @@ A later step must not be marked PASS because an earlier isolated test passed.
 
 ## 21. Implementation status at architecture freeze
 
-At the time this document was introduced:
-
 | Area | Status |
 |---|---|
 | Existing MeaningGraph / TaskGraph / GraphGuard | Existing; reuse |
 | Existing MCP typed base | Existing; reuse |
-| Existing semantic quality / holdout | Existing; reuse |
+| Existing Semantic Quality / Holdout | Existing; reuse |
 | Existing Direct Final manifest/hash gates | Existing; reuse |
 | Purpose routing | Partial integration work exists; final consumer effect incomplete |
-| MCP output profiles | Design fixed; VPS implementation not yet applied at the verified baseline |
+| MCP output profiles | Design fixed; VPS source/runtime implementation not yet verified at the baseline checkpoint |
 | Semantic-hash compatibility gate | Not implemented |
-| Router trace | Not implemented |
+| Router Trace | Not implemented |
 | Recovery evidence/index/lattice/Top-K | Not implemented |
 | Field-level rights/provenance extension | Not implemented |
-| Japanese-function projection compiler | Not implemented |
-| Front multi-lane router | Not implemented |
-| Progressive context retrieval | Not implemented |
+| Japanese-function Projection Compiler | Not implemented |
+| Front multi-lane Router | Not implemented |
+| Progressive Context Retrieval | Not implemented |
 | 9.85M rebuild/all-record audit under this architecture | Not run |
 | Final robustness suite | Not run |
-| Final p95 < 500 ms benchmark | Not run |
+| Final 0.5-second complete-reading acceptance | Not run |
 | Final full regression | Not run |
 | Runtime deployment of this target architecture | Not deployed |
 
@@ -517,4 +555,4 @@ This table is intentionally conservative. Documentation of the target architectu
 
 The target architecture is complete only when the required source changes, data rebuild/audit, robustness gates, performance gates, full regression, and authorized runtime readback all provide matching evidence.
 
-Until then, individual sections may be `PASS`, `PARTIAL`, `BLOCKED`, `UNKNOWN`, `NOT_RUN`, or `NOT_IMPLEMENTED`, but the whole architecture must not be presented as complete.
+Until then, individual scopes may be `PASS`, `FAIL`, `PARTIAL`, `BLOCKED`, `UNKNOWN`, `NOT_EXECUTED`, or `NOT_VERIFIED`, but the whole architecture must not be presented as complete.
