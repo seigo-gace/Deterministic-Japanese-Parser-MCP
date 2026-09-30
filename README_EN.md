@@ -14,15 +14,19 @@
 
 ## Overview
 
-Deterministic Japanese Parser MCP (DJPMCP) converts Japanese input into inspectable, reusable structures **before a human or generative AI makes a downstream judgment**.
+Deterministic Japanese Parser MCP (DJPMCP) converts Japanese input into inspectable, reusable structures **before a human, Astera, an Agent, or a generative AI makes a downstream judgment**.
 
-The parser does not reduce the text to a single intent label. Its central `MeaningGraph` can preserve lexical candidates, entities, clauses, propositions, predicate-argument structure, dependency, semantic scope, attribution, reference, discourse, sense candidates, and unresolved elements. When actionable instructions are present, the same semantic interpretation can produce a `TaskGraph` and a fail-closed external-action decision.
+It does not reduce text to a single intent label. Its central `MeaningGraph` can preserve lexical candidates, entities, clauses, propositions, predicate-argument structure, dependency, scope, attribution, reference, discourse, sense candidates, and unresolved elements. When actionable instructions are present, the same semantic interpretation can produce a `TaskGraph` and a fail-closed external-action decision.
 
 DJPMCP is not an answer-generation AI. It does not intentionally invent missing subjects, targets, senses, causal relations, rights, or provenance. Ambiguity, insufficient evidence, and unsupported interpretation remain explicit states.
 
-## Current implementation vs fixed target architecture
+## Highest-level product requirement
 
-Repository documentation distinguishes the **current implementation** from the **fixed target architecture under implementation**.
+The highest-level requirement is to return the **necessary complete Japanese reading result within 0.5 seconds** without using an LLM at runtime and without deleting reading accuracy, `MeaningGraph` information, ambiguity retention, reading evidence, or fail-closed safety to achieve speed.
+
+Existing stricter scoped targets such as `target_latency_ms=10` and `hard_deadline_ms=50` remain hot-path/internal contracts unless explicitly migrated. Production acceptance records hardware, warm/cold conditions, input-length class, concurrency, p50/p95/p99, and MCP/HTTP boundaries. No single percentile metric replaces the top-level 0.5-second product requirement.
+
+## Current implementation vs fixed target architecture
 
 | Item | Current baseline |
 |---|---|
@@ -42,30 +46,32 @@ Repository documentation distinguishes the **current implementation** from the *
 The fixed target flow is:
 
 ```text
-Canonical processed records
-  → Japanese-function projections
-  → multi-lane front router
-  → progressive retrieval of required indexes
-  → hard gates
-  → soft ranking
-  → recovery zone only when required
-  → bounded candidate lattice
-  → whole-sentence Top-K decode
-  → margin / evidence gate
-  → existing MeaningGraph 2.3.0
-  → TaskGraph
-  → GraphGuard
+Original authority
+→ safe normalization
+→ Sudachi baseline
+→ Japanese-function projections
+→ multi-lane front router
+→ progressive retrieval
+→ hard constraints
+→ soft ranking
+→ syntax / sense resolution
+→ recovery only when needed
+→ bounded candidate lattice
+→ whole-sentence Top-K / beam / Viterbi-style decode
+→ margin / evidence gate
+→ router re-evaluation
+→ existing MeaningGraph 2.3.0
+→ TaskGraph
+→ GraphGuard
 ```
 
 The authoritative target architecture is [`docs/PARSER_ARCHITECTURE.md`](docs/PARSER_ARCHITECTURE.md).
 
-**Documentation is not implementation evidence.** A target layer is not considered complete until its source, tests, full build/audit where applicable, performance evidence, regression evidence, and authorized runtime readback are closed.
+**Documentation is not implementation evidence.** A target layer is not complete until its source, tests, required full build/audit, performance evidence, regression evidence, and authorized runtime readback are closed.
 
 ## Architecture invariants
 
-The target architecture keeps the following invariants:
-
-- the original text remains authoritative and is never silently overwritten by normalization or recovery;
+- original text remains authoritative and is never silently overwritten by normalization or recovery;
 - unsupported meaning is not invented;
 - ambiguity and unresolved states are preserved;
 - runtime analysis remains deterministic and non-LLM;
@@ -76,11 +82,11 @@ The target architecture keeps the following invariants:
 - semantic-hash compatibility is explicitly gated;
 - logical responsibilities are not hard-wired one-to-one to physical databases.
 
-## Japanese-function projections
+## Canonical data and Japanese-function projections
 
-The fixed design projects the canonical processed data into logical Japanese-language responsibility lanes instead of scanning one undifferentiated store for every request.
+The latest fixed design references **9,852,513 canonical processed records**.
 
-Primary lanes:
+The runtime does not treat that set as one undifferentiated store to scan for every request. The same canonical authority is projected into logical Japanese-language lanes:
 
 1. `Orthography/Reading`
 2. `Noun-Entity`
@@ -97,65 +103,74 @@ Primary lanes:
 
 Domain, translation, sentiment, temporal/era, frequency, and source-specific labels are secondary facets rather than primary meaning-routing lanes.
 
-The latest fixed design references **9,852,513 canonical processed records**. The final projection rebuild and all-record audit for the new architecture must still be executed before that target runtime can be called complete.
+Projection artifacts remain derived views/indexes, not competing authorities. Compatible bundle sets are bound by canonical/schema/projection/scoring versions and incompatible combinations must be rejected.
 
 ## Front router and progressive retrieval
 
 The deterministic front router chooses which logical lanes, facets, and indexes are relevant to the input. It does not decide final meaning.
 
-A target Router Trace records selected lanes, skipped lanes, detected features, secondary facets, retrieval limits, recovery need, and router/projection versions.
+The target router keeps primary/secondary/fallback candidates and exposes trace material such as `router_decision`, `candidate_lanes`, `selected_lanes`, skipped-lane reasons, secondary facets, `fallback_reason`, retrieval limits, recovery need, and router/projection versions.
 
-Progressive retrieval means loading only the evidence needed to resolve the request and escalating only when necessary. It is an efficiency architecture, not a feature-reduction mechanism.
+Conditions such as exact miss, OOV, suspicious segmentation, grammar conflict, or syntax conflict may escalate to fallback/recovery. The router is evaluated again after recovery.
+
+Progressive retrieval is an efficiency architecture, not feature reduction.
 
 ## Purpose routing boundary
 
-Purpose/source routing may provide retrieval hints, role masks, consumer allow/deny information, permissions, provenance, ranking, and evidence metadata.
+Purpose/source routing may provide retrieval hints, role masks, consumer allow/deny information, permission boundaries, provenance, ranking, and evidence metadata.
 
-It must not:
-
-- become the sole meaning classifier;
-- replace Japanese-function lanes;
-- create lexical meaning from auxiliary evidence;
-- bypass field-level rights/provenance;
-- turn unknown roles into implicit permission.
+It must not become the sole meaning classifier, replace Japanese-function lanes, create lexical meaning from auxiliary evidence, bypass field-level rights/provenance, or convert unknown roles into implicit permission.
 
 ## Noisy and typo recovery
 
-The target architecture does **not** build a giant database of possible typos.
-
-Recovery is bounded and conditional:
+The target architecture does **not** build a giant database of possible typos and does not fuzzy-match the whole input by default.
 
 ```text
 original input
 → safe normalization
 → exact/normal analysis
-→ recovery only for unresolved/OOV/abnormal segmentation
-→ bounded surface/reading/alias/morphology/split-merge candidates
+→ recovery only for unresolved/OOV/abnormal segmentation/conflict
+→ bounded span candidates including relevant adjacent boundaries
+→ surface/reading/alias/morphology/split-merge candidates
 → deterministic recovery cost
-→ candidate lattice
-→ whole-sentence Top-K decode
-→ grammar/syntax/sense/context/facet/evidence rerank
+→ local candidate lattice
+→ whole-sentence Top-K / beam / Viterbi-style decode
+→ reading/POS/segmentation/syntax/sense/context/facet/evidence rerank
 → margin + evidence gate
 → resolved OR explicit ambiguous/unresolved result
 ```
 
-Unknown or newly coined expressions are not automatically classified as typos. The original input remains available. If recovery creates or changes actionable semantics, external action fails closed unless the required safety evidence is satisfied.
+Unknown or newly coined expressions are not automatically classified as typos. Only candidates that land on actual runtime surface/lemma/reading/alias evidence are promoted. The original input remains available. Recovery bounds and margins are calibrated from Golden/Noise/Latency benchmarks rather than fixed arbitrarily.
+
+If recovery creates or changes actionable predicate/target/intent semantics, external action fails closed with a dedicated reason such as `RECOVERY_CHANGED_ACTION_SEMANTICS` until the required evidence is satisfied.
 
 ## MeaningGraph, TaskGraph and GraphGuard
 
 The target architecture reuses the existing `MeaningGraph` `2.3.0`, `TaskGraph`, and `GraphGuard` rather than rewriting them from scratch.
 
-`MeaningGraph` remains the semantic authority. `TaskGraph` is derived downstream from interpreted meaning. `GraphGuard` remains the final deterministic safety boundary for `execution_mode="external_action"`.
+`MeaningGraph` remains the semantic authority. `TaskGraph` is derived downstream. `GraphGuard` remains the final deterministic semantic-safety boundary for `execution_mode="external_action"`.
+
+Parser `execution_allowed` is not provider/OS authorization or human approval. Actual external action requires a separate caller-side authorization/approval boundary.
 
 DJPMCP itself does not perform external actions.
+
+## Field-level rights and provenance
+
+Rights and evidence are tracked at field/evidence level rather than inferred from a whole source record.
+
+The target contract supports values such as `senses / examples / translations / relations / metrics / aliases` being traced through:
+
+`evidence_id → source_id/version → field semantics → license/rights lane → allowed consumer/use → forbidden use`.
+
+Auxiliary evidence may strengthen ranking or provenance without becoming lexical/sense authority. Unknown rights never become implicit permission.
 
 ## semantic_hash compatibility
 
 The current `MeaningGraph` semantic hash covers graph content other than the `semantic_hash` field itself. Adding default graph fields can therefore alter hashes for previously stable inputs.
 
-Router Trace, Recovery Evidence, field-level rights, and related extensions must not be attached to the graph until a compatibility gate proves either:
+Recovery/Interpretation Evidence, Router Trace, and field-level evidence references must not be connected until a compatibility gate proves either:
 
-1. the extension preserves the existing hashed semantic payload; or
+1. the extension preserves the existing hashed semantic payload as required; or
 2. an explicit graph/hash version migration is defined, tested, and released.
 
 Unexpected hash drift is not accepted.
@@ -165,23 +180,26 @@ Unexpected hash drift is not accepted.
 The target MCP transport supports:
 
 ```text
+McpAnalyzeRequest = AnalyzeRequest + transport-only output_profile
 output_profile = compact | standard | full
-Default = full
+Default = compact
 ```
 
-`output_profile` is transport-only and must not become part of the core semantic `AnalyzeRequest`.
+`output_profile` is transport-only and must be removed before constructing the core semantic `AnalyzeRequest`.
 
-- `full`: current complete `AnalyzeResponse`, backward-compatible default.
-- `standard`: semantic/status/task/reading material while omitting heavy transport details where schema-compatible.
-- `compact`: minimum decision material including status, safety, unresolved/ambiguity signals, propositions, and semantic identity/hash.
+- `compact`: **default**, lightweight status, principal reading/proposition material, important ambiguity/missing information, action safety, and semantic hash.
+- `standard`: progressively exposes more semantic structure, tasks, reading detail, and evidence-related information while withholding the heaviest transport detail where schema-compatible.
+- `full`: explicitly requested existing complete `AnalyzeResponse` structured shape.
 
-Profile selection must not change parser semantics, cache identity, or `semantic_hash`. The text summary remains backward compatible.
+Profile selection must not change parser semantics, core request identity, cache identity, or `semantic_hash`. The text summary is derived from the full semantic result before transport projection. The semantic cache stores the full result rather than creating separate semantic identities per profile.
 
-At the verified baseline, these profiles are **designed but not yet applied to VPS source**.
+Profile byte/node/candidate exposure limits are benchmark-calibrated; output slimming is never used to weaken the internal `MeaningGraph`.
+
+At this documentation point, the M0-1 profile design is fixed and has an assistant-side candidate self-test, but VPS source/runtime verification remains separate evidence.
 
 ## Current MCP input contract
 
-Until the profile extension is implemented, the current `analyze_japanese` input remains the existing `AnalyzeRequest`:
+The current core `AnalyzeRequest` includes:
 
 | Field | Required | Default |
 |---|---:|---|
@@ -195,7 +213,7 @@ Until the profile extension is implemented, the current `analyze_japanese` input
 | `analysis_depth` | no | `auto` |
 | `deadline_ms` | no | `50` |
 
-A successful current MCP response includes complete `AnalyzeResponse` structured content plus the compact text summary.
+M0-1 adds `output_profile` only to the MCP transport request and does not add it to the core semantic request.
 
 ## Quick start
 
@@ -223,7 +241,7 @@ pip install -e .
 djpmcp-validate
 ```
 
-Development dependencies:
+For development:
 
 ```bash
 pip install -e ".[dev]"
@@ -267,13 +285,9 @@ Readiness: /readyz
 
 Protected endpoints accept Bearer authentication or `X-API-Key`. `/healthz` and `/readyz` remain public.
 
-For production boundaries, see [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md).
+See [`docs/PRODUCTION_HTTP_DEPLOYMENT.md`](docs/PRODUCTION_HTTP_DEPLOYMENT.md) for production boundaries.
 
 ## Canonical data and runtime projections
-
-The repository keeps source intake, canonical data, public distribution views, runtime projections, and compiled indexes as separate layers.
-
-Conceptually:
 
 ```text
 verified source
@@ -285,7 +299,7 @@ verified source
 → runtime bundles / indexes
 ```
 
-The target architecture does not consider a new projection build complete until input/output/rejected/unresolved accounting, rights/provenance audit, deterministic hashes, and all-record audit are closed.
+The new projection architecture is not complete until input/output/rejected/unresolved accounting, rights/provenance audit, deterministic hashes, and all-record audit are closed.
 
 See:
 
@@ -296,7 +310,7 @@ See:
 
 ## Logical runtime bundles
 
-The initial logical bundle plan is:
+Initial logical responsibilities:
 
 - `router_core`
 - `grammar_core`
@@ -306,46 +320,46 @@ The initial logical bundle plan is:
 
 These are responsibility boundaries, not a requirement for five physical databases. Physical layout is benchmark-driven.
 
-## Performance and validation
+## Validation and completion
 
-Existing narrower 10 ms / 50 ms contracts remain valid for their documented scopes unless explicitly migrated.
-
-The fixed final acceptance target for the complete new architecture is a production-representative **p95 < 500 ms** benchmark, together with correctness, ambiguity retention, recovery safety, and bounded work.
-
-The final architecture requires evidence for:
+Final architecture evidence includes:
 
 - MCP output-profile compatibility;
 - semantic-hash compatibility;
 - Router Trace;
 - Recovery Interpretation Evidence;
 - field-level rights/provenance;
-- full canonical rebuild and all-record audit;
+- projection manifest/bundle compatibility;
+- full 9,852,513-record rebuild and all-record audit;
 - clean/noisy/typo/broken-input regression;
+- proper noun/function word/connective/onomatopoeia/multiword/long-text coverage;
+- router lane recall / false exclusion / OOV fallback;
 - false-correction and ambiguity-retention metrics;
-- external-action recovery safety;
-- final performance;
+- recovered-action safety;
+- field-rights integrity;
+- MCP output size and recovery latency;
+- production-representative 0.5-second complete-reading acceptance;
 - full regression;
 - authorized runtime deployment/readback.
 
 Process start, HTTP 200, successful build, a finished test runner, or CI green alone is not semantic completion evidence.
 
-## Fixed implementation order
+## Fixed near-term implementation order
 
 ```text
 M0-1 MCP compact / standard / full
 → targeted MCP tests
 → semantic_hash compatibility gate
-→ Router Trace
-→ Recovery Interpretation Evidence
-→ Field-level Rights / Provenance
+→ Router Trace / Recovery Interpretation Evidence / Field-level Rights contract
 → Japanese-function Projection Compiler
 → Front multi-lane Router
+→ existing MeaningGraph connection
 → Recovery Index / Lattice / Top-K
-→ Progressive Context Retrieval
+→ Progressive Context / Evidence Retrieval
 → 9.85M full build / audit
 → clean + noisy + typo + broken regression
 → false-correction / ambiguity-retention
-→ final p95 < 500 ms
+→ 0.5-second complete-reading acceptance
 → full regression
 → authorized runtime readback
 ```
@@ -359,7 +373,7 @@ M0-1 MCP compact / standard / full
 | semantic quality / holdout | existing; reuse |
 | Direct Final manifest/hash | existing; reuse |
 | Purpose routing | PARTIAL |
-| MCP `compact/standard/full` | DESIGN FIXED / SOURCE NOT YET APPLIED at verified baseline |
+| MCP `compact/standard/full` | DESIGN FIXED / SELF-TEST CANDIDATE PASS / VPS SOURCE+RUNTIME NOT YET VERIFIED |
 | semantic-hash compatibility gate | NOT IMPLEMENTED |
 | Router Trace | NOT IMPLEMENTED |
 | Recovery Evidence / Index / Lattice / Top-K | NOT IMPLEMENTED |
@@ -369,9 +383,11 @@ M0-1 MCP compact / standard / full
 | Progressive Context Retrieval | NOT IMPLEMENTED |
 | final 9.85M rebuild/audit | NOT RUN |
 | final robustness | NOT RUN |
-| final p95 | NOT RUN |
+| final 0.5-second complete-reading acceptance | NOT RUN |
 | final full regression | NOT RUN |
 | target-architecture runtime deployment | NOT DEPLOYED |
+
+`SELF-TEST CANDIDATE PASS` is assistant-side contract/projection/cache-identity validation and does not mean VPS source/runtime PASS.
 
 ## Public OSS and hosted service
 
@@ -416,4 +432,4 @@ Policy and release:
 
 The target architecture is complete only when documentation, source, tests, canonical build/audit, robustness, performance, full regression, and authorized runtime readback all agree.
 
-Until then, each scope is reported separately as `PASS`, `FAIL`, `PARTIAL`, `BLOCKED`, `UNKNOWN`, `NOT_RUN`, or `NOT_IMPLEMENTED`.
+Until then, each scope is reported separately as `PASS`, `FAIL`, `PARTIAL`, `BLOCKED`, `UNKNOWN`, `NOT_EXECUTED`, or `NOT_VERIFIED`.
