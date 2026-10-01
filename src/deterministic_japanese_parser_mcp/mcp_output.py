@@ -121,6 +121,7 @@ def project_mcp_response(
                 "original_text",
                 "normalized_text",
                 "analysis_path",
+                "intents",
                 "ambiguities",
                 "missing_information",
                 "contradictions",
