@@ -17,6 +17,7 @@ This directory contains the public documentation required to use, validate, exte
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — Code・Data Contribution要件と検証手順
 - [`../SECURITY.md`](../SECURITY.md) — 脆弱性の非公開報告手順
 - [`../CHANGELOG.md`](../CHANGELOG.md) — Public変更履歴
+- [`PUBLIC_RELEASE_CHECKLIST.md`](PUBLIC_RELEASE_CHECKLIST.md) — Public Repository更新時のRelease必須Gate
 
 ## Current design status / 現在の設計状態
 
