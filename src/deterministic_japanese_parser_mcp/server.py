@@ -13,6 +13,7 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
+from .mcp_output import McpAnalyzeRequest, project_mcp_response
 from .models import (
     AnalysisDepth,
     AnalyzeRequest,
@@ -187,7 +188,7 @@ async def list_tools() -> list[types.Tool]:
                 "quotation attribution, discourse relations, a MeaningGraph, and "
                 "downstream TaskGraph and external-action safety decisions."
             ),
-            inputSchema=AnalyzeRequest.model_json_schema(),
+            inputSchema=McpAnalyzeRequest.model_json_schema(),
             outputSchema=AnalyzeResponse.model_json_schema(),
         )
     ]
@@ -204,7 +205,7 @@ async def call_tool(
             isError=True,
         )
     try:
-        request = AnalyzeRequest.model_validate(arguments)
+        request = McpAnalyzeRequest.model_validate(arguments)
     except ValidationError as error:
         return types.CallToolResult(
             content=[types.TextContent(
@@ -215,10 +216,11 @@ async def call_tool(
         )
 
     instance = engine()
+    core_request = request.to_core_request()
     cache_started = perf_counter()
-    structured = _get_cached_response(request, instance)
+    structured = _get_cached_response(core_request, instance)
     if structured is None:
-        response = instance.analyze(request)
+        response = instance.analyze(core_request)
         response = response.model_copy(update={
             "metrics": {
                 **response.metrics,
@@ -226,11 +228,11 @@ async def call_tool(
             },
         })
         structured = response.model_dump(mode="json")
-        _store_cached_response(request, instance, response, structured)
+        _store_cached_response(core_request, instance, response, structured)
     else:
         structured = _cache_hit_response(
             structured,
-            request,
+            core_request,
             instance,
             cache_started,
         )
@@ -247,6 +249,7 @@ async def call_tool(
         "action_task_count": len(structured["task_graph"]["tasks"]),
         "semantic_hash": structured["meaning_graph"]["semantic_hash"],
     }
+    projected = project_mcp_response(structured, request.output_profile)
     return types.CallToolResult(
         content=[types.TextContent(
             type="text",
