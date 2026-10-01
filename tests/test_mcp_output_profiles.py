@@ -73,9 +73,9 @@ def _full_response() -> AnalyzeResponse:
     )
 
 
-def test_transport_request_defaults_full_and_strips_profile_from_core():
+def test_transport_request_defaults_compact_and_strips_profile_from_core():
     request = McpAnalyzeRequest(original_text="直せ。")
-    assert request.output_profile == "full"
+    assert request.output_profile == "compact"
 
     core = request.to_core_request()
     assert type(core) is AnalyzeRequest
@@ -130,7 +130,7 @@ def test_tool_schema_adds_transport_profile_but_keeps_output_schema():
     tool = asyncio.run(server.list_tools())[0]
 
     assert "output_profile" in tool.inputSchema["properties"]
-    assert tool.inputSchema["properties"]["output_profile"]["default"] == "full"
+    assert tool.inputSchema["properties"]["output_profile"]["default"] == "compact"
     assert set(tool.inputSchema["properties"]["output_profile"]["enum"]) == {
         "compact",
         "standard",
@@ -140,12 +140,30 @@ def test_tool_schema_adds_transport_profile_but_keeps_output_schema():
     assert tool.outputSchema == AnalyzeResponse.model_json_schema()
 
 
-def test_default_full_preserves_existing_structured_response(monkeypatch):
+def test_default_compact_projects_existing_structured_response(monkeypatch):
     instance = _CountingEngine()
     monkeypatch.setattr(server, "_engine", instance)
     server._response_cache.clear()
 
     result = _call({"original_text": "直せ。"})
+
+    assert not result.isError
+    assert result.structuredContent is not None
+    assert "tokens" not in result.structuredContent
+    assert "task_graph" not in result.structuredContent
+    assert "metrics" not in result.structuredContent
+    assert result.structuredContent["meaning_graph"]["semantic_hash"] == (
+        "stable-semantic-hash"
+    )
+    assert instance.calls == 1
+
+
+def test_explicit_full_preserves_existing_structured_response(monkeypatch):
+    instance = _CountingEngine()
+    monkeypatch.setattr(server, "_engine", instance)
+    server._response_cache.clear()
+
+    result = _call({"original_text": "直せ。", "output_profile": "full"})
 
     assert not result.isError
     assert result.structuredContent is not None
