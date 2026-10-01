@@ -105,6 +105,7 @@ def test_compact_keeps_decision_ambiguity_and_semantic_identity():
     assert compact["blocked_reasons"] == ["semantic_ambiguity"]
     assert compact["ambiguities"] == [{"kind": "target"}]
     assert compact["meaning_graph"]["semantic_hash"] == "hash-123"
+    assert "intents" in compact
     assert "propositions" in compact["meaning_graph"]
     assert "tokens" not in compact
     assert "task_graph" not in compact
@@ -149,6 +150,7 @@ def test_default_compact_projects_existing_structured_response(monkeypatch):
 
     assert not result.isError
     assert result.structuredContent is not None
+    assert "intents" in result.structuredContent
     assert "tokens" not in result.structuredContent
     assert "task_graph" not in result.structuredContent
     assert "metrics" not in result.structuredContent
@@ -188,6 +190,7 @@ def test_profile_switch_reuses_full_semantic_cache_and_preserves_summary(monkeyp
     assert instance.calls == 1
     assert all("output_profile" not in request.model_dump() for request in instance.requests)
 
+    assert "intents" in compact.structuredContent
     assert "tokens" not in compact.structuredContent
     assert "task_graph" not in compact.structuredContent
     assert "tokens" not in standard.structuredContent
