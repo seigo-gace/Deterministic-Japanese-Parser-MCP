@@ -255,7 +255,7 @@ async def call_tool(
             type="text",
             text=json.dumps(summary, ensure_ascii=False, separators=(",", ":")),
         )],
-        structuredContent=structured,
+        structuredContent=projected,
         isError=False,
     )
 
