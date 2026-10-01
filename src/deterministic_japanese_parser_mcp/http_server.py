@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import json
+import logging
 import os
 import secrets
 from collections.abc import AsyncIterator
@@ -21,6 +23,7 @@ from .server import SERVER_NAME, SERVER_VERSION, analyze_sync, prewarm, server
 
 _DEFAULT_MAX_BODY_BYTES = 1_048_576
 _PUBLIC_PATHS = frozenset({"/healthz", "/readyz"})
+_LOGGER = logging.getLogger(__name__)
 
 
 def _csv_env(name: str) -> list[str]:
@@ -39,6 +42,22 @@ def _positive_int_env(name: str, default: int) -> int:
     if value < 1:
         raise RuntimeError(f"{name} must be >= 1")
     return value
+
+
+def _http_host() -> str:
+    return os.environ.get("DJPMCP_HTTP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower()
+    if normalized == "localhost":
+        return True
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
 
 
 def _extract_api_key(headers: dict[bytes, bytes]) -> str:
@@ -85,11 +104,39 @@ class APIKeyMiddleware:
 
 
 def create_app():
+    host = _http_host()
     api_key = os.environ.get("DJPMCP_HTTP_API_KEY", "").strip()
     allow_unauthenticated = _truthy_env("DJPMCP_HTTP_ALLOW_UNAUTHENTICATED", False)
+    unauthenticated_mode = allow_unauthenticated and not api_key
     max_body_bytes = _positive_int_env("DJPMCP_HTTP_MAX_BODY_BYTES", _DEFAULT_MAX_BODY_BYTES)
     allowed_origins = _csv_env("DJPMCP_HTTP_ALLOWED_ORIGINS")
-    allowed_hosts = _csv_env("DJPMCP_HTTP_ALLOWED_HOSTS") or [
+    configured_allowed_hosts = _csv_env("DJPMCP_HTTP_ALLOWED_HOSTS")
+
+    if unauthenticated_mode and not _is_loopback_host(host):
+        raise RuntimeError(
+            "Unauthenticated HTTP mode is allowed only on loopback. "
+            "Set DJPMCP_HTTP_API_KEY or bind DJPMCP_HTTP_HOST to a loopback address."
+        )
+
+    if unauthenticated_mode:
+        _LOGGER.warning(
+            "[SECURITY WARNING] unauthenticated HTTP mode is enabled on loopback host %s",
+            host,
+        )
+
+    if not _is_loopback_host(host):
+        if not configured_allowed_hosts:
+            _LOGGER.warning(
+                "[SECURITY WARNING] DJPMCP_HTTP_ALLOWED_HOSTS is not explicitly configured for non-loopback bind host %s",
+                host,
+            )
+        if not allowed_origins:
+            _LOGGER.warning(
+                "[SECURITY WARNING] DJPMCP_HTTP_ALLOWED_ORIGINS is not explicitly configured for non-loopback bind host %s",
+                host,
+            )
+
+    allowed_hosts = configured_allowed_hosts or [
         "127.0.0.1:*",
         "localhost:*",
         "[::1]:*",
@@ -113,6 +160,7 @@ def create_app():
                 "ok": True,
                 "service": SERVER_NAME,
                 "version": SERVER_VERSION,
+                "unauthenticated": unauthenticated_mode,
             }
         )
 
@@ -123,6 +171,7 @@ def create_app():
                 "ok": ready,
                 "service": SERVER_NAME,
                 "version": SERVER_VERSION,
+                "unauthenticated": unauthenticated_mode,
             },
             status_code=200 if ready else 503,
         )
@@ -208,7 +257,7 @@ def create_app():
 
 
 def main() -> None:
-    host = os.environ.get("DJPMCP_HTTP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    host = _http_host()
     port = _positive_int_env("DJPMCP_HTTP_PORT", 8765)
     workers = _positive_int_env("DJPMCP_HTTP_WORKERS", 1)
     uvicorn.run(
