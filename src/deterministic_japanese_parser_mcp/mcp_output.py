@@ -17,11 +17,11 @@ class McpAnalyzeRequest(AnalyzeRequest):
     """
 
     output_profile: OutputProfile = Field(
-        default="full",
+        default="compact",
         description=(
-            "Transport-only response profile. 'full' preserves the complete "
-            "AnalyzeResponse; 'standard' omits heavy token/lexical/document "
-            "detail; 'compact' keeps decision state and semantic identity."
+            "Transport-only response profile. 'compact' is the default lightweight "
+            "decision projection; 'standard' exposes additional semantic/task "
+            "detail; 'full' preserves the complete AnalyzeResponse."
         ),
     )
 
