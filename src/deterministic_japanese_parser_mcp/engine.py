@@ -14,6 +14,7 @@ from .direct_final_contract import (
 )
 from .graph_contradictions import detect_graph
 from .graph_guard import GraphGuard
+from .grammar_kernel import discover_plain_form_directives
 from .logger import append_log
 from .lexical_graph import LexicalGraphEnricher
 from .meaning_graph import MeaningGraphBuilder
@@ -250,6 +251,11 @@ class ParserEngine:
                 request.original_text,
                 deadline_at=deadline_at,
             ),
+        )
+        raw_intents = discover_plain_form_directives(
+            request.original_text,
+            tokens,
+            raw_intents,
         )
         discovered_references = self.anaphora.discover(
             normalized,

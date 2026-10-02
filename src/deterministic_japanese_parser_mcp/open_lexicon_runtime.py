@@ -50,6 +50,9 @@ class OpenLexiconRuntime:
         self._shard_cache: OrderedDict[int, dict[str, dict[str, Any]]] = OrderedDict()
         self._sqlite: sqlite3.Connection | None = None
         self._sqlite_backend: str | None = None
+        self._sqlite_has_role_mask = False
+        self._sqlite_has_purpose_indexes = False
+        self.purpose_role_bits: dict[str, int] = {}
         manifest_path = self.root / 'manifest.json'
         if not manifest_path.exists():
             return
@@ -59,6 +62,10 @@ class OpenLexiconRuntime:
             if manifest.get(name) is not expected:
                 raise ValueError(f'compiled open lexicon safety flag mismatch: {name}')
         self.manifest = manifest
+        routing = manifest.get('purpose_routing') or {}
+        self.purpose_role_bits = {
+            str(k): int(v) for k, v in (routing.get('role_bits') or {}).items()
+        }
         if manifest.get('lookup_backend') in {_SQLITE_BACKEND, _SQLITE_BACKEND_V2}:
             self._sqlite_backend = manifest.get('lookup_backend')
             self._open_sqlite_backend()
@@ -84,6 +91,9 @@ class OpenLexiconRuntime:
         connection.execute('PRAGMA query_only=ON')
         required_tables = {'records', 'surface_lookup', 'reading_lookup'}
         actual_tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        record_columns = {row[1] for row in connection.execute('PRAGMA table_info(records)')}
+        self._sqlite_has_role_mask = 'role_mask' in record_columns
+        self._sqlite_has_purpose_indexes = {'purpose_surface_lookup', 'purpose_reading_lookup'}.issubset(actual_tables)
         missing = sorted(required_tables - actual_tables)
         if missing:
             connection.close()
@@ -110,6 +120,9 @@ class OpenLexiconRuntime:
             instance._shard_cache = OrderedDict()
             instance._sqlite = None
             instance._sqlite_backend = None
+            instance._sqlite_has_role_mask = False
+            instance._sqlite_has_purpose_indexes = False
+            instance.purpose_role_bits = {}
             cls._UNAVAILABLE = instance
         return cls._UNAVAILABLE
 
@@ -188,10 +201,16 @@ class OpenLexiconRuntime:
                     raise KeyError(f'compiled sqlite record missing: {record_id}')
                 rid, lemma, reading, pos_json, domains_json, dataset, version, license_name = row
                 return {'record_id': rid, 'lemma': lemma, 'readings': [reading] if reading else [], 'part_of_speech': json.loads(pos_json), 'domains': json.loads(domains_json), 'usage_labels': [], 'source': {'dataset': dataset, 'version': version, 'license': license_name}}
-            row = self._sqlite.execute('SELECT payload_json FROM records WHERE record_id = ?', (record_id,)).fetchone()
+            role_column = 'role_mask' if self._sqlite_has_role_mask else '0 AS role_mask'
+            row = self._sqlite.execute(
+                f'SELECT payload_json,{role_column} FROM records WHERE record_id = ?',
+                (record_id,),
+            ).fetchone()
             if row is None:
                 raise KeyError(f'compiled sqlite record missing: {record_id}')
             value = json.loads(row[0])
+            value['purpose_role_mask'] = int(row[1])
+            value['purpose_roles'] = self._roles_from_mask(int(row[1]))
             if value.get('record_id') != record_id:
                 raise ValueError(f'compiled sqlite record id mismatch: {record_id}')
             return value
@@ -203,10 +222,60 @@ class OpenLexiconRuntime:
             raise KeyError(f'compiled record missing from shard: {record_id}')
         return record
 
+    def _roles_from_mask(self, role_mask: int) -> list[str]:
+        return sorted(
+            role for role, bit in self.purpose_role_bits.items()
+            if role_mask & bit
+        )
+
+    def _purpose_role_bit(self, role: str) -> int:
+        bit = self.purpose_role_bits.get(role)
+        if bit is None:
+            raise ValueError(f"unknown purpose role: {role}")
+        if self._sqlite is None or not self._sqlite_has_purpose_indexes:
+            raise RuntimeError("purpose-specific index is unavailable")
+        return int(bit)
+
+    def purpose_exact_lookup(self, text: str, *, role: str, match_type: str="surface", max_candidates: int=8) -> tuple[list[LexicalCandidate], int]:
+        if not self.available or not text:
+            return ([], 0)
+        bit = self._purpose_role_bit(role)
+        assert self._sqlite is not None
+        rows = self._sqlite.execute("SELECT r.payload_json,r.role_mask,COUNT(*) OVER () FROM purpose_surface_lookup p JOIN records r ON r.record_id=p.record_id WHERE p.role_bit=? AND p.surface=? ORDER BY p.record_id LIMIT ?", (bit,text,max(1,max_candidates))).fetchall()
+        total = int(rows[0][2]) if rows else 0
+        out=[]
+        for payload, role_mask, _ in rows:
+            record=json.loads(payload); record["purpose_role_mask"]=int(role_mask); record["purpose_roles"]=self._roles_from_mask(int(role_mask)); out.append(self._candidate(record,matched_text=text,match_type=match_type))
+        return (out,total)
+
+    def purpose_reading_lookup(self, reading: str, *, role: str, surface: str | None=None, normalized: str | None=None, max_candidates: int=8) -> tuple[list[LexicalCandidate], int]:
+        if not self.available or not reading:
+            return ([],0)
+        bit=self._purpose_role_bit(role); assert self._sqlite is not None
+        allowed={v for v in (surface,normalized) if v}; values=[reading]; hira=_katakana_to_hiragana(reading)
+        if hira != reading: values.append(hira)
+        selected=[]; total=0
+        for value in values:
+            rows=self._sqlite.execute("SELECT r.payload_json,r.role_mask,p.restricted_to_json,p.no_kanji FROM purpose_reading_lookup p JOIN records r ON r.record_id=p.record_id WHERE p.role_bit=? AND p.reading=? ORDER BY p.record_id,p.restricted_to_json,p.no_kanji",(bit,value)).fetchall()
+            if not rows: continue
+            for payload,role_mask,restricted_json,raw_no_kanji in rows:
+                restricted=set(json.loads(restricted_json)); no_kanji=bool(raw_no_kanji)
+                if restricted and not restricted.intersection(allowed): continue
+                if no_kanji and surface and _KANJI.search(surface): continue
+                total += 1
+                if len(selected) < max(1,max_candidates): selected.append((payload,role_mask,restricted_json,no_kanji,value))
+            break
+        out=[]
+        for payload,role_mask,restricted_json,no_kanji,value in selected:
+            record=json.loads(payload); record["purpose_role_mask"]=int(role_mask); record["purpose_roles"]=self._roles_from_mask(int(role_mask)); out.append(self._candidate(record,matched_text=value,match_type="reading",restricted_to=list(json.loads(restricted_json)),no_kanji=no_kanji))
+        return (out,total)
+
     @staticmethod
     def _candidate(record: dict[str, Any], *, matched_text: str, match_type: str, restricted_to: list[str] | None=None, no_kanji: bool=False) -> LexicalCandidate:
         source = record.get('source') or {}
-        return LexicalCandidate(record_id=record['record_id'], lemma=record['lemma'], matched_text=matched_text, match_type=match_type, readings=list(record.get('readings', [])), restricted_to=list(restricted_to or []), no_kanji=no_kanji, part_of_speech=list(record.get('part_of_speech', [])), domains=list(record.get('domains', [])), usage_labels=list(record.get('usage_labels', [])), source_dataset=source.get('dataset'), source_version=source.get('version'), source_license=source.get('license'))
+        return LexicalCandidate(record_id=record['record_id'], lemma=record['lemma'], matched_text=matched_text, match_type=match_type, readings=list(record.get('readings', [])), restricted_to=list(restricted_to or []), no_kanji=no_kanji, part_of_speech=list(record.get('part_of_speech', [])), domains=list(record.get('domains', [])), usage_labels=list(record.get('usage_labels', [])), source_dataset=source.get('dataset'), source_version=source.get('version'), source_license=source.get('license'),
+purpose_role_mask=int(record.get('purpose_role_mask') or 0),
+purpose_roles=list(record.get('purpose_roles') or []))
 
     def _sqlite_surface_lookup(self, text: str, *, match_type: str, max_candidates: int) -> tuple[list[LexicalCandidate], int]:
         assert self._sqlite is not None
@@ -217,9 +286,16 @@ class OpenLexiconRuntime:
             for rid, lemma, reading, pos_json, domains_json, dataset, version, license_name, _ in rows:
                 candidates.append(LexicalCandidate(record_id=rid, lemma=lemma, matched_text=text, match_type=match_type, readings=[reading] if reading else [], part_of_speech=json.loads(pos_json), domains=json.loads(domains_json), usage_labels=[], source_dataset=dataset, source_version=version, source_license=license_name))
             return (candidates, total)
-        rows = self._sqlite.execute('\n            SELECT r.payload_json, COUNT(*) OVER () AS total\n            FROM surface_lookup AS s\n            JOIN records AS r ON r.record_id = s.record_id\n            WHERE s.surface = ?\n            ORDER BY s.record_id\n            LIMIT ?\n            ', (text, max(1, max_candidates))).fetchall()
-        total = int(rows[0][1]) if rows else 0
-        return ([self._candidate(json.loads(payload), matched_text=text, match_type=match_type) for payload, _ in rows], total)
+        role_column = 'r.role_mask' if self._sqlite_has_role_mask else '0 AS role_mask'
+        rows = self._sqlite.execute(f'\n            SELECT r.payload_json, {role_column}, COUNT(*) OVER () AS total\n            FROM surface_lookup AS s\n            JOIN records AS r ON r.record_id = s.record_id\n            WHERE s.surface = ?\n            ORDER BY s.record_id\n            LIMIT ?\n            ', (text, max(1, max_candidates))).fetchall()
+        total = int(rows[0][2]) if rows else 0
+        candidates = []
+        for payload, role_mask, _ in rows:
+            record = json.loads(payload)
+            record['purpose_role_mask'] = int(role_mask)
+            record['purpose_roles'] = self._roles_from_mask(int(role_mask))
+            candidates.append(self._candidate(record, matched_text=text, match_type=match_type))
+        return (candidates, total)
 
     def exact_lookup(self, text: str, *, match_type: str='surface', max_candidates: int=8) -> tuple[list[LexicalCandidate], int]:
         if not self.available or not text:
@@ -253,13 +329,14 @@ class OpenLexiconRuntime:
         hiragana = _katakana_to_hiragana(reading)
         if hiragana != reading:
             lookup_values.append(hiragana)
-        selected_rows: list[tuple[str, str, bool, str]] = []
+        selected_rows: list[tuple[str, int, str, bool, str]] = []
         total = 0
         for lookup_reading in lookup_values:
-            rows = self._sqlite.execute('\n                SELECT r.payload_json, l.restricted_to_json, l.no_kanji\n                FROM reading_lookup AS l\n                JOIN records AS r ON r.record_id = l.record_id\n                WHERE l.reading = ?\n                ORDER BY l.record_id, l.restricted_to_json, l.no_kanji\n                ', (lookup_reading,)).fetchall()
+            role_column = 'r.role_mask' if self._sqlite_has_role_mask else '0 AS role_mask'
+            rows = self._sqlite.execute(f'\n                SELECT r.payload_json, {role_column}, l.restricted_to_json, l.no_kanji\n                FROM reading_lookup AS l\n                JOIN records AS r ON r.record_id = l.record_id\n                WHERE l.reading = ?\n                ORDER BY l.record_id, l.restricted_to_json, l.no_kanji\n                ', (lookup_reading,)).fetchall()
             if not rows:
                 continue
-            for payload, restricted_json, raw_no_kanji in rows:
+            for payload, role_mask, restricted_json, raw_no_kanji in rows:
                 restricted_to = set(json.loads(restricted_json))
                 no_kanji = bool(raw_no_kanji)
                 if restricted_to and (not restricted_to.intersection(allowed_surfaces)):
@@ -268,9 +345,18 @@ class OpenLexiconRuntime:
                     continue
                 total += 1
                 if len(selected_rows) < max(1, max_candidates):
-                    selected_rows.append((payload, restricted_json, no_kanji, lookup_reading))
+                    selected_rows.append((payload, role_mask, restricted_json, no_kanji, lookup_reading))
             break
-        return ([self._candidate(json.loads(payload), matched_text=matched_reading, match_type='reading', restricted_to=list(json.loads(restricted_json)), no_kanji=no_kanji) for payload, restricted_json, no_kanji, matched_reading in selected_rows], total)
+        candidates = []
+        for payload, role_mask, restricted_json, no_kanji, matched_reading in selected_rows:
+            record = json.loads(payload)
+            record['purpose_role_mask'] = int(role_mask)
+            record['purpose_roles'] = self._roles_from_mask(int(role_mask))
+            candidates.append(self._candidate(
+                record, matched_text=matched_reading, match_type='reading',
+                restricted_to=list(json.loads(restricted_json)), no_kanji=no_kanji
+            ))
+        return (candidates, total)
 
     def reading_lookup(self, reading: str, *, surface: str | None=None, normalized: str | None=None, max_candidates: int=8) -> tuple[list[LexicalCandidate], int]:
         if not self.available or not reading:

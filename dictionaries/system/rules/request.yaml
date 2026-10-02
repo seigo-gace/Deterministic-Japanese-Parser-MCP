@@ -35,7 +35,7 @@ intents:
     priority: 92
     enabled: true
   - id: REQUEST-009
-    pattern: (?P<action>[^。！？]+?)を(?:実行する|検証する|確認する|作成する|反映する)
+    pattern: (?P<action>[^。！？]+?)(?:を|と)(?P<predicate>実行する|検証する|確認する|作成する|反映する|整理する|明示する)
     priority: 41
     enabled: true
   - id: REQUEST-010

@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 
-from .models import Intent, OriginalSpan
+from .models import Intent, OriginalSpan, Token
 
 
 ACTION_INTENTS = {
@@ -107,6 +107,32 @@ _EPISTEMIC = (
     (re.compile(r"(?:仮に|もし)"), "hypothetical"),
 )
 
+_PLAIN_FORM_RULE_IDS = {
+    "ACTION-001",
+    "ACTION-002",
+    "REQUEST-009",
+}
+_PLAIN_FORM_TARGET_MARKERS = {"を", "と"}
+_PLAIN_FORM_ARGUMENT_MARKERS = {"を", "と", "に", "へ", "で", "から", "まで"}
+_PLAIN_FORM_NON_DIRECTIVE_PREDICATES = {
+    "有る",
+    "ある",
+    "無い",
+    "ない",
+    "居る",
+    "いる",
+    "成る",
+    "なる",
+    "思う",
+    "考える",
+    "感じる",
+    "見える",
+    "分かる",
+    "判る",
+    "知れる",
+}
+_SELF_POLICY_TOPICS = {"私", "わたし", "我々", "当方", "自身"}
+
 
 @dataclass(frozen=True)
 class ClauseSeed:
@@ -118,6 +144,218 @@ class ClauseSeed:
     @property
     def span(self) -> OriginalSpan:
         return OriginalSpan(start=self.start, end=self.end, source_text=self.text)
+
+
+@dataclass(frozen=True)
+class PlainFormDirective:
+    clause: ClauseSeed
+    target: str
+    source_text: str
+    predicate_start: int
+    negative: bool
+    explicit_matrix_agent: bool
+    self_policy_topic: bool
+
+
+def _token_is_predicate(token: Token) -> bool:
+    return bool(token.pos and token.pos[0] in {"動詞", "形容詞", "形状詞"})
+
+
+def _tokens_for_clause(clause: ClauseSeed, tokens: list[Token]) -> list[Token]:
+    return [
+        token
+        for token in tokens
+        if token.span.start < clause.end and clause.start < token.span.end
+        and not (token.pos and token.pos[0] in {"補助記号", "空白"})
+    ]
+
+
+def _plain_form_directive(
+    clause: ClauseSeed,
+    tokens: list[Token],
+    original_text: str,
+) -> PlainFormDirective | None:
+    values = _tokens_for_clause(clause, tokens)
+    if not values:
+        return None
+
+    final = values[-1]
+    previous = values[-2] if len(values) > 1 else None
+    verbal_negative_tail = bool(
+        final.surface in {"ない", "ぬ", "ません"}
+        and previous is not None
+        and (
+            _token_is_predicate(previous)
+            or (previous.pos and previous.pos[0] == "助動詞")
+        )
+    )
+    negative = bool(
+        final.normalized in {"ぬ"}
+        or final.surface in {"ぬ", "ません"}
+        or verbal_negative_tail
+    )
+    head_position = len(values) - 1
+    if negative:
+        head_position -= 1
+        while head_position >= 0 and not _token_is_predicate(values[head_position]):
+            head_position -= 1
+        if head_position < 0:
+            return None
+    elif not _token_is_predicate(final):
+        return None
+
+    head = values[head_position]
+    inflection = head.pos[5] if len(head.pos) > 5 else ""
+    if not negative and not inflection.startswith(("終止形", "連体形")):
+        return None
+    if head.normalized in _PLAIN_FORM_NON_DIRECTIVE_PREDICATES:
+        return None
+
+    predicate_start_position = head_position
+    if (
+        head.normalized in {"為る", "する"}
+        and head_position > 0
+        and values[head_position - 1].pos[:3] == ["名詞", "普通名詞", "サ変可能"]
+    ):
+        predicate_start_position -= 1
+
+    prefix = values[:predicate_start_position]
+    if not prefix:
+        return None
+    argument_markers = [
+        (position, token)
+        for position, token in enumerate(prefix)
+        if token.surface in _PLAIN_FORM_ARGUMENT_MARKERS
+    ]
+    if not argument_markers:
+        return None
+
+    target_markers = [
+        (position, token)
+        for position, token in argument_markers
+        if token.surface in _PLAIN_FORM_TARGET_MARKERS
+    ]
+    target_marker = target_markers[-1][1] if target_markers else None
+    target_end = (
+        target_marker.span.start
+        if target_marker is not None
+        else values[predicate_start_position].span.start
+    )
+    target = clean_fragment(original_text[clause.start:target_end])
+    if not target:
+        return None
+
+    matrix_agent_tokens: list[Token] = []
+    boundary_position = (
+        target_markers[-1][0]
+        if target_markers
+        else predicate_start_position
+    )
+    for position, token in enumerate(prefix[:boundary_position]):
+        if token.surface not in {"は", "が"}:
+            continue
+        predicate_before = any(_token_is_predicate(item) for item in prefix[:position])
+        predicate_after = any(
+            _token_is_predicate(item)
+            for item in prefix[position + 1:boundary_position]
+        )
+        if not predicate_before and not predicate_after:
+            matrix_agent_tokens = prefix[:position]
+            break
+
+    explicit_matrix_agent = bool(matrix_agent_tokens)
+    topic = "".join(item.surface for item in matrix_agent_tokens)
+    self_policy_topic = bool(
+        topic
+        and (
+            any(value in topic for value in _SELF_POLICY_TOPICS)
+            or topic.endswith("自身")
+        )
+    )
+    return PlainFormDirective(
+        clause=clause,
+        target=target,
+        source_text=original_text[clause.start:clause.end].rstrip(
+            "\u3002\uff01\uff1f!?\n"
+        ),
+        predicate_start=values[predicate_start_position].span.start,
+        negative=negative,
+        explicit_matrix_agent=explicit_matrix_agent,
+        self_policy_topic=self_policy_topic,
+    )
+
+
+def discover_plain_form_directives(
+    original_text: str,
+    tokens: list[Token],
+    intents: list[Intent],
+) -> list[Intent]:
+    """Complete sentence-local plain-form directives using grammar evidence.
+
+    Positive plain forms are not auto-promoted to requests; an explicit intent rule
+    must provide that authority. Negative plain forms become prohibitions only with
+    an omitted agent or a self-policy topic. Third-person factual declaratives remain observations.
+    """
+    clauses = segment_clauses(original_text)
+    profiles = {
+        clause.clause_id: (None if _QUESTION_END.search(clause.text.strip()) else _plain_form_directive(clause, tokens, original_text))
+        for clause in clauses
+    }
+
+    def profile_for(intent: Intent) -> PlainFormDirective | None:
+        clause = clause_for_span(intent.span, clauses)
+        return profiles.get(clause.clause_id) if clause else None
+
+    output: list[Intent] = []
+    for intent in intents:
+        if intent.rule_id in _PLAIN_FORM_RULE_IDS:
+            profile = profile_for(intent)
+            if (
+                profile is not None
+                and profile.explicit_matrix_agent
+                and not profile.self_policy_topic
+            ):
+                continue
+        output.append(intent)
+
+    for clause in clauses:
+        profile = profiles.get(clause.clause_id)
+        if profile is None:
+            continue
+        existing = [
+            item
+            for item in output
+            if item.type in ACTION_INTENTS | {"prohibition"}
+            and clause.start < item.span.end
+            and item.span.start < clause.end
+        ]
+        if profile.negative:
+            if profile.explicit_matrix_agent and not profile.self_policy_topic:
+                continue
+            if any(item.type == "prohibition" for item in existing):
+                continue
+            intent_type = "prohibition"
+            rule_id = "GRAMMAR-PLAIN-PROHIBITION-001"
+            value = profile.source_text
+            captures = {"action": profile.source_text}
+        else:
+            continue
+        source_end = clause.end
+        while source_end > clause.start and original_text[source_end - 1] in "。！？!?\n":
+            source_end -= 1
+        output.append(Intent(
+            type=intent_type,
+            value=value,
+            captures=captures,
+            rule_id=rule_id,
+            priority=50,
+            span=OriginalSpan(
+                start=clause.start,
+                end=source_end,
+                source_text=original_text[clause.start:source_end],
+            ),
+        ))
+    return output
 
 
 def quote_ranges(text: str) -> list[tuple[int, int, str]]:

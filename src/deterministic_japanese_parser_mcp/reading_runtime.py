@@ -638,12 +638,14 @@ def _rewrite_generic_request_propositions(
             main = _primary_predicate_frame(frames) if frames else None
             if main is not None and main.predicate not in {"要求する", "下さる"}:
                 updated.append(item.model_copy(update={
-                    "intent_type": "observation",
                     "predicate": main.predicate,
                     "surface_predicate": main.surface_predicate,
                     "arguments": main.arguments or item.arguments,
+                    "polarity": main.polarity,
+                    "tense": main.tense,
+                    "aspect": main.aspect,
+                    "voice": main.voice,
                     "speech_act": "request",
-                    "executable_candidate": False,
                     "source_span": main.source_span,
                     "evidence_ids": list(dict.fromkeys([
                         *item.evidence_ids,
@@ -996,13 +998,16 @@ def _arguments_before(
 ) -> list[tuple[Argument, int]]:
     output: list[tuple[Argument, int]] = []
     buffer: list[int] = []
+    coordinate_members: list[tuple[int, int, int]] = []
     for position, index in enumerate(indices):
         token = tokens[index]
         if _is_punctuation(token):
             buffer = []
+            coordinate_members = []
             continue
         if _pos0(token) == "接続詞":
             buffer = []
+            coordinate_members = []
             continue
         role = _CASE_ROLES.get(token.surface)
         marker = token.surface
@@ -1031,6 +1036,14 @@ def _arguments_before(
                     buffer = [index]
                 else:
                     buffer.append(index)
+            continue
+        if token.surface == "と" and any(
+            tokens[later].surface in {"を", "に", "へ", "から", "まで", "より"}
+            for later in indices[position + 1:]
+        ):
+            if buffer:
+                coordinate_members.append((buffer[0], buffer[-1], index))
+                buffer.append(index)
             continue
         if not buffer:
             continue
@@ -1061,7 +1074,59 @@ def _arguments_before(
                 explicit=True,
                 span=_span(start, end, original),
             ), end_index))
+            for member_start, member_end, conjunction_index in coordinate_members:
+                left_start = tokens[member_start].span.start
+                left_end = tokens[member_end].span.end
+                right_indices = [
+                    item
+                    for item in indices
+                    if conjunction_index < item < index
+                ]
+                if right_indices:
+                    genitive = next(
+                        (
+                            item
+                            for item in right_indices
+                            if tokens[item].surface == "の"
+                        ),
+                        None,
+                    )
+                    if genitive is not None:
+                        right_indices = [
+                            item for item in right_indices if item < genitive
+                        ]
+                right_indices = [
+                    item
+                    for item in right_indices
+                    if _pos0(tokens[item]) not in {"助詞", "助動詞"}
+                ]
+                for member_value_start, member_value_end in [
+                    (left_start, left_end),
+                    (
+                        tokens[right_indices[0]].span.start,
+                        tokens[right_indices[-1]].span.end,
+                    ) if right_indices else (0, 0),
+                ]:
+                    if member_value_end <= member_value_start:
+                        continue
+                    member_value = original[
+                        member_value_start:member_value_end
+                    ].strip()
+                    if not member_value:
+                        continue
+                    output.append((Argument(
+                        role="coordinate_member",
+                        value=member_value,
+                        case_marker="と",
+                        explicit=True,
+                        span=_span(
+                            member_value_start,
+                            member_value_end,
+                            original,
+                        ),
+                    ), member_end))
         buffer = []
+        coordinate_members = []
     return output
 
 

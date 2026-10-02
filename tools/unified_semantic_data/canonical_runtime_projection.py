@@ -12,6 +12,8 @@ from pathlib import Path
 import shutil
 from typing import Any, Iterable
 
+from deterministic_japanese_parser_mcp.purpose_routing import routes_for_roles
+
 from .canonical_dictionary import (
     CANONICAL_DICTIONARY_SCHEMA_VERSION,
     validate_compiled_dictionary_root,
@@ -167,6 +169,32 @@ def _candidate(sense: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _project_purpose_evidence(record: dict[str, Any]) -> list[dict[str, Any]]:
+    auxiliary = record.get("auxiliary_evidence") or {}
+    if not isinstance(auxiliary, dict): raise ValueError("canonical auxiliary_evidence must be object")
+    projected: list[dict[str, Any]] = []
+    for raw_role, values in sorted(auxiliary.items()):
+        role = str(raw_role or "").strip()
+        route = routes_for_roles([role])
+        if not role or not route["routing_valid"]: raise ValueError(f"canonical purpose role is unroutable: {role}")
+        if not isinstance(values, list): raise ValueError(f"canonical purpose evidence must be list: {role}")
+        for evidence in values:
+            if not isinstance(evidence, dict): raise ValueError(f"canonical purpose evidence must be object: {role}")
+            payload = evidence.get("payload") or {}
+            if not isinstance(payload, dict): raise ValueError(f"canonical purpose payload must be object: {role}")
+            typed = payload.get("typed_purpose_payload")
+            if typed is None: continue
+            if not isinstance(typed, dict) or not typed.get("schema_version") or not typed.get("kind"): raise ValueError(f"typed purpose payload invalid: {role}")
+            if str(evidence.get("source_role") or "").strip() != role: raise ValueError(f"typed purpose role mismatch: {role}")
+            evidence_id = str(evidence.get("evidence_id") or "").strip()
+            if not evidence_id: raise ValueError(f"typed purpose evidence_id missing: {role}")
+            source = evidence.get("source") or {}
+            if not isinstance(source, dict): raise ValueError(f"typed purpose source must be object: {evidence_id}")
+            if source.get("public_runtime_eligible") is not True: continue
+            projected.append({"source_role":role,"evidence_id":evidence_id,"typed_purpose_payload":dict(typed),"source":dict(source),"consumers":list(route["consumers"]),"allowed":list(route["allowed"]),"forbidden":list(route["forbidden"])})
+    return sorted(projected, key=lambda item: (item["source_role"], item["evidence_id"]))
+
+
 def project_record(record: dict[str, Any]) -> dict[str, Any]:
     candidates = [_candidate(item) for item in record.get("senses") or []]
     if not candidates:
@@ -208,6 +236,7 @@ def project_record(record: dict[str, Any]) -> dict[str, Any]:
             "negative": [],
             "boundary": [],
         },
+        "purpose_evidence": _project_purpose_evidence(record),
         "risk_class": _risk_class(record),
         "external_action_risk": False,
         "source": {

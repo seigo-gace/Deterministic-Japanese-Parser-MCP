@@ -414,7 +414,7 @@ class MeaningGraphBuilder:
             proposition_id = f"P-{len(propositions) + 1:03d}"
             proposition = Proposition(
                 proposition_id=proposition_id,
-                predicate=predicate_for(intent.type),
+                predicate=(intent.captures.get("predicate") or predicate_for(intent.type)),
                 intent_type=intent.type,
                 value=intent.value,
                 captures=dict(intent.captures),

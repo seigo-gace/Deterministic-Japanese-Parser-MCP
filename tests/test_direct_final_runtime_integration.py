@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,7 @@ def _write_jsonl_gzip(path: Path, rows: list[dict]) -> tuple[int, str]:
     return path.stat().st_size, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _fixture(root: Path, *, factory_used: bool = False) -> Path:
+def _fixture(root: Path, *, factory_used: bool = False, datasets: tuple[str, str, str] = ("japanese-wordnet-1.1", "jawiktionary-raw-2026-08-04", "bccwj-wsd-frequency")) -> Path:
     runtime_rows = [
         {
             "entry_id": "D-1",
@@ -52,7 +53,7 @@ def _fixture(root: Path, *, factory_used: bool = False) -> Path:
             "dictionary": "direct-final-test",
             "cost": 10,
             "domains": ["general"],
-            "source_datasets": ["fixture-a"],
+            "source_datasets": [datasets[0]],
             "rights_lanes": ["R"],
             "aliases": ["はし"],
             "senses": ["bridge"],
@@ -68,7 +69,7 @@ def _fixture(root: Path, *, factory_used: bool = False) -> Path:
             "dictionary": "direct-final-test",
             "cost": 20,
             "domains": ["general"],
-            "source_datasets": ["fixture-b"],
+            "source_datasets": [datasets[1]],
             "rights_lanes": ["R"],
             "aliases": [],
             "senses": ["chopsticks"],
@@ -83,7 +84,7 @@ def _fixture(root: Path, *, factory_used: bool = False) -> Path:
             "dictionary": "direct-final-test",
             "cost": 30,
             "domains": ["test"],
-            "source_datasets": ["fixture-c"],
+            "source_datasets": [datasets[2]],
             "rights_lanes": ["Q"],
             "aliases": ["未知"],
             "metrics": ["frequency=1"],
@@ -206,6 +207,30 @@ def test_direct_final_compiles_into_existing_runtime_abis(tmp_path: Path) -> Non
     assert result["source_runtime_records"] == 3
     assert result["semantic_records"] == 2
 
+    open_manifest = json.loads(
+        (system_root / "compiled/open_lexicon/manifest.json").read_text(encoding="utf-8")
+    )
+    routing = open_manifest["purpose_routing"]
+    assert routing["schema_version"] == "1.1.0"
+    assert set(routing["indexes"]) == {"purpose_surface_lookup", "purpose_reading_lookup"}
+    assert routing["unknown_role_policy"] == "fail-closed"
+
+    db = sqlite3.connect(system_root / "compiled/open_lexicon/lexicon.sqlite3")
+    tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"purpose_surface_lookup", "purpose_reading_lookup"}.issubset(tables)
+    assert db.execute("SELECT COUNT(*) FROM purpose_surface_lookup").fetchone()[0] > 0
+    assert db.execute("SELECT COUNT(*) FROM purpose_reading_lookup").fetchone()[0] > 0
+    masks = dict(db.execute("SELECT record_id,role_mask FROM records"))
+    db.close()
+    bits = routing["role_bits"]
+
+    assert masks["D-1"] & bits["lexical-definition"]
+    assert masks["D-1"] & bits["semantic-class"]
+    assert masks["D-1"] & bits["lexical-relation"]
+    assert masks["D-2"] & bits["pronunciation"]
+    assert masks["D-2"] & bits["usage"]
+    assert masks["D-3"] & bits["frequency"]
+
     lexical = OpenLexiconRuntime(system_root / "compiled/open_lexicon")
     assert lexical.available is True
     assert lexical.lookup_backend == "sqlite-index-v1"
@@ -218,6 +243,16 @@ def test_direct_final_compiles_into_existing_runtime_abis(tmp_path: Path) -> Non
     assert {item.record_id for item in candidates} == {"D-1", "D-2"}
     assert {item.lemma for item in candidates} == {"橋", "箸"}
 
+    by_id = {item.record_id: item for item in candidates}
+    assert set(by_id["D-1"].purpose_roles) == {
+        "lexical-definition", "lexical-relation", "semantic-class"
+    }
+    assert set(by_id["D-2"].purpose_roles) == {
+        "lexical-definition", "pronunciation", "usage"
+    }
+    assert by_id["D-1"].purpose_role_mask > 0
+    assert by_id["D-2"].purpose_role_mask > 0
+
     annotated = lexical.lookup_token(_token("橋", reading="ハシ"))
     assert annotated.lexical_status == "AMBIGUOUS"
     assert annotated.lexical_candidate_total == 2
@@ -229,6 +264,27 @@ def test_direct_final_compiles_into_existing_runtime_abis(tmp_path: Path) -> Non
     reading_candidates, reading_total = lexical.reading_lookup("ハシ", surface="橋")
     assert reading_total == 2
     assert {item.record_id for item in reading_candidates} == {"D-1", "D-2"}
+    reading_by_id = {item.record_id: item for item in reading_candidates}
+    assert "semantic-class" in reading_by_id["D-1"].purpose_roles
+    assert "pronunciation" in reading_by_id["D-2"].purpose_roles
+    assert all(item.purpose_role_mask > 0 for item in reading_candidates)
+
+    purpose_candidates, purpose_total = lexical.purpose_exact_lookup("橋", role="semantic-class")
+    assert purpose_total >= 1
+    assert purpose_candidates
+    assert all("semantic-class" in item.purpose_roles for item in purpose_candidates)
+
+    purpose_reading_candidates, purpose_reading_total = lexical.purpose_reading_lookup("ハシ", role="pronunciation", surface="橋")
+    assert purpose_reading_total >= 1
+    assert purpose_reading_candidates
+    assert all("pronunciation" in item.purpose_roles for item in purpose_reading_candidates)
+
+    try:
+        lexical.purpose_exact_lookup("橋", role="not-a-real-role")
+    except ValueError as exc:
+        assert "unknown purpose role" in str(exc)
+    else:
+        raise AssertionError("unknown purpose role must fail closed")
 
     semantic = SemanticDataRuntime(system_root / "compiled/canonical_dictionary_runtime")
     assert semantic.available is True
@@ -511,3 +567,57 @@ def test_direct_final_rejects_factory_output(tmp_path: Path) -> None:
             work_root=tmp_path / "work",
             semantic_shard_size=100,
         )
+
+def test_direct_final_unknown_dataset_fails_closed(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(
+        source_root,
+        datasets=("unknown-purpose-source",
+                  "jawiktionary-raw-2026-08-04",
+                  "bccwj-wsd-frequency"),
+    )
+
+    with pytest.raises(ValueError, match="unroutable datasets"):
+        compile_direct_final_runtime(
+            manifest_path=manifest_path,
+            input_root=source_root,
+            system_root=tmp_path / "system",
+            work_root=tmp_path / "work",
+            semantic_shard_size=100,
+        )
+
+
+def test_legacy_direct_final_without_purpose_schema_is_not_reused(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    manifest_path = _fixture(source_root)
+    system_root = tmp_path / "system"
+
+    first = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=tmp_path / "work-a",
+        semantic_shard_size=100,
+    )
+    assert first["reused"] is False
+
+    path = system_root / "compiled/open_lexicon/manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest.pop("purpose_routing", None)
+    path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    second = compile_direct_final_runtime(
+        manifest_path=manifest_path,
+        input_root=source_root,
+        system_root=system_root,
+        work_root=tmp_path / "work-b",
+        semantic_shard_size=100,
+    )
+    assert second["reused"] is False
