@@ -13,6 +13,7 @@ from mcp.server.models import InitializationOptions
 from pydantic import ValidationError
 
 from .engine import ParserEngine
+from .logger import prewarm_logger
 from .mcp_output import McpAnalyzeRequest, project_mcp_response
 from .models import (
     AnalysisDepth,
@@ -150,6 +151,9 @@ def prewarm() -> ParserEngine:
     """Complete cold initialization before the runtime deadline starts."""
     instance = engine()
     sample = "UIは残せ。APIだけ変更しろ。"
+
+    # Logging worker startup belongs to readiness, not request latency.
+    prewarm_logger()
 
     # Sudachi performs lazy initialization on its first tokenization. That work
     # belongs to readiness, not to the 50 ms serving contract. Warm every lazy
