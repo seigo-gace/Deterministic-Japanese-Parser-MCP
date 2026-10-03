@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -n "${DJPMCP_REPO_ROOT:-}" ]; then
+  repo_root="$DJPMCP_REPO_ROOT"
+elif git_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  repo_root="$git_root"
+else
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 container="${DJPMCP_RUNTIME_CONTAINER:-djpmcp-http}"
 tg_container="${TGS_RUNTIME_CONTAINER:-tgserver-tgs-1}"
 tg_host_url="${TGS_HOST_URL:-http://127.0.0.1:3000}"
