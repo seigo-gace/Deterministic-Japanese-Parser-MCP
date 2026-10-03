@@ -36,6 +36,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.data-files]
+"share/deterministic-japanese-parser-mcp/config" = [
+  "config/purpose_routing_contract.json",
+  "config/source_payload_profiles.json",
+]
 "share/deterministic-japanese-parser-mcp/dictionaries/system" = [
   "dictionaries/system/synonyms.yaml",
   "dictionaries/system/task_templates.yaml",

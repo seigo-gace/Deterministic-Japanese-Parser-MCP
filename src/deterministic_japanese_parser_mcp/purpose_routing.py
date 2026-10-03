@@ -5,12 +5,22 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = ROOT / "config/purpose_routing_contract.json"
+from .config import INSTALLED_ROOT, SOURCE_ROOT
+
+_SOURCE_CONFIG_ROOT = SOURCE_ROOT / "config"
+_INSTALLED_CONFIG_ROOT = INSTALLED_ROOT / "config"
+CONFIG_ROOT = (
+    _SOURCE_CONFIG_ROOT
+    if (_SOURCE_CONFIG_ROOT / "purpose_routing_contract.json").is_file()
+    else _INSTALLED_CONFIG_ROOT
+)
+CONTRACT = CONFIG_ROOT / "purpose_routing_contract.json"
+
 
 @lru_cache(maxsize=1)
 def load_purpose_contract() -> dict[str, Any]:
     return json.loads(CONTRACT.read_text(encoding="utf-8"))
+
 
 def routes_for_roles(source_roles: list[str]) -> dict[str, Any]:
     contract = load_purpose_contract()
@@ -39,6 +49,7 @@ def routes_for_roles(source_roles: list[str]) -> dict[str, Any]:
         "routing_valid": not unknown,
     }
 
+
 def roles_for_consumer(consumer: str) -> list[str]:
     """Return only source roles explicitly permitted for a runtime consumer."""
     roles = load_purpose_contract()["roles"]
@@ -47,6 +58,7 @@ def roles_for_consumer(consumer: str) -> list[str]:
         for role, spec in roles.items()
         if consumer in spec.get("consumers", [])
     )
+
 
 def semantic_targets_for_roles(source_roles: list[str]) -> list[str]:
     mapping = {
@@ -67,14 +79,16 @@ def semantic_targets_for_roles(source_roles: list[str]) -> list[str]:
 
     return sorted(targets or {"lexicon"})
 
+
 @lru_cache(maxsize=1)
 def load_dataset_roles() -> dict[str, list[str]]:
-    path = ROOT / "config/source_payload_profiles.json"
+    path = CONFIG_ROOT / "source_payload_profiles.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     return {
         str(row["source_id"]): sorted(set(row.get("source_roles", [])))
         for row in data["sources"]
     }
+
 
 def routes_for_datasets(source_datasets: list[str]) -> dict[str, Any]:
     role_map = load_dataset_roles()
@@ -96,9 +110,11 @@ def routes_for_datasets(source_datasets: list[str]) -> dict[str, Any]:
     )
     return result
 
+
 def purpose_role_bits() -> dict[str, int]:
     roles = sorted(load_purpose_contract()["roles"])
     return {name: 1 << i for i, name in enumerate(roles)}
+
 
 def role_mask_for_datasets(source_datasets: list[str]) -> int:
     route = routes_for_datasets(source_datasets)
