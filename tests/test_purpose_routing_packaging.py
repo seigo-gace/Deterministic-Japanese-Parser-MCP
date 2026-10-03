@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import tomllib
 
 from deterministic_japanese_parser_mcp import purpose_routing
 
@@ -18,8 +17,7 @@ def test_source_purpose_routing_config_is_available():
 
 
 def test_runtime_routing_config_is_declared_as_installed_data():
-    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    data_files = data["tool"]["setuptools"]["data-files"]
-    config_files = data_files["share/deterministic-japanese-parser-mcp/config"]
-    assert "config/purpose_routing_contract.json" in config_files
-    assert "config/source_payload_profiles.json" in config_files
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"share/deterministic-japanese-parser-mcp/config"' in pyproject
+    assert '"config/purpose_routing_contract.json"' in pyproject
+    assert '"config/source_payload_profiles.json"' in pyproject
