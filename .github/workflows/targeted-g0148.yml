@@ -20,28 +20,10 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - name: Cold-start phase diagnostic
+      - name: Runtime readiness
         run: |
           mkdir -p reports
-          python - <<'PY' | tee reports/cold-start-${{ matrix.python-version }}.json
-          import json
-          import time
-          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
-
-          started = time.perf_counter()
-          engine = ParserEngine()
-          init_ms = round((time.perf_counter() - started) * 1000, 3)
-          response = engine.analyze(AnalyzeRequest(original_text="もう帰っていい？"))
-          print(json.dumps({
-              "init_ms": init_ms,
-              "overall_status": response.overall_status.value,
-              "analysis_path": response.analysis_path,
-              "propositions": [item.predicate for item in response.meaning_graph.propositions],
-              "reading_status": response.meaning_graph.reading_analysis.status.value,
-              "timeouts": response.timeouts,
-              "metrics": response.metrics,
-          }, ensure_ascii=False, sort_keys=True))
-          PY
+          python scripts/preflight.py | tee reports/preflight-${{ matrix.python-version }}.json
       - name: Regression tests
         run: |
           python -m pytest -q \
