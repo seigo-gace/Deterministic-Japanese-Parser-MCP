@@ -64,3 +64,16 @@ jobs:
           path: reports
           if-no-files-found: warn
           retention-days: 30
+      - name: Publish CI evidence to legacy TGserver P006
+        if: always()
+        continue-on-error: true
+        env:
+          LEGACY_TGSERVER_URL: https://tgserver.asterav8.jp
+          TGS_CF_ACCESS_CLIENT_ID: ${{ secrets.LEGACY_TGSERVER_CF_ACCESS_CLIENT_ID }}
+          TGS_CF_ACCESS_CLIENT_SECRET: ${{ secrets.LEGACY_TGSERVER_CF_ACCESS_CLIENT_SECRET }}
+          TGS_PROJECT_ID: P006
+          TGS_JOB_STATUS: ${{ job.status }}
+          TGS_WORKFLOW: ${{ github.workflow }}
+          TGS_JOB: test
+          TGS_PYTHON_VERSION: ${{ matrix.python-version }}
+        run: python tools/tgserver_ci_report.py
