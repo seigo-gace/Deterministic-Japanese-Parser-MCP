@@ -82,6 +82,7 @@ jobs:
             --add-host host.docker.internal:host-gateway \
             -p 127.0.0.1:18765:8765 \
             -e DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1 \
+            -e DJPMCP_HTTP_ALLOWED_HOSTS=127.0.0.1:18765 \
             -e DJPMCP_LOG_SINK=tgserver \
             -e DJPMCP_TGS_LOG_URL=http://host.docker.internal:18080 \
             -e DJPMCP_TGS_PROJECT_ID=P006 \
@@ -101,12 +102,20 @@ jobs:
               ready=1
               break
             fi
+            running="$(docker inspect -f '{{.State.Running}}' djpmcp-tgserver-e2e 2>/dev/null || echo false)"
+            if [ "$running" != "true" ]; then
+              break
+            fi
             sleep 1
           done
+          docker inspect djpmcp-tgserver-e2e >/tmp/djpmcp-inspect.json 2>&1 || true
+          docker logs djpmcp-tgserver-e2e >/tmp/djpmcp-container.log 2>&1 || true
           if [ "$ready" -ne 1 ]; then
-            docker logs djpmcp-tgserver-e2e || true
+            echo 'DJPMCP_READY=FALSE'
+            cat /tmp/djpmcp-container.log || true
             exit 1
           fi
+          echo 'DJPMCP_READY=TRUE'
 
       - name: Produce a real PARTIAL diagnostic log
         run: |
@@ -135,8 +144,9 @@ jobs:
             fi
             sleep 0.1
           done
+          docker logs djpmcp-tgserver-e2e >/tmp/djpmcp-container.log 2>&1 || true
           if [ "$received" -ne 1 ]; then
-            docker logs djpmcp-tgserver-e2e || true
+            cat /tmp/djpmcp-container.log || true
             cat /tmp/fake-tgserver.log || true
             exit 1
           fi
@@ -181,6 +191,8 @@ jobs:
             /tmp/analyze-response.json
             /tmp/tgs-received.json
             /tmp/fake-tgserver.log
+            /tmp/djpmcp-container.log
+            /tmp/djpmcp-inspect.json
           if-no-files-found: warn
           retention-days: 7
 
