@@ -1,0 +1,193 @@
+name: TGserver Runtime E2E
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/deterministic_japanese_parser_mcp/logger.py"
+      - "src/deterministic_japanese_parser_mcp/server.py"
+      - "src/deterministic_japanese_parser_mcp/engine.py"
+      - "Dockerfile.http"
+      - ".github/workflows/tgserver-runtime-e2e.yml"
+  pull_request:
+    paths:
+      - "src/deterministic_japanese_parser_mcp/logger.py"
+      - "src/deterministic_japanese_parser_mcp/server.py"
+      - "src/deterministic_japanese_parser_mcp/engine.py"
+      - "Dockerfile.http"
+      - ".github/workflows/tgserver-runtime-e2e.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start isolated TGserver receiver
+        run: |
+          cat > /tmp/fake_tgserver.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          import json
+          from pathlib import Path
+
+          RECEIPT = Path("/tmp/tgs-received.json")
+
+          class Handler(BaseHTTPRequestHandler):
+              def log_message(self, *_args):
+                  return
+
+              def do_POST(self):
+                  if self.path != "/ingest/bulk":
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+                  length = int(self.headers.get("content-length", "0"))
+                  payload = json.loads(self.rfile.read(length) or b"{}")
+                  logs = payload.get("logs")
+                  if not isinstance(logs, list) or not logs:
+                      self.send_response(400)
+                      self.end_headers()
+                      return
+                  RECEIPT.write_text(
+                      json.dumps(payload, ensure_ascii=False, sort_keys=True),
+                      encoding="utf-8",
+                  )
+                  body = json.dumps({
+                      "results": [
+                          {"status": "accepted", "index": index}
+                          for index, _ in enumerate(logs)
+                      ]
+                  }).encode("utf-8")
+                  self.send_response(200)
+                  self.send_header("content-type", "application/json")
+                  self.send_header("content-length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+          ThreadingHTTPServer(("0.0.0.0", 18080), Handler).serve_forever()
+          PY
+          python /tmp/fake_tgserver.py >/tmp/fake-tgserver.log 2>&1 &
+          echo $! >/tmp/fake-tgserver.pid
+
+      - name: Build current HTTP runtime image
+        run: docker build -f Dockerfile.http -t djpmcp-http:tgserver-e2e .
+
+      - name: Start isolated DJPMCP runtime
+        run: |
+          docker run -d --name djpmcp-tgserver-e2e \
+            --add-host host.docker.internal:host-gateway \
+            -p 127.0.0.1:18765:8765 \
+            -e DJPMCP_HTTP_ALLOW_UNAUTHENTICATED=1 \
+            -e DJPMCP_LOG_SINK=tgserver \
+            -e DJPMCP_TGS_LOG_URL=http://host.docker.internal:18080 \
+            -e DJPMCP_TGS_PROJECT_ID=P006 \
+            -e DJPMCP_TGS_SOURCE=deterministic-japanese-parser-mcp \
+            -e DJPMCP_TGS_REPO="$GITHUB_REPOSITORY" \
+            -e DJPMCP_TGS_BRANCH="$GITHUB_REF_NAME" \
+            -e DJPMCP_TGS_WORKFLOW="TGserver Runtime E2E" \
+            -e DJPMCP_TGS_RUN_ID="$GITHUB_RUN_ID" \
+            -e DJPMCP_TGS_MODULE=parser-runtime \
+            djpmcp-http:tgserver-e2e
+
+      - name: Wait for readiness
+        run: |
+          ready=0
+          for _ in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18765/readyz >/tmp/ready.json; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker logs djpmcp-tgserver-e2e || true
+            exit 1
+          fi
+
+      - name: Produce a real PARTIAL diagnostic log
+        run: |
+          curl -fsS \
+            -H 'content-type: application/json' \
+            --data '{"original_text":"それを変更しろ。","execution_mode":"external_action","analysis_depth":"auto","deadline_ms":50}' \
+            http://127.0.0.1:18765/v1/analyze \
+            -o /tmp/analyze-response.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          response = json.loads(Path("/tmp/analyze-response.json").read_text(encoding="utf-8"))
+          status = response.get("overall_status")
+          if status not in {"PARTIAL", "FAILED"}:
+              raise SystemExit(f"expected diagnostic-producing status, got {status!r}")
+          print(f"ANALYZE_STATUS={status}")
+          PY
+
+      - name: Verify P006 bulk delivery contract
+        run: |
+          received=0
+          for _ in $(seq 1 100); do
+            if [ -s /tmp/tgs-received.json ]; then
+              received=1
+              break
+            fi
+            sleep 0.1
+          done
+          if [ "$received" -ne 1 ]; then
+            docker logs djpmcp-tgserver-e2e || true
+            cat /tmp/fake-tgserver.log || true
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/tgs-received.json").read_text(encoding="utf-8"))
+          logs = payload.get("logs") or []
+          matches = [item for item in logs if item.get("project_id") == "P006"]
+          if not matches:
+              raise SystemExit("no P006 log received")
+          entry = matches[-1]
+          expected = {
+              "source": "deterministic-japanese-parser-mcp",
+              "repo": os.environ["GITHUB_REPOSITORY"],
+              "branch": os.environ["GITHUB_REF_NAME"],
+              "workflow": "TGserver Runtime E2E",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "module": "parser-runtime",
+          }
+          for key, value in expected.items():
+              if entry.get(key) != value:
+                  raise SystemExit(f"metadata mismatch {key}: {entry.get(key)!r} != {value!r}")
+          if entry.get("hint") != "djpmcp-runtime":
+              raise SystemExit("missing djpmcp-runtime hint")
+          message = json.loads(entry.get("message", "{}"))
+          if message.get("original_text") != "それを変更しろ。":
+              raise SystemExit("diagnostic payload mismatch")
+          print("P006_RUNTIME_DELIVERY=PASS")
+          print("SEARCH_METADATA=PASS")
+          PY
+
+      - name: Preserve isolated evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgserver-runtime-e2e-${{ github.run_id }}
+          path: |
+            /tmp/ready.json
+            /tmp/analyze-response.json
+            /tmp/tgs-received.json
+            /tmp/fake-tgserver.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Cleanup isolated runtime
+        if: always()
+        run: |
+          docker rm -f djpmcp-tgserver-e2e >/dev/null 2>&1 || true
+          if [ -f /tmp/fake-tgserver.pid ]; then
+            kill "$(cat /tmp/fake-tgserver.pid)" >/dev/null 2>&1 || true
+          fi
