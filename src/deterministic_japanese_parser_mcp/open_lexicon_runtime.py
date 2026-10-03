@@ -380,11 +380,21 @@ purpose_roles=list(record.get('purpose_roles') or []))
         return (candidates, total)
 
     def lookup_token(self, token: Token, *, max_candidates: int=8) -> Token:
-        candidates, total = self.exact_lookup(token.surface, match_type='surface', max_candidates=max_candidates)
-        if not candidates and token.normalized != token.surface:
-            candidates, total = self.exact_lookup(token.normalized, match_type='normalized', max_candidates=max_candidates)
-        if not candidates and token.reading:
-            candidates, total = self.reading_lookup(token.reading, surface=token.surface, normalized=token.normalized, max_candidates=max_candidates)
+        from .purpose_routing import roles_for_consumer
+        from .retrieval_router import RetrievalRouter
+
+        source_roles = [
+            role
+            for role in roles_for_consumer("sense_resolver")
+            if role in self.purpose_role_bits
+        ]
+        result = RetrievalRouter(self).retrieve_token(
+            token,
+            source_roles=source_roles,
+            max_candidates=max_candidates,
+        )
+        candidates = list(result.candidates)
+        total = result.candidate_total
         status = 'NO_MATCH'
         if total == 1:
             status = 'MATCHED'

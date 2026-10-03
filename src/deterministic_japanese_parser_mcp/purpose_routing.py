@@ -39,6 +39,15 @@ def routes_for_roles(source_roles: list[str]) -> dict[str, Any]:
         "routing_valid": not unknown,
     }
 
+def roles_for_consumer(consumer: str) -> list[str]:
+    """Return only source roles explicitly permitted for a runtime consumer."""
+    roles = load_purpose_contract()["roles"]
+    return sorted(
+        role
+        for role, spec in roles.items()
+        if consumer in spec.get("consumers", [])
+    )
+
 def semantic_targets_for_roles(source_roles: list[str]) -> list[str]:
     mapping = {
         "lexical-definition": "lexicon",

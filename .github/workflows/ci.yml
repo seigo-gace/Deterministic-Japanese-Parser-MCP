@@ -46,7 +46,7 @@ jobs:
             --check \
             --output reports/semantic-holdout-${{ matrix.python-version }}.json
       - name: Unit, importer, supply-chain and MCP stdio E2E tests
-        run: pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
+        run: python -m pytest --junitxml=reports/pytest-${{ matrix.python-version }}.xml
       - name: Existing benchmark regression gate
         run: |
           set -o pipefail
