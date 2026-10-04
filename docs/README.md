@@ -8,6 +8,7 @@ This directory contains the public documentation required to use, validate, exte
 
 - [`../README.md`](../README.md) — 日本語の概要、現行実装とTarget Architectureの境界、導入、API、Data、性能、安全性、検証
 - [`PARSER_ARCHITECTURE.md`](PARSER_ARCHITECTURE.md) — **総合Parser Architecture正本。Projection / multi-lane Router / Progressive Retrieval / Recovery / Rights / semantic hash / MCP output profile / 完成Gate**
+- [`TGSERVER_ZERO_DEVELOPMENT_EVIDENCE.md`](TGSERVER_ZERO_DEVELOPMENT_EVIDENCE.md) — GitHub Development ProbeとTGserver ZERO中央Readerを使い、CHATがSource/Test/Build/VerifyとRuntime Logを直接取得する統一Evidence経路
 - [`../README_EN.md`](../README_EN.md) — English overview and usage
 - [`COMMERCIAL_AND_DISTRIBUTION_MODEL.md`](COMMERCIAL_AND_DISTRIBUTION_MODEL.md) — Public OSS配布とOfficial Hosted Commercial Serviceの関係
 - [`ASTERA_HOSTED_API_ARCHITECTURE.md`](ASTERA_HOSTED_API_ARCHITECTURE.md) — AsteraApp / Astera Platformで有料API化する場合の責務分離
