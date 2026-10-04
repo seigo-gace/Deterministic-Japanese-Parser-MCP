@@ -904,3 +904,7 @@ Public Runtimeへ含められるDataかどうかは、Code Licenseだけでは�
 DJPMCPのTarget Architectureは、**設計文書・Source・Test・Canonical Build/Audit・Robustness・Performance・Full Regression・許可されたRuntime readbackが一致したときだけ完成**です。
 
 それまでは各工程を `PASS / FAIL / PARTIAL / BLOCKED / UNKNOWN / NOT_EXECUTED / NOT_VERIFIED` と分けて管理し、未実施・未検証を完成扱いしません。
+
+<!-- project-control-ja:start -->
+プロジェクトの管理方針と名称・ロゴの扱いは[`GOVERNANCE.md`](GOVERNANCE.md)と[`TRADEMARK.md`](TRADEMARK.md)を参照してください。
+<!-- project-control-ja:end -->

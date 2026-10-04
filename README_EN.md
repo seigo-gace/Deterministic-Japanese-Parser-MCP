@@ -433,3 +433,7 @@ Policy and release:
 The target architecture is complete only when documentation, source, tests, canonical build/audit, robustness, performance, full regression, and authorized runtime readback all agree.
 
 Until then, each scope is reported separately as `PASS`, `FAIL`, `PARTIAL`, `BLOCKED`, `UNKNOWN`, `NOT_EXECUTED`, or `NOT_VERIFIED`.
+
+<!-- project-control-en:start -->
+See [`GOVERNANCE.md`](GOVERNANCE.md) and [`TRADEMARK.md`](TRADEMARK.md) for project governance and use of names and logos.
+<!-- project-control-en:end -->
