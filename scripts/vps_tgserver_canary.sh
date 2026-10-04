@@ -22,6 +22,7 @@ echo "CANARY_CONTAINER=$container"
 echo "CANARY_PORT=$port"
 echo "TGS_URL=$tg_url"
 echo "CANARY_RUN_ID=$run_id"
+echo 'SEARCH_MODE=LEGACY_QUERY_MARKER'
 
 if ! docker inspect djpmcp-http >/dev/null 2>&1; then
   echo 'CURRENT_RUNTIME_FOUND=FALSE'
@@ -51,7 +52,7 @@ fi
 
 echo 'BUILD_CANARY_IMAGE=START'
 docker build -q -f "$src/Dockerfile.http" -t "$image" "$src" >/tmp/gace-djpmcp-canary-image-id
-echo "BUILD_CANARY_IMAGE=PASS"
+echo 'BUILD_CANARY_IMAGE=PASS'
 
 docker rm -f "$container" >/dev/null 2>&1 || true
 docker run -d --name "$container" \
@@ -78,7 +79,7 @@ docker run -d --name "$container" \
 echo 'CANARY_RUNTIME=STARTED'
 ready=0
 for _ in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${port}/readyz" -o "$tmp/ready.json"; then
+  if curl -fsS "http://127.0.0.1:${port}/readyz" -o "$tmp/ready.json" 2>/dev/null; then
     ready=1
     break
   fi
@@ -96,9 +97,18 @@ if [ "$ready" -ne 1 ]; then
 fi
 echo 'CANARY_READY=TRUE'
 
+python3 - "$tmp/analyze-request.json" "$run_id" <<'PY'
+import json, sys
+json.dump({
+    'original_text': f'検証識別子 {sys.argv[2]}。それを変更しろ。',
+    'execution_mode': 'external_action',
+    'analysis_depth': 'auto',
+    'deadline_ms': 50,
+}, open(sys.argv[1], 'w', encoding='utf-8'), ensure_ascii=False)
+PY
 curl -fsS \
   -H 'content-type: application/json' \
-  --data '{"original_text":"それを変更しろ。","execution_mode":"external_action","analysis_depth":"auto","deadline_ms":50}' \
+  --data-binary @"$tmp/analyze-request.json" \
   "http://127.0.0.1:${port}/v1/analyze" \
   -o "$tmp/analyze.json"
 python3 - "$tmp/analyze.json" <<'PY'
@@ -108,18 +118,14 @@ status = x.get('overall_status')
 if status not in {'PARTIAL','FAILED'}:
     raise SystemExit(f'CANARY_ANALYZE_UNEXPECTED_STATUS={status!r}')
 print('CANARY_ANALYZE_STATUS=' + status)
-print('CANARY_SEMANTIC_HASH=' + str(x.get('semantic_hash','')))
+print('CANARY_SEMANTIC_HASH=' + str((x.get('meaning_graph') or {}).get('semantic_hash','')))
 PY
 
 python3 - "$tmp/search-request.json" "$run_id" <<'PY'
 import json, sys
 json.dump({
-    'query': '',
+    'query': sys.argv[2],
     'project_id': 'P006',
-    'source': 'deterministic-japanese-parser-mcp',
-    'repo': 'seigo-gace/Deterministic-Japanese-Parser-MCP',
-    'run_id': sys.argv[2],
-    'module': 'parser-runtime',
 }, open(sys.argv[1], 'w', encoding='utf-8'), ensure_ascii=False)
 PY
 
@@ -134,7 +140,8 @@ for _ in $(seq 1 60); do
 import json, sys
 x = json.load(open(sys.argv[1], encoding='utf-8'))
 hits = x.get('hits') or []
-match = [h for h in hits if h.get('project_id') == 'P006' and h.get('run_id') == sys.argv[2]]
+needle = sys.argv[2]
+match = [h for h in hits if h.get('project_id') == 'P006' and needle in str(h.get('message',''))]
 raise SystemExit(0 if match else 1)
 PY
     then
@@ -155,13 +162,18 @@ fi
 python3 - "$tmp/search.json" "$run_id" <<'PY'
 import json, sys
 x = json.load(open(sys.argv[1], encoding='utf-8'))
-hits = [h for h in (x.get('hits') or []) if h.get('project_id') == 'P006' and h.get('run_id') == sys.argv[2]]
+needle = sys.argv[2]
+hits = [h for h in (x.get('hits') or []) if h.get('project_id') == 'P006' and needle in str(h.get('message',''))]
 if not hits:
     raise SystemExit('no canary hit')
 h = hits[-1]
 print('P006_LOCAL_READBACK=PASS')
 print('P006_HITS=' + str(len(hits)))
-for key in ('project_id','severity','hint','source','repo','branch','workflow','run_id','module'):
+print('P006_PROJECT_ID=' + str(h.get('project_id','')))
+print('P006_SEVERITY=' + str(h.get('severity','')))
+print('P006_HINT=' + str(h.get('hint','')))
+print('P006_MARKER_MATCH=PASS')
+for key in ('source','repo','branch','workflow','run_id','module'):
     print('P006_' + key.upper() + '=' + str(h.get(key,'')))
 PY
 
