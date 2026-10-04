@@ -62,7 +62,6 @@ print('MOUNTS=' + json.dumps([{
     'Type': m.get('Type'), 'Source': m.get('Source'),
     'Destination': m.get('Destination'), 'Mode': m.get('Mode'), 'RW': m.get('RW')
 } for m in x.get('Mounts', [])], ensure_ascii=False, sort_keys=True))
-print('ENV_JSON=' + json.dumps(cfg.get('Env') or [], ensure_ascii=False))
 PY
 
 env_json="$(python3 - <<'PY'
