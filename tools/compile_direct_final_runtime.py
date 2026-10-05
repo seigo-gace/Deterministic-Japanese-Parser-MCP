@@ -15,6 +15,11 @@ from pathlib import Path
 import shutil
 import sqlite3
 from typing import Any, Iterable, Iterator
+
+from deterministic_japanese_parser_mcp.purpose_routing import (
+    purpose_role_bits,
+    role_mask_for_datasets,
+)
 import unicodedata
 
 DIRECT_SCHEMA = "djpmcp.direct-runtime-final.manifest.v1"
@@ -160,6 +165,22 @@ def _try_reuse_direct_final_runtime(
         return None
     open_manifest = json.loads(open_manifest_path.read_text(encoding="utf-8"))
     if open_manifest.get("source_manifest_sha256") != manifest_sha:
+        return None
+    routing = open_manifest.get("purpose_routing") or {}
+    if routing.get("schema_version") != "1.1.0":
+        return None
+    if routing.get("unknown_role_policy") != "fail-closed":
+        return None
+    required_purpose_indexes = {"purpose_surface_lookup", "purpose_reading_lookup"}
+    if set(routing.get("indexes") or []) != required_purpose_indexes:
+        return None
+    check = sqlite3.connect(f"file:{open_db.resolve().as_posix()}?mode=ro", uri=True)
+    try:
+        columns = {row[1] for row in check.execute("PRAGMA table_info(records)")}
+        tables = {row[0] for row in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        check.close()
+    if "role_mask" not in columns or not required_purpose_indexes.issubset(tables):
         return None
     if int(open_manifest.get("record_count") or -1) != int(integration.get("source_runtime_records") or -1):
         return None
@@ -334,9 +355,11 @@ def _init_open(path: Path) -> sqlite3.Connection:
     db = sqlite3.connect(path)
     db.executescript("""
         PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
-        CREATE TABLE records(record_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL) WITHOUT ROWID;
+        CREATE TABLE records(record_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, role_mask INTEGER NOT NULL) WITHOUT ROWID;
         CREATE TABLE surface_lookup(surface TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY(surface,record_id)) WITHOUT ROWID;
         CREATE TABLE reading_lookup(reading TEXT NOT NULL, record_id TEXT NOT NULL, restricted_to_json TEXT NOT NULL, no_kanji INTEGER NOT NULL, PRIMARY KEY(reading,record_id,restricted_to_json,no_kanji)) WITHOUT ROWID;
+        CREATE TABLE purpose_surface_lookup(role_bit INTEGER NOT NULL, surface TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY(role_bit,surface,record_id)) WITHOUT ROWID;
+        CREATE TABLE purpose_reading_lookup(role_bit INTEGER NOT NULL, reading TEXT NOT NULL, record_id TEXT NOT NULL, restricted_to_json TEXT NOT NULL, no_kanji INTEGER NOT NULL, PRIMARY KEY(role_bit,reading,record_id,restricted_to_json,no_kanji)) WITHOUT ROWID;
     """)
     return db
 
@@ -451,9 +474,13 @@ def compile_direct_final_runtime(
         for row in _rows(parts):
             lex = _lexical(row, date, manifest_sha)
             record_id = lex["record_id"]
-            open_db.execute("INSERT INTO records(record_id,payload_json) VALUES (?,?)", (record_id, _json(lex)))
+            role_mask = role_mask_for_datasets(_unique(row.get("source_datasets") or []))
+            open_db.execute("INSERT INTO records(record_id,payload_json,role_mask) VALUES (?,?,?)", (record_id, _json(lex), role_mask))
             open_db.executemany("INSERT INTO surface_lookup(surface,record_id) VALUES (?,?)", [(v, record_id) for v in lex["surfaces"]])
             open_db.executemany("INSERT INTO reading_lookup(reading,record_id,restricted_to_json,no_kanji) VALUES (?,?,?,?)", [(m["reading"], record_id, _json(m.get("restricted_to") or []), int(bool(m.get("no_kanji", False)))) for m in lex["reading_mappings"]])
+            active_role_bits = [bit for bit in purpose_role_bits().values() if role_mask & bit]
+            open_db.executemany("INSERT INTO purpose_surface_lookup(role_bit,surface,record_id) VALUES (?,?,?)", [(bit, v, record_id) for bit in active_role_bits for v in lex["surfaces"]])
+            open_db.executemany("INSERT INTO purpose_reading_lookup(role_bit,reading,record_id,restricted_to_json,no_kanji) VALUES (?,?,?,?,?)", [(bit, m["reading"], record_id, _json(m.get("restricted_to") or []), int(bool(m.get("no_kanji", False)))) for bit in active_role_bits for m in lex["reading_mappings"]])
             lexical_count += 1
             sem = _semantic(row, lex)
             if sem is not None:
@@ -483,6 +510,7 @@ def compile_direct_final_runtime(
             "record_shards": 0, "exact_lookup_only": True, "reading_alias_promotion": False,
             "semantic_auto_promotion": False, "intent_auto_promotion": False, "external_action_auto_promotion": False,
             "direct_final_runtime": True, "factory_used": False, "source_manifest_sha256": manifest_sha,
+            "purpose_routing": {"schema_version": "1.1.0", "role_bits": purpose_role_bits(), "unknown_role_policy": "fail-closed", "indexes": ["purpose_reading_lookup", "purpose_surface_lookup"]},
             "sqlite": {"path": "lexicon.sqlite3", "sha256": _sha(db_path), "bytes": db_path.stat().st_size},
         }
         (open_root / "manifest.json").write_text(json.dumps(open_manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

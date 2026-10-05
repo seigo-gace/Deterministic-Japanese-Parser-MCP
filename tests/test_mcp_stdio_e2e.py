@@ -32,6 +32,7 @@ async def _run_stdio_round_trip() -> None:
                 arguments={
                     "original_text": "UIは残せ。APIだけ変更しろ。",
                     "execution_mode": "external_action",
+                    "output_profile": "full",
                 },
             )
             assert not result.isError

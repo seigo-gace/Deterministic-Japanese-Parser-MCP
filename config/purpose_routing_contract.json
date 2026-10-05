@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0.0",
+  "purpose_contract_version": "2026-09-27",
+  "principles": {
+    "auxiliary_evidence_never_creates_meaning": true,
+    "frequency_never_decides_truth": true,
+    "familiarity_never_decides_truth": true,
+    "translation_never_becomes_japanese_definition_authority": true,
+    "unreviewed_category_never_routes_runtime": true,
+    "external_action_never_generated_from_lexical_data": true,
+    "unknown_role_fail_closed": true
+  },
+  "roles": {
+    "lexical-definition": {"consumers":["sense_resolver"],"allowed":["sense_candidate","definition_evidence"],"forbidden":["external_action","task_creation"]},
+    "pronunciation": {"consumers":["reading_runtime"],"allowed":["reading_candidate","reading_tiebreak"],"forbidden":["meaning_creation","intent_decision"]},
+    "orthography": {"consumers":["reading_runtime","normalization"],"allowed":["surface_normalization","variant_resolution"],"forbidden":["meaning_creation","intent_decision"]},
+    "morphology": {"consumers":["grammar_kernel","reading_runtime"],"allowed":["lemma","part_of_speech","conjugation"],"forbidden":["meaning_creation","external_action"]},
+    "syntax": {"consumers":["grammar_kernel"],"allowed":["predicate_argument","dependency","clause_structure"],"forbidden":["sense_creation","external_action"]},
+    "semantic-class": {"consumers":["sense_resolver"],"allowed":["sense_filter","sense_tiebreak"],"forbidden":["sense_creation"]},
+    "lexical-relation": {"consumers":["sense_resolver"],"allowed":["synonym_relation","antonym_relation","related_sense"],"forbidden":["definition_overwrite"]},
+    "entity": {"consumers":["entity_resolver"],"allowed":["entity_candidate","proper_name_disambiguation"],"forbidden":["general_word_promotion","external_action"]},
+    "domain-term": {"consumers":["sense_resolver"],"allowed":["domain_filter","domain_sense_tiebreak"],"forbidden":["general_sense_override"]},
+    "translation": {"consumers":["sense_resolver"],"allowed":["cross_lingual_evidence","sense_tiebreak"],"forbidden":["japanese_definition_authority","sense_creation"]},
+    "frequency": {"consumers":["sense_ranker"],"allowed":["ranking_tiebreak"],"forbidden":["truth_decision","sense_creation","intent_decision"]},
+    "familiarity": {"consumers":["sense_ranker"],"allowed":["ranking_tiebreak"],"forbidden":["truth_decision","sense_creation","intent_decision"]},
+    "usage": {"consumers":["semantic_data_runtime"],"allowed":["context_match","register_match","example_evidence"],"forbidden":["sense_creation"]},
+    "pragmatics": {"consumers":["semantic_data_runtime","meaning_graph"],"allowed":["speech_act_evidence","social_context","discourse_context"],"forbidden":["lexical_definition_creation"]},
+    "sentiment": {"consumers":["semantic_data_runtime"],"allowed":["polarity_evidence","intensity_evidence"],"forbidden":["intent_creation","external_action"]},
+    "temporal": {"consumers":["semantic_data_runtime"],"allowed":["temporal_context","historical_usage"],"forbidden":["unqualified_generalization"]},
+    "education": {"consumers":["lexical_metadata"],"allowed":["education_level","learning_metadata"],"forbidden":["sense_creation","intent_decision"]},
+    "error-normalization": {"consumers":["normalization"],"allowed":["error_candidate","normalization_candidate"],"forbidden":["meaning_creation"]},
+    "knowledge-relation": {"consumers":["evidence_graph"],"allowed":["knowledge_relation_evidence"],"forbidden":["sense_creation","external_action"]}
+  }
+}

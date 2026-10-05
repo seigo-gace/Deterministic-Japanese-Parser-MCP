@@ -22,6 +22,7 @@ class JapaneseTokenizer:
             self._tok = dictionary.Dictionary(dict="core").create()
             self._mode = sudachi_tokenizer.Tokenizer.SplitMode.C
             self.backend = "sudachi-core"
+            tuple(self._tok.tokenize("日本を確認する。", self._mode))
 
     def _annotate(self, tokens: list[Token]) -> list[Token]:
         return self.open_lexicon.annotate_tokens(

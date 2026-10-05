@@ -50,6 +50,7 @@ def test_response_cache_preserves_semantics_and_refreshes_metrics(monkeypatch):
         "original_text": "UIは残せ。APIだけ変更しろ。",
         "execution_mode": "external_action",
         "deadline_ms": 50,
+        "output_profile": "full",
     }
     miss = _call(ready_arguments)
     hit = _call({**ready_arguments, "deadline_ms": 60000})

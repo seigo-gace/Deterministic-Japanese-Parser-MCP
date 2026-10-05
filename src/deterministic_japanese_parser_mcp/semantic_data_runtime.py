@@ -12,6 +12,7 @@ from typing import Any, BinaryIO, Iterable
 import unicodedata
 
 from .grammar_kernel import ACTION_INTENTS, CONSTRAINT_INTENTS
+from .purpose_routing import routes_for_roles
 from .models import (
     ItemStatus,
     LanguageFeatureMatch,
@@ -1180,6 +1181,25 @@ class SemanticDataRuntime:
                 if record_id not in record_ids:
                     record_ids.append(record_id)
         return [self._record(record_id) for record_id in record_ids[:max_candidates]]
+
+    @staticmethod
+    def _validated_purpose_evidence_for_consumer(record: dict[str, Any], consumer: str) -> list[dict[str, Any]]:
+        evidence_items = record.get("purpose_evidence") or []
+        if not isinstance(evidence_items, list): raise ValueError("runtime purpose_evidence must be list")
+        result=[]
+        for item in evidence_items:
+            if not isinstance(item,dict): raise ValueError("runtime purpose evidence must be object")
+            evidence_id=str(item.get("evidence_id") or "").strip()
+            if not evidence_id: raise ValueError("runtime purpose evidence_id missing")
+            role=str(item.get("source_role") or "").strip(); route=routes_for_roles([role])
+            if not role or not route["routing_valid"]: raise ValueError(f"runtime purpose role is unroutable: {role}")
+            for key in ("consumers","allowed","forbidden"):
+                if sorted({str(v) for v in item.get(key) or []}) != list(route[key]): raise ValueError(f"runtime purpose route mismatch: role={role} field={key}")
+            typed=item.get("typed_purpose_payload"); source=item.get("source") or {}
+            if not isinstance(typed,dict) or not typed.get("schema_version") or not typed.get("kind"): raise ValueError(f"runtime typed purpose payload invalid: {role}")
+            if not isinstance(source,dict) or source.get("public_runtime_eligible") is not True: raise ValueError(f"runtime purpose source boundary invalid: {role}")
+            if consumer in route["consumers"]: result.append(item)
+        return result
 
     @staticmethod
     def _context_score(

@@ -26,6 +26,47 @@ ADAPTER_SCHEMA_VERSION = "1.2.0"
 MEANING_ROLE = "lexical-definition"
 ALLOWED_ADAPTER_ROLES = {MEANING_ROLE, *ALLOWED_SOURCE_ROLES}
 
+_DBCLS_RELATION_SOURCES=frozenset({"dbcls-meta-species-names","dbcls-meta-scientific-terms"})
+_J_UNIMORPH_SOURCE="j-unimorph"
+_OPEN2CH_SOURCE="open2ch-dialogue-corpus"
+
+def _unwrap_at_field(value,*,field,record_id):
+    raw=str(value)
+    if len(raw)<2 or not raw.startswith("@") or not raw.endswith("@"): raise ValueError(f"DBCLS {field} wrapper invalid for {record_id}: {raw!r}")
+    inner=raw[1:-1]
+    if not inner: raise ValueError(f"DBCLS {field} empty for {record_id}")
+    return inner
+
+def _unwrap_prefixed_at_field(value,*,prefix,field,record_id):
+    raw=str(value)
+    if not raw.startswith(prefix): raise ValueError(f"DBCLS {field} prefix invalid for {record_id}: {raw!r}")
+    return _unwrap_at_field(raw[len(prefix):].lstrip(),field=field,record_id=record_id)
+
+def _typed_payload_for_source(payload,source,*,record_id):
+    sid=str(source.get("logical_source_id") or source.get("source_id") or "")
+    if sid == _J_UNIMORPH_SOURCE:
+        if not isinstance(payload,dict) or not isinstance(payload.get("source_value"),dict): raise ValueError(f"J-UniMorph source_value required: {record_id}")
+        c=payload["source_value"].get("columns")
+        if not isinstance(c,list) or len(c)!=3 or not all(str(x).strip() for x in c): raise ValueError(f"J-UniMorph three-column source_value required: {record_id}")
+        out=dict(payload); out["typed_purpose_payload"]={"schema_version":"1.0.0","kind":"morphology_feature_sequence","lemma":str(c[0]),"inflected_form":str(c[1]),"features":str(c[2]).split(";")}; return out
+    if sid == _OPEN2CH_SOURCE:
+        if source.get("public_runtime_eligible") is not False: raise ValueError(f"Open2ch public runtime must remain denied: {record_id}")
+        if not isinstance(payload,dict) or not isinstance(payload.get("source_value"),dict): raise ValueError(f"Open2ch source_value required: {record_id}")
+        text=str(payload["source_value"].get("text") or ""); parts=text.split("\t"); label=parts[0] if parts else ""
+        if label not in {"0","1"} or len(parts)<3: raise ValueError(f"Open2ch ranking row invalid: {record_id}")
+        out=dict(payload); out["typed_purpose_payload"]={"schema_version":"1.0.0","kind":"response_ranking_supervision","label":int(label),"is_actual_response":label=="1","context_posts":parts[1:-1],"candidate_response":parts[-1]}; return out
+    if sid not in _DBCLS_RELATION_SOURCES: return payload
+    if not isinstance(payload,dict): raise ValueError(f"DBCLS auxiliary payload object required: {record_id}")
+    sv=payload.get("source_value")
+    if not isinstance(sv,dict): raise ValueError(f"DBCLS source_value object required: {record_id}")
+    cols=sv.get("columns")
+    if not isinstance(cols,list) or len(cols)!=6: raise ValueError(f"DBCLS six-column source_value required: {record_id}")
+    typed={"schema_version":"1.0.0","kind":"source_relation_with_provenance","relation":{"object":_unwrap_at_field(cols[0],field="relation.object",record_id=record_id),"predicate":_unwrap_prefixed_at_field(cols[1],prefix="is",field="relation.predicate",record_id=record_id),"subject":_unwrap_prefixed_at_field(cols[2],prefix="for",field="relation.subject",record_id=record_id)},"provenance":{"authority":_unwrap_prefixed_at_field(cols[3],prefix="in",field="provenance.authority",record_id=record_id),"reference":_unwrap_at_field(cols[4],field="provenance.reference",record_id=record_id),"version":_unwrap_prefixed_at_field(cols[5],prefix="version",field="provenance.version",record_id=record_id)}}
+    out=dict(payload)
+    if out.get("typed_purpose_payload") not in (None,typed): raise ValueError(f"DBCLS typed payload conflict: {record_id}")
+    out["typed_purpose_payload"]=typed
+    return out
+
 
 def _as_list(value: Any) -> list[Any]:
     if value is None:
@@ -165,6 +206,7 @@ def normalize_adapter_record(raw: dict[str, Any], *, path: Path, line: int) -> d
         ]
     )
     payload = raw.get("payload")
+    payload = _typed_payload_for_source(payload, source, record_id=record_id)
     if role == MEANING_ROLE:
         if not meanings:
             raise ValueError(

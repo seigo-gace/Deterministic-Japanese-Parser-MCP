@@ -91,6 +91,8 @@ class LexicalCandidate(BaseModel):
     source_dataset: str | None = None
     source_version: str | None = None
     source_license: str | None = None
+    purpose_role_mask: int = 0
+    purpose_roles: list[str] = Field(default_factory=list)
 
 
 class Token(BaseModel):

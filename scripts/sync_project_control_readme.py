@@ -28,7 +28,12 @@ def _replace_marked_block(text: str, start: str, end: str, block: str) -> str:
     prefix, remainder = text.split(start, 1)
     _, suffix = remainder.split(end, 1)
     normalized_suffix = suffix.lstrip("\n")
-    separator = "\n\n" if normalized_suffix else "\n"
+    if normalized_suffix:
+        separator = "\n\n"
+    elif suffix.startswith("\n"):
+        separator = "\n"
+    else:
+        separator = ""
     return prefix + block + separator + normalized_suffix
 
 

@@ -1,6 +1,6 @@
 # Production HTTP Deployment / Production HTTP配置ガイド
 
-Version 1.0 — 2026-09-26
+Version 1.1 — 2026-10-04
 
 ## 目的
 
@@ -128,6 +128,7 @@ DJPMCPはServing前にprewarmを行います。
 
 主に次をRuntime deadline外で準備します。
 
+- TGserver loggingを有効化した場合のbounded background worker startup
 - Sudachi lazy initialization
 - tokenizer warmup
 - rule candidate index
@@ -135,7 +136,7 @@ DJPMCPはServing前にprewarmを行います。
 - Pydantic input/output schema
 - representative Meaning Graph / Task Graph path
 
-これにより、最初のCustomer RequestへCold initialization costを混入させない設計です。
+TGserver modeでもrequest pathはQueueへEvidenceを渡すだけで、HTTP送信、JSON serialization、recursive masking、disk I/Oを行いません。これにより、Log送信処理や最初のCold initialization costをCustomer Requestへ混入させない設計です。
 
 ---
 
@@ -218,9 +219,9 @@ Custom hostnameやContainer/Gateway経路を使う場合は、Deploymentに必�
 
 ---
 
-## 12. Parser Engine Configuration
+## 12. Parser Engine / Logging Configuration
 
-主要設定：
+主要Parser設定：
 
 ```text
 DJPMCP_MAX_INPUT_LENGTH=20000
@@ -231,11 +232,30 @@ DJPMCP_TARGET_LATENCY_MS=10
 DJPMCP_HARD_DEADLINE_MS=50
 DJPMCP_MAX_GRAPH_NODES=512
 DJPMCP_MAX_SCOPE_EDGES=1024
-DJPMCP_LOG_PATH=...
 DJPMCP_SYSTEM_DICT_DIR=...
 DJPMCP_USER_DICT_DIR=...
 DJPMCP_SEMANTIC_DATA_RUNTIME_DIR=...
 ```
+
+Logging設定：
+
+```text
+DJPMCP_LOG_SINK=auto
+DJPMCP_LOG_PATH=logs/parser.jsonl
+DJPMCP_TGS_LOG_URL=...
+DJPMCP_TGS_PROJECT_ID=P006
+DJPMCP_TGS_LOG_QUEUE_SIZE=2048
+DJPMCP_TGS_LOG_BATCH_SIZE=32
+DJPMCP_TGS_LOG_TIMEOUT_MS=250
+DJPMCP_TGS_SOURCE=deterministic-japanese-parser-mcp
+DJPMCP_TGS_REPO=seigo-gace/Deterministic-Japanese-Parser-MCP
+DJPMCP_TGS_BRANCH=...
+DJPMCP_TGS_WORKFLOW=...
+DJPMCP_TGS_RUN_ID=...
+DJPMCP_TGS_MODULE=parser-runtime
+```
+
+`DJPMCP_LOG_SINK=auto`はTGserver URLが設定されていればTGserver、未設定ならFileを使用します。Project Owner運営VPSでTGserverを同一Hostから利用する場合は、TGserverをInternetへ直接公開するのではなく、Loopback/Internal Networkのingest endpointを指定します。Public/Self-host環境はTGserverを必要とせず、File sinkを維持できます。
 
 Performance値は単なる希望値ではなく、CI側のPerformance Contractと合わせて扱います。Infrastructureを変更した場合は再計測してください。
 
@@ -247,7 +267,7 @@ Productionでは、利用するDictionary / Semantic Runtime Bundleを明示的�
 
 - bundle/versionを追跡可能にする
 - manifest/digestを保持する
--未承認Review QueueをRuntimeへ直接読み込ませない
+- 未承認Review QueueをRuntimeへ直接読み込ませない
 - rollout前にvalidation gateを通す
 - rollback可能なartifactを維持する
 
@@ -269,6 +289,7 @@ Productionでは、利用するDictionary / Semantic Runtime Bundleを明示的�
 - parser version
 - runtime data version/digest
 - resource usage
+- TGserver log queueの`enqueued / sent / failed / dropped / batches`
 
 Commercial APIではさらにGateway側Request IDとの相関を保持します。
 
@@ -278,17 +299,33 @@ Commercial APIではさらにGateway側Request IDとの相関を保持します�
 
 Parserは`PARTIAL`や`FAILED`時にdiagnostic informationを記録できます。
 
-Productionでは次を確認してください。
+### TGserver mode
+
+Project Owner運営Runtimeでは、`DJPMCP_LOG_SINK=tgserver`を指定するとdiagnostic evidenceを専用Project `P006`へ非同期送信できます。
+
+- Request pathはbounded in-memory Queueへ渡すだけで、TGserverの応答を待たない
+- Worker側でrecursive sensitive-value masking、JSON serialization、batch送信、bounded retryを行う
+- TGserver/network障害はParser processを停止させない
+- Queue飽和時はParser latencyを優先し、古い未送信Evidenceをdropしてcounterへ記録する
+- TGserver modeでは失敗時のpersistent disk spillを行わない
+- `source / repo / branch / workflow / run_id / module`を任意metadataとして送信し、検索Evidenceを絞り込める
+- Metadataは1–256文字のcontrol-characterなし文字列に限定し、不正値はLog全体を壊さず省略する
+
+Dedicated Project IDの既定値は`P006`です。別Projectへの変更をProduction運用で行う場合は、TGserver側のProject Authorityと明示的に整合させてください。
+
+### File mode
+
+Public/Self-hosted利用では`DJPMCP_LOG_SINK=file`、またはTGserver URL未設定の`auto`により従来のJSONL Fileを使用できます。その場合は以下を確認します。
 
 - `DJPMCP_LOG_PATH`の保存先
 - retention
 - file permission
 - log rotation
-- Customer inputの取り扱い方針
-- backup対象か
-- deletion policy
+- backup/deletion policy
 
-Commercial Customer Dataを扱う場合、単にDebugに便利だからという理由でRaw Inputを無期限保存しない設計を推奨します。
+### Data handling
+
+どちらのmodeでもcredential-like valueは送信・保存前にmaskしますが、diagnostic payloadにはCustomer input由来のtextが含まれ得ます。単にDebugに便利だからという理由でRaw Inputを無期限保存しないでください。Retention、Access Control、Deletion、Customer Data PolicyはDeployment側Authorityで管理します。
 
 ---
 
@@ -306,7 +343,7 @@ python scripts/performance_contract.py --check --rounds 50 --stdio-rounds 30 --s
 python scripts/astera_latency_contract.py --check --rounds 50 --stdio-rounds 30 --target-ms 10 --hard-ms 50
 ```
 
-Runtime Bundleを使う場合は該当Deployment Contractも追加で通します。
+TGserver modeを有効化する場合は、Source/Test Gateに加えてRuntimeで`/healthz`/`/readyz`、TGserver ingest receipt、P006 `/search` readbackを同じRuntime versionへ紐付けて確認してください。Runtime Bundleを使う場合は該当Deployment Contractも追加で通します。
 
 ---
 
