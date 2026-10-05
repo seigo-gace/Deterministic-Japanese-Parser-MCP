@@ -98,7 +98,10 @@ jobs:
           retention-days: 3
 
   close-request:
-    if: always()
+    if: >-
+      always() &&
+      github.event.issue.user.login == github.repository_owner &&
+      startsWith(github.event.issue.title, '[DEV-PROBE]')
     needs: verify
     runs-on: ubuntu-latest
     steps:
