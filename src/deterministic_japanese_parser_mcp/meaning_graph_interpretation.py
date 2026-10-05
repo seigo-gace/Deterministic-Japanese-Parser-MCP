@@ -10,7 +10,7 @@ from .interpretation_contracts import (
     RecoveryInterpretationEvidence,
     RouterTrace,
 )
-from .models import MeaningGraph
+from .models import AnalyzeResponse, MeaningGraph
 
 
 NON_SEMANTIC_INTERPRETATION_FIELDS = frozenset(
@@ -60,6 +60,12 @@ class InterpretationMeaningGraph(MeaningGraph):
         return super().model_dump_json(*args, **kwargs)
 
 
+class InterpretationAnalyzeResponse(AnalyzeResponse):
+    """Backward-compatible response specialization that preserves evidence output."""
+
+    meaning_graph: InterpretationMeaningGraph
+
+
 def attach_interpretation_evidence(
     graph: MeaningGraph,
     *,
@@ -77,6 +83,25 @@ def attach_interpretation_evidence(
             "field_evidence": list(field_evidence or ()),
         }
     )
+
+
+def attach_interpretation_to_response(
+    response: AnalyzeResponse,
+    *,
+    router_trace: RouterTrace | None = None,
+    recovery_evidence: list[RecoveryInterpretationEvidence] | None = None,
+    field_evidence: list[FieldEvidenceReference] | None = None,
+) -> InterpretationAnalyzeResponse:
+    """Promote an existing response without re-running or inventing semantics."""
+    connected_graph = attach_interpretation_evidence(
+        response.meaning_graph,
+        router_trace=router_trace,
+        recovery_evidence=recovery_evidence,
+        field_evidence=field_evidence,
+    )
+    payload = response.model_dump(mode="python")
+    payload["meaning_graph"] = connected_graph
+    return InterpretationAnalyzeResponse.model_validate(payload)
 
 
 def interpretation_evidence_summary(
