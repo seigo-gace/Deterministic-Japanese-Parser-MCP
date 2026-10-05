@@ -476,9 +476,11 @@ def build_candidate_lattice(
                     continue
                 node_count += 1
                 if node_count > limits.max_lattice_nodes:
-                    # Never return an accidentally partial sentence as a valid path.
-                    complete = frontier.get(token_count, [])
-                    return _finalize_paths(complete, tokens, limits=limits)
+                    # Budget exhaustion is not a completed interpretation.
+                    # Returning even the baseline here would bypass the bounded
+                    # work contract, so fail closed and let the caller retain
+                    # the original unresolved input outside the lattice.
+                    return []
                 candidate_path = SentencePath(
                     options=(*path.options, option),
                     recovery_cost=path.recovery_cost + option.recovery_cost,
