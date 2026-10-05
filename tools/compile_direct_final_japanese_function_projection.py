@@ -72,18 +72,19 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
     if rights_lanes:
         auxiliary["rights-lanes"] = rights_lanes
 
+    source_dataset_text = ",".join(source_datasets)
     source_records = [
         {
             "source_record_id": value,
-            "source_dataset": dataset,
+            "source_dataset": source_dataset_text,
         }
-        for dataset, value in zip(source_datasets, evidence_samples)
+        for value in evidence_samples
     ]
     if not source_records:
         source_records = [
             {
                 "source_record_id": str(row["entry_id"]),
-                "source_dataset": ",".join(source_datasets),
+                "source_dataset": source_dataset_text,
             }
         ]
 
@@ -111,7 +112,10 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
             "version": version,
             "source_id": str(row["entry_id"]),
             "source_sha256": manifest_sha,
+            "source_datasets": source_datasets,
+            "source_roles": source_roles,
             "rights_lanes": rights_lanes,
+            "evidence_samples": evidence_samples,
         },
     }
 
