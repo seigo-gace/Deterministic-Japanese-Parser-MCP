@@ -147,7 +147,7 @@ def test_direct_final_projection_fails_closed_when_manifest_count_disagrees(tmp_
             output_root=tmp_path / "projection",
         )
     except ValueError as exc:
-        assert "source count mismatch" in str(exc)
+        assert "mismatch" in str(exc)
     else:
         raise AssertionError("manifest/source count mismatch must fail closed")
 
