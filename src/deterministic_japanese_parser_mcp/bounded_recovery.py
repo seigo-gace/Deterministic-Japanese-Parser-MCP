@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
 from .interpretation_contracts import RecoveryCandidateEvidence, RecoveryOperation
-from .models import LexicalCandidate, Token
+from .models import Token
 from .open_lexicon_runtime import OpenLexiconRuntime
 
 
@@ -15,6 +15,7 @@ class RecoveryLimits:
     max_variants_per_span: int = 64
     max_candidates_per_variant: int = 8
     max_options_per_span: int = 16
+    max_boundary_options: int = 16
     max_lattice_nodes: int = 256
     top_k_paths: int = 8
 
@@ -33,20 +34,36 @@ class RecoveryVariant:
 
 @dataclass(frozen=True)
 class LatticeOption:
-    token_index: int
+    start_token: int
+    end_token_exclusive: int
     original_text: str
     candidate_text: str
     recovery_cost: float
     runtime_record_ids: tuple[str, ...] = ()
     evidence_ids: tuple[str, ...] = ()
     operations: tuple[RecoveryOperation, ...] = ()
+    candidate_segments: tuple[str, ...] = ()
     unresolved: bool = False
+
+    def __post_init__(self) -> None:
+        if self.start_token < 0 or self.end_token_exclusive <= self.start_token:
+            raise ValueError("invalid lattice token span")
+        if self.recovery_cost < 0:
+            raise ValueError("recovery_cost must be >= 0")
+
+    @property
+    def segments(self) -> tuple[str, ...]:
+        return self.candidate_segments or (self.candidate_text,)
 
     @property
     def key(self) -> str:
         operations = ",".join(self.operations)
         records = ",".join(self.runtime_record_ids)
-        return f"{self.token_index}:{self.candidate_text}:{operations}:{records}"
+        segments = "/".join(self.segments)
+        return (
+            f"{self.start_token}-{self.end_token_exclusive}:"
+            f"{segments}:{operations}:{records}:{int(self.unresolved)}"
+        )
 
 
 @dataclass(frozen=True)
@@ -61,7 +78,11 @@ class SentencePath:
 
     @property
     def text_sequence(self) -> tuple[str, ...]:
-        return tuple(option.candidate_text for option in self.options)
+        return tuple(
+            segment
+            for option in self.options
+            for segment in option.segments
+        )
 
 
 @dataclass(frozen=True)
@@ -78,10 +99,10 @@ _DAKUTEN_PAIRS = (
     ("さ", "ざ"), ("し", "じ"), ("す", "ず"), ("せ", "ぜ"), ("そ", "ぞ"),
     ("た", "だ"), ("ち", "ぢ"), ("つ", "づ"), ("て", "で"), ("と", "ど"),
     ("は", "ば"), ("ひ", "び"), ("ふ", "ぶ"), ("へ", "べ"), ("ほ", "ぼ"),
-    ("ハ", "バ"), ("ヒ", "ビ"), ("フ", "ブ"), ("ヘ", "ベ"), ("ホ", "ボ"),
     ("カ", "ガ"), ("キ", "ギ"), ("ク", "グ"), ("ケ", "ゲ"), ("コ", "ゴ"),
     ("サ", "ザ"), ("シ", "ジ"), ("ス", "ズ"), ("セ", "ゼ"), ("ソ", "ゾ"),
     ("タ", "ダ"), ("チ", "ヂ"), ("ツ", "ヅ"), ("テ", "デ"), ("ト", "ド"),
+    ("ハ", "バ"), ("ヒ", "ビ"), ("フ", "ブ"), ("ヘ", "ベ"), ("ホ", "ボ"),
 )
 _HANDAKUTEN_PAIRS = (
     ("は", "ぱ"), ("ひ", "ぴ"), ("ふ", "ぷ"), ("へ", "ぺ"), ("ほ", "ぽ"),
@@ -139,7 +160,7 @@ def generate_local_variants(
     substitution_alphabet: Sequence[str] = (),
     rule_variants: Mapping[str, Sequence[tuple[str, RecoveryOperation, float]]] | None = None,
 ) -> list[RecoveryVariant]:
-    """Generate finite local candidates only; this function never chooses a correction."""
+    """Generate finite local candidates only; never choose a correction here."""
     if not text:
         return []
 
@@ -191,19 +212,13 @@ def generate_local_variants(
         for index in range(len(text)):
             add(RecoveryVariant(text[:index] + text[index + 1 :], "deletion", 1.0))
 
-    # Insertion/substitution alphabets are intentionally caller supplied. Their
-    # final contents must be calibrated by Golden/Noise/Latency evidence rather
-    # than guessed inside the recovery engine.
+    # Insertion/substitution alphabets are caller supplied deliberately. Final
+    # alphabets and costs require Golden/Noise/Latency calibration rather than
+    # an unverified permanent guess inside the engine.
     for index in range(len(text) + 1):
         for char in insertion_alphabet:
             if char:
-                add(
-                    RecoveryVariant(
-                        text[:index] + char + text[index:],
-                        "insertion",
-                        1.0,
-                    )
-                )
+                add(RecoveryVariant(text[:index] + char + text[index:], "insertion", 1.0))
     for index in range(len(text)):
         for char in substitution_alphabet:
             if char and char != text[index]:
@@ -218,11 +233,27 @@ def generate_local_variants(
     for candidate, operation, cost in (rule_variants or {}).get(text, ()):
         add(RecoveryVariant(candidate, operation, float(cost)))
 
-    ordered = sorted(
+    return sorted(
         variants.values(),
         key=lambda item: (item.cost, item.operation, item.text),
+    )[: limits.max_variants_per_span]
+
+
+def _record_ids(candidates: Sequence) -> tuple[str, ...]:
+    return tuple(sorted({candidate.record_id for candidate in candidates}))
+
+
+def _land_exact(
+    runtime: OpenLexiconRuntime,
+    text: str,
+    *,
+    limits: RecoveryLimits,
+) -> tuple[str, ...]:
+    candidates, _ = runtime.exact_lookup(
+        text,
+        max_candidates=limits.max_candidates_per_variant,
     )
-    return ordered[: limits.max_variants_per_span]
+    return _record_ids(candidates)
 
 
 def _land_variant(
@@ -242,7 +273,7 @@ def _land_variant(
         )
     if not candidates:
         return None
-    record_ids = tuple(sorted({candidate.record_id for candidate in candidates}))
+    record_ids = _record_ids(candidates)
     evidence_ids = tuple(f"runtime:{record_id}" for record_id in record_ids)
     return RecoveryCandidateEvidence(
         candidate_text=variant.text,
@@ -264,7 +295,7 @@ def recover_token_candidates(
     rule_variants: Mapping[str, Sequence[tuple[str, RecoveryOperation, float]]] | None = None,
     force: bool = False,
 ) -> list[RecoveryCandidateEvidence]:
-    """Return landed recovery evidence, never an automatically selected correction."""
+    """Return landed evidence; never automatically select a correction."""
     if not force and token.lexical_status != "NO_MATCH":
         return []
     if not runtime.available:
@@ -286,49 +317,131 @@ def recover_token_candidates(
     return landed
 
 
+def recover_boundary_options(
+    tokens: Sequence[Token],
+    runtime: OpenLexiconRuntime,
+    *,
+    limits: RecoveryLimits,
+    force: bool = False,
+) -> dict[int, list[LatticeOption]]:
+    """Create bounded split/merge paths only when every segment lands exactly."""
+    if not runtime.available:
+        return {}
+    by_start: dict[int, list[LatticeOption]] = {}
+
+    def add(option: LatticeOption) -> None:
+        bucket = by_start.setdefault(option.start_token, [])
+        if len(bucket) < limits.max_boundary_options:
+            bucket.append(option)
+
+    for index, token in enumerate(tokens):
+        if force or token.lexical_status == "NO_MATCH":
+            for split_at in range(1, len(token.surface)):
+                left = token.surface[:split_at]
+                right = token.surface[split_at:]
+                left_ids = _land_exact(runtime, left, limits=limits)
+                right_ids = _land_exact(runtime, right, limits=limits)
+                if not left_ids or not right_ids:
+                    continue
+                record_ids = tuple(sorted({*left_ids, *right_ids}))
+                add(
+                    LatticeOption(
+                        start_token=index,
+                        end_token_exclusive=index + 1,
+                        original_text=token.surface,
+                        candidate_text=token.surface,
+                        candidate_segments=(left, right),
+                        recovery_cost=0.9,
+                        runtime_record_ids=record_ids,
+                        evidence_ids=tuple(f"runtime:{rid}" for rid in record_ids),
+                        operations=("split",),
+                    )
+                )
+
+        if index + 1 >= len(tokens):
+            continue
+        right_token = tokens[index + 1]
+        if not force and (
+            token.lexical_status != "NO_MATCH"
+            and right_token.lexical_status != "NO_MATCH"
+        ):
+            continue
+        merged = token.surface + right_token.surface
+        merged_ids = _land_exact(runtime, merged, limits=limits)
+        if not merged_ids:
+            continue
+        add(
+            LatticeOption(
+                start_token=index,
+                end_token_exclusive=index + 2,
+                original_text=merged,
+                candidate_text=merged,
+                candidate_segments=(merged,),
+                recovery_cost=0.9,
+                runtime_record_ids=merged_ids,
+                evidence_ids=tuple(f"runtime:{rid}" for rid in merged_ids),
+                operations=("merge",),
+            )
+        )
+
+    for options in by_start.values():
+        options.sort(key=lambda item: (item.recovery_cost, item.key))
+    return by_start
+
+
+def _normal_option(token_index: int, token: Token) -> LatticeOption:
+    if token.lexical_status == "NO_MATCH":
+        return LatticeOption(
+            start_token=token_index,
+            end_token_exclusive=token_index + 1,
+            original_text=token.surface,
+            candidate_text=token.surface,
+            recovery_cost=0.0,
+            unresolved=True,
+        )
+    record_ids = tuple(
+        sorted({candidate.record_id for candidate in token.lexical_candidates})
+    )
+    return LatticeOption(
+        start_token=token_index,
+        end_token_exclusive=token_index + 1,
+        original_text=token.surface,
+        candidate_text=token.surface,
+        recovery_cost=0.0,
+        runtime_record_ids=record_ids,
+        evidence_ids=tuple(f"runtime:{rid}" for rid in record_ids),
+    )
+
+
+def _original_path(tokens: Sequence[Token]) -> SentencePath:
+    options = tuple(_normal_option(index, token) for index, token in enumerate(tokens))
+    return SentencePath(
+        options=options,
+        recovery_cost=0.0,
+        unresolved_count=sum(int(option.unresolved) for option in options),
+    )
+
+
 def build_candidate_lattice(
     tokens: Sequence[Token],
     recoveries: Mapping[int, Sequence[RecoveryCandidateEvidence]],
     *,
     limits: RecoveryLimits,
+    boundary_options: Mapping[int, Sequence[LatticeOption]] | None = None,
 ) -> list[SentencePath]:
-    """Build bounded whole-sentence alternatives without declaring a winner."""
-    paths = [SentencePath(options=(), recovery_cost=0.0, unresolved_count=0)]
-    node_count = 0
+    """Build bounded sentence paths including split/merge without choosing meaning."""
+    if not tokens:
+        return []
 
+    edges: dict[int, list[LatticeOption]] = {}
     for token_index, token in enumerate(tokens):
-        options: list[LatticeOption] = []
-        if token.lexical_status != "NO_MATCH":
-            record_ids = tuple(
-                sorted({candidate.record_id for candidate in token.lexical_candidates})
-            )
-            options.append(
-                LatticeOption(
-                    token_index=token_index,
-                    original_text=token.surface,
-                    candidate_text=token.surface,
-                    recovery_cost=0.0,
-                    runtime_record_ids=record_ids,
-                    evidence_ids=tuple(f"runtime:{rid}" for rid in record_ids),
-                )
-            )
-        else:
-            # Preserve an unresolved original path. Unknown/new expressions are
-            # therefore never forced into a typo correction merely because a
-            # nearby dictionary landing exists.
-            options.append(
-                LatticeOption(
-                    token_index=token_index,
-                    original_text=token.surface,
-                    candidate_text=token.surface,
-                    recovery_cost=0.0,
-                    unresolved=True,
-                )
-            )
+        token_edges = [_normal_option(token_index, token)]
+        if token.lexical_status == "NO_MATCH":
             for evidence in recoveries.get(token_index, ())[: limits.max_options_per_span]:
-                options.append(
+                token_edges.append(
                     LatticeOption(
-                        token_index=token_index,
+                        start_token=token_index,
+                        end_token_exclusive=token_index + 1,
                         original_text=token.surface,
                         candidate_text=evidence.candidate_text,
                         recovery_cost=evidence.recovery_cost,
@@ -337,34 +450,71 @@ def build_candidate_lattice(
                         operations=tuple(evidence.operations),
                     )
                 )
+        token_edges.extend((boundary_options or {}).get(token_index, ()))
+        edges[token_index] = sorted(
+            token_edges,
+            key=lambda option: (
+                option.unresolved,
+                option.recovery_cost,
+                option.key,
+            ),
+        )[: limits.max_options_per_span + limits.max_boundary_options + 1]
 
-        next_paths: list[SentencePath] = []
-        for path in paths:
-            for option in options:
+    frontier: dict[int, list[SentencePath]] = {
+        0: [SentencePath(options=(), recovery_cost=0.0, unresolved_count=0)]
+    }
+    node_count = 0
+    token_count = len(tokens)
+
+    for position in range(token_count):
+        current_paths = frontier.get(position, [])
+        if not current_paths:
+            continue
+        for path in current_paths:
+            for option in edges.get(position, ()):
+                if option.end_token_exclusive > token_count:
+                    continue
                 node_count += 1
                 if node_count > limits.max_lattice_nodes:
-                    break
-                next_paths.append(
-                    SentencePath(
-                        options=(*path.options, option),
-                        recovery_cost=path.recovery_cost + option.recovery_cost,
-                        unresolved_count=path.unresolved_count + int(option.unresolved),
+                    # Never return an accidentally partial sentence as a valid path.
+                    complete = frontier.get(token_count, [])
+                    return _finalize_paths(complete, tokens, limits=limits)
+                candidate_path = SentencePath(
+                    options=(*path.options, option),
+                    recovery_cost=path.recovery_cost + option.recovery_cost,
+                    unresolved_count=path.unresolved_count + int(option.unresolved),
+                )
+                destination = option.end_token_exclusive
+                bucket = frontier.setdefault(destination, [])
+                bucket.append(candidate_path)
+                bucket.sort(
+                    key=lambda item: (
+                        item.unresolved_count,
+                        item.recovery_cost,
+                        item.key,
                     )
                 )
-            if node_count > limits.max_lattice_nodes:
-                break
-        if not next_paths:
-            break
-        next_paths.sort(
-            key=lambda path: (
-                path.recovery_cost,
-                path.unresolved_count,
-                path.text_sequence,
-            )
-        )
-        paths = next_paths[: limits.top_k_paths]
+                del bucket[limits.top_k_paths :]
 
-    return paths[: limits.top_k_paths]
+    return _finalize_paths(frontier.get(token_count, []), tokens, limits=limits)
+
+
+def _finalize_paths(
+    paths: Sequence[SentencePath],
+    tokens: Sequence[Token],
+    *,
+    limits: RecoveryLimits,
+) -> list[SentencePath]:
+    ordered = sorted(
+        {path.key: path for path in paths}.values(),
+        key=lambda item: (item.unresolved_count, item.recovery_cost, item.key),
+    )
+    baseline = _original_path(tokens)
+    if baseline.key not in {path.key for path in ordered}:
+        if len(ordered) >= limits.top_k_paths:
+            ordered = ordered[: limits.top_k_paths - 1]
+        ordered.append(baseline)
+    return ordered[: limits.top_k_paths]
 
 
 def decide_sentence_recovery(
