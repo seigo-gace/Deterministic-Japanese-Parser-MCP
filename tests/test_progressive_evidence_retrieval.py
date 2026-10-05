@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from deterministic_japanese_parser_mcp.interpretation_contracts import (
     FieldEvidenceReference,
     RouterRetrievalLimits,
@@ -74,14 +76,24 @@ class FakeLexicalRouter:
 
 
 class FakeProvider:
-    def __init__(self, lane, stage, values):
+    def __init__(self, lane, stage, values, *, exceed_bound=False):
         self.lane = lane
         self.stage = stage
         self.values = list(values)
         self.calls = []
+        self.exceed_bound = exceed_bound
 
-    def retrieve(self, tokens, *, max_candidates):
-        self.calls.append((tuple(token.surface for token in tokens), max_candidates))
+    def retrieve(self, tokens, *, max_candidates, consumer, use):
+        self.calls.append(
+            (
+                tuple(token.surface for token in tokens),
+                max_candidates,
+                consumer,
+                use,
+            )
+        )
+        if self.exceed_bound:
+            return self.values
         return self.values[:max_candidates]
 
 
@@ -127,7 +139,7 @@ def test_selected_essential_evidence_stops_before_deep_when_sufficient():
     )
 
     assert [item.reference.evidence_id for item in result.evidence] == ["essential"]
-    assert essential.calls
+    assert essential.calls == [(('橋',), 8, "sense_resolver", "ranking")]
     assert not deep.calls
     assert not unselected.calls
     assert result.trace.stopped_after_essential is True
@@ -172,7 +184,7 @@ def test_deep_context_runs_only_when_essential_is_insufficient():
     assert result.trace.complete is True
 
 
-def test_field_rights_fail_closed_and_do_not_become_evidence():
+def test_field_rights_context_reaches_provider_and_is_verified_again():
     lexical = FakeLexicalRouter()
     provider = FakeProvider(
         "Noun-Entity",
@@ -197,6 +209,7 @@ def test_field_rights_fail_closed_and_do_not_become_evidence():
         evidence_sufficient=lambda lexical_results, evidence: True,
     )
 
+    assert provider.calls[0][2:] == ("sense_resolver", "ranking")
     assert [item.reference.evidence_id for item in result.evidence] == ["allowed"]
     assert result.trace.denied_evidence_ids == ("denied",)
 
@@ -248,6 +261,40 @@ def test_candidate_budget_exhaustion_is_not_reported_complete():
     assert result.trace.candidate_budget_exhausted is True
     assert result.trace.complete is False
     assert result.evidence == ()
+
+
+def test_denied_evidence_still_consumes_retrieval_budget():
+    lexical = FakeLexicalRouter(candidate_count=0)
+    essential = FakeProvider(
+        "Noun-Entity",
+        "essential",
+        [_evidence("denied", eligible=False)],
+    )
+    deep = FakeProvider(
+        "Noun-Entity",
+        "deep",
+        [_evidence("deep", stage="deep")],
+    )
+    retriever = ProgressiveContextEvidenceRetriever(
+        lexical,
+        [essential, deep],
+        clock_ms=lambda: 0.0,
+    )
+
+    result = retriever.retrieve(
+        tokens=[_token()],
+        router_trace=_trace(total=1, per_lane=1),
+        source_roles=[],
+        consumer="sense_resolver",
+        use="ranking",
+        evidence_sufficient=lambda lexical_results, evidence: False,
+    )
+
+    assert result.evidence == ()
+    assert result.trace.denied_evidence_ids == ("denied",)
+    assert result.trace.candidate_budget_exhausted is True
+    assert result.trace.complete is False
+    assert not deep.calls
 
 
 def test_time_budget_exhaustion_is_fail_closed():
@@ -304,3 +351,28 @@ def test_evidence_candidate_cap_is_shared_with_lexical_work():
     assert len(result.lexical_results[0].candidates) == 2
     assert [item.reference.evidence_id for item in result.evidence] == ["e1"]
     assert provider.calls[0][1] == 1
+
+
+def test_provider_cannot_exceed_orchestrator_candidate_bound():
+    lexical = FakeLexicalRouter(candidate_count=0)
+    provider = FakeProvider(
+        "Noun-Entity",
+        "essential",
+        [_evidence("e1"), _evidence("e2")],
+        exceed_bound=True,
+    )
+    retriever = ProgressiveContextEvidenceRetriever(
+        lexical,
+        [provider],
+        clock_ms=lambda: 0.0,
+    )
+
+    with pytest.raises(ValueError, match="exceeded candidate bound"):
+        retriever.retrieve(
+            tokens=[_token()],
+            router_trace=_trace(total=1, per_lane=1),
+            source_roles=[],
+            consumer="sense_resolver",
+            use="ranking",
+            evidence_sufficient=lambda lexical_results, evidence: True,
+        )
