@@ -12,7 +12,12 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 from typing import Any
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPOSITORY_ROOT))
 
 from tools.compile_direct_final_runtime import _rows, _validate
 from tools.unified_semantic_data import japanese_function_projection as projection
