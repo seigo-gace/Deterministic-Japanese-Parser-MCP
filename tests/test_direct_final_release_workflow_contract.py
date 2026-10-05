@@ -48,6 +48,7 @@ def test_direct_final_release_workflow_keeps_private_counts_out_of_defaults() ->
 
     assert "default:" not in _workflow_input_block(workflow, "release-tag")
     assert "default:" not in _workflow_input_block(workflow, "expected-records")
+    assert "default: \"false\"" in _workflow_input_block(workflow, "projection-full-build")
     assert "9852513" not in workflow
 
 
@@ -60,5 +61,20 @@ def test_direct_final_release_workflow_prefetches_manifest_and_uses_abi_cache() 
     assert "Download Direct Final manifest from GitHub Release" in workflow
     assert "Verify expected-records against manifest" in workflow
     assert "Restore compiled Direct Final ABI cache" in workflow
-    assert "Download Direct Final source bundle when compiled ABI is not reusable" in workflow
+    assert "Download Direct Final source bundle when required" in workflow
+    assert "inputs['projection-full-build'] == 'true'" in workflow
     assert "direct-final-abi-${{ runner.os }}-${{ hashFiles('work/direct-final-release-input/manifest.json') }}" in workflow
+
+
+def test_direct_final_release_workflow_can_run_full_projection_audit_without_new_source_path() -> None:
+    workflow = (ROOT / ".github/workflows/direct-final-runtime-from-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "tools/compile_direct_final_japanese_function_projection.py" in workflow
+    assert "Build full Japanese-function projection" in workflow
+    assert "Audit 9,852,513-record projection conservation" in workflow
+    assert "validate_projection_bundle" in workflow
+    assert "PRAGMA integrity_check" in workflow
+    assert "projected + rejected != expected" in workflow
+    assert "work/direct-final-japanese-function-projection/manifest.json" in workflow

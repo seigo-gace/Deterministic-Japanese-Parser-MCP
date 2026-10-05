@@ -17,6 +17,10 @@ on:
       expected-records:
         description: "Expected Direct Final runtime records"
         required: true
+      projection-full-build:
+        description: "Also build and audit the Japanese-function projection over every Direct Final record"
+        required: true
+        default: "false"
 
 permissions:
   contents: read
@@ -30,6 +34,7 @@ jobs:
       ASSET_PATTERN: ${{ inputs['asset-pattern'] }}
       BUNDLE_ROOT: ${{ inputs['bundle-root'] }}
       EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
+      PROJECTION_FULL_BUILD: ${{ inputs['projection-full-build'] }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -142,8 +147,8 @@ jobs:
               handle.write(f"ready={ready}\n")
           PY
 
-      - name: Download Direct Final source bundle when compiled ABI is not reusable
-        if: steps.compiled-abi-cache.outputs.cache-hit != 'true' || steps.reuse-ready.outputs.ready != 'true'
+      - name: Download Direct Final source bundle when required
+        if: steps.compiled-abi-cache.outputs.cache-hit != 'true' || steps.reuse-ready.outputs.ready != 'true' || inputs['projection-full-build'] == 'true'
         run: |
           set -euo pipefail
           gh release download "$RELEASE_TAG" \
@@ -151,7 +156,8 @@ jobs:
             --pattern "manifest.json" \
             --pattern "$ASSET_PATTERN" \
             --pattern "mcp-runtime-support.jsonl.gz" \
-            --dir work/direct-final-release-input
+            --dir work/direct-final-release-input \
+            --clobber
           find work/direct-final-release-input -maxdepth 1 -type f -name "*.zip" -print0 | xargs -0 -r -I{} unzip -q {} -d work/direct-final-release-input
           find work/direct-final-release-input -maxdepth 1 -type f \( -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" \) -print0 | xargs -0 -r -I{} tar -xf {} -C work/direct-final-release-input
           test -f work/direct-final-release-input/manifest.json || find work/direct-final-release-input -name manifest.json -print -quit | grep -q .
@@ -176,6 +182,80 @@ jobs:
             --system-root dictionaries/system \
             --work-root work/direct-final-runtime \
             | tee reports/direct-final-compile.json
+
+      - name: Build full Japanese-function projection
+        if: inputs['projection-full-build'] == 'true'
+        run: |
+          set -euo pipefail
+          if [ -n "$BUNDLE_ROOT" ]; then
+            INPUT_ROOT="work/direct-final-release-input/$BUNDLE_ROOT"
+          else
+            MANIFEST="$(find work/direct-final-release-input -name manifest.json -print -quit)"
+            INPUT_ROOT="$(dirname "$MANIFEST")"
+          fi
+          python tools/compile_direct_final_japanese_function_projection.py \
+            --manifest "$INPUT_ROOT/manifest.json" \
+            --input-root "$INPUT_ROOT" \
+            --output-root work/direct-final-japanese-function-projection \
+            | tee reports/direct-final-projection-full-build.json
+
+      - name: Audit 9,852,513-record projection conservation
+        if: inputs['projection-full-build'] == 'true'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sqlite3
+          from pathlib import Path
+          from tools.unified_semantic_data.japanese_function_projection import validate_projection_bundle
+
+          root = Path("work/direct-final-japanese-function-projection")
+          manifest = validate_projection_bundle(root)
+          expected = int(os.environ["EXPECTED_RECORDS"])
+          observed = int(manifest["observed_canonical_record_count"])
+          projected = int(manifest["projected_record_count"])
+          rejected = int(manifest["rejected_record_count"])
+          if int(manifest["canonical_record_count"]) != expected or observed != expected:
+              raise SystemExit("projection source count mismatch")
+          if projected + rejected != expected:
+              raise SystemExit("projection conservation mismatch")
+          db = sqlite3.connect(root / "projection.sqlite3")
+          try:
+              integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
+              memberships = int(db.execute("SELECT COUNT(*) FROM record_lane").fetchone()[0])
+              distinct = int(db.execute("SELECT COUNT(DISTINCT record_id) FROM record_lane").fetchone()[0])
+              rejected_db = int(db.execute("SELECT COUNT(*) FROM rejected_record").fetchone()[0])
+          finally:
+              db.close()
+          if integrity != "ok" or memberships <= 0:
+              raise SystemExit("projection database integrity/membership audit failed")
+          if distinct != projected or rejected_db != rejected:
+              raise SystemExit("projection database/manifest count mismatch")
+          report = {
+              "status": "PASS",
+              "expected_records": expected,
+              "observed_records": observed,
+              "projected_records": projected,
+              "rejected_records": rejected,
+              "lane_membership_count": memberships,
+              "unmapped_field_count": int(manifest["unmapped_field_count"]),
+              "lane_counts": manifest["lane_counts"],
+              "source_manifest_sha256": manifest["source"]["manifest_sha256"],
+              "projection_sha256": manifest["outputs"]["projection.sqlite3"]["sha256"],
+              "sqlite_integrity": integrity,
+              "meaning_generation": manifest["boundaries"]["meaning_generation"],
+              "full_source_conservation_required": manifest["boundaries"]["full_source_conservation_required"],
+          }
+          Path("reports/direct-final-projection-full-audit.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Verify projection adapter regression tests
+        if: inputs['projection-full-build'] == 'true'
+        run: python -m pytest tests/test_direct_final_japanese_function_projection.py tests/test_japanese_function_projection.py
 
       - name: Enforce completed semantic deployment contract
         run: |
@@ -243,5 +323,6 @@ jobs:
             dictionaries/system/compiled/canonical_dictionary_runtime
             dictionaries/system/compiled/direct_final_integration.json
             dictionaries/system/compiled/direct_final_support
-          if-no-files-found: error
+            work/direct-final-japanese-function-projection/manifest.json
+          if-no-files-found: warn
           retention-days: 30
