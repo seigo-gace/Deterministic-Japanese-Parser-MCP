@@ -37,7 +37,9 @@ The workflow command set is fixed in repository source. It reuses the same canon
 
 The workflow uploads the generated `reports/` directory as three-day GitHub Actions artifacts. ChatGPT can read the job log and artifacts directly through GitHub.
 
-The temporary `push` trigger is limited to the current integration branch and only the Development Probe/document paths. It exists so the probe source itself can be verified before a main merge. The normal request path is the owner-only `[DEV-PROBE]` Issue trigger.
+Branch self-test run `37183892515` executed the canonical probe on Python 3.10 and 3.12 and both jobs succeeded. ChatGPT directly read the Python 3.12 job log and downloaded artifact `11295574923`; the artifact reports pytest `553` tests with `0` failures, `0` errors and `2` skips, semantic quality `167/167`, and independent semantic holdout `130/130`.
+
+The temporary branch `push` trigger used only for pre-merge self-test is removed after this evidence is recorded. The final request path is the owner-only `[DEV-PROBE]` Issue trigger. Owner-Issue execution on the default branch remains a separate post-merge evidence state and must not be claimed before merge.
 
 ## TGserver ZERO runtime log path
 
@@ -71,29 +73,28 @@ The producer, TGserver ZERO search, Telegram durable storage, and persistent DJP
 
 ## Current direct-readback evidence
 
-TGserver ZERO central-reader verification was executed from owner Issue `seigo-gace/TGserver#36` for the bounded canary marker `vps-canary-20261004T025554Z-8cda0ae` with repository `seigo-gace/Deterministic-Japanese-Parser-MCP`, stream `default`, and severity `warn`.
+The latest bounded TGserver ZERO central-reader verification was executed by ChatGPT through owner Issue `seigo-gace/TGserver#43` for canary marker `vps-canary-20261004T025554Z-8cda0ae`, repository `seigo-gace/Deterministic-Japanese-Parser-MCP`, stream `default`, severity `warn`.
 
-- Central-reader workflow run: `37256729067`
+- Central-reader workflow run: `37260200579`
 - Workflow result: `SUCCESS`
 - mapped project: `P006`
-- `/health`: reachable through the configured ZERO route
-- `/search`: successful
+- `/health`: HTTP `200`
+- `/search`: HTTP `200`
 - returned count: `1`
-- estimated total: `1`
-- search completeness: `FULL_COMPLETE`
-- remaining estimate: `0`
+- total hits: `1`
+- search completeness: `COMPLETE`
 - index health: `HEALTHY`
-- negative evidence state: `HIT_PRESENT`
-- sanitized artifact: `tgserver-zero-search-37256729067`, artifact id `11322479070`
+- index-rebuild risk: `false`
+- sanitized artifact: `tgserver-zero-search-37260200579`, artifact id `11324198308`
 - ChatGPT Actions job-log readback: `PASS`
 - ChatGPT artifact download/readback: `PASS`
-- returned hit: P006 / warn and contains the exact canary marker
+- returned hit: `P006` / `warn`, containing the exact canary marker
 - TGserver vNext used: `FALSE`
-- Cloudflare secret duplicated into this repository: `NONE`
+- Cloudflare Access secret duplicated into this repository: `NONE`
 
-The returned record is a legacy-time-schema hit. The ZERO audit schema therefore reports `PRODUCER_VERIFIED=false`, `FULL_INDEX_COVERAGE_NOT_PROVEN`, and `TELEGRAM_RAW_CORRELATION=NOT_PRESENT_IN_RETURNED_HITS`. These fields are not promoted to PASS by the successful targeted search. The prior canary proves the project producer could deliver a P006 record that the legacy search index returns; persistent-runtime adoption of the current producer revision and Telegram durable correlation remain separate evidence states.
+The isolated canary producer itself previously passed `CANARY_READY=TRUE`, `P006_LOCAL_READBACK=PASS`, `P006_MARKER_MATCH=PASS`, and `CURRENT_RUNTIME_UNTOUCHED=TRUE`. Together with the current central-reader result, this verifies the bounded DJPMCP producer-to-P006-to-search path without promoting the persistent production runtime.
 
-Development Probe source is implemented on the current integration branch. Its branch-scoped push self-test is triggered by changes to this evidence document. Owner-Issue execution is not treated as available until `.github/workflows/dev-probe.yml` exists on the default branch.
+Telegram durable raw-storage correlation remains a distinct evidence state. A successful targeted Meili search does not by itself prove the raw Telegram receipt for the same record. Persistent production `djpmcp-http` promotion is also a separate approval-bound Runtime state.
 
 ## Explicit prohibitions
 
@@ -128,3 +129,23 @@ For runtime/server logs:
 5. do not copy Cloudflare Access credentials into this repository.
 
 If the central reader cannot retrieve a required runtime log, report that evidence as `NOT_VERIFIED`; do not silently fall back to another project's project ID or TGserver vNext.
+
+## Current completion matrix
+
+```text
+PROJECT_AUTHORITY_READ=PASS
+CANONICAL_VERIFY_REUSED=PASS
+DEV_PROBE_SOURCE=IMPLEMENTED
+DEV_PROBE_CI=PASS (branch self-test)
+CHAT_ACTIONS_LOG_READBACK=PASS
+CHAT_ARTIFACT_READBACK=PASS
+TGZERO_PROJECT_REGISTERED=PASS
+TGZERO_PRODUCER=VERIFIED (isolated canary)
+TGZERO_SEARCH=PASS
+SECRET_DUPLICATION=NONE
+ARBITRARY_SERVER_COMMAND=NONE
+PROJECT_DOCS=UPDATED
+OWNER_ISSUE_DEV_PROBE_E2E=NOT_VERIFIED_UNTIL_DEFAULT_BRANCH
+PERSISTENT_RUNTIME_PROMOTION=NOT_EXECUTED
+TELEGRAM_DURABLE_RECEIPT=NOT_VERIFIED
+```
