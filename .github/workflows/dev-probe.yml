@@ -3,29 +3,20 @@ name: Development Probe
 on:
   issues:
     types: [opened, reopened]
-  push:
-    branches:
-      - chatgpt-m1-sync-20261003-1852
-    paths:
-      - .github/workflows/dev-probe.yml
-      - docs/TGSERVER_ZERO_DEVELOPMENT_EVIDENCE.md
-      - docs/README.md
 
 permissions:
   contents: read
   issues: write
 
 concurrency:
-  group: dev-probe-${{ github.event.issue.number || github.run_id }}
+  group: dev-probe-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   verify:
     if: >-
-      (github.event_name == 'issues' &&
-       github.event.issue.user.login == github.repository_owner &&
-       startsWith(github.event.issue.title, '[DEV-PROBE]')) ||
-      (github.event_name == 'push' && github.actor == github.repository_owner)
+      github.event.issue.user.login == github.repository_owner &&
+      startsWith(github.event.issue.title, '[DEV-PROBE]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -107,7 +98,7 @@ jobs:
           retention-days: 3
 
   close-request:
-    if: github.event_name == 'issues' && always()
+    if: always()
     needs: verify
     runs-on: ubuntu-latest
     steps:
