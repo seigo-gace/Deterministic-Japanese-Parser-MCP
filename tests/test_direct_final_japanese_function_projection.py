@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 
 from tools.compile_direct_final_japanese_function_projection import (
     compile_direct_final_projection,
@@ -84,6 +86,21 @@ def _row(entry_id: str, **updates):
     }
     row.update(updates)
     return row
+
+
+def test_direct_final_projection_cli_is_executable_from_repository_root():
+    repository_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "tools/compile_direct_final_japanese_function_projection.py", "--help"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--manifest" in result.stdout
+    assert "--input-root" in result.stdout
+    assert "--output-root" in result.stdout
 
 
 def test_direct_final_projection_preserves_all_source_rows_and_audits_unmapped_fields(tmp_path: Path):
