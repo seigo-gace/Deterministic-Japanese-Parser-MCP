@@ -69,6 +69,32 @@ DJPMCP's runtime producer is a separate state from Source / CI. Current runtime 
 
 The producer, TGserver ZERO search, Telegram durable storage, and persistent DJPMCP runtime are verified and reported separately.
 
+## Current direct-readback evidence
+
+TGserver ZERO central-reader verification was executed from owner Issue `seigo-gace/TGserver#36` for the bounded canary marker `vps-canary-20261004T025554Z-8cda0ae` with repository `seigo-gace/Deterministic-Japanese-Parser-MCP`, stream `default`, and severity `warn`.
+
+- Central-reader workflow run: `37256729067`
+- Workflow result: `SUCCESS`
+- mapped project: `P006`
+- `/health`: reachable through the configured ZERO route
+- `/search`: successful
+- returned count: `1`
+- estimated total: `1`
+- search completeness: `FULL_COMPLETE`
+- remaining estimate: `0`
+- index health: `HEALTHY`
+- negative evidence state: `HIT_PRESENT`
+- sanitized artifact: `tgserver-zero-search-37256729067`, artifact id `11322479070`
+- ChatGPT Actions job-log readback: `PASS`
+- ChatGPT artifact download/readback: `PASS`
+- returned hit: P006 / warn and contains the exact canary marker
+- TGserver vNext used: `FALSE`
+- Cloudflare secret duplicated into this repository: `NONE`
+
+The returned record is a legacy-time-schema hit. The ZERO audit schema therefore reports `PRODUCER_VERIFIED=false`, `FULL_INDEX_COVERAGE_NOT_PROVEN`, and `TELEGRAM_RAW_CORRELATION=NOT_PRESENT_IN_RETURNED_HITS`. These fields are not promoted to PASS by the successful targeted search. The prior canary proves the project producer could deliver a P006 record that the legacy search index returns; persistent-runtime adoption of the current producer revision and Telegram durable correlation remain separate evidence states.
+
+Development Probe source is implemented on the current integration branch. Its branch-scoped push self-test is triggered by changes to this evidence document. Owner-Issue execution is not treated as available until `.github/workflows/dev-probe.yml` exists on the default branch.
+
 ## Explicit prohibitions
 
 The Development Probe and TGserver ZERO reader must not provide:
@@ -88,7 +114,7 @@ Server/runtime mutations remain subject to the project and server-core approval 
 
 For source-side evidence:
 
-1. create an owner `[DEV-PROBE]` Issue in this repository;
+1. create an owner `[DEV-PROBE]` Issue in this repository after the workflow exists on the default branch;
 2. read the Development Probe Actions job logs;
 3. read the matching `dev-probe-<run_id>-python-3.10` and `dev-probe-<run_id>-python-3.12` artifacts when report-level evidence is needed;
 4. keep Source / Test / CI conclusions separate from Runtime conclusions.
