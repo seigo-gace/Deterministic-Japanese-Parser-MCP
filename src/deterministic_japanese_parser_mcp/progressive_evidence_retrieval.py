@@ -37,6 +37,8 @@ class EvidenceLaneProvider(Protocol):
         tokens: Sequence[Token],
         *,
         max_candidates: int,
+        consumer: str,
+        use: str,
     ) -> Sequence[RetrievedEvidence]: ...
 
 
@@ -71,8 +73,8 @@ EvidenceSufficiencyProbe = Callable[
 class ProgressiveContextEvidenceRetriever:
     """Retrieve only routed evidence, progressively and with fail-closed bounds.
 
-    Existing ``RetrievalRouter`` remains the lexical retrieval authority.  This
-    class only orchestrates when existing evidence sources are consulted.  It
+    Existing ``RetrievalRouter`` remains the lexical retrieval authority. This
+    class only orchestrates when existing evidence sources are consulted. It
     does not choose a sense, create a MeaningGraph proposition, or turn an
     evidence/ranking field into semantic authority.
     """
@@ -135,7 +137,7 @@ class ProgressiveContextEvidenceRetriever:
     ) -> ProgressiveRetrievalResult:
         """Run lexical -> essential evidence -> optional deep evidence.
 
-        The caller owns the semantic sufficiency decision.  If the candidate or
+        The caller owns the semantic sufficiency decision. If the candidate or
         time budget is exhausted before the requested work completes, ``complete``
         is false; partial retrieval is never promoted to a completed result.
         """
@@ -203,6 +205,8 @@ class ProgressiveContextEvidenceRetriever:
             if provider.lane not in selected_set:
                 skipped.append(f"{key}:lane_not_selected")
                 continue
+            if provider.stage not in providers_by_stage:
+                raise ValueError(f"invalid evidence provider stage: {provider.stage}")
             providers_by_stage[provider.stage].append(provider)
 
         def run_stage(stage: RetrievalStage) -> bool:
@@ -217,7 +221,22 @@ class ProgressiveContextEvidenceRetriever:
                     return False
                 per_call = min(limits.max_candidates_per_lane, remaining)
                 attempted.append(self._provider_key(provider))
-                values = provider.retrieve(tokens, max_candidates=per_call)
+                # Rights context is passed to the source adapter so a compliant
+                # provider can avoid loading forbidden fields in the first place.
+                # The orchestrator still verifies every returned reference.
+                values = provider.retrieve(
+                    tokens,
+                    max_candidates=per_call,
+                    consumer=consumer,
+                    use=use,
+                )
+                if len(values) > per_call:
+                    raise ValueError(
+                        f"evidence provider exceeded candidate bound: {self._provider_key(provider)}"
+                    )
+                # Retrieval work consumes budget even when a returned field is
+                # later rejected by rights/provenance validation.
+                candidate_count += len(values)
                 accepted, rejected = self._filter_permitted(
                     values,
                     lane=provider.lane,
@@ -228,7 +247,6 @@ class ProgressiveContextEvidenceRetriever:
                 )
                 denied.extend(rejected)
                 evidence.extend(accepted)
-                candidate_count += len(accepted)
             return True
 
         essential_complete = run_stage("essential")
