@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from pydantic import Field
+
 from .interpretation_contracts import (
     FieldEvidenceReference,
     RecoveryInterpretationEvidence,
@@ -23,10 +25,10 @@ NON_SEMANTIC_INTERPRETATION_FIELDS = frozenset(
 def _hash_compatible_exclude(exclude: Any) -> Any:
     """Keep interpretation evidence outside MeaningGraph 2.3 semantic identity.
 
-    Existing hash sites explicitly exclude ``semantic_hash``.  When that
+    Existing hash sites explicitly exclude ``semantic_hash``. When that
     contract is in use, Router/Recovery/Rights evidence is also excluded so
     attaching inspectable evidence cannot rewrite the semantic identity of an
-    otherwise identical graph.  Normal serialization keeps the evidence.
+    otherwise identical graph. Normal serialization keeps the evidence.
     """
     if isinstance(exclude, (set, frozenset)) and "semantic_hash" in exclude:
         return set(exclude) | set(NON_SEMANTIC_INTERPRETATION_FIELDS)
@@ -36,16 +38,16 @@ def _hash_compatible_exclude(exclude: Any) -> Any:
 class InterpretationMeaningGraph(MeaningGraph):
     """MeaningGraph 2.3 plus inspectable, non-authoritative interpretation evidence.
 
-    The added fields explain routing/recovery/provenance decisions.  They are
-    intentionally not semantic authority.  A recovered interpretation changes
+    The added fields explain routing/recovery/provenance decisions. They are
+    intentionally not semantic authority. A recovered interpretation changes
     semantic identity only when it actually changes existing semantic graph
     fields such as propositions, entities, clauses, reading analysis, or
     unresolved state.
     """
 
     router_trace: RouterTrace | None = None
-    recovery_evidence: list[RecoveryInterpretationEvidence] = []
-    field_evidence: list[FieldEvidenceReference] = []
+    recovery_evidence: list[RecoveryInterpretationEvidence] = Field(default_factory=list)
+    field_evidence: list[FieldEvidenceReference] = Field(default_factory=list)
 
     def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         if "exclude" in kwargs:
