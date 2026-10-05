@@ -8,6 +8,20 @@ Participation is governed by [`GOVERNANCE.md`](GOVERNANCE.md). A pull request is
 
 参加には[`GOVERNANCE.md`](GOVERNANCE.md)が適用されます。Pull Requestは提案であり、Merge請求権、Maintainer権、公式Status、Release権、Project Marks使用権を発生させません。Brand利用には別途[`TRADEMARK.md`](TRADEMARK.md)が適用されます。
 
+## まず何に同意すればよいか / What must I agree to?
+
+| Contribution | DCO (`Signed-off-by`) | CLA | Merge condition |
+|---|---|---|---|
+| Code / parser / runtime / API / security / CI / performance | 必須 / Required | 必須 / Required | DCO + Project-Owner-accepted CLA + tests |
+| Dictionary / language data / Gold / evaluation / transformation logic | 必須 / Required | 必須 / Required | DCO + CLA + provenance/license evidence + tests |
+| Architecture / specification / governance / licensing / other substantive docs | 必須 / Required | 必須 / Required | DCO + CLA + review |
+| 明白なTypo、意味を変えないformat/broken-link修正 | 必須 / Required | Project OwnerがPR上で明示免除した場合のみ不要 | DCO + recorded waiver |
+| Bug report / feature requestのみでCode・Dataset等を提出しない | Commit提出なしなら不要 | 通常不要 | Issue review |
+
+**原則は「Commitを提出するならDCO、実質的ContributionならDCO + CLA」です。** CLAが不要か不明な場合にContributorが自己判断で省略してはいけません。Project Ownerが非実質的変更として免除する場合だけ、PR上へ書面で免除を記録します。沈黙は免除ではありません。
+
+**Default rule: commits require DCO; substantive contributions require both DCO and an accepted CLA.** Contributors must not self-declare a CLA exemption. Only an explicit Project Owner waiver recorded on the pull request can exempt a clearly non-substantive contribution.
+
 ## Contribution rights / Contributionの権利処理
 
 ### 1. DCO is required for every commit / 全CommitでDCO必須
