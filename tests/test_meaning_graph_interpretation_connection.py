@@ -6,11 +6,17 @@ from deterministic_japanese_parser_mcp.interpretation_contracts import (
     RouterTrace,
 )
 from deterministic_japanese_parser_mcp.meaning_graph_interpretation import (
+    InterpretationAnalyzeResponse,
     InterpretationMeaningGraph,
     attach_interpretation_evidence,
+    attach_interpretation_to_response,
     interpretation_evidence_summary,
 )
-from deterministic_japanese_parser_mcp.models import MeaningGraph
+from deterministic_japanese_parser_mcp.models import (
+    AnalyzeResponse,
+    MeaningGraph,
+    OverallStatus,
+)
 
 
 def _trace() -> RouterTrace:
@@ -48,6 +54,17 @@ def _semantic_payload(graph: MeaningGraph) -> str:
     return graph.model_dump_json(exclude={"semantic_hash"})
 
 
+def _response() -> AnalyzeResponse:
+    return AnalyzeResponse(
+        overall_status=OverallStatus.COMPLETE,
+        execution_allowed=True,
+        original_text="確認する",
+        normalized_text="確認する",
+        analysis_path="FAST",
+        meaning_graph=MeaningGraph(semantic_hash="stable-hash"),
+    )
+
+
 def test_interpretation_evidence_attaches_without_changing_semantic_identity():
     base = MeaningGraph()
     connected = attach_interpretation_evidence(
@@ -77,6 +94,23 @@ def test_normal_serialization_keeps_inspectable_interpretation_evidence():
         "recovery_evidence_count": 0,
         "field_evidence_count": 1,
     }
+
+
+def test_response_specialization_preserves_evidence_and_existing_hash():
+    response = _response()
+    connected = attach_interpretation_to_response(
+        response,
+        router_trace=_trace(),
+        field_evidence=[_field_evidence()],
+    )
+
+    assert isinstance(connected, InterpretationAnalyzeResponse)
+    payload = connected.model_dump(mode="json")
+    assert payload["meaning_graph"]["semantic_hash"] == "stable-hash"
+    assert payload["meaning_graph"]["router_trace"]["routing_version"] == (
+        "japanese-function-router-v1"
+    )
+    assert payload["meaning_graph"]["field_evidence"][0]["evidence_id"] == "ev-1"
 
 
 def test_real_semantic_change_still_changes_semantic_identity():
