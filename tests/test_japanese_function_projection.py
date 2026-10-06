@@ -129,14 +129,55 @@ def test_compile_preserves_rejected_records_and_unknown_fields(monkeypatch, tmp_
             "SELECT reason FROM rejected_record WHERE record_id='CDICT-empty'"
         ).fetchone()
         unmapped = connection.execute(
-            "SELECT source_reference,payload_sha256,reason FROM unmapped_field WHERE record_id='CDICT-1' AND field_name='future_field'"
+            "SELECT field_name,record_count FROM unmapped_field_summary WHERE field_name='future_field'"
         ).fetchone()
+        stored = connection.execute(
+            "SELECT record_id,lane_mask FROM record_projection WHERE record_id='CDICT-1'"
+        ).fetchone()
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
     finally:
         connection.close()
     assert reject == ("no_supported_projection_lane",)
-    assert unmapped[0] == "canonical:CDICT-1:future_field"
-    assert unmapped[1] == projection._stable_json_sha256({"opaque": [1, 2, 3]})
-    assert unmapped[2] == "field_not_in_projection_policy_v2"
+    assert unmapped == ("future_field", 1)
+    assert stored[0] == "CDICT-1"
+    assert stored[1] == projection.lane_mask_for(projection.assign_record_lanes(_record("CDICT-1", future_field={"opaque": [1, 2, 3]})))
+    assert "record_lane" not in tables
+    assert "unmapped_field" not in tables
+    assert "record_identity" not in tables
+    assert {"record_projection", "unmapped_field_summary"}.issubset(tables)
+
+
+def test_compact_storage_keeps_one_projection_row_for_multi_lane_record(monkeypatch, tmp_path: Path):
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    (canonical / "manifest.json").write_text(json.dumps({"record_count": 1}) + "\n", encoding="utf-8")
+    record = _record(
+        semantic_facets={
+            "semantic_targets": ["predicate", "syntax", "usage", "document-structure"],
+            "usage_labels": ["擬音", "慣用表現"],
+        },
+        approval={"scopes": {"lexical": "approved"}},
+    )
+    monkeypatch.setattr(
+        projection,
+        "validate_compiled_dictionary_root",
+        lambda root: {"record_count": 1, "record_shards": 0},
+    )
+    monkeypatch.setattr(projection, "_iter_canonical_records", lambda root: iter([record]))
+    output = tmp_path / "projection"
+    manifest = projection.compile_japanese_function_projection(canonical, output)
+    assert manifest["lane_membership_count"] > 1
+    db = sqlite3.connect(output / "projection.sqlite3")
+    try:
+        row_count = db.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0]
+        lane_mask = db.execute("SELECT lane_mask FROM record_projection").fetchone()[0]
+    finally:
+        db.close()
+    assert row_count == 1
+    assert lane_mask == projection.lane_mask_for(projection.assign_record_lanes(record))
 
 
 def test_bundle_validation_fails_closed_on_policy_mismatch(monkeypatch, tmp_path: Path):

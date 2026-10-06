@@ -20,7 +20,7 @@ from typing import Any
 from .canonical_dictionary import validate_compiled_dictionary_root
 
 
-PROJECTION_SCHEMA_VERSION = "1.1.0"
+PROJECTION_SCHEMA_VERSION = "2.0.0"
 PROJECTION_POLICY_VERSION = "japanese-function-projection-v2"
 SCORING_POLICY_VERSION = "japanese-function-ranking-v1"
 
@@ -38,6 +38,14 @@ LANES = (
     "Document Structure",
     "Evidence-Provenance-Rights",
 )
+LANE_BITS = {lane: 1 << index for index, lane in enumerate(LANES)}
+
+
+def lane_mask_for(lanes: Iterable[str]) -> int:
+    mask = 0
+    for lane in lanes:
+        mask |= LANE_BITS[lane]
+    return mask
 
 _POS_RULES: dict[str, tuple[str, ...]] = {
     "Noun-Entity": ("noun", "proper noun", "pronoun", "名詞", "代名詞", "固有名詞"),
@@ -219,39 +227,31 @@ def _connect(path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA foreign_keys=ON")
     connection.executescript(
         """
-        CREATE TABLE bundle_metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE record_lane(
-            record_id TEXT NOT NULL,
-            lane TEXT NOT NULL,
-            reasons_json TEXT NOT NULL,
-            PRIMARY KEY(record_id, lane)
-        );
-        CREATE INDEX record_lane_lane_record ON record_lane(lane, record_id);
+        CREATE TABLE bundle_metadata(
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE record_projection(
+            record_id TEXT PRIMARY KEY,
+            lane_mask INTEGER NOT NULL CHECK(lane_mask > 0)
+        ) WITHOUT ROWID;
         CREATE TABLE rejected_record(
             record_id TEXT PRIMARY KEY,
-            reason TEXT NOT NULL,
-            source_reference TEXT NOT NULL,
-            payload_sha256 TEXT NOT NULL
-        );
-        CREATE TABLE unmapped_field(
-            record_id TEXT NOT NULL,
-            field_name TEXT NOT NULL,
-            source_reference TEXT NOT NULL,
-            payload_sha256 TEXT NOT NULL,
-            reason TEXT NOT NULL,
-            PRIMARY KEY(record_id, field_name)
-        );
-        CREATE TABLE record_identity(
+            reason TEXT NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE unmapped_field_summary(
+            field_name TEXT PRIMARY KEY,
+            record_count INTEGER NOT NULL CHECK(record_count > 0)
+        ) WITHOUT ROWID;
+        CREATE TEMP TABLE record_identity(
             identity_sha256 TEXT PRIMARY KEY,
             canonical_record_id TEXT NOT NULL UNIQUE
-        );
+        ) WITHOUT ROWID;
         CREATE TABLE duplicate_record(
             duplicate_record_id TEXT PRIMARY KEY,
             canonical_record_id TEXT NOT NULL,
-            identity_sha256 TEXT NOT NULL,
-            source_reference TEXT NOT NULL
-        );
-        CREATE INDEX duplicate_record_identity ON duplicate_record(identity_sha256, canonical_record_id);
+            identity_sha256 TEXT NOT NULL
+        ) WITHOUT ROWID;
         """
     )
     return connection
@@ -280,11 +280,24 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         raise ValueError("projection bundle database digest mismatch")
     connection = sqlite3.connect(f"file:{database_path.resolve().as_posix()}?mode=ro&immutable=1", uri=True)
     try:
-        projected = int(connection.execute("SELECT COUNT(DISTINCT record_id) FROM record_lane").fetchone()[0])
+        projected = int(connection.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0])
         rejected = int(connection.execute("SELECT COUNT(*) FROM rejected_record").fetchone()[0])
-        memberships = int(connection.execute("SELECT COUNT(*) FROM record_lane").fetchone()[0])
-        unmapped = int(connection.execute("SELECT COUNT(*) FROM unmapped_field").fetchone()[0])
         duplicates = int(connection.execute("SELECT COUNT(*) FROM duplicate_record").fetchone()[0])
+        unmapped = int(
+            connection.execute(
+                "SELECT COALESCE(SUM(record_count),0) FROM unmapped_field_summary"
+            ).fetchone()[0]
+        )
+        lane_counts = {
+            lane: int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM record_projection WHERE (lane_mask & ?) != 0",
+                    (bit,),
+                ).fetchone()[0]
+            )
+            for lane, bit in LANE_BITS.items()
+        }
+        memberships = sum(lane_counts.values())
     finally:
         connection.close()
     if projected != int(manifest.get("projected_record_count", -1)):
@@ -293,6 +306,8 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         raise ValueError("projection bundle rejected record count mismatch")
     if memberships != int(manifest.get("lane_membership_count", -1)):
         raise ValueError("projection bundle membership count mismatch")
+    if lane_counts != dict(manifest.get("lane_counts") or {}):
+        raise ValueError("projection bundle lane count mismatch")
     if unmapped != int(manifest.get("unmapped_field_count", -1)):
         raise ValueError("projection bundle unmapped field count mismatch")
     if duplicates != int(manifest.get("duplicate_record_count", 0)):
@@ -322,6 +337,7 @@ def compile_japanese_function_projection(canonical_root: Path, output_root: Path
     rejected_count = 0
     membership_count = 0
     unmapped_count = 0
+    unmapped_field_counts: dict[str, int] = {}
     lane_counts = {lane: 0 for lane in LANES}
     try:
         for record in _iter_canonical_records(canonical_root):
@@ -330,39 +346,34 @@ def compile_japanese_function_projection(canonical_root: Path, output_root: Path
             if not record_id:
                 synthetic_id = f"missing-id:{source_count:012d}"
                 connection.execute(
-                    "INSERT INTO rejected_record(record_id,reason,source_reference,payload_sha256) VALUES(?,?,?,?)",
-                    (synthetic_id, "missing_dictionary_id", f"canonical:{synthetic_id}", _stable_json_sha256(record)),
+                    "INSERT INTO rejected_record(record_id,reason) VALUES(?,?)",
+                    (synthetic_id, "missing_dictionary_id"),
                 )
                 rejected_count += 1
                 continue
             lanes = assign_record_lanes(record)
             if not lanes:
                 connection.execute(
-                    "INSERT INTO rejected_record(record_id,reason,source_reference,payload_sha256) VALUES(?,?,?,?)",
-                    (record_id, "no_supported_projection_lane", f"canonical:{record_id}", _stable_json_sha256(record)),
+                    "INSERT INTO rejected_record(record_id,reason) VALUES(?,?)",
+                    (record_id, "no_supported_projection_lane"),
                 )
                 rejected_count += 1
             else:
                 projected_count += 1
-                for lane, reasons in lanes.items():
-                    connection.execute(
-                        "INSERT INTO record_lane(record_id,lane,reasons_json) VALUES(?,?,?)",
-                        (record_id, lane, json.dumps(reasons, ensure_ascii=False, sort_keys=True)),
-                    )
-                    membership_count += 1
+                connection.execute(
+                    "INSERT INTO record_projection(record_id,lane_mask) VALUES(?,?)",
+                    (record_id, lane_mask_for(lanes)),
+                )
+                membership_count += len(lanes)
+                for lane in lanes:
                     lane_counts[lane] += 1
             for field_name in sorted(set(record) - _KNOWN_TOP_LEVEL_FIELDS):
-                connection.execute(
-                    "INSERT INTO unmapped_field(record_id,field_name,source_reference,payload_sha256,reason) VALUES(?,?,?,?,?)",
-                    (
-                        record_id,
-                        field_name,
-                        f"canonical:{record_id}:{field_name}",
-                        _stable_json_sha256(record[field_name]),
-                        "field_not_in_projection_policy_v2",
-                    ),
-                )
+                unmapped_field_counts[field_name] = unmapped_field_counts.get(field_name, 0) + 1
                 unmapped_count += 1
+        connection.executemany(
+            "INSERT INTO unmapped_field_summary(field_name,record_count) VALUES(?,?)",
+            sorted(unmapped_field_counts.items()),
+        )
         metadata = {
             "schema_version": PROJECTION_SCHEMA_VERSION,
             "projection_policy_version": PROJECTION_POLICY_VERSION,
@@ -396,10 +407,13 @@ def compile_japanese_function_projection(canonical_root: Path, output_root: Path
             "canonical_dictionary_is_authority": True,
             "meaning_generation": False,
             "unknown_field_preservation": True,
+            "unknown_field_audit_mode": "field-count-summary",
             "unknown_field_payload_duplication": False,
             "rejected_record_preservation": True,
             "rejected_payload_duplication": False,
             "deterministic_lane_assignment": True,
+            "storage_model": "single-record-lane-bitmask-v1",
+            "build_identity_persisted": False,
         },
         "outputs": {
             "projection.sqlite3": {

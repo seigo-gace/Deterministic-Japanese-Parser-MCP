@@ -144,12 +144,21 @@ def test_direct_final_projection_preserves_all_source_rows_and_audits_unmapped_f
     db = sqlite3.connect(output / "projection.sqlite3")
     try:
         unmapped = db.execute(
-            "SELECT record_id,field_name,reason FROM unmapped_field ORDER BY record_id,field_name"
+            "SELECT field_name,record_count FROM unmapped_field_summary ORDER BY field_name"
         ).fetchall()
+        row_count = db.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0]
+        tables = {
+            row[0]
+            for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
     finally:
         db.close()
-    assert ("DF-1", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v2") in unmapped
-    assert ("DF-2", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v2") in unmapped
+    assert ("metrics", 2) in unmapped
+    assert row_count == 2
+    assert "record_lane" not in tables
+    assert "unmapped_field" not in tables
+    assert "record_identity" not in tables
+    assert {"record_projection", "unmapped_field_summary"}.issubset(tables)
 
 
 def test_direct_final_projection_fails_closed_when_manifest_count_disagrees(tmp_path: Path):
@@ -247,12 +256,21 @@ def test_direct_final_projection_dedupes_same_semantic_record_without_collapsing
         duplicate = db.execute(
             "SELECT duplicate_record_id,canonical_record_id FROM duplicate_record"
         ).fetchone()
-        columns = {
-            row[1]
-            for row in db.execute("PRAGMA table_info(unmapped_field)")
+        projection_rows = db.execute(
+            "SELECT record_id,lane_mask FROM record_projection ORDER BY record_id"
+        ).fetchall()
+        tables = {
+            row[0]
+            for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     finally:
         db.close()
     assert duplicate == ("DF-B", "DF-A")
-    assert "payload_json" not in columns
-    assert {"source_reference", "payload_sha256"}.issubset(columns)
+    assert [row[0] for row in projection_rows] == ["DF-A", "DF-C"]
+    assert all(row[1] > 0 for row in projection_rows)
+    assert "record_identity" not in tables
+    assert "record_lane" not in tables
+    assert "unmapped_field" not in tables
+    assert {"record_projection", "unmapped_field_summary", "duplicate_record"}.issubset(tables)
+    assert result["boundaries"]["storage_model"] == "single-record-lane-bitmask-v1"
+    assert result["boundaries"]["build_identity_persisted"] is False

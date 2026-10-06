@@ -215,31 +215,54 @@ jobs:
           observed = int(manifest["observed_canonical_record_count"])
           projected = int(manifest["projected_record_count"])
           rejected = int(manifest["rejected_record_count"])
+          duplicates = int(manifest.get("duplicate_record_count", 0))
           if int(manifest["canonical_record_count"]) != expected or observed != expected:
               raise SystemExit("projection source count mismatch")
-          if projected + rejected != expected:
+          if projected + rejected + duplicates != expected:
               raise SystemExit("projection conservation mismatch")
           db = sqlite3.connect(root / "projection.sqlite3")
           try:
               integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
-              memberships = int(db.execute("SELECT COUNT(*) FROM record_lane").fetchone()[0])
-              distinct = int(db.execute("SELECT COUNT(DISTINCT record_id) FROM record_lane").fetchone()[0])
+              projected_db = int(db.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0])
               rejected_db = int(db.execute("SELECT COUNT(*) FROM rejected_record").fetchone()[0])
+              duplicate_db = int(db.execute("SELECT COUNT(*) FROM duplicate_record").fetchone()[0])
+              unmapped_db = int(
+                  db.execute(
+                      "SELECT COALESCE(SUM(record_count),0) FROM unmapped_field_summary"
+                  ).fetchone()[0]
+              )
+              dangling_duplicates = int(db.execute(
+                  "SELECT COUNT(*) FROM duplicate_record d "
+                  "WHERE NOT EXISTS (SELECT 1 FROM record_projection p WHERE p.record_id=d.canonical_record_id) "
+                  "AND NOT EXISTS (SELECT 1 FROM rejected_record r WHERE r.record_id=d.canonical_record_id)"
+              ).fetchone()[0])
           finally:
               db.close()
+          memberships = int(manifest["lane_membership_count"])
           if integrity != "ok" or memberships <= 0:
               raise SystemExit("projection database integrity/membership audit failed")
-          if distinct != projected or rejected_db != rejected:
+          if projected_db != projected or rejected_db != rejected or duplicate_db != duplicates:
               raise SystemExit("projection database/manifest count mismatch")
+          if unmapped_db != int(manifest["unmapped_field_count"]):
+              raise SystemExit("projection unmapped summary mismatch")
+          if dangling_duplicates != 0:
+              raise SystemExit("projection duplicate reference integrity failed")
           report = {
               "status": "PASS",
               "expected_records": expected,
               "observed_records": observed,
               "projected_records": projected,
               "rejected_records": rejected,
+              "duplicate_record_count": duplicates,
               "lane_membership_count": memberships,
               "unmapped_field_count": int(manifest["unmapped_field_count"]),
               "lane_counts": manifest["lane_counts"],
+              "source_category_profiles": manifest.get("source_category_profiles", {}),
+              "source_payload_duplication": manifest["boundaries"].get("source_payload_duplication"),
+              "semantic_identity_deduplication": manifest["boundaries"].get("semantic_identity_deduplication"),
+              "storage_model": manifest["boundaries"].get("storage_model"),
+              "build_identity_persisted": manifest["boundaries"].get("build_identity_persisted"),
+              "projection_bytes": int(manifest["outputs"]["projection.sqlite3"]["bytes"]),
               "source_manifest_sha256": manifest["source"]["manifest_sha256"],
               "projection_sha256": manifest["outputs"]["projection.sqlite3"]["sha256"],
               "sqlite_integrity": integrity,
