@@ -11,6 +11,7 @@ import sys
 from tools.compile_direct_final_japanese_function_projection import (
     compile_direct_final_projection,
 )
+from tools.unified_semantic_data import japanese_function_projection as projection
 
 
 def _sha(path: Path) -> str:
@@ -211,6 +212,68 @@ def test_direct_final_projection_maps_explicit_japanese_structure_lanes(tmp_path
     assert result["lane_counts"]["Syntax-Case-Clause"] >= 1
     assert result["lane_counts"]["Document Structure"] >= 1
     assert result["lane_counts"]["Usage-Context-Pragmatics"] >= 1
+
+
+def test_direct_final_projection_maps_explicit_source_and_pos_evidence_to_missing_lanes(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row(
+            "DF-ONO-SOURCE",
+            surface="わくわく",
+            lemma="わくわく",
+            reading="ワクワク",
+            source_datasets=["j-ono-definitions"],
+            entry_types=["lexical"],
+            source_roles=["lexical-definition", "usage"],
+        ),
+        _row(
+            "DF-PHRASE",
+            surface="腹を割る",
+            lemma="腹を割る",
+            reading="ハラヲワル",
+            pos=["phrase"],
+        ),
+        _row(
+            "DF-DOCUMENT",
+            surface="文書",
+            lemma="文書",
+            reading="ブンショ",
+            pos=["document"],
+        ),
+        _row(
+            "DF-INTERJECTION",
+            surface="ああ",
+            lemma="ああ",
+            reading="アア",
+            pos=["感動詞"],
+            source_datasets=["generic-lexicon"],
+        ),
+    ]
+    manifest = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["lane_counts"]["Onomatopoeia"] == 1
+    assert result["lane_counts"]["Multiword"] >= 1
+    assert result["lane_counts"]["Document Structure"] >= 1
+    assert result["source_category_profiles"]["source_datasets"]["distinct_values"] >= 2
+    assert "sense_labels" in result["source_category_profiles"]
+
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        rows_by_id = {
+            record_id: mask
+            for record_id, mask in db.execute(
+                "SELECT record_id,lane_mask FROM record_projection"
+            )
+        }
+    finally:
+        db.close()
+    ono_bit = projection.LANE_BITS["Onomatopoeia"]
+    assert rows_by_id["DF-ONO-SOURCE"] & ono_bit
+    assert not (rows_by_id["DF-INTERJECTION"] & ono_bit)
 
 
 def test_direct_final_projection_dedupes_same_semantic_record_without_collapsing_homophones(tmp_path: Path):
