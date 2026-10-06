@@ -79,7 +79,12 @@ def test_direct_final_release_workflow_can_run_full_projection_audit_without_new
     assert "projected + rejected + duplicates != expected" in workflow
     assert "duplicate_record_count" in workflow
     assert "SELECT COUNT(*) FROM duplicate_record" in workflow
+    assert "SELECT COUNT(*) FROM record_projection" in workflow
+    assert "unmapped_field_summary" in workflow
+    assert "record_lane" not in workflow
     assert "dangling_duplicates" in workflow
     assert "source_category_profiles" in workflow
     assert "source_payload_duplication" in workflow
+    assert "storage_model" in workflow
+    assert "projection_bytes" in workflow
     assert "work/direct-final-japanese-function-projection/manifest.json" in workflow
