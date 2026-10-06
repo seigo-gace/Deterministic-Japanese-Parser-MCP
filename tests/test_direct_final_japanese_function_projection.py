@@ -146,7 +146,7 @@ def test_direct_final_projection_preserves_all_source_rows_and_audits_unmapped_f
         ).fetchall()
     finally:
         db.close()
-    assert ("DF-1", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v1") in unmapped
+    assert ("DF-1", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v2") in unmapped
     assert ("DF-2", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v1") in unmapped
 
 
@@ -177,3 +177,80 @@ def test_direct_final_projection_does_not_leave_staging_or_rollback(tmp_path: Pa
     compile_direct_final_projection(manifest_path=manifest, input_root=source, output_root=output)
     assert not output.with_name(output.name + ".staging").exists()
     assert not output.with_name(output.name + ".rollback").exists()
+
+
+
+def test_direct_final_projection_maps_explicit_japanese_structure_lanes(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row("DF-ONO", surface="わくわく", lemma="わくわく", reading="ワクワク", entry_types=["擬態語"]),
+        _row("DF-MW", surface="腹を割る", lemma="腹を割る", reading="ハラヲワル", entry_types=["慣用表現"]),
+        _row("DF-SYN", surface="が", lemma="が", reading="ガ", relations=[{"type": "dependency", "target": "predicate"}]),
+        _row("DF-DOC", surface="しかし", lemma="しかし", reading="シカシ", source_roles=["discourse-structure"]),
+        _row("DF-USAGE", surface="お召し上がりになる", lemma="召し上がる", reading="メシアガル", usage_labels=["register-formal"]),
+    ]
+    manifest = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["lane_counts"]["Onomatopoeia"] >= 1
+    assert result["lane_counts"]["Multiword"] >= 1
+    assert result["lane_counts"]["Syntax-Case-Clause"] >= 1
+    assert result["lane_counts"]["Document Structure"] >= 1
+    assert result["lane_counts"]["Usage-Context-Pragmatics"] >= 1
+
+
+def test_direct_final_projection_dedupes_same_semantic_record_without_collapsing_homophones(tmp_path: Path):
+    source = tmp_path / "source"
+    same_a = _row(
+        "DF-A",
+        source_datasets=["source-a"],
+        evidence_samples=["sample-a"],
+    )
+    same_b = _row(
+        "DF-B",
+        source_datasets=["source-b"],
+        evidence_samples=["sample-b"],
+    )
+    homophone = _row(
+        "DF-C",
+        surface="箸",
+        lemma="箸",
+        reading="ハシ",
+        senses=[{"gloss": "食事に使う二本一組の道具"}],
+        source_datasets=["source-c"],
+        evidence_samples=["sample-c"],
+    )
+    manifest = _write_bundle(source, [same_a, same_b, homophone])
+    output = tmp_path / "projection"
+    result = compile_direct_final_projection(
+        manifest_path=manifest,
+        input_root=source,
+        output_root=output,
+    )
+    assert result["canonical_record_count"] == 3
+    assert result["projected_record_count"] == 2
+    assert result["duplicate_record_count"] == 1
+    assert result["rejected_record_count"] == 0
+    assert (
+        result["projected_record_count"]
+        + result["duplicate_record_count"]
+        + result["rejected_record_count"]
+        == 3
+    )
+    db = sqlite3.connect(output / "projection.sqlite3")
+    try:
+        duplicate = db.execute(
+            "SELECT duplicate_record_id,canonical_record_id FROM duplicate_record"
+        ).fetchone()
+        columns = {
+            row[1]
+            for row in db.execute("PRAGMA table_info(unmapped_field)")
+        }
+    finally:
+        db.close()
+    assert duplicate == ("DF-B", "DF-A")
+    assert "payload_json" not in columns
+    assert {"source_reference", "payload_sha256"}.issubset(columns)
