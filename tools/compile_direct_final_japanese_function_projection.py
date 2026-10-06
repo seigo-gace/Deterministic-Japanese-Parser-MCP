@@ -279,6 +279,7 @@ def compile_direct_final_projection(
     membership_count = 0
     unmapped_count = 0
     duplicate_count = 0
+    unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
         name: Counter()
@@ -291,6 +292,9 @@ def compile_direct_final_projection(
             source_count += 1
             for profile_name, values in _category_profile_values(row).items():
                 category_profiles[profile_name].update(values)
+            for field_name in sorted(set(row) - _DIRECT_TO_PROJECTION_FIELDS):
+                unmapped_field_counts[field_name] += 1
+                unmapped_count += 1
             record_id = str(row["entry_id"])
             identity_sha = _semantic_identity_sha(row)
             existing = connection.execute(
@@ -299,8 +303,8 @@ def compile_direct_final_projection(
             ).fetchone()
             if existing is not None:
                 connection.execute(
-                    "INSERT INTO duplicate_record(duplicate_record_id,canonical_record_id,identity_sha256,source_reference) VALUES(?,?,?,?)",
-                    (record_id, str(existing[0]), identity_sha, f"direct-final:{record_id}"),
+                    "INSERT INTO duplicate_record(duplicate_record_id,canonical_record_id,identity_sha256) VALUES(?,?,?)",
+                    (record_id, str(existing[0]), identity_sha),
                 )
                 duplicate_count += 1
                 continue
@@ -312,33 +316,24 @@ def compile_direct_final_projection(
             lanes = projection.assign_record_lanes(record)
             if not lanes:
                 connection.execute(
-                    "INSERT INTO rejected_record(record_id,reason,source_reference,payload_sha256) VALUES(?,?,?,?)",
-                    (record_id, "no_supported_projection_lane", f"direct-final:{record_id}", projection._stable_json_sha256(row)),
+                    "INSERT INTO rejected_record(record_id,reason) VALUES(?,?)",
+                    (record_id, "no_supported_projection_lane"),
                 )
                 rejected_count += 1
             else:
                 projected_count += 1
-                for lane, reasons in lanes.items():
-                    connection.execute(
-                        "INSERT INTO record_lane(record_id,lane,reasons_json) VALUES(?,?,?)",
-                        (record_id, lane, json.dumps(reasons, ensure_ascii=False, sort_keys=True)),
-                    )
-                    membership_count += 1
+                connection.execute(
+                    "INSERT INTO record_projection(record_id,lane_mask) VALUES(?,?)",
+                    (record_id, projection.lane_mask_for(lanes)),
+                )
+                membership_count += len(lanes)
+                for lane in lanes:
                     lane_counts[lane] += 1
 
-            for field_name in sorted(set(row) - _DIRECT_TO_PROJECTION_FIELDS):
-                connection.execute(
-                    "INSERT INTO unmapped_field(record_id,field_name,source_reference,payload_sha256,reason) VALUES(?,?,?,?,?)",
-                    (
-                        record_id,
-                        field_name,
-                        f"direct-final:{record_id}:{field_name}",
-                        projection._stable_json_sha256(row[field_name]),
-                        "direct_final_field_not_consumed_by_projection_adapter_v2",
-                    ),
-                )
-                unmapped_count += 1
-
+        connection.executemany(
+            "INSERT INTO unmapped_field_summary(field_name,record_count) VALUES(?,?)",
+            sorted(unmapped_field_counts.items()),
+        )
         connection.executemany(
             "INSERT INTO bundle_metadata(key,value) VALUES(?,?)",
             sorted(
@@ -390,11 +385,14 @@ def compile_direct_final_projection(
             "direct_final_manifest_is_source_authority": True,
             "meaning_generation": False,
             "unknown_field_preservation": True,
+            "unknown_field_audit_mode": "field-count-summary",
             "source_payload_duplication": False,
             "rejected_record_preservation": True,
             "deterministic_lane_assignment": True,
             "semantic_identity_deduplication": True,
             "homograph_homophone_collapse": False,
+            "storage_model": "single-record-lane-bitmask-v1",
+            "build_identity_persisted": False,
             "full_source_conservation_required": True,
         },
         "source": {
