@@ -149,7 +149,7 @@ def test_direct_final_projection_preserves_all_source_rows_and_audits_unmapped_f
     finally:
         db.close()
     assert ("DF-1", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v2") in unmapped
-    assert ("DF-2", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v1") in unmapped
+    assert ("DF-2", "metrics", "direct_final_field_not_consumed_by_projection_adapter_v2") in unmapped
 
 
 def test_direct_final_projection_fails_closed_when_manifest_count_disagrees(tmp_path: Path):
