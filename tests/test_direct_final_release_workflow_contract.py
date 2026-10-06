@@ -76,5 +76,10 @@ def test_direct_final_release_workflow_can_run_full_projection_audit_without_new
     assert "Audit 9,852,513-record projection conservation" in workflow
     assert "validate_projection_bundle" in workflow
     assert "PRAGMA integrity_check" in workflow
-    assert "projected + rejected != expected" in workflow
+    assert "projected + rejected + duplicates != expected" in workflow
+    assert "duplicate_record_count" in workflow
+    assert "SELECT COUNT(*) FROM duplicate_record" in workflow
+    assert "dangling_duplicates" in workflow
+    assert "source_category_profiles" in workflow
+    assert "source_payload_duplication" in workflow
     assert "work/direct-final-japanese-function-projection/manifest.json" in workflow
