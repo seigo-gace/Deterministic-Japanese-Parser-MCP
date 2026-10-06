@@ -74,6 +74,16 @@ _TAG_TO_TARGETS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用"), "usage"),
 )
 
+_SOURCE_DATASET_TARGETS: dict[str, set[str]] = {
+    "onomatopoeia": {"j-ono-definitions", "public-onomatopoeia"},
+}
+
+_POS_TARGETS: dict[str, set[str]] = {
+    "multiword": {"phrase", "句", "proverb", "contraction", "idiom", "multiword", "compound"},
+    "document-structure": {"document", "文", "sentence", "paragraph"},
+}
+
+
 
 def _tag_texts(value: Any) -> list[str]:
     values: list[str] = []
@@ -102,6 +112,17 @@ def _explicit_semantic_targets(row: dict[str, Any]) -> list[str]:
     for markers, target in _TAG_TO_TARGETS:
         if any(marker.casefold().replace("_", "-") in normalized for marker in markers):
             targets.add(target)
+
+    source_datasets = {value.casefold() for value in _unique(row.get("source_datasets"))}
+    for target, source_ids in _SOURCE_DATASET_TARGETS.items():
+        if source_datasets.intersection(source_ids):
+            targets.add(target)
+
+    pos_values = {value.casefold() for value in _unique(row.get("pos"))}
+    for target, markers in _POS_TARGETS.items():
+        if pos_values.intersection({marker.casefold() for marker in markers}):
+            targets.add(target)
+
     if row.get("syntax") or row.get("case") or row.get("clause"):
         targets.add("syntax")
     if row.get("document_structure") or row.get("discourse"):
@@ -124,11 +145,17 @@ def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
         if isinstance(relation, dict):
             relation_types.extend(_tag_texts(relation.get("type")))
             relation_types.extend(_tag_texts(relation.get("relation_type")))
+    sense_labels: list[str] = []
+    for sense in row.get("senses") or []:
+        if isinstance(sense, dict):
+            sense_labels.extend(_tag_texts(sense.get("labels")))
     return {
         "pos": _unique(row.get("pos")),
         "entry_types": _unique(row.get("entry_types")),
+        "source_datasets": _unique(row.get("source_datasets")),
         "source_roles": _unique(row.get("source_roles")),
         "relation_types": _unique(relation_types),
+        "sense_labels": _unique(sense_labels),
         "semantic_targets": _explicit_semantic_targets(row),
         "usage_labels": _explicit_usage_labels(row),
     }
@@ -283,7 +310,7 @@ def compile_direct_final_projection(
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
         name: Counter()
-        for name in ("pos", "entry_types", "source_roles", "relation_types", "semantic_targets", "usage_labels")
+        for name in ("pos", "entry_types", "source_datasets", "source_roles", "relation_types", "sense_labels", "semantic_targets", "usage_labels")
     }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
 
@@ -375,7 +402,7 @@ def compile_direct_final_projection(
                 "distinct_values": len(counter),
                 "top_values": [
                     {"value": value, "records": count}
-                    for value, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:200]
+                    for value, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:500]
                 ],
             }
             for name, counter in category_profiles.items()
