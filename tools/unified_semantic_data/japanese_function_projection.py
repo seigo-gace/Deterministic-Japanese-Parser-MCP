@@ -241,6 +241,10 @@ def _connect(path: Path) -> sqlite3.Connection:
             reason TEXT NOT NULL,
             PRIMARY KEY(record_id, field_name)
         );
+        CREATE TABLE record_identity(
+            identity_sha256 TEXT PRIMARY KEY,
+            canonical_record_id TEXT NOT NULL UNIQUE
+        );
         CREATE TABLE duplicate_record(
             duplicate_record_id TEXT PRIMARY KEY,
             canonical_record_id TEXT NOT NULL,
