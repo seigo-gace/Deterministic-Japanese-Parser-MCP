@@ -8,6 +8,7 @@ runtime reader, or a new source authority.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -39,6 +40,17 @@ _DIRECT_TO_PROJECTION_FIELDS = frozenset({
     "rights_lanes",
     "evidence_samples",
     "entry_types",
+    "morphology",
+    "conjugation",
+    "inflections",
+    "semantic_targets",
+    "usage_labels",
+    "pragmatics",
+    "syntax",
+    "case",
+    "clause",
+    "document_structure",
+    "discourse",
 })
 
 
@@ -52,6 +64,101 @@ def _unique(values: Any) -> list[str]:
     return sorted({str(value).strip() for value in values if str(value).strip()})
 
 
+_TAG_TO_TARGETS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("onomatopoe", "mimetic", "擬音", "擬態"), "onomatopoeia"),
+    (("multiword", "idiom", "compound", "fixed-expression", "fixed expression", "熟語", "慣用", "複合語"), "multiword"),
+    (("syntax", "dependency", "predicate-argument", "係り受け", "構文"), "syntax"),
+    (("case", "格関係"), "case"),
+    (("clause", "節関係"), "clause"),
+    (("document-structure", "document structure", "discourse-structure", "argumentation", "文書構造", "談話構造"), "document-structure"),
+    (("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用"), "usage"),
+)
+
+
+def _tag_texts(value: Any) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            values.append(str(key))
+            values.extend(_tag_texts(item))
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            values.extend(_tag_texts(item))
+    elif value is not None:
+        values.append(str(value))
+    return _unique(values)
+
+
+def _explicit_semantic_targets(row: dict[str, Any]) -> list[str]:
+    targets = set(_unique(row.get("semantic_targets")))
+    tag_values: list[str] = []
+    for field in ("entry_types", "source_roles", "usage_labels", "syntax", "case", "clause", "document_structure", "discourse"):
+        tag_values.extend(_tag_texts(row.get(field)))
+    for relation in row.get("relations") or []:
+        if isinstance(relation, dict):
+            tag_values.extend(_tag_texts(relation.get("type")))
+            tag_values.extend(_tag_texts(relation.get("relation_type")))
+    normalized = " ".join(value.casefold().replace("_", "-") for value in tag_values)
+    for markers, target in _TAG_TO_TARGETS:
+        if any(marker.casefold().replace("_", "-") in normalized for marker in markers):
+            targets.add(target)
+    if row.get("syntax") or row.get("case") or row.get("clause"):
+        targets.add("syntax")
+    if row.get("document_structure") or row.get("discourse"):
+        targets.add("document-structure")
+    return sorted(targets)
+
+
+def _explicit_usage_labels(row: dict[str, Any]) -> list[str]:
+    labels = set(_unique(row.get("usage_labels")))
+    for value in _tag_texts(row.get("entry_types")) + _tag_texts(row.get("source_roles")):
+        text = value.casefold()
+        if any(marker in text for marker in ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")):
+            labels.add(value)
+    return sorted(labels)
+
+
+def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
+    relation_types: list[str] = []
+    for relation in row.get("relations") or []:
+        if isinstance(relation, dict):
+            relation_types.extend(_tag_texts(relation.get("type")))
+            relation_types.extend(_tag_texts(relation.get("relation_type")))
+    return {
+        "pos": _unique(row.get("pos")),
+        "entry_types": _unique(row.get("entry_types")),
+        "source_roles": _unique(row.get("source_roles")),
+        "relation_types": _unique(relation_types),
+        "semantic_targets": _explicit_semantic_targets(row),
+        "usage_labels": _explicit_usage_labels(row),
+    }
+
+
+def _semantic_identity_sha(row: dict[str, Any]) -> str:
+    identity = {
+        "surface": str(row.get("surface") or "").strip(),
+        "lemma": str(row.get("lemma") or row.get("surface") or "").strip(),
+        "reading": str(row.get("reading") or "").strip(),
+        "pos": _unique(row.get("pos")),
+        "aliases": _unique(row.get("aliases")),
+        "domains": _unique(row.get("domains")),
+        "senses": row.get("senses") or [],
+        "relations": row.get("relations") or [],
+        "entry_types": _unique(row.get("entry_types")),
+        "semantic_targets": _unique(row.get("semantic_targets")),
+        "usage_labels": _unique(row.get("usage_labels")),
+        "morphology": row.get("morphology") or {},
+        "conjugation": row.get("conjugation") or {},
+        "inflections": row.get("inflections") or [],
+        "syntax": row.get("syntax") or {},
+        "case": row.get("case") or {},
+        "clause": row.get("clause") or {},
+        "document_structure": row.get("document_structure") or {},
+        "discourse": row.get("discourse") or {},
+    }
+    return projection._stable_json_sha256(identity)
+
+
 def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) -> dict[str, Any]:
     surface = str(row.get("surface") or "").strip()
     lemma = str(row.get("lemma") or surface).strip()
@@ -61,6 +168,16 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
     senses = row.get("senses") or []
     examples = row.get("examples") or []
     relations = row.get("relations") or []
+    semantic_targets = _explicit_semantic_targets(row)
+    usage_labels = _explicit_usage_labels(row)
+    morphology: dict[str, Any] = {}
+    if isinstance(row.get("morphology"), dict):
+        morphology.update(row.get("morphology") or {})
+    if row.get("conjugation"):
+        morphology["conjugation"] = row.get("conjugation")
+    if row.get("inflections"):
+        morphology["inflections"] = row.get("inflections")
+    pragmatics = row.get("pragmatics") if isinstance(row.get("pragmatics"), dict) else {}
     source_datasets = _unique(row.get("source_datasets"))
     source_roles = _unique(row.get("source_roles"))
     rights_lanes = _unique(row.get("rights_lanes"))
@@ -76,6 +193,8 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
         auxiliary["source-roles"] = source_roles
     if rights_lanes:
         auxiliary["rights-lanes"] = rights_lanes
+    if examples:
+        auxiliary["example-evidence"] = examples
 
     source_dataset_text = ",".join(source_datasets)
     source_records = [
@@ -105,11 +224,14 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
             else []
         ),
         "part_of_speech": pos,
-        "morphology": {},
+        "morphology": morphology,
         "domains": _unique(row.get("domains")),
         "senses": senses,
-        "pragmatics": {"examples": examples} if examples else {},
-        "semantic_facets": {"usage_labels": entry_types} if entry_types else {},
+        "pragmatics": pragmatics,
+        "semantic_facets": {
+            "semantic_targets": semantic_targets,
+            "usage_labels": usage_labels,
+        },
         "auxiliary_evidence": auxiliary,
         "source_records": source_records,
         "source": {
@@ -156,19 +278,42 @@ def compile_direct_final_projection(
     rejected_count = 0
     membership_count = 0
     unmapped_count = 0
+    duplicate_count = 0
     lane_counts = {lane: 0 for lane in projection.LANES}
+    category_profiles = {
+        name: Counter()
+        for name in ("pos", "entry_types", "source_roles", "relation_types", "semantic_targets", "usage_labels")
+    }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
 
     try:
         for row in _rows(parts):
             source_count += 1
+            for profile_name, values in _category_profile_values(row).items():
+                category_profiles[profile_name].update(values)
+            record_id = str(row["entry_id"])
+            identity_sha = _semantic_identity_sha(row)
+            existing = connection.execute(
+                "SELECT canonical_record_id FROM record_identity WHERE identity_sha256=?",
+                (identity_sha,),
+            ).fetchone()
+            if existing is not None:
+                connection.execute(
+                    "INSERT INTO duplicate_record(duplicate_record_id,canonical_record_id,identity_sha256,source_reference) VALUES(?,?,?,?)",
+                    (record_id, str(existing[0]), identity_sha, f"direct-final:{record_id}"),
+                )
+                duplicate_count += 1
+                continue
+            connection.execute(
+                "INSERT INTO record_identity(identity_sha256,canonical_record_id) VALUES(?,?)",
+                (identity_sha, record_id),
+            )
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
-            record_id = record["dictionary_id"]
             lanes = projection.assign_record_lanes(record)
             if not lanes:
                 connection.execute(
-                    "INSERT INTO rejected_record(record_id,reason,payload_json) VALUES(?,?,?)",
-                    (record_id, "no_supported_projection_lane", json.dumps(row, ensure_ascii=False, sort_keys=True)),
+                    "INSERT INTO rejected_record(record_id,reason,source_reference,payload_sha256) VALUES(?,?,?,?)",
+                    (record_id, "no_supported_projection_lane", f"direct-final:{record_id}", projection._stable_json_sha256(row)),
                 )
                 rejected_count += 1
             else:
@@ -183,12 +328,13 @@ def compile_direct_final_projection(
 
             for field_name in sorted(set(row) - _DIRECT_TO_PROJECTION_FIELDS):
                 connection.execute(
-                    "INSERT INTO unmapped_field(record_id,field_name,payload_json,reason) VALUES(?,?,?,?)",
+                    "INSERT INTO unmapped_field(record_id,field_name,source_reference,payload_sha256,reason) VALUES(?,?,?,?,?)",
                     (
                         record_id,
                         field_name,
-                        json.dumps(row[field_name], ensure_ascii=False, sort_keys=True),
-                        "direct_final_field_not_consumed_by_projection_adapter_v1",
+                        f"direct-final:{record_id}:{field_name}",
+                        projection._stable_json_sha256(row[field_name]),
+                        "direct_final_field_not_consumed_by_projection_adapter_v2",
                     ),
                 )
                 unmapped_count += 1
@@ -212,7 +358,7 @@ def compile_direct_final_projection(
 
     if source_count != expected:
         raise ValueError(f"Direct Final source count mismatch: manifest={expected} observed={source_count}")
-    if projected_count + rejected_count != source_count:
+    if projected_count + rejected_count + duplicate_count != source_count:
         raise ValueError("Direct Final projection conservation mismatch")
 
     output_manifest = {
@@ -226,15 +372,29 @@ def compile_direct_final_projection(
         "rejected_record_count": rejected_count,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
+        "duplicate_record_count": duplicate_count,
         "lanes": list(projection.LANES),
         "lane_counts": lane_counts,
+        "source_category_profiles": {
+            name: {
+                "distinct_values": len(counter),
+                "top_values": [
+                    {"value": value, "records": count}
+                    for value, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:200]
+                ],
+            }
+            for name, counter in category_profiles.items()
+        },
         "boundaries": {
             "canonical_dictionary_is_authority": False,
             "direct_final_manifest_is_source_authority": True,
             "meaning_generation": False,
             "unknown_field_preservation": True,
+            "source_payload_duplication": False,
             "rejected_record_preservation": True,
             "deterministic_lane_assignment": True,
+            "semantic_identity_deduplication": True,
+            "homograph_homophone_collapse": False,
             "full_source_conservation_required": True,
         },
         "source": {

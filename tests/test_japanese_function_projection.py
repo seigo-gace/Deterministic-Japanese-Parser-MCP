@@ -129,13 +129,14 @@ def test_compile_preserves_rejected_records_and_unknown_fields(monkeypatch, tmp_
             "SELECT reason FROM rejected_record WHERE record_id='CDICT-empty'"
         ).fetchone()
         unmapped = connection.execute(
-            "SELECT payload_json,reason FROM unmapped_field WHERE record_id='CDICT-1' AND field_name='future_field'"
+            "SELECT source_reference,payload_sha256,reason FROM unmapped_field WHERE record_id='CDICT-1' AND field_name='future_field'"
         ).fetchone()
     finally:
         connection.close()
     assert reject == ("no_supported_projection_lane",)
-    assert json.loads(unmapped[0]) == {"opaque": [1, 2, 3]}
-    assert unmapped[1] == "field_not_in_projection_policy_v1"
+    assert unmapped[0] == "canonical:CDICT-1:future_field"
+    assert unmapped[1] == projection._stable_json_sha256({"opaque": [1, 2, 3]})
+    assert unmapped[2] == "field_not_in_projection_policy_v2"
 
 
 def test_bundle_validation_fails_closed_on_policy_mismatch(monkeypatch, tmp_path: Path):
