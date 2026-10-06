@@ -11,6 +11,7 @@ import sys
 from tools.compile_direct_final_japanese_function_projection import (
     compile_direct_final_projection,
 )
+from tools.unified_semantic_data import japanese_function_projection as projection
 
 
 def _sha(path: Path) -> str:
