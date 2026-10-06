@@ -8,6 +8,7 @@ runtime reader, or a new source authority.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -115,6 +116,22 @@ def _explicit_usage_labels(row: dict[str, Any]) -> list[str]:
         if any(marker in text for marker in ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")):
             labels.add(value)
     return sorted(labels)
+
+
+def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
+    relation_types: list[str] = []
+    for relation in row.get("relations") or []:
+        if isinstance(relation, dict):
+            relation_types.extend(_tag_texts(relation.get("type")))
+            relation_types.extend(_tag_texts(relation.get("relation_type")))
+    return {
+        "pos": _unique(row.get("pos")),
+        "entry_types": _unique(row.get("entry_types")),
+        "source_roles": _unique(row.get("source_roles")),
+        "relation_types": _unique(relation_types),
+        "semantic_targets": _explicit_semantic_targets(row),
+        "usage_labels": _explicit_usage_labels(row),
+    }
 
 
 def _semantic_identity_sha(row: dict[str, Any]) -> str:
@@ -263,11 +280,17 @@ def compile_direct_final_projection(
     unmapped_count = 0
     duplicate_count = 0
     lane_counts = {lane: 0 for lane in projection.LANES}
+    category_profiles = {
+        name: Counter()
+        for name in ("pos", "entry_types", "source_roles", "relation_types", "semantic_targets", "usage_labels")
+    }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
 
     try:
         for row in _rows(parts):
             source_count += 1
+            for profile_name, values in _category_profile_values(row).items():
+                category_profiles[profile_name].update(values)
             record_id = str(row["entry_id"])
             identity_sha = _semantic_identity_sha(row)
             existing = connection.execute(
@@ -352,6 +375,16 @@ def compile_direct_final_projection(
         "duplicate_record_count": duplicate_count,
         "lanes": list(projection.LANES),
         "lane_counts": lane_counts,
+        "source_category_profiles": {
+            name: {
+                "distinct_values": len(counter),
+                "top_values": [
+                    {"value": value, "records": count}
+                    for value, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:200]
+                ],
+            }
+            for name, counter in category_profiles.items()
+        },
         "boundaries": {
             "canonical_dictionary_is_authority": False,
             "direct_final_manifest_is_source_authority": True,
