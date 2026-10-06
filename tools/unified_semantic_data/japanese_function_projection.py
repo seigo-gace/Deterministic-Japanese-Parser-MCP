@@ -241,6 +241,13 @@ def _connect(path: Path) -> sqlite3.Connection:
             reason TEXT NOT NULL,
             PRIMARY KEY(record_id, field_name)
         );
+        CREATE TABLE duplicate_record(
+            duplicate_record_id TEXT PRIMARY KEY,
+            canonical_record_id TEXT NOT NULL,
+            identity_sha256 TEXT NOT NULL,
+            source_reference TEXT NOT NULL
+        );
+        CREATE INDEX duplicate_record_identity ON duplicate_record(identity_sha256, canonical_record_id);
         """
     )
     return connection
@@ -273,6 +280,7 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         rejected = int(connection.execute("SELECT COUNT(*) FROM rejected_record").fetchone()[0])
         memberships = int(connection.execute("SELECT COUNT(*) FROM record_lane").fetchone()[0])
         unmapped = int(connection.execute("SELECT COUNT(*) FROM unmapped_field").fetchone()[0])
+        duplicates = int(connection.execute("SELECT COUNT(*) FROM duplicate_record").fetchone()[0])
     finally:
         connection.close()
     if projected != int(manifest.get("projected_record_count", -1)):
@@ -283,8 +291,10 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         raise ValueError("projection bundle membership count mismatch")
     if unmapped != int(manifest.get("unmapped_field_count", -1)):
         raise ValueError("projection bundle unmapped field count mismatch")
+    if duplicates != int(manifest.get("duplicate_record_count", 0)):
+        raise ValueError("projection bundle duplicate record count mismatch")
     source_count = int(manifest.get("canonical_record_count", -1))
-    if projected + rejected != source_count:
+    if projected + rejected + duplicates != source_count:
         raise ValueError("projection bundle conservation mismatch")
     return manifest
 
@@ -375,6 +385,7 @@ def compile_japanese_function_projection(canonical_root: Path, output_root: Path
         "rejected_record_count": rejected_count,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
+        "duplicate_record_count": 0,
         "lanes": list(LANES),
         "lane_counts": lane_counts,
         "boundaries": {
