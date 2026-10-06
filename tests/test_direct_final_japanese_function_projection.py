@@ -138,6 +138,8 @@ def test_direct_final_projection_preserves_all_source_rows_and_audits_unmapped_f
     assert result["lane_counts"]["Evidence-Provenance-Rights"] == 2
     assert result["boundaries"]["meaning_generation"] is False
     assert result["boundaries"]["full_source_conservation_required"] is True
+    assert result["source_category_profiles"]["pos"]["distinct_values"] >= 1
+    assert result["source_category_profiles"]["entry_types"]["distinct_values"] >= 1
 
     db = sqlite3.connect(output / "projection.sqlite3")
     try:
