@@ -6,8 +6,10 @@ on:
     paths:
       - "tools/prepare_j_ono_review_input.py"
       - "tools/audit_j_ono_data_quality.py"
+      - "tools/build_j_ono_collision_clusters.py"
       - "tests/test_prepare_j_ono_review_input.py"
       - "tests/test_audit_j_ono_data_quality.py"
+      - "tests/test_build_j_ono_collision_clusters.py"
       - ".github/workflows/j-ono-data-quality-audit.yml"
   workflow_dispatch:
 
@@ -54,6 +56,30 @@ jobs:
             --input work/j-ono-source-adapter.jsonl \
             --report work/j-ono-data-quality-report.json \
             --issues work/j-ono-data-quality-review-issues.jsonl
+
+      - name: Build machine-first polysemy review clusters
+        run: |
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-source-adapter.jsonl \
+            --issues work/j-ono-data-quality-review-issues.jsonl \
+            --output work/j-ono-collision-clusters.jsonl \
+            --report work/j-ono-collision-cluster-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("work/j-ono-collision-cluster-report.json").read_text(encoding="utf-8"))
+          if report["cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_COUNT_MISMATCH")
+          if report["divergent_meaning_cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_DIVERGENT_COUNT_MISMATCH")
+          if report["same_meaning_cluster_count"] != 0:
+              raise SystemExit("J_ONO_CLUSTER_SAME_MEANING_UNEXPECTED")
+          if report["automatic_merge"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_RUNTIME_PROMOTION_FORBIDDEN")
+          print("J_ONO_CLUSTER_REPORT=" + json.dumps(report, sort_keys=True))
+          PY
 
       - name: Report very-short meaning source evidence
         run: |
@@ -270,6 +296,8 @@ jobs:
           path: |
             work/j-ono-data-quality-report.json
             work/j-ono-data-quality-review-issues.jsonl
+            work/j-ono-collision-clusters.jsonl
+            work/j-ono-collision-cluster-report.json
             work/j-ono-pos-evidence-report.json
             work/j-ono-pos-evidence.jsonl
           if-no-files-found: error
