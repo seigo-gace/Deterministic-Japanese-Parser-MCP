@@ -16,7 +16,10 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "mcp-source-authored-meaning-factory-v1.zip" in workflow
     assert "tools/prepare_j_ono_review_input.py" in workflow
     assert "tools/audit_j_ono_data_quality.py" in workflow
+    assert "tools/build_j_ono_collision_clusters.py" in workflow
     assert "J_ONO_REAL_DATA_HARD_FAILURE" in workflow
+    assert "J_ONO_CLUSTER_COUNT_MISMATCH" in workflow
+    assert "J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN" in workflow
     assert "J_ONO_AUTO_MEANING_JUDGEMENT_FORBIDDEN" in workflow
     assert "J_ONO_AUTO_APPROVAL_FORBIDDEN" in workflow
     assert "J_ONO_RUNTIME_PROMOTION_FORBIDDEN" in workflow
