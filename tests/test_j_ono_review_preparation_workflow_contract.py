@@ -21,6 +21,7 @@ def test_j_ono_review_preparation_workflow_is_manual_and_review_only() -> None:
     assert "--adapter-input work/rebuilt/source-adapter-records.jsonl" in workflow
     assert "tools/prepare_j_ono_review_input.py" in workflow
     assert "tools/audit_j_ono_data_quality.py" in workflow
+    assert "tools/build_j_ono_collision_clusters.py" in workflow
     assert "J_ONO_REVIEW_INPUT_READING_NOT_COMPLETE" in workflow
     assert "tools/unified_semantic_data/source_adapter_contract.py" in workflow
     assert "tools/unified_semantic_data_pipeline.py" in workflow
