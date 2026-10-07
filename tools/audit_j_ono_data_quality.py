@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 import unicodedata
 
-from tools.unified_semantic_data.source_adapter_contract import normalize_adapter_record
+from unified_semantic_data.source_adapter_contract import normalize_adapter_record
 
 EXPECTED_RECORDS = 837
 
