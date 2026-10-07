@@ -165,12 +165,28 @@ jobs:
           if len({row["record_id"] for row in queue}) != expected:
               raise SystemExit("J_ONO_REVIEW_ID_CONSERVATION_MISMATCH")
 
+          lexical_review_records = 0
+          blocker_counts = {}
+          for row in queue:
+              approval = row.get("approval") or {}
+              review_scopes = set(approval.get("review_scopes") or [])
+              blockers_by_scope = approval.get("blockers_by_scope") or {}
+              if "lexical" in review_scopes:
+                  lexical_review_records += 1
+              for blocker in blockers_by_scope.get("lexical") or []:
+                  blocker_counts[blocker] = blocker_counts.get(blocker, 0) + 1
+          if blocker_counts.get("reading-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_READING_BLOCKER_REMAINED")
+
           report = {
               "status": "J_ONO_REVIEW_PREPARATION_PASS",
               "records": expected,
               "review_queue_records": len(queue),
               "approved_records": 0,
               "reading_coverage_records": 837,
+              "lexical_review_records": lexical_review_records,
+              "lexical_blocker_counts": dict(sorted(blocker_counts.items())),
+              "part_of_speech_required_records": blocker_counts.get("part-of-speech-required", 0),
               "automatic_approval": False,
               "runtime_promotion": False,
               "network_call_performed": False,
