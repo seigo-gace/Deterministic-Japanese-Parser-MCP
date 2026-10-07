@@ -97,7 +97,20 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
 
         if any(m in normalized_surfaces for m in normalized_meanings):
             issues.append({"record_id": rid, "kind": "SELF_DEFINITION", "severity": "review"})
-        if any(len(m) <= 1 for m in normalized_meanings):
+        logical_source_id = str((record.get("source") or {}).get("logical_source_id") or "")
+        has_j_ono_undocumented_sentinel = (
+            logical_source_id == "j-ono-definitions"
+            and "s" in normalized_meanings
+            and len(normalized_meanings) > 1
+        )
+        if has_j_ono_undocumented_sentinel:
+            issues.append({
+                "record_id": rid,
+                "kind": "UPSTREAM_UNDOCUMENTED_SENTINEL",
+                "severity": "review",
+                "value": "s",
+            })
+        elif any(len(m) <= 1 for m in normalized_meanings):
             issues.append({"record_id": rid, "kind": "VERY_SHORT_MEANING", "severity": "review"})
         rows.append(record)
 
