@@ -83,6 +83,9 @@ def test_direct_final_release_workflow_can_run_full_projection_audit_without_new
     assert "unmapped_field_summary" in workflow
     assert "record_lane" not in workflow
     assert "dangling_duplicates" in workflow
+    assert "source_dataset_coverage" in workflow
+    assert "missing_required_sources" in workflow
+    assert "projection required source dataset coverage mismatch" in workflow
     assert "source_category_profiles" in workflow
     assert "source_payload_duplication" in workflow
     assert "storage_model" in workflow
