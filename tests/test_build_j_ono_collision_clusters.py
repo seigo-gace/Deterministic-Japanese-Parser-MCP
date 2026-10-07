@@ -22,6 +22,10 @@ def _row(i: int) -> dict:
         "meanings": [f"meaning-{i}"],
         "source": {
             "dataset": "j-ono-definitions",
+            "version": "1",
+            "license": "test",
+            "source_id": f"j-ono-definitions:j-ono:{i}",
+            "source_sha256": "a" * 64,
             "logical_source_id": "j-ono-definitions",
             "source_record_id": f"j-ono:{i}",
             "public_runtime_eligible": True,
