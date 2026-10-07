@@ -23,8 +23,7 @@ def _norm(value: str) -> str:
 
 def _bad_text(value: str) -> bool:
     return "�" in value or any(
-        unicodedata.category(ch) in {"Cc", "Cs"} and ch not in "	
-"
+        unicodedata.category(ch) in {"Cc", "Cs"} and ord(ch) not in {9, 10, 13}
         for ch in value
     )
 
