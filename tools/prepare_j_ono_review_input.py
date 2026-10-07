@@ -21,36 +21,54 @@ def _source_id(row: dict) -> str:
     return str(source.get("logical_source_id") or source.get("dataset") or "").strip()
 
 
+def _collect_rows(payloads) -> list[dict]:
+    rows: list[dict] = []
+    seen: set[str] = set()
+    for line_number, payload in enumerate(payloads, 1):
+        if not payload.strip():
+            continue
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+        row = json.loads(payload)
+        if not isinstance(row, dict):
+            raise ValueError(f"factory row must be object: {line_number}")
+        if _source_id(row) != SOURCE_ID:
+            continue
+        rid = str(row.get("adapter_record_id") or "").strip()
+        if not rid:
+            raise ValueError(f"adapter_record_id missing: {line_number}")
+        if rid in seen:
+            raise ValueError(f"duplicate J-Ono adapter_record_id: {rid}")
+        source = row.get("source") if isinstance(row.get("source"), dict) else {}
+        if source.get("public_runtime_eligible") is not True:
+            raise ValueError(f"J-Ono record is not public runtime eligible: {rid}")
+        if str(row.get("source_role") or "") != "lexical-definition":
+            raise ValueError(f"J-Ono source role mismatch: {rid}")
+        seen.add(rid)
+        rows.append(row)
+    return rows
+
+
 def extract_j_ono_records(factory_zip: Path, output: Path) -> dict:
     factory_zip = Path(factory_zip)
-    output = Path(output)
     with zipfile.ZipFile(factory_zip) as archive:
         names = set(archive.namelist())
         if FACTORY_MEMBER not in names:
             raise ValueError(f"missing factory member: {FACTORY_MEMBER}")
-        rows: list[dict] = []
-        seen: set[str] = set()
         with archive.open(FACTORY_MEMBER) as raw:
-            for line_number, payload in enumerate(raw, 1):
-                if not payload.strip():
-                    continue
-                row = json.loads(payload.decode("utf-8"))
-                if not isinstance(row, dict):
-                    raise ValueError(f"factory row must be object: {line_number}")
-                if _source_id(row) != SOURCE_ID:
-                    continue
-                rid = str(row.get("adapter_record_id") or "").strip()
-                if not rid:
-                    raise ValueError(f"adapter_record_id missing: {line_number}")
-                if rid in seen:
-                    raise ValueError(f"duplicate J-Ono adapter_record_id: {rid}")
-                source = row.get("source") if isinstance(row.get("source"), dict) else {}
-                if source.get("public_runtime_eligible") is not True:
-                    raise ValueError(f"J-Ono record is not public runtime eligible: {rid}")
-                if str(row.get("source_role") or "") != "lexical-definition":
-                    raise ValueError(f"J-Ono source role mismatch: {rid}")
-                seen.add(rid)
-                rows.append(row)
+            rows = _collect_rows(raw)
+    return _write_rows(rows, output)
+
+
+def extract_j_ono_records_from_jsonl(adapter_input: Path, output: Path) -> dict:
+    adapter_input = Path(adapter_input)
+    with adapter_input.open("r", encoding="utf-8") as handle:
+        rows = _collect_rows(handle)
+    return _write_rows(rows, output)
+
+
+def _write_rows(rows: list[dict], output: Path) -> dict:
+    output = Path(output)
 
     rows.sort(key=lambda row: str(row["adapter_record_id"]))
     if len(rows) != EXPECTED_RECORDS:
@@ -76,10 +94,17 @@ def extract_j_ono_records(factory_zip: Path, output: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--factory-zip", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--factory-zip", type=Path)
+    source.add_argument("--adapter-input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    print(json.dumps(extract_j_ono_records(args.factory_zip, args.output), ensure_ascii=False, sort_keys=True))
+    result = (
+        extract_j_ono_records(args.factory_zip, args.output)
+        if args.factory_zip is not None
+        else extract_j_ono_records_from_jsonl(args.adapter_input, args.output)
+    )
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
 
 
