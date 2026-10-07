@@ -14,6 +14,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: source-authored-meaning-data-v1
       EXPECTED_J_ONO_RECORDS: "837"
+      RAW_SHA256: fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629
     steps:
       - uses: actions/checkout@v4
 
@@ -26,20 +27,75 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Download source-authored meaning factory from GitHub Release
+      - name: Download frozen raw factory input parts
         run: |
-          mkdir -p work/source-authored-meaning-release
+          mkdir -p work/raw-parts work/raw-unpacked work/rebuilt
           gh release download "$RELEASE_TAG" \
             --repo "${{ github.repository }}" \
-            --pattern "mcp-source-authored-meaning-factory-v1.zip" \
-            --dir work/source-authored-meaning-release
-          test -f work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip
+            --pattern "mcp-collected-raw-factory-input-v1.zip.part-*" \
+            --dir work/raw-parts
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02
 
-      - name: Extract exact J-Ono source-authored adapter records
+      - name: Reconstruct and verify frozen raw package
+        run: |
+          cat \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02 \
+            > work/mcp-collected-raw-factory-input-v1.zip
+          echo "$RAW_SHA256  work/mcp-collected-raw-factory-input-v1.zip" | sha256sum -c -
+          unzip -q work/mcp-collected-raw-factory-input-v1.zip -d work/raw-unpacked
+
+      - name: Locate frozen bundle and rebuild source-authored meaning factory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("work/raw-unpacked")
+          bundles = sorted(root.rglob("mcp-collected-raw-factory-input-v1.tar"))
+          manifests = sorted(root.rglob("mcp-collected-raw-factory-input-v1.manifest.json"))
+          if len(bundles) != 1 or len(manifests) != 1:
+              raise SystemExit(
+                  f"FROZEN_INPUT_LAYOUT_INVALID:bundles={len(bundles)}:manifests={len(manifests)}"
+              )
+          Path("work/bundle-path.txt").write_text(str(bundles[0]), encoding="utf-8")
+          Path("work/manifest-path.txt").write_text(str(manifests[0]), encoding="utf-8")
+          PY
+          python tools/build_frozen_raw_meaning_factory.py \
+            --bundle "$(cat work/bundle-path.txt)" \
+            --manifest "$(cat work/manifest-path.txt)" \
+            --output-root work/rebuilt
+
+      - name: Extract rebuilt J-Ono records with preserved reading provenance
         run: |
           python tools/prepare_j_ono_review_input.py \
-            --factory-zip work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip \
+            --adapter-input work/rebuilt/source-adapter-records.jsonl \
             --output work/j-ono-source-adapter.jsonl
+
+      - name: Audit rebuilt J-Ono review input
+        run: |
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-source-adapter.jsonl \
+            --report work/j-ono-review-input-quality.json \
+            --issues work/j-ono-review-input-issues.jsonl
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("work/j-ono-review-input-quality.json").read_text(encoding="utf-8"))
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_REVIEW_INPUT_COUNT_MISMATCH")
+          if report["reading_coverage_records"] != 837:
+              raise SystemExit("J_ONO_REVIEW_INPUT_READING_NOT_COMPLETE")
+          if report["hard_failure_count"] != 0:
+              raise SystemExit("J_ONO_REVIEW_INPUT_HARD_FAILURE")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_REVIEW_INPUT_AUTO_MEANING_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_REVIEW_INPUT_AUTO_APPROVAL_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_REVIEW_INPUT_RUNTIME_PROMOTION_FORBIDDEN")
+          PY
 
       - name: Compile existing universal source-adapter contract
         run: |
@@ -114,6 +170,7 @@ jobs:
               "records": expected,
               "review_queue_records": len(queue),
               "approved_records": 0,
+              "reading_coverage_records": 837,
               "automatic_approval": False,
               "runtime_promotion": False,
               "network_call_performed": False,
@@ -132,6 +189,8 @@ jobs:
           name: j-ono-review-preparation-${{ github.sha }}
           path: |
             work/j-ono-source-adapter.jsonl
+            work/j-ono-review-input-quality.json
+            work/j-ono-review-input-issues.jsonl
             work/j-ono-adapter
             work/j-ono-review
             work/j-ono-review-preparation-report.json
