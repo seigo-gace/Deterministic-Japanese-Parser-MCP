@@ -98,10 +98,17 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         if any(m in normalized_surfaces for m in normalized_meanings):
             issues.append({"record_id": rid, "kind": "SELF_DEFINITION", "severity": "review"})
         logical_source_id = str((record.get("source") or {}).get("logical_source_id") or "")
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        source_evidence = payload.get("j_ono_source_evidence")
+        if not isinstance(source_evidence, dict):
+            source_evidence = {}
         has_j_ono_undocumented_sentinel = (
             logical_source_id == "j-ono-definitions"
-            and "s" in normalized_meanings
-            and len(normalized_meanings) > 1
+            and (
+                str(source_evidence.get("local_meaning_status") or "")
+                == "upstream-undocumented-sentinel"
+                or ("s" in normalized_meanings and len(normalized_meanings) > 1)
+            )
         )
         if has_j_ono_undocumented_sentinel:
             issues.append({
