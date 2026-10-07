@@ -12,7 +12,10 @@ import json
 from pathlib import Path
 import unicodedata
 
-from unified_semantic_data.source_adapter_contract import normalize_adapter_record
+try:
+    from unified_semantic_data.source_adapter_contract import normalize_adapter_record
+except ModuleNotFoundError:
+    from tools.unified_semantic_data.source_adapter_contract import normalize_adapter_record
 
 EXPECTED_RECORDS = 837
 
