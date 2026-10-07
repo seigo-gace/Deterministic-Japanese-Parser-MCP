@@ -79,8 +79,13 @@ _SOURCE_DATASET_TARGETS: dict[str, set[str]] = {
 }
 
 _POS_TARGETS: dict[str, set[str]] = {
+    "onomatopoeia": {"擬態", "擬音", "擬声", "擬容", "擬情", "オノマトペ", "onomatopoeia", "mimetic"},
     "multiword": {"phrase", "句", "proverb", "contraction", "idiom", "multiword", "compound"},
     "document-structure": {"document", "文", "sentence", "paragraph"},
+}
+
+_REQUIRED_PROOFREADING_SOURCE_DATASETS: dict[str, set[str]] = {
+    "Onomatopoeia": {"j-ono-definitions"},
 }
 
 
@@ -383,6 +388,16 @@ def compile_direct_final_projection(
     if projected_count + rejected_count + duplicate_count != source_count:
         raise ValueError("Direct Final projection conservation mismatch")
 
+    observed_source_datasets = set(category_profiles["source_datasets"])
+    source_dataset_coverage = {
+        lane: {
+            "required": sorted(required),
+            "present": sorted(observed_source_datasets.intersection(required)),
+            "missing": sorted(required - observed_source_datasets),
+        }
+        for lane, required in _REQUIRED_PROOFREADING_SOURCE_DATASETS.items()
+    }
+
     output_manifest = {
         "schema_version": projection.PROJECTION_SCHEMA_VERSION,
         "projection_policy_version": projection.PROJECTION_POLICY_VERSION,
@@ -397,6 +412,7 @@ def compile_direct_final_projection(
         "duplicate_record_count": duplicate_count,
         "lanes": list(projection.LANES),
         "lane_counts": lane_counts,
+        "source_dataset_coverage": source_dataset_coverage,
         "source_category_profiles": {
             name: {
                 "distinct_values": len(counter),
