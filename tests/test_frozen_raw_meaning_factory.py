@@ -175,6 +175,9 @@ def test_j_ono_resolved_evidence_is_not_lost() -> None:
         },
     )
     assert fields["surfaces"] == ["kirakira", "きらきら", "きらっきら", "キラキラ"]
+    assert fields["readings"] == ["きらきら", "きらっきら"]
+    assert "キラキラ" not in fields["readings"]
+    assert "kirakira" not in fields["readings"]
     assert fields["meanings"] == ["光が細かく繰り返し輝く様子"]
 
 
