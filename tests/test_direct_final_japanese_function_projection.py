@@ -248,6 +248,14 @@ def test_direct_final_projection_maps_explicit_source_and_pos_evidence_to_missin
             pos=["感動詞"],
             source_datasets=["generic-lexicon"],
         ),
+        _row(
+            "DF-MIMETIC-POS",
+            surface="しんみり",
+            lemma="しんみり",
+            reading="シンミリ",
+            pos=["擬態"],
+            source_datasets=["generic-lexicon"],
+        ),
     ]
     manifest = _write_bundle(source, rows)
     result = compile_direct_final_projection(
@@ -255,11 +263,13 @@ def test_direct_final_projection_maps_explicit_source_and_pos_evidence_to_missin
         input_root=source,
         output_root=tmp_path / "projection",
     )
-    assert result["lane_counts"]["Onomatopoeia"] == 1
+    assert result["lane_counts"]["Onomatopoeia"] == 2
     assert result["lane_counts"]["Multiword"] >= 1
     assert result["lane_counts"]["Document Structure"] >= 1
     assert result["source_category_profiles"]["source_datasets"]["distinct_values"] >= 2
     assert "sense_labels" in result["source_category_profiles"]
+    assert result["source_dataset_coverage"]["Onomatopoeia"]["present"] == ["j-ono-definitions"]
+    assert result["source_dataset_coverage"]["Onomatopoeia"]["missing"] == []
 
     db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
     try:
@@ -273,6 +283,7 @@ def test_direct_final_projection_maps_explicit_source_and_pos_evidence_to_missin
         db.close()
     ono_bit = projection.LANE_BITS["Onomatopoeia"]
     assert rows_by_id["DF-ONO-SOURCE"] & ono_bit
+    assert rows_by_id["DF-MIMETIC-POS"] & ono_bit
     assert not (rows_by_id["DF-INTERJECTION"] & ono_bit)
 
 
