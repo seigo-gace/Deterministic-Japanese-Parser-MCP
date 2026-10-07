@@ -102,6 +102,13 @@ jobs:
           def norm(value):
               return unicodedata.normalize("NFKC", str(value or "")).strip()
 
+          def kana_fold(value):
+              value = norm(value)
+              return "".join(
+                  chr(ord(ch) - 0x60) if "\u30a1" <= ch <= "\u30f6" else ch
+                  for ch in value
+              )
+
           def is_japanese(value):
               return any(
                   "\u3040" <= ch <= "\u30ff" or
@@ -109,36 +116,42 @@ jobs:
                   for ch in value
               )
 
-          surface_pos = defaultdict(set)
-          surface_records = defaultdict(set)
-          surface_datasets = defaultdict(set)
+          def is_hiragana_source_form(value):
+              value = norm(value)
+              has_hiragana = any("\u3040" <= ch <= "\u309f" for ch in value)
+              has_katakana = any("\u30a0" <= ch <= "\u30ff" for ch in value)
+              has_latin = any(("a" <= ch.lower() <= "z") for ch in value)
+              return bool(value) and has_hiragana and not has_katakana and not has_latin
+
+          surface_records = defaultdict(list)
           for shard in sorted(Path("dictionaries/system/compiled/open_lexicon/records").glob("*.jsonl.gz")):
               with gzip.open(shard, "rt", encoding="utf-8") as handle:
                   for line in handle:
                       if not line.strip():
                           continue
                       row = json.loads(line)
-                      pos = {norm(x) for x in row.get("part_of_speech") or [] if norm(x)}
+                      pos = sorted({norm(x) for x in row.get("part_of_speech") or [] if norm(x)})
                       if not pos:
                           continue
-                      values = [row.get("lemma"), *(row.get("surfaces") or [])]
+                      readings = sorted({kana_fold(x) for x in row.get("readings") or [] if norm(x)})
                       source = row.get("source") or {}
-                      dataset = norm(source.get("dataset"))
-                      rid = norm(row.get("record_id"))
-                      for value in values:
+                      compact = {
+                          "record_id": norm(row.get("record_id")),
+                          "pos": pos,
+                          "readings": readings,
+                          "dataset": norm(source.get("dataset")),
+                      }
+                      for value in [row.get("lemma"), *(row.get("surfaces") or [])]:
                           key = norm(value)
-                          if not key or not is_japanese(key):
-                              continue
-                          surface_pos[key].update(pos)
-                          if rid:
-                              surface_records[key].add(rid)
-                          if dataset:
-                              surface_datasets[key].add(dataset)
+                          if key and is_japanese(key):
+                              surface_records[key].append(compact)
 
-          counts = Counter()
-          candidate_pos_frequency = Counter()
-          matched_surface_count = 0
+          surface_counts = Counter()
+          strong_counts = Counter()
+          surface_pos_frequency = Counter()
+          strong_pos_frequency = Counter()
           evidence_rows = []
+
           for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
               if not line.strip():
                   continue
@@ -147,36 +160,71 @@ jobs:
                   norm(x) for x in row.get("surfaces") or []
                   if norm(x) and is_japanese(norm(x))
               })
-              matched = [s for s in japanese_surfaces if s in surface_pos]
-              pos_union = sorted({p for s in matched for p in surface_pos[s]})
-              datasets = sorted({d for s in matched for d in surface_datasets[s]})
-              matched_ids = sorted({rid for s in matched for rid in surface_records[s]})
-              matched_surface_count += len(matched)
-              if not matched:
-                  status = "NO_POS_EVIDENCE"
-              elif len(pos_union) == 1:
-                  status = "UNIQUE_POS_EVIDENCE"
-                  candidate_pos_frequency[pos_union[0]] += 1
+              source_readings = sorted({
+                  kana_fold(x) for x in row.get("surfaces") or []
+                  if is_hiragana_source_form(x)
+              })
+
+              surface_candidates = []
+              for surface in japanese_surfaces:
+                  surface_candidates.extend(surface_records.get(surface, []))
+              surface_pos = sorted({p for cand in surface_candidates for p in cand["pos"]})
+
+              if not surface_candidates:
+                  surface_status = "NO_POS_EVIDENCE"
+              elif len(surface_pos) == 1:
+                  surface_status = "UNIQUE_POS_EVIDENCE"
+                  surface_pos_frequency[surface_pos[0]] += 1
               else:
-                  status = "AMBIGUOUS_POS_EVIDENCE"
-              counts[status] += 1
-              if status != "NO_POS_EVIDENCE":
+                  surface_status = "AMBIGUOUS_POS_EVIDENCE"
+              surface_counts[surface_status] += 1
+
+              strong_candidates = []
+              source_reading_set = set(source_readings)
+              for cand in surface_candidates:
+                  if source_reading_set.intersection(cand["readings"]):
+                      strong_candidates.append(cand)
+              strong_pos = sorted({p for cand in strong_candidates for p in cand["pos"]})
+
+              if not strong_candidates:
+                  strong_status = "NO_STRONG_POS_EVIDENCE"
+              elif len(strong_pos) == 1:
+                  strong_status = "UNIQUE_STRONG_POS_EVIDENCE"
+                  strong_pos_frequency[strong_pos[0]] += 1
+              else:
+                  strong_status = "AMBIGUOUS_STRONG_POS_EVIDENCE"
+              strong_counts[strong_status] += 1
+
+              if surface_status != "NO_POS_EVIDENCE" or strong_status != "NO_STRONG_POS_EVIDENCE":
                   evidence_rows.append({
                       "adapter_record_id": row["adapter_record_id"],
-                      "status": status,
-                      "matched_surfaces": matched,
-                      "candidate_pos": pos_union,
-                      "source_datasets": datasets,
-                      "matched_open_lexicon_record_count": len(matched_ids),
+                      "source_readings": source_readings,
+                      "surface_status": surface_status,
+                      "surface_candidate_pos": surface_pos,
+                      "strong_status": strong_status,
+                      "strong_candidate_pos": strong_pos,
+                      "strong_source_datasets": sorted({
+                          cand["dataset"] for cand in strong_candidates if cand["dataset"]
+                      }),
+                      "strong_open_lexicon_record_ids": sorted({
+                          cand["record_id"] for cand in strong_candidates if cand["record_id"]
+                      }),
                   })
 
           report = {
-              "record_count": sum(counts.values()),
-              "unique_pos_evidence_records": counts["UNIQUE_POS_EVIDENCE"],
-              "ambiguous_pos_evidence_records": counts["AMBIGUOUS_POS_EVIDENCE"],
-              "no_pos_evidence_records": counts["NO_POS_EVIDENCE"],
-              "matched_surface_occurrences": matched_surface_count,
-              "unique_pos_candidate_frequency": dict(sorted(candidate_pos_frequency.items())),
+              "record_count": sum(surface_counts.values()),
+              "surface_only": {
+                  "unique_pos_evidence_records": surface_counts["UNIQUE_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": surface_counts["AMBIGUOUS_POS_EVIDENCE"],
+                  "no_pos_evidence_records": surface_counts["NO_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(surface_pos_frequency.items())),
+              },
+              "surface_plus_reading": {
+                  "unique_pos_evidence_records": strong_counts["UNIQUE_STRONG_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": strong_counts["AMBIGUOUS_STRONG_POS_EVIDENCE"],
+                  "no_pos_evidence_records": strong_counts["NO_STRONG_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(strong_pos_frequency.items())),
+              },
               "automatic_pos_fill": False,
               "runtime_promotion": False,
           }
