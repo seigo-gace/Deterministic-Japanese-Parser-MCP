@@ -124,6 +124,19 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
             "severity": "review",
         })
 
+    issue_kind_counts: dict[str, int] = {}
+    for issue in issues:
+        kind = str(issue["kind"])
+        issue_kind_counts[kind] = issue_kind_counts.get(kind, 0) + 1
+    max_surface_collision_group_size = max(
+        (
+            len(issue.get("record_ids", []))
+            for issue in issues
+            if issue.get("kind") == "SURFACE_COLLISION"
+        ),
+        default=0,
+    )
+
     report = {
         "status": "J_ONO_DATA_QUALITY_AUDIT_COMPLETE",
         "record_count": len(rows),
@@ -137,6 +150,8 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         "exact_semantic_duplicate_groups": len(exact_duplicate_groups),
         "surface_collision_groups": surface_collision_groups,
         "review_issue_count": len(issues),
+        "issue_kind_counts": dict(sorted(issue_kind_counts.items())),
+        "max_surface_collision_group_size": max_surface_collision_group_size,
         "hard_failure_count": 0,
         "automatic_meaning_judgement": False,
         "automatic_approval": False,
