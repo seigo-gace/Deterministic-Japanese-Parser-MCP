@@ -114,6 +114,7 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
     surface_collision_groups = 0
     same_meaning_surface_collision_groups = 0
     divergent_meaning_surface_collision_groups = 0
+    collision_record_sets: dict[tuple[str, ...], list[str]] = defaultdict(list)
     for surface, members in surface_index.items():
         ids = {m["record_id"] for m in members}
         if len(ids) <= 1:
@@ -132,9 +133,11 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
             same_meaning_surface_collision_groups += 1
         else:
             divergent_meaning_surface_collision_groups += 1
+        sorted_ids = tuple(sorted(ids))
+        collision_record_sets[sorted_ids].append(surface)
         issues.append({
             "surface": surface,
-            "record_ids": sorted(ids),
+            "record_ids": list(sorted_ids),
             "kind": collision_kind,
             "severity": "review",
         })
@@ -144,11 +147,11 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         kind = str(issue["kind"])
         issue_kind_counts[kind] = issue_kind_counts.get(kind, 0) + 1
     max_surface_collision_group_size = max(
-        (
-            len(issue.get("record_ids", []))
-            for issue in issues
-            if issue.get("kind") == "SURFACE_COLLISION"
-        ),
+        (len(record_ids) for record_ids in collision_record_sets),
+        default=0,
+    )
+    max_surface_variants_per_collision_cluster = max(
+        (len(surfaces) for surfaces in collision_record_sets.values()),
         default=0,
     )
 
@@ -166,6 +169,8 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         "surface_collision_groups": surface_collision_groups,
         "same_meaning_surface_collision_groups": same_meaning_surface_collision_groups,
         "divergent_meaning_surface_collision_groups": divergent_meaning_surface_collision_groups,
+        "unique_collision_record_sets": len(collision_record_sets),
+        "max_surface_variants_per_collision_cluster": max_surface_variants_per_collision_cluster,
         "review_issue_count": len(issues),
         "issue_kind_counts": dict(sorted(issue_kind_counts.items())),
         "max_surface_collision_group_size": max_surface_collision_group_size,
