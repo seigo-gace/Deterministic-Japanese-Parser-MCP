@@ -122,14 +122,16 @@ def _extract_fields(source_id: str, row: dict[str, Any]) -> dict[str, list[str]]
             )]
         )
     elif source_id == "j-ono-definitions":
+        source_hiragana = _stable_unique(_nested_texts(row.get("hiragana")))
         surfaces = _stable_unique(
             [
                 *surfaces,
-                *_nested_texts(row.get("hiragana")),
+                *source_hiragana,
                 *_nested_texts(row.get("katakana")),
                 *_nested_texts(row.get("romaji")),
             ]
         )
+        readings = _stable_unique([*readings, *source_hiragana])
         resolved = row.get("resolved_meaning_evidence")
         meanings = _stable_unique([*meanings, *_nested_texts(resolved)])
 
@@ -188,6 +190,45 @@ def _adapter_row(
     )
     attribution = _source_value(row, "attribution", "copyright", "publisher")
 
+    adapter_payload: dict[str, Any] = {
+        "source_fields_preserved": sorted(nested_source),
+        "meaning_factory_version": MEANING_FACTORY_VERSION,
+    }
+    if source_id == "j-ono-definitions":
+        examples: list[dict[str, Any]] = []
+        for raw_example in row.get("examples") or []:
+            if not isinstance(raw_example, dict):
+                continue
+            examples.append({
+                "source": _text(raw_example.get("source")),
+                "file": _text(raw_example.get("file")),
+                "display": _text(raw_example.get("display")),
+                "contributor": _text(raw_example.get("contributor")),
+                "image_payload_included": False,
+            })
+        resolved_evidence: list[dict[str, Any]] = []
+        for raw_evidence in row.get("resolved_meaning_evidence") or []:
+            if not isinstance(raw_evidence, dict):
+                continue
+            resolved_evidence.append({
+                "source_record_id": _text(raw_evidence.get("source_record_id")),
+                "source_definition_index": int(raw_evidence.get("source_definition_index") or 0),
+                "meaning": _text(raw_evidence.get("meaning")),
+                "via_refer": bool(raw_evidence.get("via_refer")),
+            })
+        adapter_payload["j_ono_source_evidence"] = {
+            "local_meaning": _text(row.get("local_meaning")),
+            "local_meaning_status": _text(row.get("local_meaning_status")),
+            "resolved_meaning_evidence": resolved_evidence,
+            "equivalents": _stable_unique(_nested_texts(row.get("equivalents"))),
+            "refer": _text(row.get("refer")),
+            "semantic_type_code": _text(row.get("type_code")),
+            "semantic_type_label": _text(row.get("type_label")),
+            "example_metadata": examples,
+            "meaning_policy": _text(row.get("meaning_policy")),
+            "automatic_semantic_interpretation": False,
+        }
+
     return {
         "adapter_record_id": adapter_id,
         "source_role": MEANING_ROLE,
@@ -215,10 +256,7 @@ def _adapter_row(
             "public_runtime_eligible": bool(source["public_runtime_eligible"]),
             "source_meaning_complete": bool(row.get("meaning_complete", True)),
         },
-        "payload": {
-            "source_fields_preserved": sorted(nested_source),
-            "meaning_factory_version": MEANING_FACTORY_VERSION,
-        },
+        "payload": adapter_payload,
     }
 
 

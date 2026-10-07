@@ -56,6 +56,17 @@ def parse_refer(value: str) -> tuple[str, int] | None:
     return target_id, index
 
 
+def _resolved_local_meaning(definition: dict[str, Any]) -> tuple[str, str]:
+    local = str(definition.get("meaning") or "").strip()
+    refer = str(definition.get("refer") or "").strip()
+    type_code = str(definition.get("type") or "").strip()
+    if local == "s" and refer and not type_code:
+        return "", "upstream-undocumented-sentinel"
+    if local:
+        return local, "source-authored"
+    return "", "empty"
+
+
 def normalize(
     manifest_path: Path,
     data_path: Path,
@@ -126,6 +137,7 @@ def normalize(
     local_meaning_nonempty = 0
     definition_children = 0
     surface_variant_count = 0
+    undocumented_meaning_sentinel_count = 0
 
     for record_id, item in by_id.items():
         romaji = as_strings(item.get("romaji", []), "romaji", record_id)
@@ -137,10 +149,13 @@ def normalize(
                 raise RuntimeError(f"{record_id}:{def_index} definition is not object")
             definition_children += 1
             meaning = str(definition.get("meaning") or "").strip()
+            semantic_local_meaning, local_meaning_status = _resolved_local_meaning(definition)
             if meaning:
                 local_meaning_nonempty += 1
             else:
                 local_meaning_empty += 1
+            if local_meaning_status == "upstream-undocumented-sentinel":
+                undocumented_meaning_sentinel_count += 1
             type_code = str(definition.get("type") or "").strip()
             if type_code not in ALLOWED_TYPES:
                 raise RuntimeError(f"{record_id}:{def_index} unknown type {type_code!r}")
@@ -194,7 +209,7 @@ def normalize(
         if parsed:
             target_id, target_index = parsed
             resolved.extend(resolve_meanings(target_id, target_index, trail + (key,)))
-        local = str(definition.get("meaning") or "").strip()
+        local, _local_status = _resolved_local_meaning(definition)
         if local:
             resolved.append(
                 {
@@ -250,6 +265,7 @@ def normalize(
                     "katakana": katakana,
                     "hiragana": hiragana,
                     "local_meaning": str(definition.get("meaning") or ""),
+                    "local_meaning_status": _resolved_local_meaning(definition)[1],
                     "resolved_meaning_evidence": resolved,
                     "equivalents": as_strings(
                         definition.get("equivalent", []),
@@ -296,6 +312,7 @@ def normalize(
         "surface_variant_count": surface_variant_count,
         "local_meaning_nonempty": local_meaning_nonempty,
         "local_meaning_empty": local_meaning_empty,
+        "undocumented_meaning_sentinel_count": undocumented_meaning_sentinel_count,
         "resolved_meaning_empty": resolved_meaning_empty,
         "refer_edges": len(refer_edges),
         "type_counts": dict(sorted(type_counts.items())),

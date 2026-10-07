@@ -16,6 +16,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from unified_semantic_data.frozen_raw_meaning_factory import (  # noqa: E402
+    _adapter_row,
     _extract_fields,
     build_frozen_raw_meaning_factory,
 )
@@ -175,8 +176,84 @@ def test_j_ono_resolved_evidence_is_not_lost() -> None:
         },
     )
     assert fields["surfaces"] == ["kirakira", "きらきら", "きらっきら", "キラキラ"]
+    assert fields["readings"] == ["きらきら", "きらっきら"]
+    assert "キラキラ" not in fields["readings"]
+    assert "kirakira" not in fields["readings"]
     assert fields["meanings"] == ["光が細かく繰り返し輝く様子"]
 
+
+
+def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
+    row = {
+        "record_id": "go:001",
+        "hiragana": ["ご", "ごごご"],
+        "katakana": ["ゴ"],
+        "romaji": ["go"],
+        "local_meaning": "intense focus",
+        "resolved_meaning_evidence": [
+            {
+                "source_record_id": "go",
+                "source_definition_index": 1,
+                "meaning": "intense focus",
+                "via_refer": False,
+            },
+            {
+                "source_record_id": "other",
+                "source_definition_index": 2,
+                "meaning": "menace",
+                "via_refer": True,
+            },
+        ],
+        "equivalents": ["glare", "menace"],
+        "refer": "other:2",
+        "type_code": "e",
+        "type_label": "emotion-feeling / 擬情語",
+        "examples": [
+            {
+                "source": "source-a",
+                "file": "example-a.png",
+                "display": "inline",
+                "contributor": "contributor-a",
+                "image_payload_included": False,
+            }
+        ],
+        "meaning_policy": "preserve source-authored evidence",
+        "source": {
+            "dataset": "J-Ono",
+            "license": "CC-BY-SA-3.0",
+            "repository": "https://github.com/ObakeConstructs/j-ono-data",
+            "data_sha256": "a" * 64,
+        },
+    }
+    record = _adapter_row(
+        row,
+        source={
+            "source_id": "j-ono-definitions",
+            "logical_source_id": "j-ono-definitions",
+            "artifact_id": 1,
+            "workflow_run_id": 2,
+            "rights_lane": "C",
+            "public_runtime_eligible": True,
+        },
+        payload={"path": "normalized/j-ono-definitions.jsonl", "sha256": "b" * 64},
+        line_number=1,
+        freeze_at="2026-10-07T00:00:00Z",
+    )
+    evidence = record["payload"]["j_ono_source_evidence"]
+    assert evidence["local_meaning"] == "intense focus"
+    assert evidence["equivalents"] == ["glare", "menace"]
+    assert evidence["refer"] == "other:2"
+    assert evidence["semantic_type_code"] == "e"
+    assert evidence["semantic_type_label"] == "emotion-feeling / 擬情語"
+    assert evidence["resolved_meaning_evidence"][1] == {
+        "source_record_id": "other",
+        "source_definition_index": 2,
+        "meaning": "menace",
+        "via_refer": True,
+    }
+    assert evidence["example_metadata"][0]["image_payload_included"] is False
+    assert evidence["automatic_semantic_interpretation"] is False
+    assert record["part_of_speech_list"] == []
 
 def test_bundle_checksum_mismatch_is_rejected(tmp_path: Path) -> None:
     bundle, manifest = _fixture(tmp_path, [_meaning_row()])

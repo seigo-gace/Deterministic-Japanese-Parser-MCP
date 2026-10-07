@@ -1,0 +1,304 @@
+name: J-Ono Data Quality Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/prepare_j_ono_review_input.py"
+      - "tools/audit_j_ono_data_quality.py"
+      - "tools/build_j_ono_collision_clusters.py"
+      - "tests/test_prepare_j_ono_review_input.py"
+      - "tests/test_audit_j_ono_data_quality.py"
+      - "tests/test_build_j_ono_collision_clusters.py"
+      - ".github/workflows/j-ono-data-quality-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-real-j-ono-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: source-authored-meaning-data-v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deterministic audit dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Download fixed source-authored meaning release
+        run: |
+          mkdir -p work/source-authored-meaning-release
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-source-authored-meaning-factory-v1.zip" \
+            --dir work/source-authored-meaning-release
+          test -f work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip
+
+      - name: Extract exact J-Ono records
+        run: |
+          python tools/prepare_j_ono_review_input.py \
+            --factory-zip work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip \
+            --output work/j-ono-source-adapter.jsonl
+
+      - name: Audit actual J-Ono data quality
+        run: |
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-source-adapter.jsonl \
+            --report work/j-ono-data-quality-report.json \
+            --issues work/j-ono-data-quality-review-issues.jsonl
+
+      - name: Build machine-first polysemy review clusters
+        run: |
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-source-adapter.jsonl \
+            --issues work/j-ono-data-quality-review-issues.jsonl \
+            --output work/j-ono-collision-clusters.jsonl \
+            --report work/j-ono-collision-cluster-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("work/j-ono-collision-cluster-report.json").read_text(encoding="utf-8"))
+          if report["cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_COUNT_MISMATCH")
+          if report["divergent_meaning_cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_DIVERGENT_COUNT_MISMATCH")
+          if report["same_meaning_cluster_count"] != 0:
+              raise SystemExit("J_ONO_CLUSTER_SAME_MEANING_UNEXPECTED")
+          if report["automatic_merge"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_RUNTIME_PROMOTION_FORBIDDEN")
+          print("J_ONO_CLUSTER_REPORT=" + json.dumps(report, sort_keys=True))
+          PY
+
+      - name: Report very-short meaning source evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = {}
+          for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              rows[row["adapter_record_id"]] = row
+
+          short_ids = []
+          for line in Path("work/j-ono-data-quality-review-issues.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              issue = json.loads(line)
+              if issue.get("kind") == "VERY_SHORT_MEANING":
+                  short_ids.append(issue["record_id"])
+
+          evidence = []
+          for record_id in sorted(short_ids):
+              row = rows[record_id]
+              source = row.get("source") or {}
+              evidence.append({
+                  "adapter_record_id": record_id,
+                  "source_record_id": source.get("source_record_id"),
+                  "surfaces": row.get("surfaces") or [],
+                  "readings": row.get("readings") or [],
+                  "meanings": row.get("meanings") or [],
+              })
+          print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Measure existing Open Lexicon POS evidence coverage
+        run: |
+          python - <<'PY'
+          import gzip
+          import json
+          from collections import Counter, defaultdict
+          from pathlib import Path
+          import unicodedata
+
+          def norm(value):
+              return unicodedata.normalize("NFKC", str(value or "")).strip()
+
+          def kana_fold(value):
+              value = norm(value)
+              return "".join(
+                  chr(ord(ch) - 0x60) if "\u30a1" <= ch <= "\u30f6" else ch
+                  for ch in value
+              )
+
+          def is_japanese(value):
+              return any(
+                  "\u3040" <= ch <= "\u30ff" or
+                  "\u3400" <= ch <= "\u9fff"
+                  for ch in value
+              )
+
+          def is_hiragana_source_form(value):
+              value = norm(value)
+              has_hiragana = any("\u3040" <= ch <= "\u309f" for ch in value)
+              has_katakana = any("\u30a0" <= ch <= "\u30ff" for ch in value)
+              has_latin = any(("a" <= ch.lower() <= "z") for ch in value)
+              return bool(value) and has_hiragana and not has_katakana and not has_latin
+
+          surface_records = defaultdict(list)
+          for shard in sorted(Path("dictionaries/system/compiled/open_lexicon/records").glob("*.jsonl.gz")):
+              with gzip.open(shard, "rt", encoding="utf-8") as handle:
+                  for line in handle:
+                      if not line.strip():
+                          continue
+                      row = json.loads(line)
+                      pos = sorted({norm(x) for x in row.get("part_of_speech") or [] if norm(x)})
+                      if not pos:
+                          continue
+                      readings = sorted({kana_fold(x) for x in row.get("readings") or [] if norm(x)})
+                      source = row.get("source") or {}
+                      compact = {
+                          "record_id": norm(row.get("record_id")),
+                          "pos": pos,
+                          "readings": readings,
+                          "dataset": norm(source.get("dataset")),
+                      }
+                      for value in [row.get("lemma"), *(row.get("surfaces") or [])]:
+                          key = norm(value)
+                          if key and is_japanese(key):
+                              surface_records[key].append(compact)
+
+          surface_counts = Counter()
+          strong_counts = Counter()
+          surface_pos_frequency = Counter()
+          strong_pos_frequency = Counter()
+          evidence_rows = []
+
+          for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              japanese_surfaces = sorted({
+                  norm(x) for x in row.get("surfaces") or []
+                  if norm(x) and is_japanese(norm(x))
+              })
+              source_readings = sorted({
+                  kana_fold(x) for x in row.get("surfaces") or []
+                  if is_hiragana_source_form(x)
+              })
+
+              surface_candidates = []
+              for surface in japanese_surfaces:
+                  surface_candidates.extend(surface_records.get(surface, []))
+              surface_pos = sorted({p for cand in surface_candidates for p in cand["pos"]})
+
+              if not surface_candidates:
+                  surface_status = "NO_POS_EVIDENCE"
+              elif len(surface_pos) == 1:
+                  surface_status = "UNIQUE_POS_EVIDENCE"
+                  surface_pos_frequency[surface_pos[0]] += 1
+              else:
+                  surface_status = "AMBIGUOUS_POS_EVIDENCE"
+              surface_counts[surface_status] += 1
+
+              strong_candidates = []
+              source_reading_set = set(source_readings)
+              for cand in surface_candidates:
+                  if source_reading_set.intersection(cand["readings"]):
+                      strong_candidates.append(cand)
+              strong_pos = sorted({p for cand in strong_candidates for p in cand["pos"]})
+
+              if not strong_candidates:
+                  strong_status = "NO_STRONG_POS_EVIDENCE"
+              elif len(strong_pos) == 1:
+                  strong_status = "UNIQUE_STRONG_POS_EVIDENCE"
+                  strong_pos_frequency[strong_pos[0]] += 1
+              else:
+                  strong_status = "AMBIGUOUS_STRONG_POS_EVIDENCE"
+              strong_counts[strong_status] += 1
+
+              if surface_status != "NO_POS_EVIDENCE" or strong_status != "NO_STRONG_POS_EVIDENCE":
+                  evidence_rows.append({
+                      "adapter_record_id": row["adapter_record_id"],
+                      "source_record_id": (row.get("source") or {}).get("source_record_id"),
+                      "surfaces": row.get("surfaces") or [],
+                      "meanings": row.get("meanings") or [],
+                      "source_readings": source_readings,
+                      "surface_status": surface_status,
+                      "surface_candidate_pos": surface_pos,
+                      "strong_status": strong_status,
+                      "strong_candidate_pos": strong_pos,
+                      "strong_source_datasets": sorted({
+                          cand["dataset"] for cand in strong_candidates if cand["dataset"]
+                      }),
+                      "strong_open_lexicon_record_ids": sorted({
+                          cand["record_id"] for cand in strong_candidates if cand["record_id"]
+                      }),
+                  })
+
+          report = {
+              "record_count": sum(surface_counts.values()),
+              "surface_only": {
+                  "unique_pos_evidence_records": surface_counts["UNIQUE_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": surface_counts["AMBIGUOUS_POS_EVIDENCE"],
+                  "no_pos_evidence_records": surface_counts["NO_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(surface_pos_frequency.items())),
+              },
+              "surface_plus_reading": {
+                  "unique_pos_evidence_records": strong_counts["UNIQUE_STRONG_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": strong_counts["AMBIGUOUS_STRONG_POS_EVIDENCE"],
+                  "no_pos_evidence_records": strong_counts["NO_STRONG_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(strong_pos_frequency.items())),
+              },
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-pos-evidence-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with Path("work/j-ono-pos-evidence.jsonl").open("w", encoding="utf-8", newline="\n") as out:
+              for item in evidence_rows:
+                  out.write(json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+          print("J_ONO_POS_EVIDENCE=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Verify no automatic semantic judgement or promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("work/j-ono-data-quality-report.json").read_text(encoding="utf-8"))
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_COUNT_MISMATCH")
+          if report["unique_adapter_record_ids"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_ID_UNIQUENESS_MISMATCH")
+          if report["hard_failure_count"] != 0:
+              raise SystemExit("J_ONO_REAL_DATA_HARD_FAILURE")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_AUTO_MEANING_JUDGEMENT_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_AUTO_APPROVAL_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_RUNTIME_PROMOTION_FORBIDDEN")
+          print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Upload real-data quality evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: j-ono-data-quality-${{ github.sha }}
+          path: |
+            work/j-ono-data-quality-report.json
+            work/j-ono-data-quality-review-issues.jsonl
+            work/j-ono-collision-clusters.jsonl
+            work/j-ono-collision-cluster-report.json
+            work/j-ono-pos-evidence-report.json
+            work/j-ono-pos-evidence.jsonl
+          if-no-files-found: error
+          retention-days: 30
