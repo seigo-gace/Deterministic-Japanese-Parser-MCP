@@ -122,14 +122,16 @@ def _extract_fields(source_id: str, row: dict[str, Any]) -> dict[str, list[str]]
             )]
         )
     elif source_id == "j-ono-definitions":
+        source_hiragana = _stable_unique(_nested_texts(row.get("hiragana")))
         surfaces = _stable_unique(
             [
                 *surfaces,
-                *_nested_texts(row.get("hiragana")),
+                *source_hiragana,
                 *_nested_texts(row.get("katakana")),
                 *_nested_texts(row.get("romaji")),
             ]
         )
+        readings = _stable_unique([*readings, *source_hiragana])
         resolved = row.get("resolved_meaning_evidence")
         meanings = _stable_unique([*meanings, *_nested_texts(resolved)])
 
