@@ -26,7 +26,18 @@ def _row(i: int) -> dict:
             "source_record_id": f"j-ono:{i}",
             "public_runtime_eligible": True,
         },
-        "payload": {},
+        "payload": {
+            "j_ono_source_evidence": {
+                "local_meaning": f"meaning-{i}",
+                "equivalents": [f"equivalent-{i}"],
+                "refer": "",
+                "semantic_type_code": "m",
+                "semantic_type_label": "state-manner",
+                "resolved_meaning_evidence": [],
+                "example_metadata": [],
+                "automatic_semantic_interpretation": False,
+            }
+        },
     }
 
 
@@ -78,6 +89,8 @@ def test_build_clusters_groups_surface_variants_by_record_set(tmp_path: Path):
     assert clusters[0]["reading_partition_count"] == 2
     assert clusters[0]["reading_evidence_disambiguates_some_members"] is True
     assert clusters[0]["missing_reading_evidence"] is False
+    assert clusters[0]["members"][0]["source_evidence"]["automatic_semantic_interpretation"] is False
+    assert clusters[0]["members"][0]["source_evidence"]["equivalents"]
     assert report["clusters_with_distinct_reading_evidence"] == EXPECTED_CLUSTERS
     assert report["clusters_with_missing_reading_evidence"] == 0
 
