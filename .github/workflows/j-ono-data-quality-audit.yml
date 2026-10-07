@@ -90,6 +90,106 @@ jobs:
           print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Measure existing Open Lexicon POS evidence coverage
+        run: |
+          python - <<'PY'
+          import gzip
+          import json
+          from collections import Counter, defaultdict
+          from pathlib import Path
+          import unicodedata
+
+          def norm(value):
+              return unicodedata.normalize("NFKC", str(value or "")).strip()
+
+          def is_japanese(value):
+              return any(
+                  "\u3040" <= ch <= "\u30ff" or
+                  "\u3400" <= ch <= "\u9fff"
+                  for ch in value
+              )
+
+          surface_pos = defaultdict(set)
+          surface_records = defaultdict(set)
+          surface_datasets = defaultdict(set)
+          for shard in sorted(Path("dictionaries/system/compiled/open_lexicon/records").glob("*.jsonl.gz")):
+              with gzip.open(shard, "rt", encoding="utf-8") as handle:
+                  for line in handle:
+                      if not line.strip():
+                          continue
+                      row = json.loads(line)
+                      pos = {norm(x) for x in row.get("part_of_speech") or [] if norm(x)}
+                      if not pos:
+                          continue
+                      values = [row.get("lemma"), *(row.get("surfaces") or [])]
+                      source = row.get("source") or {}
+                      dataset = norm(source.get("dataset"))
+                      rid = norm(row.get("record_id"))
+                      for value in values:
+                          key = norm(value)
+                          if not key or not is_japanese(key):
+                              continue
+                          surface_pos[key].update(pos)
+                          if rid:
+                              surface_records[key].add(rid)
+                          if dataset:
+                              surface_datasets[key].add(dataset)
+
+          counts = Counter()
+          candidate_pos_frequency = Counter()
+          matched_surface_count = 0
+          evidence_rows = []
+          for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              japanese_surfaces = sorted({
+                  norm(x) for x in row.get("surfaces") or []
+                  if norm(x) and is_japanese(norm(x))
+              })
+              matched = [s for s in japanese_surfaces if s in surface_pos]
+              pos_union = sorted({p for s in matched for p in surface_pos[s]})
+              datasets = sorted({d for s in matched for d in surface_datasets[s]})
+              matched_ids = sorted({rid for s in matched for rid in surface_records[s]})
+              matched_surface_count += len(matched)
+              if not matched:
+                  status = "NO_POS_EVIDENCE"
+              elif len(pos_union) == 1:
+                  status = "UNIQUE_POS_EVIDENCE"
+                  candidate_pos_frequency[pos_union[0]] += 1
+              else:
+                  status = "AMBIGUOUS_POS_EVIDENCE"
+              counts[status] += 1
+              if status != "NO_POS_EVIDENCE":
+                  evidence_rows.append({
+                      "adapter_record_id": row["adapter_record_id"],
+                      "status": status,
+                      "matched_surfaces": matched,
+                      "candidate_pos": pos_union,
+                      "source_datasets": datasets,
+                      "matched_open_lexicon_record_count": len(matched_ids),
+                  })
+
+          report = {
+              "record_count": sum(counts.values()),
+              "unique_pos_evidence_records": counts["UNIQUE_POS_EVIDENCE"],
+              "ambiguous_pos_evidence_records": counts["AMBIGUOUS_POS_EVIDENCE"],
+              "no_pos_evidence_records": counts["NO_POS_EVIDENCE"],
+              "matched_surface_occurrences": matched_surface_count,
+              "unique_pos_candidate_frequency": dict(sorted(candidate_pos_frequency.items())),
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-pos-evidence-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with Path("work/j-ono-pos-evidence.jsonl").open("w", encoding="utf-8", newline="\n") as out:
+              for item in evidence_rows:
+                  out.write(json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+          print("J_ONO_POS_EVIDENCE=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
       - name: Verify no automatic semantic judgement or promotion
         run: |
           python - <<'PY'
@@ -119,5 +219,7 @@ jobs:
           path: |
             work/j-ono-data-quality-report.json
             work/j-ono-data-quality-review-issues.jsonl
+            work/j-ono-pos-evidence-report.json
+            work/j-ono-pos-evidence.jsonl
           if-no-files-found: error
           retention-days: 30
