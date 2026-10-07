@@ -79,3 +79,17 @@ def test_audit_fails_closed_on_count_mismatch(tmp_path: Path):
     _write(path, [_row(1)])
     with pytest.raises(ValueError, match="J_ONO_COUNT_MISMATCH"):
         audit_records(path)
+
+def test_audit_classifies_j_ono_s_marker_as_upstream_sentinel(tmp_path: Path):
+    rows = [_row(i) for i in range(EXPECTED_RECORDS)]
+    rows[0]["meanings"] = ["s", "soft click or tap sound"]
+    rows[0]["source"]["logical_source_id"] = "j-ono-definitions"
+    path = tmp_path / "j-ono.jsonl"
+    _write(path, rows)
+    report, issues = audit_records(path)
+    sentinel = [issue for issue in issues if issue["kind"] == "UPSTREAM_UNDOCUMENTED_SENTINEL"]
+    assert len(sentinel) == 1
+    assert sentinel[0]["value"] == "s"
+    assert report["issue_kind_counts"]["UPSTREAM_UNDOCUMENTED_SENTINEL"] == 1
+    assert "VERY_SHORT_MEANING" not in report["issue_kind_counts"]
+
