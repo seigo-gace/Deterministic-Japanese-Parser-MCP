@@ -131,6 +131,10 @@ def build_clusters(records_path: Path, issues_path: Path) -> tuple[dict, list[di
             if not reading_evidence:
                 missing_reading_evidence = True
             member_reading_signatures.append(tuple(sorted(reading_evidence)))
+            payload = member.get("payload") if isinstance(member.get("payload"), dict) else {}
+            source_evidence = payload.get("j_ono_source_evidence")
+            if not isinstance(source_evidence, dict):
+                source_evidence = {}
             cluster["members"].append({
                 "record_id": member["adapter_record_id"],
                 "surfaces": _stable_unique(member["surfaces"]),
@@ -141,6 +145,7 @@ def build_clusters(records_path: Path, issues_path: Path) -> tuple[dict, list[di
                 "meanings": _stable_unique(member["meanings"]),
                 "source_record_id": str(source.get("source_record_id") or ""),
                 "logical_source_id": str(source.get("logical_source_id") or ""),
+                "source_evidence": source_evidence,
             })
         reading_partition_count = len(set(member_reading_signatures))
         cluster["reading_partition_count"] = reading_partition_count
