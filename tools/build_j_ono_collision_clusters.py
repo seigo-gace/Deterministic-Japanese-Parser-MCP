@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import unicodedata
 
 try:
     from unified_semantic_data.source_adapter_contract import normalize_adapter_record
@@ -34,6 +35,22 @@ def _stable_unique(values: list[str]) -> list[str]:
 def _cluster_id(record_ids: list[str]) -> str:
     payload = "\n".join(sorted(record_ids)).encode("utf-8")
     return "j-ono-cluster-" + hashlib.sha256(payload).hexdigest()[:20]
+
+
+def _norm(value: str) -> str:
+    return unicodedata.normalize("NFKC", str(value or "")).strip()
+
+
+def _hiragana_surface_candidates(values: list[str]) -> list[str]:
+    out: list[str] = []
+    for raw in values:
+        value = _norm(raw)
+        has_hiragana = any("\u3040" <= ch <= "\u309f" for ch in value)
+        has_katakana = any("\u30a0" <= ch <= "\u30ff" for ch in value)
+        has_latin = any("a" <= ch.lower() <= "z" for ch in value)
+        if value and has_hiragana and not has_katakana and not has_latin:
+            out.append(value)
+    return _stable_unique(out)
 
 
 def load_records(path: Path) -> dict[str, dict]:
@@ -87,6 +104,8 @@ def build_clusters(records_path: Path, issues_path: Path) -> tuple[dict, list[di
             for member in members
         }
         collision_type = "divergent_meaning" if len(meaning_signatures) > 1 else "same_meaning"
+        member_reading_signatures: list[tuple[str, ...]] = []
+        missing_reading_evidence = False
         cluster = {
             "cluster_id": _cluster_id(list(record_ids)),
             "cluster_type": collision_type,
@@ -102,15 +121,31 @@ def build_clusters(records_path: Path, issues_path: Path) -> tuple[dict, list[di
         }
         for member in members:
             source = member.get("source") or {}
+            readings = _stable_unique(member["readings"])
+            if readings:
+                reading_evidence = readings
+                reading_evidence_source = "adapter_readings"
+            else:
+                reading_evidence = _hiragana_surface_candidates(member["surfaces"])
+                reading_evidence_source = "hiragana_surface_candidates"
+            if not reading_evidence:
+                missing_reading_evidence = True
+            member_reading_signatures.append(tuple(sorted(reading_evidence)))
             cluster["members"].append({
                 "record_id": member["adapter_record_id"],
                 "surfaces": _stable_unique(member["surfaces"]),
-                "readings": _stable_unique(member["readings"]),
+                "readings": readings,
+                "reading_evidence_candidates": reading_evidence,
+                "reading_evidence_source": reading_evidence_source,
                 "part_of_speech": _stable_unique(member["part_of_speech"]),
                 "meanings": _stable_unique(member["meanings"]),
                 "source_record_id": str(source.get("source_record_id") or ""),
                 "logical_source_id": str(source.get("logical_source_id") or ""),
             })
+        reading_partition_count = len(set(member_reading_signatures))
+        cluster["reading_partition_count"] = reading_partition_count
+        cluster["reading_evidence_disambiguates_some_members"] = reading_partition_count > 1
+        cluster["missing_reading_evidence"] = missing_reading_evidence
         clusters.append(cluster)
 
     report = {
@@ -121,6 +156,19 @@ def build_clusters(records_path: Path, issues_path: Path) -> tuple[dict, list[di
         "same_meaning_cluster_count": sum(c["cluster_type"] == "same_meaning" for c in clusters),
         "max_record_count": max((c["record_count"] for c in clusters), default=0),
         "max_variant_surface_count": max((c["variant_surface_count"] for c in clusters), default=0),
+        "clusters_with_distinct_reading_evidence": sum(
+            bool(c["reading_evidence_disambiguates_some_members"]) for c in clusters
+        ),
+        "clusters_with_uniform_reading_evidence": sum(
+            not bool(c["reading_evidence_disambiguates_some_members"]) for c in clusters
+        ),
+        "clusters_with_missing_reading_evidence": sum(
+            bool(c["missing_reading_evidence"]) for c in clusters
+        ),
+        "max_reading_partition_count": max(
+            (int(c["reading_partition_count"]) for c in clusters),
+            default=0,
+        ),
         "automatic_merge": False,
         "automatic_meaning_judgement": False,
         "runtime_promotion": False,
