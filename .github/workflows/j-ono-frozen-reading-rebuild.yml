@@ -1,0 +1,140 @@
+name: J-Ono Frozen Reading Rebuild Verify
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
+      - "tests/test_frozen_raw_meaning_factory.py"
+      - "tools/audit_j_ono_data_quality.py"
+      - ".github/workflows/j-ono-frozen-reading-rebuild.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild-j-ono-from-frozen-raw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: source-authored-meaning-data-v1
+      RAW_SHA256: fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deterministic factory dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Download frozen raw factory input parts
+        run: |
+          mkdir -p work/raw-parts work/raw-unpacked work/rebuilt reports
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-collected-raw-factory-input-v1.zip.part-*" \
+            --dir work/raw-parts
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01
+          test -f work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02
+
+      - name: Reconstruct and verify frozen raw package
+        run: |
+          cat \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02 \
+            > work/mcp-collected-raw-factory-input-v1.zip
+          echo "$RAW_SHA256  work/mcp-collected-raw-factory-input-v1.zip" | sha256sum -c -
+          unzip -q work/mcp-collected-raw-factory-input-v1.zip -d work/raw-unpacked
+          find work/raw-unpacked -maxdepth 3 -type f -printf '%p\n' | sort
+
+      - name: Locate canonical frozen bundle and manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("work/raw-unpacked")
+          bundles = sorted(root.rglob("mcp-collected-raw-factory-input-v1.tar"))
+          manifests = sorted(root.rglob("mcp-collected-raw-factory-input-v1.manifest.json"))
+          if len(bundles) != 1:
+              raise SystemExit(f"FROZEN_BUNDLE_COUNT_INVALID:{len(bundles)}")
+          if len(manifests) != 1:
+              raise SystemExit(f"FROZEN_MANIFEST_COUNT_INVALID:{len(manifests)}")
+          Path("work/bundle-path.txt").write_text(str(bundles[0]), encoding="utf-8")
+          Path("work/manifest-path.txt").write_text(str(manifests[0]), encoding="utf-8")
+          print(f"FROZEN_BUNDLE={bundles[0]}")
+          print(f"FROZEN_MANIFEST={manifests[0]}")
+          PY
+
+      - name: Rebuild source-authored meaning factory from frozen raw
+        run: |
+          python tools/build_frozen_raw_meaning_factory.py \
+            --bundle "$(cat work/bundle-path.txt)" \
+            --manifest "$(cat work/manifest-path.txt)" \
+            --output-root work/rebuilt
+
+      - name: Extract rebuilt J-Ono adapter records
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path("work/rebuilt/source-adapter-records.jsonl")
+          dst = Path("work/j-ono-rebuilt.jsonl")
+          count = 0
+          with src.open(encoding="utf-8") as inp, dst.open("w", encoding="utf-8", newline="\n") as out:
+              for line in inp:
+                  if not line.strip():
+                      continue
+                  row = json.loads(line)
+                  source = row.get("source") or {}
+                  if source.get("logical_source_id") != "j-ono-definitions":
+                      continue
+                  out.write(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                  count += 1
+          if count != 837:
+              raise SystemExit(f"J_ONO_REBUILT_COUNT_MISMATCH:{count}")
+          print(f"J_ONO_REBUILT_RECORDS={count}")
+          PY
+
+      - name: Audit rebuilt J-Ono reading quality
+        run: |
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-rebuilt.jsonl \
+            --report reports/j-ono-rebuilt-quality.json \
+            --issues reports/j-ono-rebuilt-review-issues.jsonl
+
+      - name: Verify provenance-safe reading carry-through
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("reports/j-ono-rebuilt-quality.json").read_text(encoding="utf-8"))
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_REBUILT_COUNT_INVALID")
+          if report["reading_coverage_records"] <= 0:
+              raise SystemExit("J_ONO_REBUILT_READING_STILL_ZERO")
+          if report["hard_failure_count"] != 0:
+              raise SystemExit("J_ONO_REBUILT_HARD_FAILURE")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_AUTO_MEANING_JUDGEMENT_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_AUTO_APPROVAL_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_RUNTIME_PROMOTION_FORBIDDEN")
+          print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Upload rebuild-only evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: j-ono-frozen-reading-rebuild-${{ github.sha }}
+          path: reports
+          if-no-files-found: error
+          retention-days: 30
