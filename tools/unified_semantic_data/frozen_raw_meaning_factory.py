@@ -218,6 +218,7 @@ def _adapter_row(
             })
         adapter_payload["j_ono_source_evidence"] = {
             "local_meaning": _text(row.get("local_meaning")),
+            "local_meaning_status": _text(row.get("local_meaning_status")),
             "resolved_meaning_evidence": resolved_evidence,
             "equivalents": _stable_unique(_nested_texts(row.get("equivalents"))),
             "refer": _text(row.get("refer")),
