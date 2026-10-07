@@ -60,7 +60,7 @@ def test_audit_reports_review_flags_without_auto_rejecting_ambiguity(tmp_path: P
     _write(path, rows)
     report, issues = audit_records(path)
     kinds = {issue["kind"] for issue in issues}
-    assert {"MISSING_READING", "MISSING_POS", "SELF_DEFINITION", "SURFACE_COLLISION"} <= kinds
+    assert {"MISSING_READING", "MISSING_POS", "SELF_DEFINITION", "SURFACE_COLLISION_DIVERGENT_MEANING"} <= kinds
     assert report["review_issue_count"] >= 4
     assert report["hard_failure_count"] == 0
 
