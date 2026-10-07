@@ -33,6 +33,10 @@ def test_j_ono_review_preparation_workflow_is_manual_and_review_only() -> None:
     assert "approved_records" in workflow
     assert '"approved_records": 0' in workflow
     assert '"reading_coverage_records": 837' in workflow
+    assert "J_ONO_REVIEW_READING_BLOCKER_REMAINED" in workflow
+    assert '"lexical_review_records"' in workflow
+    assert '"part_of_speech_required_records"' in workflow
+    assert '"lexical_blocker_counts"' in workflow
     assert '"automatic_approval": False' in workflow
     assert '"runtime_promotion": False' in workflow
     assert "git push" not in workflow
