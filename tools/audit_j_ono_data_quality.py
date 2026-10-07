@@ -112,15 +112,30 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         })
 
     surface_collision_groups = 0
+    same_meaning_surface_collision_groups = 0
+    divergent_meaning_surface_collision_groups = 0
     for surface, members in surface_index.items():
         ids = {m["record_id"] for m in members}
         if len(ids) <= 1:
             continue
         surface_collision_groups += 1
+        meaning_signatures = {
+            json.dumps(m["meanings"], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            for m in members
+        }
+        collision_kind = (
+            "SURFACE_COLLISION_SAME_MEANING"
+            if len(meaning_signatures) == 1
+            else "SURFACE_COLLISION_DIVERGENT_MEANING"
+        )
+        if collision_kind == "SURFACE_COLLISION_SAME_MEANING":
+            same_meaning_surface_collision_groups += 1
+        else:
+            divergent_meaning_surface_collision_groups += 1
         issues.append({
             "surface": surface,
             "record_ids": sorted(ids),
-            "kind": "SURFACE_COLLISION",
+            "kind": collision_kind,
             "severity": "review",
         })
 
@@ -149,6 +164,8 @@ def audit_records(input_path: Path) -> tuple[dict, list[dict]]:
         "multi_meaning_records": multi_meaning,
         "exact_semantic_duplicate_groups": len(exact_duplicate_groups),
         "surface_collision_groups": surface_collision_groups,
+        "same_meaning_surface_collision_groups": same_meaning_surface_collision_groups,
+        "divergent_meaning_surface_collision_groups": divergent_meaning_surface_collision_groups,
         "review_issue_count": len(issues),
         "issue_kind_counts": dict(sorted(issue_kind_counts.items())),
         "max_surface_collision_group_size": max_surface_collision_group_size,
