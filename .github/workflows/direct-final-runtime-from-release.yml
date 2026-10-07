@@ -247,6 +247,17 @@ jobs:
               raise SystemExit("projection unmapped summary mismatch")
           if dangling_duplicates != 0:
               raise SystemExit("projection duplicate reference integrity failed")
+          source_dataset_coverage = manifest.get("source_dataset_coverage") or {}
+          missing_required_sources = {
+              lane: list((coverage or {}).get("missing") or [])
+              for lane, coverage in source_dataset_coverage.items()
+              if (coverage or {}).get("missing")
+          }
+          if missing_required_sources:
+              raise SystemExit(
+                  "projection required source dataset coverage mismatch: "
+                  + json.dumps(missing_required_sources, ensure_ascii=False, sort_keys=True)
+              )
           report = {
               "status": "PASS",
               "expected_records": expected,
@@ -257,6 +268,7 @@ jobs:
               "lane_membership_count": memberships,
               "unmapped_field_count": int(manifest["unmapped_field_count"]),
               "lane_counts": manifest["lane_counts"],
+              "source_dataset_coverage": source_dataset_coverage,
               "source_category_profiles": manifest.get("source_category_profiles", {}),
               "source_payload_duplication": manifest["boundaries"].get("source_payload_duplication"),
               "semantic_identity_deduplication": manifest["boundaries"].get("semantic_identity_deduplication"),
