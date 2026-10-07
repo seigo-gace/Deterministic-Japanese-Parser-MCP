@@ -97,6 +97,29 @@ jobs:
               raise SystemExit("J_ONO_REVIEW_INPUT_RUNTIME_PROMOTION_FORBIDDEN")
           PY
 
+      - name: Build machine-first review clusters from rebuilt data
+        run: |
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-source-adapter.jsonl \
+            --issues work/j-ono-review-input-issues.jsonl \
+            --output work/j-ono-collision-clusters.jsonl \
+            --report work/j-ono-collision-cluster-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("work/j-ono-collision-cluster-report.json").read_text(encoding="utf-8"))
+          if report["cluster_count"] != 129:
+              raise SystemExit("J_ONO_REVIEW_CLUSTER_COUNT_MISMATCH")
+          if report["divergent_meaning_cluster_count"] != 129:
+              raise SystemExit("J_ONO_REVIEW_CLUSTER_DIVERGENT_COUNT_MISMATCH")
+          if report["automatic_merge"] is not False:
+              raise SystemExit("J_ONO_REVIEW_CLUSTER_AUTO_MERGE_FORBIDDEN")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_REVIEW_CLUSTER_AUTO_MEANING_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_REVIEW_CLUSTER_RUNTIME_PROMOTION_FORBIDDEN")
+          PY
+
       - name: Compile existing universal source-adapter contract
         run: |
           python tools/unified_semantic_data/source_adapter_contract.py \
@@ -207,6 +230,8 @@ jobs:
             work/j-ono-source-adapter.jsonl
             work/j-ono-review-input-quality.json
             work/j-ono-review-input-issues.jsonl
+            work/j-ono-collision-clusters.jsonl
+            work/j-ono-collision-cluster-report.json
             work/j-ono-adapter
             work/j-ono-review
             work/j-ono-review-preparation-report.json
