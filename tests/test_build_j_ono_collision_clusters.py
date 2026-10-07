@@ -75,6 +75,11 @@ def test_build_clusters_groups_surface_variants_by_record_set(tmp_path: Path):
     assert clusters[0]["variant_surface_count"] == 2
     assert clusters[0]["review_required"] is True
     assert clusters[0]["automatic_meaning_judgement"] is False
+    assert clusters[0]["reading_partition_count"] == 2
+    assert clusters[0]["reading_evidence_disambiguates_some_members"] is True
+    assert clusters[0]["missing_reading_evidence"] is False
+    assert report["clusters_with_distinct_reading_evidence"] == EXPECTED_CLUSTERS
+    assert report["clusters_with_missing_reading_evidence"] == 0
 
 
 def test_cluster_id_is_stable_when_issue_record_order_changes(tmp_path: Path):
