@@ -1,0 +1,88 @@
+name: J-Ono Data Quality Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/prepare_j_ono_review_input.py"
+      - "tools/audit_j_ono_data_quality.py"
+      - "tests/test_prepare_j_ono_review_input.py"
+      - "tests/test_audit_j_ono_data_quality.py"
+      - ".github/workflows/j-ono-data-quality-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-real-j-ono-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: source-authored-meaning-data-v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deterministic audit dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Download fixed source-authored meaning release
+        run: |
+          mkdir -p work/source-authored-meaning-release
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-source-authored-meaning-factory-v1.zip" \
+            --dir work/source-authored-meaning-release
+          test -f work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip
+
+      - name: Extract exact J-Ono records
+        run: |
+          python tools/prepare_j_ono_review_input.py \
+            --factory-zip work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip \
+            --output work/j-ono-source-adapter.jsonl
+
+      - name: Audit actual J-Ono data quality
+        run: |
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-source-adapter.jsonl \
+            --report work/j-ono-data-quality-report.json \
+            --issues work/j-ono-data-quality-review-issues.jsonl
+
+      - name: Verify no automatic semantic judgement or promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("work/j-ono-data-quality-report.json").read_text(encoding="utf-8"))
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_COUNT_MISMATCH")
+          if report["unique_adapter_record_ids"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_ID_UNIQUENESS_MISMATCH")
+          if report["hard_failure_count"] != 0:
+              raise SystemExit("J_ONO_REAL_DATA_HARD_FAILURE")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_AUTO_MEANING_JUDGEMENT_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_AUTO_APPROVAL_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_RUNTIME_PROMOTION_FORBIDDEN")
+          print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Upload real-data quality evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: j-ono-data-quality-${{ github.sha }}
+          path: |
+            work/j-ono-data-quality-report.json
+            work/j-ono-data-quality-review-issues.jsonl
+          if-no-files-found: error
+          retention-days: 30
