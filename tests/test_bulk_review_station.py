@@ -144,8 +144,12 @@ def test_record_specific_review_scopes_exclude_non_applicable_judgments(
         "semantic",
         "pragmatic",
     ]
-    assert "task" not in request["body"]["input"]
-    assert "external_action" not in request["body"]["input"]
+    policy, record_json = request["body"]["input"].split("\nRECORD=", 1)
+    assert "task" not in policy
+    assert "external_action" not in policy
+    encoded_record = json.loads(record_json)
+    assert encoded_record["approval"]["scopes"]["task"] == "not-applicable"
+    assert encoded_record["approval"]["scopes"]["external_action"] == "not-applicable"
 
     manifest = prepare_bulk_review_job([record], tmp_path)
     assert manifest["decision_scopes"] == ["pragmatic", "semantic"]
