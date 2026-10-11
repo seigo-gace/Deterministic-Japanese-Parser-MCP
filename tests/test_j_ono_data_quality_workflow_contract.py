@@ -37,6 +37,10 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "work/j-ono-review-audit/review-records.jsonl" in workflow
     assert "work/j-ono-review-audit/bulk-review/bulk_review_manifest.json" in workflow
     assert "work/j-ono-review-audit/bulk-review/requests" in workflow
+    assert "J_ONO_REVIEW_QUEUE_FULL_PAYLOAD_DUPLICATION" in workflow
+    assert "J_ONO_REVIEW_EVIDENCE_MISSING" in workflow
+    assert "J_ONO_REVIEW_EVIDENCE_COVERAGE_MISMATCH" in workflow
+    assert '"full_payload_duplicated_into_review_queue": False' in workflow
     assert "J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED" in workflow
