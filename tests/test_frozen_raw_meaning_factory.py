@@ -202,6 +202,9 @@ def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
                 "source_definition_index": 2,
                 "meaning": "menace",
                 "via_refer": True,
+                "equivalents": ["threat", "menace"],
+                "semantic_type_code": "e",
+                "semantic_type_label": "emotion-feeling / 擬情語",
             },
         ],
         "equivalents": ["glare", "menace"],
@@ -250,6 +253,9 @@ def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
         "source_definition_index": 2,
         "meaning": "menace",
         "via_refer": True,
+        "equivalents": ["threat", "menace"],
+        "semantic_type_code": "e",
+        "semantic_type_label": "emotion-feeling / 擬情語",
     }
     assert evidence["example_metadata"][0]["image_payload_included"] is False
     assert evidence["automatic_semantic_interpretation"] is False
