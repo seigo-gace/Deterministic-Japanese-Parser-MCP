@@ -522,5 +522,9 @@ jobs:
             work/j-ono-source-evidence-effectiveness-report.json
             work/j-ono-source-evidence-effectiveness-details.jsonl
             work/j-ono-review-audit-report.json
+            work/j-ono-review-audit/review-queue.jsonl
+            work/j-ono-review-audit/review-records.jsonl
+            work/j-ono-review-audit/bulk-review/bulk_review_manifest.json
+            work/j-ono-review-audit/bulk-review/requests
           if-no-files-found: error
           retention-days: 30
