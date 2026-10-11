@@ -45,6 +45,9 @@ def test_j_ono_review_preparation_workflow_is_manual_and_review_only() -> None:
     assert '"approved_records": 0' in workflow
     assert '"reading_coverage_records": 837' in workflow
     assert "J_ONO_REVIEW_READING_BLOCKER_REMAINED" in workflow
+    assert "J_ONO_REVIEW_SOURCE_POS_EVIDENCE_MISMATCH" in workflow
+    assert '"source_part_of_speech_required_records"' in workflow
+    assert '"source_part_of_speech_coverage_records"' in workflow
     assert "J_ONO_REVIEW_PREPARATION_SCOPE_MISMATCH" in workflow
     assert "J_ONO_REVIEW_PREPARATION_SCOPE_COUNT_MISMATCH" in workflow
     assert "J_ONO_REVIEW_POLARITY_OVERREQUIRED" in workflow
