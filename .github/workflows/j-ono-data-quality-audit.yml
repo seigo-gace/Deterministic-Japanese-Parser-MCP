@@ -510,6 +510,172 @@ jobs:
           print("J_ONO_COMBINED_LEDGER_B64_END")
           PY
 
+      - name: Verify canonical J-Ono semantic decisions without lexical promotion
+        run: |
+          mkdir -p work/j-ono-canonical-decisions work/j-ono-post-semantic-review
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          queue = [
+              json.loads(line)
+              for line in Path("work/j-ono-review-audit/review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          queue_by_id = {row["record_id"]: row for row in queue}
+          ledger = [
+              json.loads(line)
+              for line in Path("research/semantic_decisions/decision_ledger.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          selected = [
+              item
+              for item in ledger
+              if item.get("record_id") in queue_by_id
+              and item.get("scope") == "semantic"
+          ]
+          if len(selected) != 837:
+              raise SystemExit(
+                  f"J_ONO_CANONICAL_SEMANTIC_DECISION_COUNT_MISMATCH:{len(selected)}"
+              )
+          for item in selected:
+              record = queue_by_id[item["record_id"]]
+              if item.get("status") != "approved":
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_STATUS_MISMATCH")
+              if item.get("reviewer") != "gpt-chat-j-ono-evidence-review":
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_REVIEWER_MISMATCH")
+              if item.get("input_sha256") != record.get("input_sha256"):
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_DIGEST_MISMATCH")
+              if item.get("patch"):
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_PATCH_FORBIDDEN")
+          selected.sort(key=lambda item: item["decision_id"])
+          Path("work/j-ono-canonical-decisions/decision_ledger.jsonl").write_text(
+              "".join(
+                  json.dumps(
+                      item,
+                      ensure_ascii=False,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  )
+                  + "\n"
+                  for item in selected
+              ),
+              encoding="utf-8",
+          )
+          PY
+
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/empty-open \
+            --context-root work/empty-context \
+            --pack-root work/empty-pack \
+            --semantic-reference-root work/empty-semantic-reference \
+            --canonical-evidence-root work/empty-canonical-evidence \
+            --adapter-output-root work/j-ono-review-audit-adapter \
+            --decision-root work/j-ono-canonical-decisions \
+            --output-root work/j-ono-post-semantic-review \
+            --force-rebuild
+
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("work/j-ono-post-semantic-review/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          records = [
+              json.loads(line)
+              for line in Path("work/j-ono-post-semantic-review/review-records.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          approved = [
+              json.loads(line)
+              for line in Path("work/j-ono-post-semantic-review/approved-records.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(records) != 837 or manifest["total_records"] != 837:
+              raise SystemExit("J_ONO_POST_SEMANTIC_RECORD_COUNT_MISMATCH")
+          if manifest["decision_count"] != 837:
+              raise SystemExit("J_ONO_POST_SEMANTIC_DECISION_COUNT_MISMATCH")
+          if manifest["runtime_eligible_records"] != 0 or approved:
+              raise SystemExit("J_ONO_POST_SEMANTIC_PREMATURE_RUNTIME_PROMOTION")
+
+          semantic_approved = 0
+          lexical_review = 0
+          semantic_blockers = 0
+          lexical_source_blockers = 0
+          runtime_eligible = 0
+          candidate_approved = 0
+          candidate_total = 0
+          for row in records:
+              approval = row.get("approval") or {}
+              scopes = approval.get("scopes") or {}
+              blockers = approval.get("blockers_by_scope") or {}
+              if scopes.get("semantic") == "approved":
+                  semantic_approved += 1
+              if "lexical" in set(approval.get("review_scopes") or []):
+                  lexical_review += 1
+              semantic_blockers += len(blockers.get("semantic") or [])
+              lexical_source_blockers += int(
+                  "source-part-of-speech-required"
+                  in set(blockers.get("lexical") or [])
+              )
+              runtime_eligible += int(row.get("runtime_eligible") is True)
+              for candidate in row.get("meaning_candidates") or []:
+                  candidate_total += 1
+                  candidate_approved += int(
+                      candidate.get("review_status") == "approved"
+                  )
+
+          checks = {
+              "semantic_approved_records": (semantic_approved, 837),
+              "lexical_review_records": (lexical_review, 837),
+              "semantic_blockers": (semantic_blockers, 0),
+              "lexical_source_pos_blockers": (lexical_source_blockers, 837),
+              "runtime_eligible_records": (runtime_eligible, 0),
+              "meaning_candidate_count": (candidate_total, 855),
+              "approved_meaning_candidates": (candidate_approved, 855),
+          }
+          for name, (actual, expected) in checks.items():
+              if actual != expected:
+                  raise SystemExit(
+                      f"J_ONO_POST_SEMANTIC_{name.upper()}_MISMATCH:"
+                      f"expected={expected}:actual={actual}"
+                  )
+
+          report = {
+              "status": "J_ONO_CANONICAL_SEMANTIC_DECISIONS_APPLIED",
+              "records": 837,
+              "decisions_applied": 837,
+              "semantic_approved_records": semantic_approved,
+              "approved_meaning_candidates": candidate_approved,
+              "lexical_review_records": lexical_review,
+              "lexical_source_pos_blockers": lexical_source_blockers,
+              "runtime_eligible_records": runtime_eligible,
+              "automatic_lexical_approval": False,
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-canonical-semantic-application-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(
+              "J_ONO_CANONICAL_SEMANTIC_APPLICATION="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
       - name: Measure existing Open Lexicon POS evidence coverage
         run: |
           python - <<'PY'
@@ -703,6 +869,8 @@ jobs:
             work/j-ono-source-evidence-effectiveness-details.jsonl
             work/j-ono-chat-semantic-decision-report.json
             work/j-ono-combined-decision-ledger.jsonl
+            work/j-ono-canonical-semantic-application-report.json
+            work/j-ono-canonical-decisions/decision_ledger.jsonl
             research/semantic_decisions/j_ono_chat_review_authorization.json
             work/j-ono-review-audit-report.json
             work/j-ono-review-audit/review-queue.jsonl
