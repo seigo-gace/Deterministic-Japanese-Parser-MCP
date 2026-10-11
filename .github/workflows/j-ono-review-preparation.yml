@@ -154,6 +154,9 @@ jobs:
 
           expected = 837
           adapter = json.loads(Path("work/j-ono-adapter/manifest.json").read_text(encoding="utf-8"))
+          quality = json.loads(
+              Path("work/j-ono-review-input-quality.json").read_text(encoding="utf-8")
+          )
           review = json.loads(Path("work/j-ono-review/manifest.json").read_text(encoding="utf-8"))
           bulk = json.loads(Path("work/j-ono-review/bulk-review/bulk_review_manifest.json").read_text(encoding="utf-8"))
           approved = Path("work/j-ono-review/approved-records.jsonl").read_text(encoding="utf-8")
@@ -216,6 +219,18 @@ jobs:
                   blocker_counts[blocker] = blocker_counts.get(blocker, 0) + 1
           if blocker_counts.get("reading-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_READING_BLOCKER_REMAINED")
+          expected_source_pos_missing = expected - int(
+              quality.get("pos_coverage_records") or 0
+          )
+          actual_source_pos_missing = scoped_blocker_counts.get(
+              "lexical:source-part-of-speech-required", 0
+          )
+          if actual_source_pos_missing != expected_source_pos_missing:
+              raise SystemExit(
+                  "J_ONO_REVIEW_SOURCE_POS_EVIDENCE_MISMATCH:"
+                  f"expected={expected_source_pos_missing}:"
+                  f"actual={actual_source_pos_missing}"
+              )
           if scoped_blocker_counts.get("semantic:polarity-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_POLARITY_OVERREQUIRED")
           if scoped_blocker_counts.get("semantic:intensity-required", 0) != 0:
@@ -237,6 +252,12 @@ jobs:
               "lexical_blocker_counts": dict(sorted(blocker_counts.items())),
               "scoped_blocker_counts": dict(sorted(scoped_blocker_counts.items())),
               "part_of_speech_required_records": blocker_counts.get("part-of-speech-required", 0),
+              "source_part_of_speech_required_records": scoped_blocker_counts.get(
+                  "lexical:source-part-of-speech-required", 0
+              ),
+              "source_part_of_speech_coverage_records": int(
+                  quality.get("pos_coverage_records") or 0
+              ),
               "automatic_approval": False,
               "runtime_promotion": False,
               "network_call_performed": False,
