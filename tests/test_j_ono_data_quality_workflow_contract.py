@@ -31,6 +31,8 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert '"automatic_pos_fill": False' in workflow
     assert "mcp-collected-raw-factory-input-v1.zip.part-*" in workflow
     assert "tools/build_frozen_raw_meaning_factory.py" in workflow
+    assert "python -m tools.unified_semantic_data.source_adapter_contract" in workflow
+    assert "python tools/unified_semantic_data/source_adapter_contract.py" not in workflow
     assert "J_ONO_REAL_DATA_HARD_FAILURE" in workflow
     assert "J_ONO_CLUSTER_COUNT_MISMATCH" in workflow
     assert "J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN" in workflow
