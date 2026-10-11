@@ -16,6 +16,7 @@ def _member(
     equivalents: list[str] | None = None,
     semantic_type_code: str = "",
     refer: str = "",
+    resolved: list[dict] | None = None,
     example_file: str = "",
 ) -> dict:
     return {
@@ -25,7 +26,7 @@ def _member(
             "semantic_type_code": semantic_type_code,
             "semantic_type_label": "",
             "refer": refer,
-            "resolved_meaning_evidence": [],
+            "resolved_meaning_evidence": resolved or [],
             "example_metadata": (
                 [{
                     "source": "src",
@@ -135,3 +136,86 @@ def test_reading_unresolved_cluster_count_fails_closed(tmp_path: Path) -> None:
             path,
             expected_reading_unresolved=1,
         )
+
+
+def test_local_source_identity_is_not_counted_as_refer_disambiguation(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "clusters.jsonl"
+    _write_clusters(
+        path,
+        [{
+            "cluster_id": "c1",
+            "reading_partition_count": 1,
+            "members": [
+                _member(
+                    "a",
+                    resolved=[{
+                        "source_record_id": "local-a",
+                        "source_definition_index": 1,
+                        "meaning": "x",
+                        "via_refer": False,
+                    }],
+                ),
+                _member(
+                    "b",
+                    resolved=[{
+                        "source_record_id": "local-b",
+                        "source_definition_index": 1,
+                        "meaning": "y",
+                        "via_refer": False,
+                    }],
+                ),
+            ],
+        }],
+    )
+
+    report, _ = measure_source_evidence_effectiveness(
+        path,
+        expected_reading_unresolved=1,
+    )
+
+    refer = report["dimension_totals"]["refer_provenance"]
+    assert refer["distinguished_pairs"] == 0
+    assert report["semantic_evidence"]["distinguished_pairs"] == 0
+
+
+def test_real_refer_path_can_be_counted_as_review_signal(tmp_path: Path) -> None:
+    path = tmp_path / "clusters.jsonl"
+    _write_clusters(
+        path,
+        [{
+            "cluster_id": "c1",
+            "reading_partition_count": 1,
+            "members": [
+                _member(
+                    "a",
+                    refer="target-a:1",
+                    resolved=[{
+                        "source_record_id": "target-a",
+                        "source_definition_index": 1,
+                        "meaning": "x",
+                        "via_refer": True,
+                    }],
+                ),
+                _member(
+                    "b",
+                    refer="target-b:1",
+                    resolved=[{
+                        "source_record_id": "target-b",
+                        "source_definition_index": 1,
+                        "meaning": "y",
+                        "via_refer": True,
+                    }],
+                ),
+            ],
+        }],
+    )
+
+    report, _ = measure_source_evidence_effectiveness(
+        path,
+        expected_reading_unresolved=1,
+    )
+
+    assert report["dimension_totals"]["refer_provenance"]["distinguished_pairs"] == 1
+    assert report["semantic_evidence"]["distinguished_pairs"] == 1
