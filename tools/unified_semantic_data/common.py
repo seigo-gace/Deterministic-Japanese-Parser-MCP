@@ -345,11 +345,16 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         blockers_by_scope["lexical"].append("reading-required")
     if not part_of_speech:
         blockers_by_scope["lexical"].append("part-of-speech-required")
+    review_requirements = raw.get("review_requirements") or {}
+    if not isinstance(review_requirements, dict):
+        raise ValueError(f"review_requirements must be object: {record_id}")
+    require_polarity = review_requirements.get("polarity", True) is not False
+    require_intensity = review_requirements.get("intensity", True) is not False
     if not semantic_content_present:
         blockers_by_scope["semantic"].append("meaning-candidate-required")
-    if polarity == "unspecified":
+    if require_polarity and polarity == "unspecified":
         blockers_by_scope["semantic"].append("polarity-required")
-    if intensity is None:
+    if require_intensity and intensity is None:
         blockers_by_scope["semantic"].append("intensity-required")
     raw_context = raw.get("context_conditions")
     if raw.get("_force_judgment_review") or not isinstance(raw_context, dict):
@@ -497,6 +502,10 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         ),
         "source": source,
         "review_evidence": review_evidence,
+        "review_requirements": {
+            "polarity": require_polarity,
+            "intensity": require_intensity,
+        },
         "review_status": review_status,
         "approval": {
             "scopes": scope_status,
