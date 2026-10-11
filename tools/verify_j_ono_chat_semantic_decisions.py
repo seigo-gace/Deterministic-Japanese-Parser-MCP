@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import hashlib
 from typing import Any
 
 try:
@@ -28,12 +29,30 @@ except ModuleNotFoundError:  # direct execution: python tools/verify_*.py
     )
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def verify_existing_decisions(
     review_queue: Path,
     authorization_path: Path,
     existing_ledger_path: Path,
+    effectiveness_report_path: Path | None = None,
+    review_audit_report_path: Path | None = None,
 ) -> dict[str, Any]:
     authorization = _read_json(authorization_path)
+    if _sha256(review_queue) != str(authorization["review_queue_sha256"]):
+        raise ValueError("J_ONO_CHAT_EXISTING_VERIFY_QUEUE_DIGEST_MISMATCH")
+    if effectiveness_report_path is not None and _sha256(
+        effectiveness_report_path
+    ) != str(authorization["source_evidence_effectiveness_report_sha256"]):
+        raise ValueError(
+            "J_ONO_CHAT_EXISTING_VERIFY_EFFECTIVENESS_DIGEST_MISMATCH"
+        )
+    if review_audit_report_path is not None and _sha256(
+        review_audit_report_path
+    ) != str(authorization["review_audit_report_sha256"]):
+        raise ValueError("J_ONO_CHAT_EXISTING_VERIFY_AUDIT_DIGEST_MISMATCH")
     rows = _read_jsonl(review_queue)
     expected_records = int(authorization["expected_record_count"])
     if len(rows) != expected_records:
@@ -109,12 +128,16 @@ def main() -> int:
     parser.add_argument("--review-queue", type=Path, required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--existing-ledger", type=Path, required=True)
+    parser.add_argument("--effectiveness-report", type=Path)
+    parser.add_argument("--review-audit-report", type=Path)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     report = verify_existing_decisions(
         args.review_queue,
         args.authorization,
         args.existing_ledger,
+        args.effectiveness_report,
+        args.review_audit_report,
     )
     args.report.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
