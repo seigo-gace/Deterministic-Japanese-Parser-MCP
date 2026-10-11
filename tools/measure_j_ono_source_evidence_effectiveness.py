@@ -87,9 +87,20 @@ def _member_signatures(member: dict[str, Any]) -> dict[str, tuple[str, ...]]:
     evidence = member.get("source_evidence")
     if not isinstance(evidence, dict):
         evidence = {}
+
+    equivalents = set(_stable_tuple(evidence.get("equivalents")))
+    semantic_type = set(_semantic_type_signature(evidence))
+    resolved = evidence.get("resolved_meaning_evidence")
+    if isinstance(resolved, list):
+        for item in resolved:
+            if not isinstance(item, dict) or not bool(item.get("via_refer")):
+                continue
+            equivalents.update(_stable_tuple(item.get("equivalents")))
+            semantic_type.update(_semantic_type_signature(item))
+
     return {
-        "equivalents": _stable_tuple(evidence.get("equivalents")),
-        "semantic_type": _semantic_type_signature(evidence),
+        "equivalents": tuple(sorted(equivalents)),
+        "semantic_type": tuple(sorted(semantic_type)),
         "refer_provenance": _refer_signature(evidence),
         "example_metadata": _example_metadata_signature(evidence),
     }
@@ -261,6 +272,7 @@ def measure_source_evidence_effectiveness(
         "dimension_totals": dimension_totals,
         "interpretation_boundary": {
             "different_source_evidence_is_review_signal_not_semantic_truth": True,
+            "refer_target_semantic_evidence_used": True,
             "example_metadata_excluded_from_primary_semantic_score": True,
             "missing_vs_present_evidence_not_counted_as_semantic_disambiguation": True,
             "automatic_merge": False,
