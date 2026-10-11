@@ -30,6 +30,9 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "J_ONO_MISSING_EVIDENCE_OVERCLAIM" in workflow
     assert "J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN" in workflow
     assert "J_ONO_REFER_TARGET_SEMANTIC_EVIDENCE_NOT_USED" in workflow
+    assert "J_ONO_REFER_TARGET_EVIDENCE_RECONSTRUCTION_EMPTY" in workflow
+    assert "J_ONO_REFER_TARGET_EVIDENCE_BOUNDARY_FALSE" in workflow
+    assert "j_ono_refer_target_evidence_item_count" in workflow
     assert "J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED" in workflow
