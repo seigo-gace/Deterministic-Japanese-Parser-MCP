@@ -18,6 +18,12 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "tools/audit_j_ono_data_quality.py" in workflow
     assert "tools/build_j_ono_collision_clusters.py" in workflow
     assert "tools/measure_j_ono_source_evidence_effectiveness.py" in workflow
+    assert "tools/public_onomatopoeia_sources.py" in workflow
+    assert "tools/build_frozen_raw_meaning_factory.py" in workflow
+    assert "tools/unified_semantic_data/frozen_raw_meaning_factory.py" in workflow
+    assert "tools/unified_semantic_data/source_adapter_contract.py" in workflow
+    assert "tools/unified_semantic_data_pipeline.py" in workflow
+    assert "tools/bulk_review_station.py" in workflow
     assert "--expected-reading-unresolved 124" in workflow
     assert "J_ONO_SOURCE_EVIDENCE_TARGET_CLUSTER_COUNT_MISMATCH" in workflow
     assert "J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM" in workflow
