@@ -86,6 +86,11 @@ def _read_jsonl(path: Path) -> list[dict]:
     ]
 
 
+def _read_jsonl_gzip(path: Path) -> list[dict]:
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
 def test_pipeline_accepts_lexicon_context_domain_and_user_sources(tmp_path: Path) -> None:
     open_root = tmp_path / "open"
     context_root = tmp_path / "context"
