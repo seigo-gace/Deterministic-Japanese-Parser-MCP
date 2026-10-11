@@ -345,8 +345,8 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
             "lexical": "needs-evidence",
             "semantic": "needs-evidence",
             "pragmatic": "needs-evidence",
-            "task": "needs-evidence",
-            "external_action": "needs-evidence",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
         },
         "source": {
             **source,
