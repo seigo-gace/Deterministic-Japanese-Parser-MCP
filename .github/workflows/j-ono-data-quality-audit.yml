@@ -200,6 +200,95 @@ jobs:
           )
           PY
 
+      - name: Verify rebuilt J-Ono through existing review pipeline
+        run: |
+          python tools/unified_semantic_data/source_adapter_contract.py \
+            work/j-ono-rebuilt-source-adapter.jsonl \
+            --output-root work/j-ono-review-audit-adapter
+          mkdir -p \
+            work/empty-open \
+            work/empty-context \
+            work/empty-pack \
+            work/empty-semantic-reference \
+            work/empty-canonical-evidence \
+            work/empty-decisions
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/empty-open \
+            --context-root work/empty-context \
+            --pack-root work/empty-pack \
+            --semantic-reference-root work/empty-semantic-reference \
+            --canonical-evidence-root work/empty-canonical-evidence \
+            --adapter-output-root work/j-ono-review-audit-adapter \
+            --decision-root work/empty-decisions \
+            --output-root work/j-ono-review-audit \
+            --force-rebuild
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("work/j-ono-review-audit/manifest.json").read_text(encoding="utf-8")
+          )
+          queue = [
+              json.loads(line)
+              for line in Path("work/j-ono-review-audit/review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          blockers = Counter()
+          lexical_review_records = 0
+          semantic_review_records = 0
+          for row in queue:
+              approval = row.get("approval") or {}
+              scopes = set(approval.get("review_scopes") or [])
+              by_scope = approval.get("blockers_by_scope") or {}
+              if "lexical" in scopes:
+                  lexical_review_records += 1
+              if "semantic" in scopes:
+                  semantic_review_records += 1
+              for scope, values in by_scope.items():
+                  for blocker in values or []:
+                      blockers[f"{scope}:{blocker}"] += 1
+
+          if manifest["total_records"] != 837:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH")
+          if manifest["review_queue_records"] != 837 or len(queue) != 837:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH")
+          if manifest["runtime_eligible_records"] != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_RUNTIME_ELIGIBILITY")
+          if manifest["decision_count"] != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_DECISION")
+          if blockers.get("lexical:reading-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED")
+
+          report = {
+              "status": "J_ONO_REVIEW_AUDIT_COMPLETE",
+              "records": 837,
+              "review_queue_records": len(queue),
+              "lexical_review_records": lexical_review_records,
+              "semantic_review_records": semantic_review_records,
+              "blocker_counts": dict(sorted(blockers.items())),
+              "part_of_speech_required_records": blockers.get(
+                  "lexical:part-of-speech-required", 0
+              ),
+              "reading_required_records": blockers.get(
+                  "lexical:reading-required", 0
+              ),
+              "approved_records": 0,
+              "runtime_eligible_records": 0,
+              "automatic_approval": False,
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-review-audit-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("J_ONO_REVIEW_AUDIT=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
       - name: Measure existing Open Lexicon POS evidence coverage
         run: |
           python - <<'PY'
@@ -390,5 +479,6 @@ jobs:
             work/j-ono-rebuilt-collision-cluster-report.json
             work/j-ono-source-evidence-effectiveness-report.json
             work/j-ono-source-evidence-effectiveness-details.jsonl
+            work/j-ono-review-audit-report.json
           if-no-files-found: error
           retention-days: 30
