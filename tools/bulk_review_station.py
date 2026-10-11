@@ -20,6 +20,26 @@ import yaml
 MAX_BATCH_REQUESTS = 50_000
 BATCH_ENDPOINT = "/v1/responses"
 REVIEW_SCOPES = ("semantic", "pragmatic", "task", "external_action")
+
+
+def decision_scopes_for_record(record: dict[str, Any]) -> tuple[str, ...]:
+    """Return only judgment scopes currently applicable to this record.
+
+    Legacy/unscoped queues retain the historical four-scope contract. Records
+    produced by the current unified pipeline carry explicit review_scopes; those
+    scopes are authoritative for whether a non-lexical judgment is requested.
+    Lexical review remains outside Bulk Review Station.
+    """
+    approval = record.get("approval")
+    if not isinstance(approval, dict) or "review_scopes" not in approval:
+        return REVIEW_SCOPES
+    review_scopes = approval.get("review_scopes")
+    if not isinstance(review_scopes, list):
+        raise ValueError(f"invalid approval.review_scopes for {record.get('record_id')}")
+    selected = tuple(scope for scope in REVIEW_SCOPES if scope in set(review_scopes))
+    return selected
+
+
 DECISION_STATUSES = {"approved", "needs-evidence", "rejected", "hold"}
 PATCH_FIELDS = {
     "meaning_candidates", "parameters", "register", "context_conditions",
@@ -133,7 +153,14 @@ def split_records(
     ]
 
 
-def bulk_review_output_schema() -> dict[str, Any]:
+def bulk_review_output_schema(
+    scopes: tuple[str, ...] = REVIEW_SCOPES,
+) -> dict[str, Any]:
+    if not scopes:
+        raise ValueError("bulk review requires at least one non-lexical review scope")
+    if any(scope not in REVIEW_SCOPES for scope in scopes):
+        raise ValueError(f"invalid bulk review scopes: {scopes}")
+    count = len(scopes)
     return {
         "type": "object",
         "additionalProperties": False,
@@ -142,14 +169,14 @@ def bulk_review_output_schema() -> dict[str, Any]:
             "record_id": {"type": "string", "minLength": 1},
             "decisions": {
                 "type": "array",
-                "minItems": 4,
-                "maxItems": 4,
+                "minItems": count,
+                "maxItems": count,
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
                     "required": ["scope", "status", "rationale", "patch"],
                     "properties": {
-                        "scope": {"enum": list(REVIEW_SCOPES)},
+                        "scope": {"enum": list(scopes)},
                         "status": {"enum": sorted(DECISION_STATUSES)},
                         "rationale": {"type": "string", "minLength": 1},
                         "patch": {"type": "object"},
@@ -163,10 +190,16 @@ def bulk_review_output_schema() -> dict[str, Any]:
 def build_batch_request(record: dict[str, Any], *, model: str = DEFAULT_MODEL) -> dict[str, Any]:
     """Build future-provider request material; this function performs no I/O."""
     record = ensure_input_sha256(record)
+    scopes = decision_scopes_for_record(record)
+    if not scopes:
+        raise ValueError(
+            f"record has no Bulk Review Station judgment scope: {record.get('record_id')}"
+        )
     policy = (
-        "Review one deterministic Japanese semantic-data record. Return exactly four "
-        "judgments: semantic, pragmatic, task, external_action. Never invent evidence "
-        "or overwrite source-owned meaning candidates.\nRECORD=" + _json_line(record)
+        "Review one deterministic Japanese semantic-data record. Return exactly "
+        f"{len(scopes)} judgments for these scopes only: {', '.join(scopes)}. "
+        "Never invent evidence or overwrite source-owned meaning candidates.\nRECORD="
+        + _json_line(record)
     )
     return {
         "custom_id": str(record["record_id"]),
@@ -179,7 +212,7 @@ def build_batch_request(record: dict[str, Any], *, model: str = DEFAULT_MODEL) -
                 "format": {
                     "type": "json_schema",
                     "name": "bulk_review_decisions",
-                    "schema": bulk_review_output_schema(),
+                    "schema": bulk_review_output_schema(scopes),
                     "strict": True,
                 }
             },
@@ -236,7 +269,16 @@ def prepare_bulk_review_job(
         "endpoint": BATCH_ENDPOINT,
         "model": model,
         "structured_outputs": True,
-        "decision_scopes": list(REVIEW_SCOPES),
+        "decision_scopes": sorted({
+            scope
+            for record in records
+            for scope in decision_scopes_for_record(record)
+        }),
+        "scope_request_counts": dict(sorted(Counter(
+            scope
+            for record in records
+            for scope in decision_scopes_for_record(record)
+        ).items())),
         "runtime_promotion_allowed": False,
         "network_call_performed": False,
     }
@@ -343,12 +385,15 @@ def merge_batch_results(
     for record in records:
         rid = str(record["record_id"])
         items = payload_by_id[rid].get("decisions")
-        if not isinstance(items, list) or len(items) != 4:
-            raise ValueError(f"exactly four decisions are required for {rid}")
+        expected_scopes = decision_scopes_for_record(record)
+        if not isinstance(items, list) or len(items) != len(expected_scopes):
+            raise ValueError(
+                f"exactly {len(expected_scopes)} decisions are required for {rid}"
+            )
         scope_map = {item["scope"]: item for item in items}
-        if set(scope_map) != set(REVIEW_SCOPES):
+        if set(scope_map) != set(expected_scopes):
             raise ValueError(f"scope coverage mismatch for {rid}")
-        for scope in REVIEW_SCOPES:
+        for scope in expected_scopes:
             item = scope_map[scope]
             patch = _validate_patch(item.get("patch") or {})
             decision = {
