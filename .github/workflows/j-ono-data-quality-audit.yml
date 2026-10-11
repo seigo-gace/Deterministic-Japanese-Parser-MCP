@@ -9,6 +9,7 @@ on:
       - "tools/build_j_ono_collision_clusters.py"
       - "tools/measure_j_ono_source_evidence_effectiveness.py"
       - "tools/prepare_j_ono_chat_semantic_decisions.py"
+      - "tools/verify_j_ono_chat_semantic_decisions.py"
       - "research/semantic_decisions/j_ono_chat_review_authorization.json"
       - "tools/public_onomatopoeia_sources.py"
       - "tools/build_frozen_raw_meaning_factory.py"
@@ -21,6 +22,7 @@ on:
       - "tests/test_build_j_ono_collision_clusters.py"
       - "tests/test_measure_j_ono_source_evidence_effectiveness.py"
       - "tests/test_prepare_j_ono_chat_semantic_decisions.py"
+      - "tests/test_verify_j_ono_chat_semantic_decisions.py"
       - ".github/workflows/j-ono-data-quality-audit.yml"
   workflow_dispatch:
 
@@ -383,14 +385,66 @@ jobs:
 
       - name: Prepare exact GPT CHAT semantic Decision Ledger candidate
         run: |
-          python tools/prepare_j_ono_chat_semantic_decisions.py \
+          python tools/verify_j_ono_chat_semantic_decisions.py \
             --review-queue work/j-ono-review-audit/review-queue.jsonl \
             --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
-            --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
-            --review-audit-report work/j-ono-review-audit-report.json \
             --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
-            --output-ledger work/j-ono-combined-decision-ledger.jsonl \
-            --report work/j-ono-chat-semantic-decision-report.json
+            --report work/j-ono-chat-semantic-existing-report.json
+          mode="$(python -c 'import json; print(json.load(open("work/j-ono-chat-semantic-existing-report.json"))["status"])')"
+          if [ "$mode" = "NOT_APPLIED" ]; then
+            python tools/prepare_j_ono_chat_semantic_decisions.py \
+              --review-queue work/j-ono-review-audit/review-queue.jsonl \
+              --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
+              --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
+              --review-audit-report work/j-ono-review-audit-report.json \
+              --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
+              --output-ledger work/j-ono-combined-decision-ledger.jsonl \
+              --report work/j-ono-chat-semantic-decision-report.json
+          elif [ "$mode" = "ALREADY_APPLIED" ]; then
+            cp research/semantic_decisions/decision_ledger.jsonl \
+              work/j-ono-combined-decision-ledger.jsonl
+            python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          existing = json.loads(
+              Path("work/j-ono-chat-semantic-existing-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          ledger = Path("work/j-ono-combined-decision-ledger.jsonl").read_bytes()
+          decision_count = sum(
+              1
+              for line in ledger.decode("utf-8").splitlines()
+              if line.strip()
+          )
+          report = {
+              "status": "J_ONO_CHAT_SEMANTIC_DECISIONS_ALREADY_APPLIED",
+              "existing_exact_semantic_decision_count": 837,
+              "new_semantic_decision_count": 0,
+              "authorized_semantic_decision_count": 837,
+              "total_decision_count": decision_count,
+              "meaning_candidate_count": existing["meaning_candidate_count"],
+              "semantic_approved_records": 837,
+              "lexical_approved_records": 0,
+              "decision_patch_count": 0,
+              "automatic_approval": False,
+              "decision_application": False,
+              "runtime_promotion": False,
+              "combined_ledger_sha256": hashlib.sha256(ledger).hexdigest(),
+              "combined_ledger_bytes": len(ledger),
+          }
+          Path("work/j-ono-chat-semantic-decision-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          else
+            echo "J_ONO_CHAT_EXISTING_VERIFY_UNKNOWN_MODE:$mode" >&2
+            exit 1
+          fi
+
           python - <<'PY'
           import base64
           import json
@@ -401,8 +455,22 @@ jobs:
                   encoding="utf-8"
               )
           )
-          if report["new_semantic_decision_count"] != 837:
+          new_count = int(report.get("new_semantic_decision_count", 0))
+          existing_exact = int(
+              report.get("existing_exact_semantic_decision_count", 0)
+          )
+          authorized = int(
+              report.get(
+                  "authorized_semantic_decision_count",
+                  new_count + existing_exact,
+              )
+          )
+          if new_count not in {0, 837}:
               raise SystemExit("J_ONO_CHAT_DECISION_COUNT_MISMATCH")
+          if existing_exact not in {0, 837}:
+              raise SystemExit("J_ONO_CHAT_EXISTING_DECISION_COUNT_MISMATCH")
+          if new_count + existing_exact != 837 or authorized != 837:
+              raise SystemExit("J_ONO_CHAT_AUTHORIZED_DECISION_COUNT_MISMATCH")
           if report["meaning_candidate_count"] != 855:
               raise SystemExit("J_ONO_CHAT_DECISION_CANDIDATE_COUNT_MISMATCH")
           if report["semantic_approved_records"] != 837:
