@@ -613,3 +613,56 @@ def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blocke
     )
     assert record["runtime_eligible"] is False
     assert record["review_evidence"] == raw["review_evidence"]
+
+
+def test_optional_semantic_facets_do_not_block_source_authored_meaning_review(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-OPTIONAL-FACETS", "ぴかぴか")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    raw["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    assert record["review_requirements"] == {
+        "polarity": False,
+        "intensity": False,
+    }
+    assert record["approval"]["blockers_by_scope"]["semantic"] == []
+    assert record["approval"]["blockers_by_scope"]["pragmatic"] == []
+    assert set(record["approval"]["review_scopes"]) == {"lexical", "semantic"}
+    assert record["polarity"] == "unspecified"
+    assert record["intensity"] is None
+    assert record["runtime_eligible"] is False
