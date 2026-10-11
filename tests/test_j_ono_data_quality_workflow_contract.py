@@ -17,6 +17,14 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "tools/prepare_j_ono_review_input.py" in workflow
     assert "tools/audit_j_ono_data_quality.py" in workflow
     assert "tools/build_j_ono_collision_clusters.py" in workflow
+    assert "tools/measure_j_ono_source_evidence_effectiveness.py" in workflow
+    assert "--expected-reading-unresolved 124" in workflow
+    assert "J_ONO_SOURCE_EVIDENCE_TARGET_CLUSTER_COUNT_MISMATCH" in workflow
+    assert "J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM" in workflow
+    assert "J_ONO_MISSING_EVIDENCE_OVERCLAIM" in workflow
+    assert "J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN" in workflow
+    assert "mcp-collected-raw-factory-input-v1.zip.part-*" in workflow
+    assert "tools/build_frozen_raw_meaning_factory.py" in workflow
     assert "J_ONO_REAL_DATA_HARD_FAILURE" in workflow
     assert "J_ONO_CLUSTER_COUNT_MISMATCH" in workflow
     assert "J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN" in workflow
