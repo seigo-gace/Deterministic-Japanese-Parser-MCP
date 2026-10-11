@@ -211,12 +211,20 @@ def normalize(
             resolved.extend(resolve_meanings(target_id, target_index, trail + (key,)))
         local, _local_status = _resolved_local_meaning(definition)
         if local:
+            type_code = str(definition.get("type") or "").strip()
             resolved.append(
                 {
                     "source_record_id": record_id,
                     "source_definition_index": def_index,
                     "meaning": local,
                     "via_refer": key != trail[0] if trail else False,
+                    "equivalents": as_strings(
+                        definition.get("equivalent", []),
+                        "equivalent",
+                        f"{record_id}:{def_index}",
+                    ),
+                    "semantic_type_code": type_code,
+                    "semantic_type_label": spec.get("type_map", {}).get(type_code, ""),
                 }
             )
         deduped: list[dict[str, Any]] = []
