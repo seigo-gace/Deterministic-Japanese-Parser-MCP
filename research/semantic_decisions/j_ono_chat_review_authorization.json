@@ -35,5 +35,7 @@
     "automatic_runtime_promotion": false,
     "decision_application": false,
     "runtime_promotion": false
-  }
+  },
+  "expected_semantic_pair_count": 250,
+  "expected_full_cluster_reduction": 124
 }
