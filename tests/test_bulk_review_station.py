@@ -155,6 +155,74 @@ def test_chatgpt_rule_review_respects_semantic_only_optional_facets() -> None:
     assert "intensity" not in semantic["patch"]
 
 
+def test_rule_based_ledger_emits_only_semantic_for_j_ono_style_record(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "queue.jsonl"
+    record = _record(75)
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "not-applicable",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+    record["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    queue.write_text(
+        json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n",
+        encoding="utf-8",
+    )
+    rules = load_review_rules(ROOT / "rules/review_rules.yaml")
+    rules["source_queue"]["sha256"] = __import__("hashlib").sha256(
+        queue.read_bytes()
+    ).hexdigest()
+    rules["source_queue"]["sample_record_ids"] = []
+    rules_path = tmp_path / "rules.yaml"
+    rules_path.write_text(
+        __import__("yaml").safe_dump(
+            rules, allow_unicode=True, sort_keys=False
+        ),
+        encoding="utf-8",
+    )
+    config = load_provider_config(ROOT / "config/review_provider.yaml")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        __import__("yaml").safe_dump(
+            config, allow_unicode=True, sort_keys=False
+        ),
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "decision_ledger.jsonl"
+    manifest = tmp_path / "manifest.json"
+
+    result = review_queue_rule_based(
+        queue,
+        ledger,
+        manifest,
+        config_path=config_path,
+        rules_path=rules_path,
+    )
+
+    assert result["decision_count"] == 1
+    assert result["decision_scope_counts"] == {"semantic": 1}
+    entries = [
+        json.loads(line)
+        for line in ledger.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(entries) == 1
+    assert entries[0]["scope"] == "semantic"
+    assert entries[0]["status"] == "approved"
+    assert "patch" not in entries[0]
+
+
 def test_record_specific_review_scopes_exclude_non_applicable_judgments(
     tmp_path: Path,
 ) -> None:
