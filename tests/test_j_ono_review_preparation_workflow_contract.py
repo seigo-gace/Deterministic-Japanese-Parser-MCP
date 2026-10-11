@@ -31,6 +31,16 @@ def test_j_ono_review_preparation_workflow_is_manual_and_review_only() -> None:
     assert "J_ONO_PREMATURE_RUNTIME_ELIGIBILITY" in workflow
     assert "J_ONO_REVIEW_NETWORK_CALL_OCCURRED" in workflow
     assert "J_ONO_REVIEW_RUNTIME_PROMOTION_ALLOWED" in workflow
+    assert "Prepare evidence-bound semantic Decision Ledger" in workflow
+    assert "tools/bulk_review_station.py review" in workflow
+    assert "j-ono-semantic-decision-ledger.jsonl" in workflow
+    assert "J_ONO_SEMANTIC_DECISION_COUNT_MISMATCH" in workflow
+    assert "J_ONO_SEMANTIC_DECISION_SCOPE_MISMATCH" in workflow
+    assert "J_ONO_SEMANTIC_DECISION_UNEXPECTED_PATCH" in workflow
+    assert "J_ONO_SEMANTIC_DECISION_REVIEWER_MISMATCH" in workflow
+    assert '"decision_applied": False' in workflow
+    assert '"approved_records_written": False' in workflow
+    assert '"runtime_promotion": False' in workflow
     assert "approved_records" in workflow
     assert '"approved_records": 0' in workflow
     assert '"reading_coverage_records": 837' in workflow
