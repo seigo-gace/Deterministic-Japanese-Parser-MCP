@@ -228,9 +228,14 @@ def prepare_decisions(
 
     effectiveness = _read_json(effectiveness_report_path)
     semantic = effectiveness.get("semantic_evidence") or {}
-    if semantic.get("distinguished_pairs") != 250 or semantic.get("total_pairs") != 250:
+    expected_pairs = int(authorization["expected_semantic_pair_count"])
+    expected_full_clusters = int(authorization["expected_full_cluster_reduction"])
+    if (
+        semantic.get("distinguished_pairs") != expected_pairs
+        or semantic.get("total_pairs") != expected_pairs
+    ):
         raise ValueError("J_ONO_CHAT_REVIEW_PAIR_EVIDENCE_MISMATCH")
-    if semantic.get("clusters_with_full_pair_reduction") != 124:
+    if semantic.get("clusters_with_full_pair_reduction") != expected_full_clusters:
         raise ValueError("J_ONO_CHAT_REVIEW_CLUSTER_EVIDENCE_MISMATCH")
     boundaries = effectiveness.get("interpretation_boundary") or {}
     for key in (
@@ -244,7 +249,11 @@ def prepare_decisions(
             raise ValueError(f"J_ONO_CHAT_REVIEW_BOUNDARY_BROKEN:{key}")
 
     audit = _read_json(review_audit_report_path)
-    if audit.get("records") != 837 or audit.get("review_queue_records") != 837:
+    expected_records = int(authorization["expected_record_count"])
+    if (
+        audit.get("records") != expected_records
+        or audit.get("review_queue_records") != expected_records
+    ):
         raise ValueError("J_ONO_CHAT_REVIEW_AUDIT_RECORD_COUNT_MISMATCH")
     if audit.get("approved_records") != 0 or audit.get("runtime_eligible_records") != 0:
         raise ValueError("J_ONO_CHAT_REVIEW_PREMATURE_APPROVAL_OR_RUNTIME")
