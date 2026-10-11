@@ -124,6 +124,12 @@ def test_record_specific_review_scopes_exclude_non_applicable_judgments(
     tmp_path: Path,
 ) -> None:
     record = _record(77)
+    record["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
     record["approval"] = {
         "review_scopes": ["lexical", "semantic", "pragmatic"],
         "scopes": {
@@ -150,6 +156,7 @@ def test_record_specific_review_scopes_exclude_non_applicable_judgments(
     encoded_record = json.loads(record_json)
     assert encoded_record["approval"]["scopes"]["task"] == "not-applicable"
     assert encoded_record["approval"]["scopes"]["external_action"] == "not-applicable"
+    assert encoded_record["review_evidence"] == record["review_evidence"]
 
     manifest = prepare_bulk_review_job([record], tmp_path)
     assert manifest["decision_scopes"] == ["pragmatic", "semantic"]
