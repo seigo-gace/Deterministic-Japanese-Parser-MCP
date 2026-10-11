@@ -327,7 +327,7 @@ def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
         "source_definition_index": 2,
         "meaning": "menace",
         "via_refer": True,
-        "equivalents": ["threat", "menace"],
+        "equivalents": sorted(["threat", "menace"]),
         "semantic_type_code": "e",
         "semantic_type_label": "emotion-feeling / 擬情語",
     }
