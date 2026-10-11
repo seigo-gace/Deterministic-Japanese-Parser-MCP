@@ -407,6 +407,14 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     for scope, status in list(scope_status.items()):
         if status not in {*ALLOWED_REVIEW_STATUS, "not-applicable"}:
             scope_status[scope] = "needs-evidence"
+
+    # An explicitly non-applicable scope is outside the record's responsibility.
+    # Generic field-completeness checks must not force it back into review.
+    # This does not approve the scope; it removes irrelevant blockers only.
+    for scope, status in scope_status.items():
+        if status == "not-applicable":
+            blockers_by_scope[scope] = []
+
     approved_scopes = sorted(
         scope
         for scope, status in scope_status.items()
