@@ -26,6 +26,8 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED" in workflow
+    assert "J_ONO_REVIEW_AUDIT_TASK_SCOPE_NOT_APPLICABLE_BROKEN" in workflow
+    assert "J_ONO_REVIEW_AUDIT_ACTION_SCOPE_NOT_APPLICABLE_BROKEN" in workflow
     assert '"approved_records": 0' in workflow
     assert '"runtime_eligible_records": 0' in workflow
     assert '"automatic_pos_fill": False' in workflow
