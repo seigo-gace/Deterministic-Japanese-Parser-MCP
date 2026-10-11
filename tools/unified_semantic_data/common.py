@@ -430,6 +430,9 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         {item for values in blockers_by_scope.values() for item in values}
     )
     runtime_eligible = "lexical" in approved_scopes
+    review_evidence = raw.get("review_evidence") or {}
+    if not isinstance(review_evidence, dict):
+        raise ValueError(f"review_evidence must be object: {record_id}")
     input_value = {
         key: value for key, value in raw.items() if not key.startswith("_source_")
     }
@@ -493,6 +496,7 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
             else None
         ),
         "source": source,
+        "review_evidence": review_evidence,
         "review_status": review_status,
         "approval": {
             "scopes": scope_status,
