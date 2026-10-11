@@ -12,12 +12,20 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tools.prepare_j_ono_chat_semantic_decisions import (
-    _decision_for,
-    _read_json,
-    _read_jsonl,
-    _validate_record,
-)
+try:
+    from tools.prepare_j_ono_chat_semantic_decisions import (
+        _decision_for,
+        _read_json,
+        _read_jsonl,
+        _validate_record,
+    )
+except ModuleNotFoundError:  # direct execution: python tools/verify_*.py
+    from prepare_j_ono_chat_semantic_decisions import (
+        _decision_for,
+        _read_json,
+        _read_jsonl,
+        _validate_record,
+    )
 
 
 def verify_existing_decisions(
