@@ -196,6 +196,8 @@ jobs:
           for key in required_false:
               if boundary[key] is not False:
                   raise SystemExit(f"J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN:{key}")
+          if boundary["refer_target_semantic_evidence_used"] is not True:
+              raise SystemExit("J_ONO_REFER_TARGET_SEMANTIC_EVIDENCE_NOT_USED")
           if boundary["example_metadata_excluded_from_primary_semantic_score"] is not True:
               raise SystemExit("J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM")
           if boundary["missing_vs_present_evidence_not_counted_as_semantic_disambiguation"] is not True:
