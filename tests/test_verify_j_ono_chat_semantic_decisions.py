@@ -87,6 +87,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, dict]:
     _write_jsonl(queue, [record])
     authorization = tmp_path / "authorization.json"
     auth = {
+        "review_queue_sha256": __import__("hashlib").sha256(queue.read_bytes()).hexdigest(),
         "expected_record_count": 1,
         "expected_meaning_candidate_count": 1,
         "reviewer": "gpt-chat-j-ono-evidence-review",
