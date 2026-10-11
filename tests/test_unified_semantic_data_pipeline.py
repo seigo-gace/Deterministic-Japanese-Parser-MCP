@@ -581,6 +581,12 @@ def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blocke
     }
     raw.pop("task_candidates")
     raw.pop("external_action_risk")
+    raw["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
     (open_root / "open.jsonl").write_text(
         json.dumps(raw, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -606,3 +612,4 @@ def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blocke
         set(record["approval"]["review_scopes"])
     )
     assert record["runtime_eligible"] is False
+    assert record["review_evidence"] == raw["review_evidence"]
