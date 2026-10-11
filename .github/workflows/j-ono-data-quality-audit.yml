@@ -155,6 +155,24 @@ jobs:
             --bundle "$(cat work/bundle-path.txt)" \
             --manifest "$(cat work/manifest-path.txt)" \
             --output-root work/rebuilt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/rebuilt/meaning-factory-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          count = int(report.get("j_ono_refer_target_evidence_item_count") or 0)
+          if count <= 0:
+              raise SystemExit("J_ONO_REFER_TARGET_EVIDENCE_RECONSTRUCTION_EMPTY")
+          boundary = report.get("boundaries") or {}
+          if boundary.get(
+              "j_ono_refer_target_semantic_evidence_reconstructed"
+          ) is not True:
+              raise SystemExit("J_ONO_REFER_TARGET_EVIDENCE_BOUNDARY_FALSE")
+          print("J_ONO_REFER_TARGET_EVIDENCE_ITEMS=" + str(count))
+          PY
           python tools/prepare_j_ono_review_input.py \
             --adapter-input work/rebuilt/source-adapter-records.jsonl \
             --output work/j-ono-rebuilt-source-adapter.jsonl
@@ -496,6 +514,7 @@ jobs:
             work/j-ono-collision-cluster-report.json
             work/j-ono-pos-evidence-report.json
             work/j-ono-pos-evidence.jsonl
+            work/rebuilt/meaning-factory-report.json
             work/j-ono-rebuilt-data-quality-report.json
             work/j-ono-rebuilt-review-issues.jsonl
             work/j-ono-rebuilt-collision-clusters.jsonl
