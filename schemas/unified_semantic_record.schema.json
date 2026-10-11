@@ -29,7 +29,8 @@
       "additionalProperties": false,
       "properties": {
         "polarity": {"type": "boolean"},
-        "intensity": {"type": "boolean"}
+        "intensity": {"type": "boolean"},
+        "part_of_speech_source_evidence": {"type": "boolean"}
       }
     },
     "task_candidates": {"type": "array"},
