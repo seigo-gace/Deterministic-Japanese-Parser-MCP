@@ -18,6 +18,15 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "tools/audit_j_ono_data_quality.py" in workflow
     assert "tools/build_j_ono_collision_clusters.py" in workflow
     assert "tools/measure_j_ono_source_evidence_effectiveness.py" in workflow
+    assert "tools/prepare_j_ono_chat_semantic_decisions.py" in workflow
+    assert "research/semantic_decisions/j_ono_chat_review_authorization.json" in workflow
+    assert "J_ONO_CHAT_DECISION_COUNT_MISMATCH" in workflow
+    assert "J_ONO_CHAT_LEXICAL_APPROVAL_FORBIDDEN" in workflow
+    assert "J_ONO_CHAT_DECISION_PATCH_FORBIDDEN" in workflow
+    assert "J_ONO_CHAT_AUTOMATIC_APPROVAL_BOUNDARY_BROKEN" in workflow
+    assert "J_ONO_CHAT_DECISION_APPLICATION_BOUNDARY_BROKEN" in workflow
+    assert "J_ONO_CHAT_RUNTIME_PROMOTION_BOUNDARY_BROKEN" in workflow
+    assert "J_ONO_COMBINED_LEDGER_B64_BEGIN" in workflow
     assert "tools/public_onomatopoeia_sources.py" in workflow
     assert "tools/build_frozen_raw_meaning_factory.py" in workflow
     assert "tools/unified_semantic_data/frozen_raw_meaning_factory.py" in workflow
