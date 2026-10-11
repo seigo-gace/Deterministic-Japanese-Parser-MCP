@@ -639,6 +639,7 @@ def test_semantic_only_approved_record_compiles_without_sentiment_or_pragmatics(
     raw["review_requirements"] = {
         "polarity": False,
         "intensity": False,
+        "part_of_speech_source_evidence": False,
     }
     (open_root / "open.jsonl").write_text(
         json.dumps(raw, ensure_ascii=False) + "\n",
@@ -669,6 +670,50 @@ def test_semantic_only_approved_record_compiles_without_sentiment_or_pragmatics(
     assert records[0]["polarity"] == "unspecified"
     assert records[0]["intensity"] is None
     assert records[0]["context_conditions"] == {}
+
+
+def test_source_backed_pos_requirement_is_not_satisfied_by_morphology_inference(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-SOURCE-POS-REQUIRED", "ぴかぴか")
+    raw["part_of_speech"] = []
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+        "part_of_speech_source_evidence": True,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    lexical_blockers = record["approval"]["blockers_by_scope"]["lexical"]
+    assert "source-part-of-speech-required" in lexical_blockers
+    assert "part-of-speech-required" not in lexical_blockers
+    assert "lexical" in record["approval"]["review_scopes"]
+    assert record["runtime_eligible"] is False
 
 
 def test_optional_semantic_facets_do_not_block_source_authored_meaning_review(
@@ -715,6 +760,7 @@ def test_optional_semantic_facets_do_not_block_source_authored_meaning_review(
     assert record["review_requirements"] == {
         "polarity": False,
         "intensity": False,
+        "part_of_speech_source_evidence": False,
     }
     assert record["approval"]["blockers_by_scope"]["semantic"] == []
     assert record["approval"]["blockers_by_scope"]["pragmatic"] == []
