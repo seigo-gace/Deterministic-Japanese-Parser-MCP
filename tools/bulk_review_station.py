@@ -576,7 +576,16 @@ class ChatGPTAppProvider:
             else semantic_rules["insufficient_evidence_status"]
         )
         polarity, intensity = self._polarity(record)
-        semantic_patch: dict[str, Any] = {"polarity": polarity, "intensity": intensity}
+        review_requirements = record.get("review_requirements") or {}
+        if not isinstance(review_requirements, dict):
+            raise ValueError(
+                f"review_requirements must be object: {record.get('record_id')}"
+            )
+        semantic_patch: dict[str, Any] = {}
+        if review_requirements.get("polarity", True) is not False:
+            semantic_patch["polarity"] = polarity
+        if review_requirements.get("intensity", True) is not False:
+            semantic_patch["intensity"] = intensity
         pragmatic_status, pragmatic_why, feature_supported = self._pragmatic(record)
         targets = record.get("semantic_targets") or []
         if feature and not feature_supported and sufficient and "language_feature" in targets:
@@ -620,41 +629,47 @@ class ChatGPTAppProvider:
             task_rules["action_sensitive_status"] if action_risk else task_rules["default_status"]
         )
         task_patch: dict[str, Any] = {} if action_risk else {"task_candidates": []}
+        decisions = [
+            {
+                "scope": "semantic",
+                "status": semantic_status,
+                "rationale": semantic_why,
+                "patch": semantic_patch,
+            },
+            {
+                "scope": "pragmatic",
+                "status": pragmatic_status,
+                "rationale": pragmatic_why,
+                "patch": context_patch,
+            },
+            {
+                "scope": "task",
+                "status": task_status,
+                "rationale": (
+                    "action-sensitive語は文・発話行為なしではTask確定不可"
+                    if action_risk
+                    else "語単独では実行Taskを表さない"
+                ),
+                "patch": task_patch,
+            },
+            {
+                "scope": "external_action",
+                "status": str(self.rules["scope_rules"]["external_action"]["status"]),
+                "rationale": (
+                    "action-sensitive evidence; downstream guard required"
+                    if action_risk
+                    else "語単独の外部操作Riskなし"
+                ),
+                "patch": {"external_action_risk": action_risk},
+            },
+        ]
+        applicable = set(decision_scopes_for_record(record))
         return {
             "record_id": str(record["record_id"]),
             "decisions": [
-                {
-                    "scope": "semantic",
-                    "status": semantic_status,
-                    "rationale": semantic_why,
-                    "patch": semantic_patch,
-                },
-                {
-                    "scope": "pragmatic",
-                    "status": pragmatic_status,
-                    "rationale": pragmatic_why,
-                    "patch": context_patch,
-                },
-                {
-                    "scope": "task",
-                    "status": task_status,
-                    "rationale": (
-                        "action-sensitive語は文・発話行為なしではTask確定不可"
-                        if action_risk
-                        else "語単独では実行Taskを表さない"
-                    ),
-                    "patch": task_patch,
-                },
-                {
-                    "scope": "external_action",
-                    "status": str(self.rules["scope_rules"]["external_action"]["status"]),
-                    "rationale": (
-                        "action-sensitive evidence; downstream guard required"
-                        if action_risk
-                        else "語単独の外部操作Riskなし"
-                    ),
-                    "patch": {"external_action_risk": action_risk},
-                },
+                decision
+                for decision in decisions
+                if decision["scope"] in applicable
             ],
         }
 
@@ -715,7 +730,7 @@ def review_queue_rule_based(
                 if record["record_id"] in sample_ids
                 else "gpt-app-rule-based-review"
             )
-            reviewer_counts[reviewer] += 4
+            reviewer_counts[reviewer] += len(payload["decisions"])
             for item in payload["decisions"]:
                 scope = str(item["scope"])
                 status = str(item["status"])
