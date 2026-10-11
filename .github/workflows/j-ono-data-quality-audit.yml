@@ -230,6 +230,10 @@ jobs:
           manifest = json.loads(
               Path("work/j-ono-review-audit/manifest.json").read_text(encoding="utf-8")
           )
+          bulk = json.loads(
+              Path("work/j-ono-review-audit/bulk-review/bulk_review_manifest.json")
+              .read_text(encoding="utf-8")
+          )
           queue = [
               json.loads(line)
               for line in Path("work/j-ono-review-audit/review-queue.jsonl")
@@ -266,6 +270,11 @@ jobs:
               raise SystemExit("J_ONO_REVIEW_AUDIT_TASK_SCOPE_NOT_APPLICABLE_BROKEN")
           if blockers.get("external_action:external-action-risk-review-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_AUDIT_ACTION_SCOPE_NOT_APPLICABLE_BROKEN")
+          if set(bulk.get("decision_scopes") or []) != {"semantic", "pragmatic"}:
+              raise SystemExit("J_ONO_BULK_REVIEW_SCOPE_MISMATCH")
+          expected_scope_counts = {"semantic": 837, "pragmatic": 837}
+          if bulk.get("scope_request_counts") != expected_scope_counts:
+              raise SystemExit("J_ONO_BULK_REVIEW_SCOPE_COUNT_MISMATCH")
 
           report = {
               "status": "J_ONO_REVIEW_AUDIT_COMPLETE",
@@ -277,6 +286,8 @@ jobs:
               "part_of_speech_required_records": blockers.get(
                   "lexical:part-of-speech-required", 0
               ),
+              "bulk_review_decision_scopes": bulk.get("decision_scopes") or [],
+              "bulk_review_scope_request_counts": bulk.get("scope_request_counts") or {},
               "reading_required_records": blockers.get(
                   "lexical:reading-required", 0
               ),
