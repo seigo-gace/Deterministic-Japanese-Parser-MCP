@@ -202,7 +202,7 @@ jobs:
 
       - name: Verify rebuilt J-Ono through existing review pipeline
         run: |
-          python tools/unified_semantic_data/source_adapter_contract.py \
+          python -m tools.unified_semantic_data.source_adapter_contract \
             work/j-ono-rebuilt-source-adapter.jsonl \
             --output-root work/j-ono-review-audit-adapter
           mkdir -p \
