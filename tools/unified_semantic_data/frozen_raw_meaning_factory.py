@@ -215,6 +215,11 @@ def _adapter_row(
                 "source_definition_index": int(raw_evidence.get("source_definition_index") or 0),
                 "meaning": _text(raw_evidence.get("meaning")),
                 "via_refer": bool(raw_evidence.get("via_refer")),
+                "equivalents": _stable_unique(
+                    _nested_texts(raw_evidence.get("equivalents"))
+                ),
+                "semantic_type_code": _text(raw_evidence.get("semantic_type_code")),
+                "semantic_type_label": _text(raw_evidence.get("semantic_type_label")),
             })
         adapter_payload["j_ono_source_evidence"] = {
             "local_meaning": _text(row.get("local_meaning")),
