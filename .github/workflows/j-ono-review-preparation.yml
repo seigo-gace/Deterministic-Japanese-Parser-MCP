@@ -249,6 +249,81 @@ jobs:
           print(json.dumps(report, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Prepare evidence-bound semantic Decision Ledger
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import yaml
+
+          queue = Path("work/j-ono-review/review-queue.jsonl")
+          rules = yaml.safe_load(Path("rules/review_rules.yaml").read_text(encoding="utf-8"))
+          rules["source_queue"]["records"] = 837
+          rules["source_queue"]["sha256"] = hashlib.sha256(queue.read_bytes()).hexdigest()
+          rules["source_queue"]["sample_review_count"] = 0
+          rules["source_queue"]["sample_record_ids"] = []
+          rules["source_queue"]["path"] = str(queue)
+          Path("work/j-ono-review-rules.yaml").write_text(
+              yaml.safe_dump(rules, allow_unicode=True, sort_keys=False),
+              encoding="utf-8",
+          )
+          PY
+          python tools/bulk_review_station.py review \
+            --queue work/j-ono-review/review-queue.jsonl \
+            --ledger work/j-ono-semantic-decision-ledger.jsonl \
+            --manifest work/j-ono-semantic-decision-manifest.json \
+            --config config/review_provider.yaml \
+            --rules work/j-ono-review-rules.yaml
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("work/j-ono-semantic-decision-manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          decisions = [
+              json.loads(line)
+              for line in Path("work/j-ono-semantic-decision-ledger.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(decisions) != 837 or manifest["decision_count"] != 837:
+              raise SystemExit("J_ONO_SEMANTIC_DECISION_COUNT_MISMATCH")
+          if {item["scope"] for item in decisions} != {"semantic"}:
+              raise SystemExit("J_ONO_SEMANTIC_DECISION_SCOPE_MISMATCH")
+          if any(item.get("patch") for item in decisions):
+              raise SystemExit("J_ONO_SEMANTIC_DECISION_UNEXPECTED_PATCH")
+          if {item["reviewer"] for item in decisions} != {"gpt-app-rule-based-review"}:
+              raise SystemExit("J_ONO_SEMANTIC_DECISION_REVIEWER_MISMATCH")
+          if manifest.get("network_call_performed") is not False:
+              raise SystemExit("J_ONO_SEMANTIC_DECISION_NETWORK_CALL_OCCURRED")
+
+          status_counts = Counter(item["status"] for item in decisions)
+          report = {
+              "status": "J_ONO_SEMANTIC_DECISION_LEDGER_PREPARED",
+              "records": 837,
+              "decision_count": 837,
+              "decision_scope_counts": {"semantic": 837},
+              "decision_status_counts": dict(sorted(status_counts.items())),
+              "patch_count": 0,
+              "decision_applied": False,
+              "approved_records_written": False,
+              "runtime_promotion": False,
+              "network_call_performed": False,
+          }
+          Path("work/j-ono-semantic-decision-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("J_ONO_SEMANTIC_DECISION_REPORT=" + json.dumps(
+              report, ensure_ascii=False, sort_keys=True
+          ))
+          PY
+
       - name: Upload J-Ono review preparation evidence
         uses: actions/upload-artifact@v4
         with:
