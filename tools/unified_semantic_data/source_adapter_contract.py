@@ -416,6 +416,7 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
         "review_requirements": {
             "polarity": not is_j_ono,
             "intensity": not is_j_ono,
+            "part_of_speech_source_evidence": is_j_ono,
         },
         "approval_scopes": {
             "lexical": "needs-evidence",
