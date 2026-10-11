@@ -563,3 +563,46 @@ def test_pipeline_is_byte_deterministic(tmp_path: Path) -> None:
     result = check_determinism(args)
     assert result["status"] == "CHECKED"
     assert len(result["digest"]) == 64
+
+
+def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blockers(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("LEXICAL-NA-001", "ぴかぴか")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "needs-evidence",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw.pop("task_candidates")
+    raw.pop("external_action_risk")
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    assert record["approval"]["scopes"]["task"] == "not-applicable"
+    assert record["approval"]["scopes"]["external_action"] == "not-applicable"
+    assert record["approval"]["blockers_by_scope"]["task"] == []
+    assert record["approval"]["blockers_by_scope"]["external_action"] == []
+    assert "task" not in record["approval"]["review_scopes"]
+    assert "external_action" not in record["approval"]["review_scopes"]
+    assert {"lexical", "semantic", "pragmatic"}.issubset(
+        set(record["approval"]["review_scopes"])
+    )
+    assert record["runtime_eligible"] is False
