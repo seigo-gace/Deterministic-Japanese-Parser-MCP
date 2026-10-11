@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "purpose": "Explicit GPT CHAT semantic review authorization for the exact J-Ono review artifact; this file authorizes preparation of digest-bound semantic Decision Ledger entries but does not itself apply decisions or promote runtime data.",
+  "project_issue": 51,
+  "pull_request": 56,
+  "reviewed_head": "bbce7552673eb010562939940edfe99977267586",
+  "reviewed_run_id": 38143299635,
+  "reviewed_artifact_id": 11703389029,
+  "reviewed_artifact_digest": "sha256:0750e76479f8b10390c0e7d5ab526356249199540acf426a2bb341b2ae1a176e",
+  "review_queue_sha256": "e815b26261e1213b855ce96d4a391212598cf04fd42cb8e0791e4c14652c49e1",
+  "source_evidence_effectiveness_report_sha256": "58690bfc694cb65c4b38033ecafb184949972bf1863189a8c9f226c68de8e08c",
+  "review_audit_report_sha256": "4d80aeeeba9c6e0ee5e82288d548e01ec88a75ebacbc4edce27a542785e68b24",
+  "reviewer": "gpt-chat-j-ono-evidence-review",
+  "decided_at": "2026-10-11T14:43:58Z",
+  "scope": "semantic",
+  "status": "approved",
+  "expected_record_count": 837,
+  "expected_meaning_candidate_count": 855,
+  "authorization_basis": {
+    "semantic_blockers_must_be_zero": true,
+    "each_candidate_must_trace_to_frozen_resolved_meaning": true,
+    "automatic_semantic_interpretation_must_be_false": true,
+    "source_provenance_must_be_present": true,
+    "polarity_patch_required": false,
+    "intensity_patch_required": false,
+    "source_evidence_ambiguous_pair_reduction": "250/250",
+    "source_evidence_full_cluster_reduction": "124/124"
+  },
+  "boundaries": {
+    "lexical_pos_approval": false,
+    "pragmatic_approval": false,
+    "automatic_merge": false,
+    "automatic_pos_fill": false,
+    "automatic_approval": false,
+    "automatic_runtime_promotion": false,
+    "decision_application": false,
+    "runtime_promotion": false
+  }
+}
