@@ -397,6 +397,10 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
         }
         for index, meaning in enumerate(record["meanings"], 1)
     ]
+    logical_source_id = str(
+        source.get("logical_source_id") or source.get("source_id") or ""
+    ).strip()
+    is_j_ono = logical_source_id == "j-ono-definitions"
     return {
         "record_id": f"ADAPTER-{adapter_id}",
         "source_kind": "open_lexicon",
@@ -409,10 +413,14 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
         "meaning_candidates": candidates,
         "semantic_targets": ["lexicon"],
         "review_status": "needs-evidence",
+        "review_requirements": {
+            "polarity": not is_j_ono,
+            "intensity": not is_j_ono,
+        },
         "approval_scopes": {
             "lexical": "needs-evidence",
             "semantic": "needs-evidence",
-            "pragmatic": "needs-evidence",
+            "pragmatic": "not-applicable" if is_j_ono else "needs-evidence",
             "task": "not-applicable",
             "external_action": "not-applicable",
         },
