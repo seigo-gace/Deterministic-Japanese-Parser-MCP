@@ -307,6 +307,74 @@ def semantic_reference_row(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _review_evidence(record: dict[str, Any]) -> dict[str, Any]:
+    """Return compact, source-authored evidence needed by the review operator.
+
+    The adapter payload remains the source-owned authority. Review records receive
+    only an allowlisted projection so the Bulk Review prompt can inspect the
+    evidence without copying the full source payload or inventing semantics.
+    """
+    source = record.get("source") if isinstance(record.get("source"), dict) else {}
+    source_id = str(
+        source.get("logical_source_id") or source.get("source_id") or ""
+    ).strip()
+    if source_id != "j-ono-definitions":
+        return {}
+    payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    evidence = payload.get("j_ono_source_evidence")
+    if not isinstance(evidence, dict):
+        raise ValueError(
+            f"J-Ono review evidence required: {record.get('adapter_record_id')}"
+        )
+    if evidence.get("automatic_semantic_interpretation") is not False:
+        raise ValueError(
+            f"J-Ono review evidence automatic interpretation forbidden: "
+            f"{record.get('adapter_record_id')}"
+        )
+
+    resolved: list[dict[str, Any]] = []
+    for raw in evidence.get("resolved_meaning_evidence") or []:
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"J-Ono resolved review evidence must be object: "
+                f"{record.get('adapter_record_id')}"
+            )
+        resolved.append({
+            "source_record_id": str(raw.get("source_record_id") or ""),
+            "source_definition_index": int(raw.get("source_definition_index") or 0),
+            "meaning": str(raw.get("meaning") or ""),
+            "via_refer": bool(raw.get("via_refer")),
+            "equivalents": _stable_unique(_as_list(raw.get("equivalents"))),
+            "semantic_type_code": str(raw.get("semantic_type_code") or ""),
+            "semantic_type_label": str(raw.get("semantic_type_label") or ""),
+        })
+
+    examples: list[dict[str, str]] = []
+    for raw in evidence.get("example_metadata") or []:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            key: str(raw.get(key) or "")
+            for key in ("source", "file", "display", "contributor")
+        }
+        if any(item.values()):
+            examples.append(item)
+
+    return {
+        "kind": "j-ono-source-authored-review-evidence",
+        "local_meaning": str(evidence.get("local_meaning") or ""),
+        "local_meaning_status": str(evidence.get("local_meaning_status") or ""),
+        "equivalents": _stable_unique(_as_list(evidence.get("equivalents"))),
+        "refer": str(evidence.get("refer") or ""),
+        "semantic_type_code": str(evidence.get("semantic_type_code") or ""),
+        "semantic_type_label": str(evidence.get("semantic_type_label") or ""),
+        "resolved_meaning_evidence": resolved,
+        "example_metadata": examples,
+        "meaning_policy": str(evidence.get("meaning_policy") or ""),
+        "automatic_semantic_interpretation": False,
+    }
+
+
 def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
     """Create a new-word candidate for the MCP-owned dictionary review lane."""
     if record["source_role"] != MEANING_ROLE:
@@ -352,6 +420,7 @@ def lexical_candidate_row(record: dict[str, Any]) -> dict[str, Any]:
             **source,
             "evidence_scope": "dictionary_source_candidate",
         },
+        "review_evidence": _review_evidence(record),
         "adapter_record_id": adapter_id,
         "automatic_approval": False,
         "automatic_runtime_promotion": False,
