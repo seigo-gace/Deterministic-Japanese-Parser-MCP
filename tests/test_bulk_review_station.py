@@ -120,6 +120,41 @@ def test_rule_review_generates_four_scopes_per_record(tmp_path: Path) -> None:
     assert {entry["reviewer"] for entry in entries} == {"gpt-app-sample-review", "gpt-app-rule-based-review"}
 
 
+def test_chatgpt_rule_review_respects_semantic_only_optional_facets() -> None:
+    record = _record(76)
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "not-applicable",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+    record["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    record["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    rules = load_review_rules(ROOT / "rules/review_rules.yaml")
+    provider = ChatGPTAppProvider(rules)
+
+    result = provider.review_record(record)
+
+    assert [item["scope"] for item in result["decisions"]] == ["semantic"]
+    semantic = result["decisions"][0]
+    assert semantic["status"] == "approved"
+    assert semantic["patch"] == {}
+    assert "polarity" not in semantic["patch"]
+    assert "intensity" not in semantic["patch"]
+
+
 def test_record_specific_review_scopes_exclude_non_applicable_judgments(
     tmp_path: Path,
 ) -> None:
