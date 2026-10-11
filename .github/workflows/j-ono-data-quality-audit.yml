@@ -7,9 +7,11 @@ on:
       - "tools/prepare_j_ono_review_input.py"
       - "tools/audit_j_ono_data_quality.py"
       - "tools/build_j_ono_collision_clusters.py"
+      - "tools/measure_j_ono_source_evidence_effectiveness.py"
       - "tests/test_prepare_j_ono_review_input.py"
       - "tests/test_audit_j_ono_data_quality.py"
       - "tests/test_build_j_ono_collision_clusters.py"
+      - "tests/test_measure_j_ono_source_evidence_effectiveness.py"
       - ".github/workflows/j-ono-data-quality-audit.yml"
   workflow_dispatch:
 
@@ -19,10 +21,11 @@ permissions:
 jobs:
   audit-real-j-ono-data:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: source-authored-meaning-data-v1
+      RAW_SHA256: fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629
     steps:
       - uses: actions/checkout@v4
 
@@ -114,6 +117,87 @@ jobs:
                   "meanings": row.get("meanings") or [],
               })
           print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Rebuild provenance-safe J-Ono source evidence
+        run: |
+          mkdir -p work/raw-parts work/raw-unpacked work/rebuilt
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-collected-raw-factory-input-v1.zip.part-*" \
+            --dir work/raw-parts
+          cat \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02 \
+            > work/mcp-collected-raw-factory-input-v1.zip
+          echo "$RAW_SHA256  work/mcp-collected-raw-factory-input-v1.zip" | sha256sum -c -
+          unzip -q work/mcp-collected-raw-factory-input-v1.zip -d work/raw-unpacked
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("work/raw-unpacked")
+          bundles = sorted(root.rglob("mcp-collected-raw-factory-input-v1.tar"))
+          manifests = sorted(root.rglob("mcp-collected-raw-factory-input-v1.manifest.json"))
+          if len(bundles) != 1 or len(manifests) != 1:
+              raise SystemExit(
+                  f"FROZEN_INPUT_LAYOUT_INVALID:bundles={len(bundles)}:manifests={len(manifests)}"
+              )
+          Path("work/bundle-path.txt").write_text(str(bundles[0]), encoding="utf-8")
+          Path("work/manifest-path.txt").write_text(str(manifests[0]), encoding="utf-8")
+          PY
+          python tools/build_frozen_raw_meaning_factory.py \
+            --bundle "$(cat work/bundle-path.txt)" \
+            --manifest "$(cat work/manifest-path.txt)" \
+            --output-root work/rebuilt
+          python tools/prepare_j_ono_review_input.py \
+            --adapter-input work/rebuilt/source-adapter-records.jsonl \
+            --output work/j-ono-rebuilt-source-adapter.jsonl
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-rebuilt-source-adapter.jsonl \
+            --report work/j-ono-rebuilt-data-quality-report.json \
+            --issues work/j-ono-rebuilt-review-issues.jsonl
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-rebuilt-source-adapter.jsonl \
+            --issues work/j-ono-rebuilt-review-issues.jsonl \
+            --output work/j-ono-rebuilt-collision-clusters.jsonl \
+            --report work/j-ono-rebuilt-collision-cluster-report.json
+
+      - name: Measure source-authored disambiguation effectiveness
+        run: |
+          python tools/measure_j_ono_source_evidence_effectiveness.py \
+            --clusters work/j-ono-rebuilt-collision-clusters.jsonl \
+            --report work/j-ono-source-evidence-effectiveness-report.json \
+            --details work/j-ono-source-evidence-effectiveness-details.jsonl \
+            --expected-reading-unresolved 124
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/j-ono-source-evidence-effectiveness-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["reading_unresolved_cluster_count"] != 124:
+              raise SystemExit("J_ONO_SOURCE_EVIDENCE_TARGET_CLUSTER_COUNT_MISMATCH")
+          boundary = report["interpretation_boundary"]
+          required_false = (
+              "automatic_merge",
+              "automatic_meaning_judgement",
+              "automatic_pos_fill",
+              "automatic_approval",
+              "runtime_promotion",
+          )
+          for key in required_false:
+              if boundary[key] is not False:
+                  raise SystemExit(f"J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN:{key}")
+          if boundary["example_metadata_excluded_from_primary_semantic_score"] is not True:
+              raise SystemExit("J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM")
+          if boundary["missing_vs_present_evidence_not_counted_as_semantic_disambiguation"] is not True:
+              raise SystemExit("J_ONO_MISSING_EVIDENCE_OVERCLAIM")
+          print(
+              "J_ONO_SOURCE_EVIDENCE_EFFECTIVENESS="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
           PY
 
       - name: Measure existing Open Lexicon POS evidence coverage
@@ -300,5 +384,11 @@ jobs:
             work/j-ono-collision-cluster-report.json
             work/j-ono-pos-evidence-report.json
             work/j-ono-pos-evidence.jsonl
+            work/j-ono-rebuilt-data-quality-report.json
+            work/j-ono-rebuilt-review-issues.jsonl
+            work/j-ono-rebuilt-collision-clusters.jsonl
+            work/j-ono-rebuilt-collision-cluster-report.json
+            work/j-ono-source-evidence-effectiveness-report.json
+            work/j-ono-source-evidence-effectiveness-details.jsonl
           if-no-files-found: error
           retention-days: 30
