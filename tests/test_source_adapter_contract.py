@@ -150,6 +150,10 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     assert lexical[0]["meaning_candidates"][0]["review_status"] == "needs-evidence"
     assert lexical[0]["approval_scopes"]["semantic"] == "needs-evidence"
     assert lexical[0]["approval_scopes"]["pragmatic"] == "needs-evidence"
+    assert lexical[0]["review_requirements"] == {
+        "polarity": True,
+        "intensity": True,
+    }
     assert lexical[0]["approval_scopes"]["task"] == "not-applicable"
     assert lexical[0]["approval_scopes"]["external_action"] == "not-applicable"
     assert lexical[0]["automatic_approval"] is False
@@ -239,6 +243,12 @@ def test_j_ono_lexical_candidate_carries_compact_review_evidence(
     ]
     assert evidence["resolved_meaning_evidence"][0]["semantic_type_code"] == "m"
     assert evidence["automatic_semantic_interpretation"] is False
+    assert lexical["review_requirements"] == {
+        "polarity": False,
+        "intensity": False,
+    }
+    assert lexical["approval_scopes"]["semantic"] == "needs-evidence"
+    assert lexical["approval_scopes"]["pragmatic"] == "not-applicable"
     assert "unrelated_large_payload" not in evidence
     assert "ignored_payload" not in evidence["example_metadata"][0]
     assert "payload" not in lexical
