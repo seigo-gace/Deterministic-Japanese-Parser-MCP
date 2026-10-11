@@ -17,6 +17,7 @@ if str(TOOLS) not in sys.path:
 
 from unified_semantic_data.frozen_raw_meaning_factory import (  # noqa: E402
     _adapter_row,
+    _enrich_j_ono_refer_target_evidence,
     _extract_fields,
     build_frozen_raw_meaning_factory,
 )
@@ -181,6 +182,79 @@ def test_j_ono_resolved_evidence_is_not_lost() -> None:
     assert "kirakira" not in fields["readings"]
     assert fields["meanings"] == ["光が細かく繰り返し輝く様子"]
 
+
+
+def test_j_ono_refer_target_evidence_is_rebuilt_from_same_frozen_payload() -> None:
+    rows = [
+        (
+            1,
+            {
+                "definition_id": "pashi",
+                "definition_index": 1,
+                "equivalents": ["grab", "catch"],
+                "type_code": "m",
+                "type_label": "motion-movement / 擬容語",
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": False,
+                    }
+                ],
+            },
+        ),
+        (
+            2,
+            {
+                "definition_id": "pashi pashi",
+                "definition_index": 2,
+                "equivalents": [],
+                "type_code": "",
+                "type_label": "",
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": True,
+                    }
+                ],
+            },
+        ),
+    ]
+
+    enriched, count = _enrich_j_ono_refer_target_evidence(rows)
+
+    assert count == 1
+    evidence = enriched[1][1]["resolved_meaning_evidence"][0]
+    assert evidence["equivalents"] == ["catch", "grab"]
+    assert evidence["semantic_type_code"] == "m"
+    assert evidence["semantic_type_label"] == "motion-movement / 擬容語"
+    assert evidence["via_refer"] is True
+
+
+def test_j_ono_refer_target_evidence_missing_target_fails_closed() -> None:
+    rows = [
+        (
+            1,
+            {
+                "definition_id": "pashi pashi",
+                "definition_index": 2,
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": True,
+                    }
+                ],
+            },
+        )
+    ]
+
+    with pytest.raises(ValueError, match="J_ONO_REFER_TARGET_EVIDENCE_MISSING"):
+        _enrich_j_ono_refer_target_evidence(rows)
 
 
 def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
