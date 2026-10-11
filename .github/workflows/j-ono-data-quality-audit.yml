@@ -270,7 +270,18 @@ jobs:
           blockers = Counter()
           lexical_review_records = 0
           semantic_review_records = 0
+          review_evidence_records = 0
           for row in queue:
+              if "payload" in row:
+                  raise SystemExit("J_ONO_REVIEW_QUEUE_FULL_PAYLOAD_DUPLICATION")
+              evidence = row.get("review_evidence")
+              if not isinstance(evidence, dict) or not evidence:
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_MISSING")
+              if evidence.get("kind") != "j-ono-source-authored-review-evidence":
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_KIND_INVALID")
+              if evidence.get("automatic_semantic_interpretation") is not False:
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_AUTO_INTERPRETATION")
+              review_evidence_records += 1
               approval = row.get("approval") or {}
               scopes = set(approval.get("review_scopes") or [])
               by_scope = approval.get("blockers_by_scope") or {}
@@ -286,6 +297,8 @@ jobs:
               raise SystemExit("J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH")
           if manifest["review_queue_records"] != 837 or len(queue) != 837:
               raise SystemExit("J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH")
+          if review_evidence_records != 837:
+              raise SystemExit("J_ONO_REVIEW_EVIDENCE_COVERAGE_MISMATCH")
           if manifest["runtime_eligible_records"] != 0:
               raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_RUNTIME_ELIGIBILITY")
           if manifest["decision_count"] != 0:
@@ -308,6 +321,8 @@ jobs:
               "review_queue_records": len(queue),
               "lexical_review_records": lexical_review_records,
               "semantic_review_records": semantic_review_records,
+              "review_evidence_records": review_evidence_records,
+              "full_payload_duplicated_into_review_queue": False,
               "blocker_counts": dict(sorted(blockers.items())),
               "part_of_speech_required_records": blockers.get(
                   "lexical:part-of-speech-required", 0
