@@ -262,6 +262,10 @@ jobs:
               raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_DECISION")
           if blockers.get("lexical:reading-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED")
+          if blockers.get("task:task-review-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_TASK_SCOPE_NOT_APPLICABLE_BROKEN")
+          if blockers.get("external_action:external-action-risk-review-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_ACTION_SCOPE_NOT_APPLICABLE_BROKEN")
 
           report = {
               "status": "J_ONO_REVIEW_AUDIT_COMPLETE",
