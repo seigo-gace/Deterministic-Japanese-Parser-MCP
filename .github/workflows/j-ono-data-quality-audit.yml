@@ -8,6 +8,8 @@ on:
       - "tools/audit_j_ono_data_quality.py"
       - "tools/build_j_ono_collision_clusters.py"
       - "tools/measure_j_ono_source_evidence_effectiveness.py"
+      - "tools/prepare_j_ono_chat_semantic_decisions.py"
+      - "research/semantic_decisions/j_ono_chat_review_authorization.json"
       - "tools/public_onomatopoeia_sources.py"
       - "tools/build_frozen_raw_meaning_factory.py"
       - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
@@ -18,6 +20,7 @@ on:
       - "tests/test_audit_j_ono_data_quality.py"
       - "tests/test_build_j_ono_collision_clusters.py"
       - "tests/test_measure_j_ono_source_evidence_effectiveness.py"
+      - "tests/test_prepare_j_ono_chat_semantic_decisions.py"
       - ".github/workflows/j-ono-data-quality-audit.yml"
   workflow_dispatch:
 
@@ -378,6 +381,65 @@ jobs:
           print("J_ONO_REVIEW_AUDIT=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Prepare exact GPT CHAT semantic Decision Ledger candidate
+        run: |
+          python tools/prepare_j_ono_chat_semantic_decisions.py \
+            --review-queue work/j-ono-review-audit/review-queue.jsonl \
+            --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
+            --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
+            --review-audit-report work/j-ono-review-audit-report.json \
+            --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
+            --output-ledger work/j-ono-combined-decision-ledger.jsonl \
+            --report work/j-ono-chat-semantic-decision-report.json
+          python - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/j-ono-chat-semantic-decision-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["new_semantic_decision_count"] != 837:
+              raise SystemExit("J_ONO_CHAT_DECISION_COUNT_MISMATCH")
+          if report["meaning_candidate_count"] != 855:
+              raise SystemExit("J_ONO_CHAT_DECISION_CANDIDATE_COUNT_MISMATCH")
+          if report["semantic_approved_records"] != 837:
+              raise SystemExit("J_ONO_CHAT_SEMANTIC_APPROVAL_COUNT_MISMATCH")
+          if report["lexical_approved_records"] != 0:
+              raise SystemExit("J_ONO_CHAT_LEXICAL_APPROVAL_FORBIDDEN")
+          if report["decision_patch_count"] != 0:
+              raise SystemExit("J_ONO_CHAT_DECISION_PATCH_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_CHAT_AUTOMATIC_APPROVAL_BOUNDARY_BROKEN")
+          if report["decision_application"] is not False:
+              raise SystemExit("J_ONO_CHAT_DECISION_APPLICATION_BOUNDARY_BROKEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_CHAT_RUNTIME_PROMOTION_BOUNDARY_BROKEN")
+
+          print(
+              "J_ONO_CHAT_SEMANTIC_DECISION_REPORT="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+
+          payload = base64.b64encode(
+              Path("work/j-ono-combined-decision-ledger.jsonl").read_bytes()
+          ).decode("ascii")
+          chunk_size = 48000
+          chunks = [
+              payload[start:start + chunk_size]
+              for start in range(0, len(payload), chunk_size)
+          ]
+          print(
+              f"J_ONO_COMBINED_LEDGER_B64_BEGIN chunks={len(chunks)} "
+              f"sha256={report['combined_ledger_sha256']}"
+          )
+          for index, chunk in enumerate(chunks, 1):
+              print(f"J_ONO_COMBINED_LEDGER_B64_{index:04d}={chunk}")
+          print("J_ONO_COMBINED_LEDGER_B64_END")
+          PY
+
       - name: Measure existing Open Lexicon POS evidence coverage
         run: |
           python - <<'PY'
@@ -569,6 +631,9 @@ jobs:
             work/j-ono-rebuilt-collision-cluster-report.json
             work/j-ono-source-evidence-effectiveness-report.json
             work/j-ono-source-evidence-effectiveness-details.jsonl
+            work/j-ono-chat-semantic-decision-report.json
+            work/j-ono-combined-decision-ledger.jsonl
+            research/semantic_decisions/j_ono_chat_review_authorization.json
             work/j-ono-review-audit-report.json
             work/j-ono-review-audit/review-queue.jsonl
             work/j-ono-review-audit/review-records.jsonl
