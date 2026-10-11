@@ -44,6 +44,9 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH" in workflow
     assert "J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED" in workflow
+    assert "J_ONO_REVIEW_AUDIT_SOURCE_POS_EVIDENCE_MISMATCH" in workflow
+    assert '"source_part_of_speech_required_records"' in workflow
+    assert '"source_part_of_speech_coverage_records"' in workflow
     assert "J_ONO_REVIEW_AUDIT_POLARITY_OVERREQUIRED" in workflow
     assert "J_ONO_REVIEW_AUDIT_INTENSITY_OVERREQUIRED" in workflow
     assert "J_ONO_REVIEW_AUDIT_CONTEXT_OVERREQUIRED" in workflow
