@@ -662,6 +662,9 @@ def build_frozen_raw_meaning_factory(
         "input_definition_record_count": counts["input_definition_records"],
         "adapter_record_count": counts["adapter_records"],
         "unresolved_record_count": counts["unresolved_records"],
+        "j_ono_refer_target_evidence_item_count": counts[
+            "j_ono_refer_target_evidence_items"
+        ],
         "source_counts": dict(sorted(by_source.items())),
         "adapter_contract": adapter_manifest,
         "files": {
@@ -684,6 +687,9 @@ def build_frozen_raw_meaning_factory(
             "input_record_conservation_verified": True,
             "payload_and_artifact_checksums_verified": True,
             "source_rights_and_lineage_preserved": True,
+            "j_ono_refer_target_semantic_evidence_reconstructed": (
+                counts["j_ono_refer_target_evidence_items"] > 0
+            ),
             "automatic_definition_generation": False,
             "automatic_approval": False,
             "automatic_runtime_promotion": False,
