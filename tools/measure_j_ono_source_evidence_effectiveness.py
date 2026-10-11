@@ -40,6 +40,12 @@ def _semantic_type_signature(evidence: dict[str, Any]) -> tuple[str, ...]:
 
 
 def _refer_signature(evidence: dict[str, Any]) -> tuple[str, ...]:
+    """Return only actual refer-path provenance, never local record identity.
+
+    Resolved evidence also contains each record's own local source identity. Counting
+    that would make every record look semantically distinguishable merely because its
+    source_record_id is unique.
+    """
     parts: list[str] = []
     refer = _norm(evidence.get("refer"))
     if refer:
@@ -47,14 +53,13 @@ def _refer_signature(evidence: dict[str, Any]) -> tuple[str, ...]:
     resolved = evidence.get("resolved_meaning_evidence")
     if isinstance(resolved, list):
         for item in resolved:
-            if not isinstance(item, dict):
+            if not isinstance(item, dict) or not bool(item.get("via_refer")):
                 continue
             source_record_id = _norm(item.get("source_record_id"))
             source_definition_index = int(item.get("source_definition_index") or 0)
-            via_refer = bool(item.get("via_refer"))
-            if source_record_id or source_definition_index or via_refer:
+            if source_record_id or source_definition_index:
                 parts.append(
-                    f"resolved={source_record_id}:{source_definition_index}:via_refer={int(via_refer)}"
+                    f"resolved_refer={source_record_id}:{source_definition_index}"
                 )
     return tuple(sorted(set(parts)))
 
