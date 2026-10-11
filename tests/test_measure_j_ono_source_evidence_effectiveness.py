@@ -117,6 +117,89 @@ def test_missing_vs_present_semantic_evidence_is_not_counted_as_semantic_truth(
     ] is True
 
 
+def test_refer_target_semantic_evidence_is_used_without_auto_judgement(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "clusters.jsonl"
+    _write_clusters(
+        path,
+        [{
+            "cluster_id": "c1",
+            "reading_partition_count": 1,
+            "members": [
+                _member(
+                    "a",
+                    resolved=[{
+                        "source_record_id": "target-a",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": True,
+                        "equivalents": ["grab", "catch"],
+                        "semantic_type_code": "m",
+                        "semantic_type_label": "motion-movement",
+                    }],
+                ),
+                _member(
+                    "b",
+                    equivalents=["slap", "smack"],
+                    semantic_type_code="o",
+                ),
+            ],
+        }],
+    )
+
+    report, _ = measure_source_evidence_effectiveness(
+        path,
+        expected_reading_unresolved=1,
+    )
+
+    assert report["semantic_evidence"]["distinguished_pairs"] == 1
+    assert report["dimension_totals"]["equivalents"]["distinguished_pairs"] == 1
+    assert report["dimension_totals"]["semantic_type"]["distinguished_pairs"] == 1
+    assert report["interpretation_boundary"][
+        "refer_target_semantic_evidence_used"
+    ] is True
+    assert report["interpretation_boundary"]["automatic_meaning_judgement"] is False
+    assert report["interpretation_boundary"]["automatic_pos_fill"] is False
+
+
+def test_non_refer_resolved_semantic_evidence_is_not_double_counted_as_inherited(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "clusters.jsonl"
+    _write_clusters(
+        path,
+        [{
+            "cluster_id": "c1",
+            "reading_partition_count": 1,
+            "members": [
+                _member(
+                    "a",
+                    resolved=[{
+                        "source_record_id": "local-a",
+                        "source_definition_index": 1,
+                        "meaning": "x",
+                        "via_refer": False,
+                        "equivalents": ["only-in-resolved-local"],
+                        "semantic_type_code": "e",
+                        "semantic_type_label": "emotion",
+                    }],
+                ),
+                _member("b"),
+            ],
+        }],
+    )
+
+    report, _ = measure_source_evidence_effectiveness(
+        path,
+        expected_reading_unresolved=1,
+    )
+
+    assert report["semantic_evidence"]["distinguished_pairs"] == 0
+    assert report["dimension_totals"]["equivalents"]["availability_difference_pairs"] == 0
+    assert report["dimension_totals"]["semantic_type"]["availability_difference_pairs"] == 0
+
+
 def test_reading_unresolved_cluster_count_fails_closed(tmp_path: Path) -> None:
     path = tmp_path / "clusters.jsonl"
     _write_clusters(
