@@ -153,6 +153,7 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     assert lexical[0]["review_requirements"] == {
         "polarity": True,
         "intensity": True,
+        "part_of_speech_source_evidence": False,
     }
     assert lexical[0]["approval_scopes"]["task"] == "not-applicable"
     assert lexical[0]["approval_scopes"]["external_action"] == "not-applicable"
@@ -246,6 +247,7 @@ def test_j_ono_lexical_candidate_carries_compact_review_evidence(
     assert lexical["review_requirements"] == {
         "polarity": False,
         "intensity": False,
+        "part_of_speech_source_evidence": True,
     }
     assert lexical["approval_scopes"]["semantic"] == "needs-evidence"
     assert lexical["approval_scopes"]["pragmatic"] == "not-applicable"
