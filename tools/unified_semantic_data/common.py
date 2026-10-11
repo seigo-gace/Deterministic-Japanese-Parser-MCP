@@ -341,6 +341,14 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     review_status = normalize_text(raw.get("review_status") or "needs-evidence")
     if review_status not in ALLOWED_REVIEW_STATUS:
         review_status = "needs-evidence"
+    review_requirements = raw.get("review_requirements") or {}
+    if not isinstance(review_requirements, dict):
+        raise ValueError(f"review_requirements must be object: {record_id}")
+    require_polarity = review_requirements.get("polarity", True) is not False
+    require_intensity = review_requirements.get("intensity", True) is not False
+    require_source_pos = (
+        review_requirements.get("part_of_speech_source_evidence", False) is True
+    )
     blockers_by_scope: dict[str, list[str]] = {
         scope: [] for scope in APPROVAL_SCOPES
     }
@@ -353,14 +361,6 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
             )
     elif not part_of_speech:
         blockers_by_scope["lexical"].append("part-of-speech-required")
-    review_requirements = raw.get("review_requirements") or {}
-    if not isinstance(review_requirements, dict):
-        raise ValueError(f"review_requirements must be object: {record_id}")
-    require_polarity = review_requirements.get("polarity", True) is not False
-    require_intensity = review_requirements.get("intensity", True) is not False
-    require_source_pos = (
-        review_requirements.get("part_of_speech_source_evidence", False) is True
-    )
     if not semantic_content_present:
         blockers_by_scope["semantic"].append("meaning-candidate-required")
     if require_polarity and polarity == "unspecified":
