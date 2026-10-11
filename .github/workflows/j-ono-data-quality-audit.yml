@@ -389,6 +389,8 @@ jobs:
             --review-queue work/j-ono-review-audit/review-queue.jsonl \
             --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
             --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
+            --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
+            --review-audit-report work/j-ono-review-audit-report.json \
             --report work/j-ono-chat-semantic-existing-report.json
           mode="$(python -c 'import json; print(json.load(open("work/j-ono-chat-semantic-existing-report.json"))["status"])')"
           if [ "$mode" = "NOT_APPLIED" ]; then
