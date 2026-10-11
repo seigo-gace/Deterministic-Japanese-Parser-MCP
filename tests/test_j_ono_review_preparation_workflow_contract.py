@@ -35,6 +35,15 @@ def test_j_ono_review_preparation_workflow_is_manual_and_review_only() -> None:
     assert '"approved_records": 0' in workflow
     assert '"reading_coverage_records": 837' in workflow
     assert "J_ONO_REVIEW_READING_BLOCKER_REMAINED" in workflow
+    assert "J_ONO_REVIEW_PREPARATION_SCOPE_MISMATCH" in workflow
+    assert "J_ONO_REVIEW_PREPARATION_SCOPE_COUNT_MISMATCH" in workflow
+    assert "J_ONO_REVIEW_POLARITY_OVERREQUIRED" in workflow
+    assert "J_ONO_REVIEW_INTENSITY_OVERREQUIRED" in workflow
+    assert "J_ONO_REVIEW_CONTEXT_OVERREQUIRED" in workflow
+    assert "J_ONO_PRAGMATIC_SCOPE_NOT_APPLICABLE_BROKEN" in workflow
+    assert '"semantic_review_records"' in workflow
+    assert '"pragmatic_review_records"' in workflow
+    assert '"scoped_blocker_counts"' in workflow
     assert '"lexical_review_records"' in workflow
     assert '"part_of_speech_required_records"' in workflow
     assert '"lexical_blocker_counts"' in workflow
