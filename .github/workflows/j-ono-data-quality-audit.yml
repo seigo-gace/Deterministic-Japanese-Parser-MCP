@@ -256,6 +256,11 @@ jobs:
           manifest = json.loads(
               Path("work/j-ono-review-audit/manifest.json").read_text(encoding="utf-8")
           )
+          rebuilt_quality = json.loads(
+              Path("work/j-ono-rebuilt-data-quality-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
           bulk = json.loads(
               Path("work/j-ono-review-audit/bulk-review/bulk_review_manifest.json")
               .read_text(encoding="utf-8")
@@ -305,6 +310,18 @@ jobs:
               raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_DECISION")
           if blockers.get("lexical:reading-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED")
+          expected_source_pos_missing = 837 - int(
+              rebuilt_quality.get("pos_coverage_records") or 0
+          )
+          actual_source_pos_missing = blockers.get(
+              "lexical:source-part-of-speech-required", 0
+          )
+          if actual_source_pos_missing != expected_source_pos_missing:
+              raise SystemExit(
+                  "J_ONO_REVIEW_AUDIT_SOURCE_POS_EVIDENCE_MISMATCH:"
+                  f"expected={expected_source_pos_missing}:"
+                  f"actual={actual_source_pos_missing}"
+              )
           if blockers.get("semantic:polarity-required", 0) != 0:
               raise SystemExit("J_ONO_REVIEW_AUDIT_POLARITY_OVERREQUIRED")
           if blockers.get("semantic:intensity-required", 0) != 0:
@@ -336,6 +353,12 @@ jobs:
               "blocker_counts": dict(sorted(blockers.items())),
               "part_of_speech_required_records": blockers.get(
                   "lexical:part-of-speech-required", 0
+              ),
+              "source_part_of_speech_required_records": blockers.get(
+                  "lexical:source-part-of-speech-required", 0
+              ),
+              "source_part_of_speech_coverage_records": int(
+                  rebuilt_quality.get("pos_coverage_records") or 0
               ),
               "bulk_review_decision_scopes": bulk.get("decision_scopes") or [],
               "bulk_review_scope_request_counts": bulk.get("scope_request_counts") or {},
