@@ -615,6 +615,57 @@ def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blocke
     assert record["review_evidence"] == raw["review_evidence"]
 
 
+def test_semantic_only_approved_record_compiles_without_sentiment_or_pragmatics(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-APPROVED-MEANING", "ぴかぴか")
+    raw["approval_scopes"] = {
+        "lexical": "approved",
+        "semantic": "approved",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["context_conditions"] = {}
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    approved = _read_jsonl(review_root / "approved-records.jsonl")
+    assert len(approved) == 1
+    assert approved[0]["approval"]["approved_scopes"] == ["lexical", "semantic"]
+    assert approved[0]["polarity"] == "unspecified"
+    assert approved[0]["intensity"] is None
+    assert approved[0]["meaning_candidates"]
+
+    compiled_root = tmp_path / "compiled"
+    manifest = compile_approved(review_root, compiled_root)
+    assert manifest["record_count"] == 1
+    records = _read_jsonl_gzip(compiled_root / "records" / "records-0000.jsonl.gz")
+    assert len(records) == 1
+    assert records[0]["meaning_candidates"]
+    assert records[0]["polarity"] == "unspecified"
+    assert records[0]["intensity"] is None
+    assert records[0]["context_conditions"] == {}
+
+
 def test_optional_semantic_facets_do_not_block_source_authored_meaning_review(
     tmp_path: Path,
 ) -> None:
