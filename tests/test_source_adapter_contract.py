@@ -149,6 +149,9 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     ]
     assert lexical[0]["meaning_candidates"][0]["review_status"] == "needs-evidence"
     assert lexical[0]["approval_scopes"]["semantic"] == "needs-evidence"
+    assert lexical[0]["approval_scopes"]["pragmatic"] == "needs-evidence"
+    assert lexical[0]["approval_scopes"]["task"] == "not-applicable"
+    assert lexical[0]["approval_scopes"]["external_action"] == "not-applicable"
     assert lexical[0]["automatic_approval"] is False
     assert lexical[0]["automatic_runtime_promotion"] is False
     assert evidence[0]["source_role"] == "translation"
