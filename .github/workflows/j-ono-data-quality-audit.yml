@@ -926,7 +926,7 @@ jobs:
               raise SystemExit("J_ONO_POS_ALIGNMENT_REVIEW_COUNT_MISMATCH")
           if report["distinct_jmdict_record_count"] != 64:
               raise SystemExit("J_ONO_POS_ALIGNMENT_JMDICT_COUNT_MISMATCH")
-          if report["jmdict_sense_candidate_count"] != 95:
+          if report["jmdict_sense_candidate_count"] != 151:
               raise SystemExit("J_ONO_POS_ALIGNMENT_SENSE_COUNT_MISMATCH")
           if report["pr26_review_queue_sha256"] != (
               "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17"
