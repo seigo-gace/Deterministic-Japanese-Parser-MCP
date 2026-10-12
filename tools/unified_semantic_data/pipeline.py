@@ -342,6 +342,14 @@ def build_review_assets(
         {
             "bulk_review_job_id": review_operator["bulk_review_job_id"],
             "provider_batch_count": review_operator["provider_batch_count"],
+            "bulk_review_record_count": review_operator.get(
+                "bulk_review_record_count",
+                len(queue),
+            ),
+            "lexical_only_review_record_count": review_operator.get(
+                "lexical_only_review_record_count",
+                0,
+            ),
         }
         if bulk_review
         else {
