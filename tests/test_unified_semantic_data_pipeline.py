@@ -248,6 +248,7 @@ def test_pipeline_manifest_preserves_zero_bulk_review_for_lexical_only_queue(
         pack_roots=[],
         output_root=output_root,
         system_root=tmp_path / "system",
+        bulk_review=True,
     )
 
     assert manifest["review_queue_records"] == 1
