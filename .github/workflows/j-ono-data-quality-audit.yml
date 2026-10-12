@@ -756,7 +756,7 @@ jobs:
           strong_pos_frequency = Counter()
           evidence_rows = []
 
-          for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
               if not line.strip():
                   continue
               row = json.loads(line)
