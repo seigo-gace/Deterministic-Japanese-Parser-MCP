@@ -845,6 +845,57 @@ jobs:
           print("J_ONO_POS_EVIDENCE=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Build review-only J-Ono POS evidence queue
+        run: |
+          python tools/build_j_ono_pos_review_queue.py \
+            --records work/j-ono-source-adapter.jsonl \
+            --pos-evidence work/j-ono-pos-evidence.jsonl \
+            --output work/j-ono-pos-review-queue.jsonl \
+            --report work/j-ono-pos-review-queue-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/j-ono-pos-review-queue-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected = {
+              "STRONG_UNIQUE_REVIEW_PRIORITY": 94,
+              "STRONG_AMBIGUOUS_REVIEW_REQUIRED": 214,
+              "NO_STRONG_EVIDENCE": 529,
+          }
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_COUNT_MISMATCH")
+          if report["bucket_counts"] != expected:
+              raise SystemExit(
+                  "J_ONO_POS_REVIEW_QUEUE_BUCKET_MISMATCH:"
+                  + json.dumps(report["bucket_counts"], sort_keys=True)
+              )
+          if report["payload_model"] != "record-and-evidence-references-only":
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_PAYLOAD_MODEL_BROKEN")
+          for key in ("automatic_pos_fill", "automatic_approval", "runtime_promotion"):
+              if report[key] is not False:
+                  raise SystemExit(f"J_ONO_POS_REVIEW_QUEUE_BOUNDARY_BROKEN:{key}")
+          rows = [
+              json.loads(line)
+              for line in Path("work/j-ono-pos-review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(rows) != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_ROW_COUNT_MISMATCH")
+          if len({row["adapter_record_id"] for row in rows}) != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_ID_UNIQUENESS_MISMATCH")
+          if any("surfaces" in row or "meanings" in row for row in rows):
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_PAYLOAD_DUPLICATION")
+          print(
+              "J_ONO_POS_REVIEW_QUEUE="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
       - name: Verify no automatic semantic judgement or promotion
         run: |
           python - <<'PY'
@@ -878,6 +929,8 @@ jobs:
             work/j-ono-collision-cluster-report.json
             work/j-ono-pos-evidence-report.json
             work/j-ono-pos-evidence.jsonl
+            work/j-ono-pos-review-queue-report.json
+            work/j-ono-pos-review-queue.jsonl
             work/rebuilt/meaning-factory-report.json
             work/j-ono-rebuilt-data-quality-report.json
             work/j-ono-rebuilt-review-issues.jsonl
