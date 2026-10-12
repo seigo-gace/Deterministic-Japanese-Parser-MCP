@@ -20,6 +20,7 @@ from unified_semantic_data.pipeline import (  # noqa: E402
     check_determinism,
     compile_approved,
 )
+from unified_semantic_data.review import prepare_review_operator  # noqa: E402
 
 
 def _source(source_id: str) -> dict:
@@ -89,6 +90,98 @@ def _read_jsonl(path: Path) -> list[dict]:
 def _read_jsonl_gzip(path: Path) -> list[dict]:
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def test_bulk_review_operator_skips_lexical_only_records_without_dropping_review_state(
+    tmp_path: Path,
+) -> None:
+    lexical_only = {
+        "record_id": "LEXICAL-ONLY",
+        "input_sha256": "1" * 64,
+        "approval": {
+            "review_scopes": ["lexical"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "approved",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+    semantic_pending = {
+        "record_id": "SEMANTIC-PENDING",
+        "input_sha256": "2" * 64,
+        "approval": {
+            "review_scopes": ["lexical", "semantic"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "needs-evidence",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+
+    result = prepare_review_operator(
+        [lexical_only, semantic_pending],
+        tmp_path,
+        bulk_review=True,
+    )
+
+    assert result["bulk_review_record_count"] == 1
+    assert result["lexical_only_review_record_count"] == 1
+    manifest = json.loads(
+        (tmp_path / "bulk-review/bulk_review_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["total_records"] == 1
+    assert manifest["decision_scopes"] == ["semantic"]
+    requests = list((tmp_path / "bulk-review/requests").glob("*.jsonl"))
+    assert len(requests) == 1
+    payload = requests[0].read_text(encoding="utf-8")
+    assert "SEMANTIC-PENDING" in payload
+    assert "LEXICAL-ONLY" not in payload
+
+
+def test_bulk_review_operator_allows_zero_nonlexical_requests_for_lexical_only_queue(
+    tmp_path: Path,
+) -> None:
+    lexical_only = {
+        "record_id": "LEXICAL-ONLY",
+        "input_sha256": "3" * 64,
+        "approval": {
+            "review_scopes": ["lexical"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "approved",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+
+    result = prepare_review_operator(
+        [lexical_only],
+        tmp_path,
+        bulk_review=True,
+    )
+
+    assert result["bulk_review_record_count"] == 0
+    assert result["lexical_only_review_record_count"] == 1
+    manifest = json.loads(
+        (tmp_path / "bulk-review/bulk_review_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["total_records"] == 0
+    assert manifest["provider_batch_count"] == 0
+    assert manifest["decision_scopes"] == []
+    assert manifest["scope_request_counts"] == {}
+    assert manifest["network_call_performed"] is False
 
 
 def test_pipeline_accepts_lexicon_context_domain_and_user_sources(tmp_path: Path) -> None:
