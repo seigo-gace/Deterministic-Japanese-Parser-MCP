@@ -589,6 +589,22 @@ jobs:
                   encoding="utf-8"
               )
           )
+          bulk = json.loads(
+              Path(
+                  "work/j-ono-post-semantic-review/bulk-review/bulk_review_manifest.json"
+              ).read_text(encoding="utf-8")
+          )
+          if bulk["total_records"] != 0:
+              raise SystemExit(
+                  "J_ONO_POST_SEMANTIC_BULK_REVIEW_RECORD_COUNT_MISMATCH:"
+                  f"{bulk['total_records']}"
+              )
+          if bulk["provider_batch_count"] != 0:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_BATCH_UNEXPECTED")
+          if bulk["decision_scopes"] != [] or bulk["scope_request_counts"] != {}:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_SCOPE_UNEXPECTED")
+          if bulk["network_call_performed"] is not False:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_NETWORK_CALL")
           records = [
               json.loads(line)
               for line in Path("work/j-ono-post-semantic-review/review-records.jsonl")
@@ -661,6 +677,8 @@ jobs:
               "approved_meaning_candidates": candidate_approved,
               "lexical_review_records": lexical_review,
               "lexical_source_pos_blockers": lexical_source_blockers,
+              "bulk_review_records": bulk["total_records"],
+              "bulk_review_provider_batches": bulk["provider_batch_count"],
               "runtime_eligible_records": runtime_eligible,
               "automatic_lexical_approval": False,
               "automatic_pos_fill": False,
