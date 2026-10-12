@@ -43,6 +43,10 @@ def test_j_ono_quality_audit_runs_on_real_release_without_promotion() -> None:
     assert "J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM" in workflow
     assert "J_ONO_MISSING_EVIDENCE_OVERCLAIM" in workflow
     assert "J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN" in workflow
+    assert "J_ONO_POST_SEMANTIC_BULK_REVIEW_RECORD_COUNT_MISMATCH" in workflow
+    assert "J_ONO_POST_SEMANTIC_BULK_REVIEW_BATCH_UNEXPECTED" in workflow
+    assert "J_ONO_POST_SEMANTIC_BULK_REVIEW_SCOPE_UNEXPECTED" in workflow
+    assert "J_ONO_POST_SEMANTIC_BULK_REVIEW_NETWORK_CALL" in workflow
     assert "J_ONO_REFER_TARGET_SEMANTIC_EVIDENCE_NOT_USED" in workflow
     assert "J_ONO_REFER_TARGET_EVIDENCE_RECONSTRUCTION_EMPTY" in workflow
     assert "J_ONO_REFER_TARGET_EVIDENCE_BOUNDARY_FALSE" in workflow
