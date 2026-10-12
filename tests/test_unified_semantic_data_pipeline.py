@@ -184,6 +184,105 @@ def test_bulk_review_operator_allows_zero_nonlexical_requests_for_lexical_only_q
     assert manifest["network_call_performed"] is False
 
 
+def test_pipeline_manifest_preserves_zero_bulk_review_for_lexical_only_queue(
+    tmp_path: Path,
+) -> None:
+    adapter_root = tmp_path / "adapter"
+    adapter_root.mkdir()
+    row = {
+        "record_id": "LEXICAL-ONLY",
+        "surfaces": ["テスト"],
+        "lemma": "テスト",
+        "readings": ["てすと"],
+        "part_of_speech": [],
+        "meaning_candidates": [
+            {
+                "candidate_id": "LEXICAL-ONLY:sense:001",
+                "label": "test",
+                "glosses": ["test"],
+                "domains": [],
+                "parameters": {},
+                "evidence_ids": ["source:LEXICAL-ONLY"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "polarity": "neutral",
+        "intensity": 0.0,
+        "context_conditions": {
+            "required_any": [],
+            "required_all": [],
+            "forbidden_any": [],
+            "required_social": [],
+            "required_discourse": [],
+        },
+        "task_candidates": [],
+        "external_action_risk": False,
+        "approval": {
+            "approved_scopes": ["semantic"],
+            "review_scopes": ["lexical"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "approved",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+            "blockers_by_scope": {
+                "lexical": ["source-part-of-speech-required"],
+                "semantic": [],
+                "pragmatic": [],
+                "task": [],
+                "external_action": [],
+            },
+        },
+        "source": _source("LEXICAL-ONLY"),
+        "review_status": "needs-evidence",
+        "runtime_eligible": False,
+        "source_kind": "source_adapter",
+        "input_sha256": "4" * 64,
+    }
+    (adapter_root / "lexical-candidates.jsonl").write_text(
+        json.dumps(row, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (adapter_root / "semantic-reference.jsonl").write_text("", encoding="utf-8")
+    (adapter_root / "canonical-evidence.jsonl").write_text("", encoding="utf-8")
+    (adapter_root / "manifest.json").write_text(
+        json.dumps({
+            "schema_version": "1.2.0",
+            "mode": "mcp-universal-source-adapter-contract",
+            "adapter_record_count": 1,
+            "lexical_candidate_record_count": 1,
+            "semantic_reference_record_count": 0,
+            "canonical_evidence_record_count": 0,
+            "source_role_counts": {"lexical-definition": 1},
+            "boundaries": {
+                "automatic_approval": False,
+                "runtime_promotion": False,
+            },
+            "outputs": {},
+        }),
+        encoding="utf-8",
+    )
+
+    output_root = tmp_path / "review"
+    manifest = build_review_assets(
+        open_lexicon_root=tmp_path / "open",
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=output_root,
+        system_root=tmp_path / "system",
+        adapter_output_root=adapter_root,
+    )
+
+    assert manifest["review_queue_records"] == 1
+    assert manifest["bulk_review_record_count"] == 0
+    assert manifest["lexical_only_review_record_count"] == 1
+    assert manifest["provider_batch_count"] == 0
+    assert manifest["runtime_eligible_records"] == 0
+
+
 def test_pipeline_accepts_lexicon_context_domain_and_user_sources(tmp_path: Path) -> None:
     open_root = tmp_path / "open"
     context_root = tmp_path / "context"
