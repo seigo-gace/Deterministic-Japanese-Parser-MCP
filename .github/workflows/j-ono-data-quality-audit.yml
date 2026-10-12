@@ -102,7 +102,7 @@ jobs:
           from pathlib import Path
 
           rows = {}
-          for line in Path("work/j-ono-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
               if not line.strip():
                   continue
               row = json.loads(line)
@@ -848,7 +848,7 @@ jobs:
       - name: Build review-only J-Ono POS evidence queue
         run: |
           python tools/build_j_ono_pos_review_queue.py \
-            --records work/j-ono-source-adapter.jsonl \
+            --records work/j-ono-rebuilt-source-adapter.jsonl \
             --pos-evidence work/j-ono-pos-evidence.jsonl \
             --output work/j-ono-pos-review-queue.jsonl \
             --report work/j-ono-pos-review-queue-report.json
@@ -896,6 +896,76 @@ jobs:
           )
           PY
 
+      - name: Restore immutable PR 26 semantic Review Queue
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31030553984
+          github-token: ${{ github.token }}
+          path: work/pr26-processing-evidence
+
+      - name: Build review-only J-Ono JMdict Sense/POS alignment evidence
+        run: |
+          python tools/build_j_ono_pos_semantic_alignment_review.py \
+            --jono-records work/j-ono-rebuilt-source-adapter.jsonl \
+            --pos-review-queue work/j-ono-pos-review-queue.jsonl \
+            --pr26-review-queue work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --output work/j-ono-pos-semantic-alignment-review.jsonl \
+            --report work/j-ono-pos-semantic-alignment-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/j-ono-pos-semantic-alignment-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["review_record_count"] != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_REVIEW_COUNT_MISMATCH")
+          if report["distinct_jmdict_record_count"] != 64:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_JMDICT_COUNT_MISMATCH")
+          if report["jmdict_sense_candidate_count"] != 95:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_SENSE_COUNT_MISMATCH")
+          if report["pr26_review_queue_sha256"] != (
+              "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17"
+          ):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_PR26_DIGEST_MISMATCH")
+          if report["evidence_model"] != (
+              "checksum-locked-jono-plus-jmdict-sense-review"
+          ):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_EVIDENCE_MODEL_MISMATCH")
+          for key in (
+              "semantic_alignment_judgement",
+              "automatic_pos_fill",
+              "automatic_approval",
+              "runtime_promotion",
+          ):
+              if report[key] is not False:
+                  raise SystemExit(f"J_ONO_POS_ALIGNMENT_BOUNDARY_BROKEN:{key}")
+
+          rows = [
+              json.loads(line)
+              for line in Path("work/j-ono-pos-semantic-alignment-review.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(rows) != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_ROW_COUNT_MISMATCH")
+          if len({row["adapter_record_id"] for row in rows}) != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_ID_UNIQUENESS_MISMATCH")
+          if any(row["semantic_alignment_status"] != "NEEDS_EXPLICIT_REVIEW" for row in rows):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_PREMATURE_JUDGEMENT")
+          if any("payload" in row or "surfaces" in row for row in rows):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_FULL_PAYLOAD_DUPLICATION")
+          print(
+              "J_ONO_POS_SEMANTIC_ALIGNMENT_REVIEW="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
       - name: Verify no automatic semantic judgement or promotion
         run: |
           python - <<'PY'
@@ -931,6 +1001,8 @@ jobs:
             work/j-ono-pos-evidence.jsonl
             work/j-ono-pos-review-queue-report.json
             work/j-ono-pos-review-queue.jsonl
+            work/j-ono-pos-semantic-alignment-report.json
+            work/j-ono-pos-semantic-alignment-review.jsonl
             work/rebuilt/meaning-factory-report.json
             work/j-ono-rebuilt-data-quality-report.json
             work/j-ono-rebuilt-review-issues.jsonl
