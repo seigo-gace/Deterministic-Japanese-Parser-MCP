@@ -283,13 +283,24 @@ def prepare_review_operator(
 ) -> dict[str, Any]:
     """Select the new Bulk Review Station or the deprecated 20-record path."""
     if bulk_review:
-        from bulk_review_station import prepare_bulk_review_job
+        from bulk_review_station import (
+            decision_scopes_for_record,
+            prepare_bulk_review_job,
+        )
 
-        manifest = prepare_bulk_review_job(records, output_root)
+        # Lexical review is evidence-bound and intentionally outside Bulk Review
+        # Station. Keep lexical-only records in the canonical review queue, but do
+        # not try to manufacture an empty semantic/pragmatic/task/action request.
+        bulk_records = [
+            record for record in records if decision_scopes_for_record(record)
+        ]
+        manifest = prepare_bulk_review_job(bulk_records, output_root)
         return {
             "mode": "bulk",
             "bulk_review_job_id": manifest["bulk_review_job_id"],
             "provider_batch_count": manifest["provider_batch_count"],
+            "bulk_review_record_count": len(bulk_records),
+            "lexical_only_review_record_count": len(records) - len(bulk_records),
         }
     batches = write_review_batches(records, output_root, batch_size=batch_size)
     return {
