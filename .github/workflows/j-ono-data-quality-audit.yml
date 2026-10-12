@@ -95,41 +95,6 @@ jobs:
           print("J_ONO_CLUSTER_REPORT=" + json.dumps(report, sort_keys=True))
           PY
 
-      - name: Report very-short meaning source evidence
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          rows = {}
-          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
-              if not line.strip():
-                  continue
-              row = json.loads(line)
-              rows[row["adapter_record_id"]] = row
-
-          short_ids = []
-          for line in Path("work/j-ono-data-quality-review-issues.jsonl").read_text(encoding="utf-8").splitlines():
-              if not line.strip():
-                  continue
-              issue = json.loads(line)
-              if issue.get("kind") == "VERY_SHORT_MEANING":
-                  short_ids.append(issue["record_id"])
-
-          evidence = []
-          for record_id in sorted(short_ids):
-              row = rows[record_id]
-              source = row.get("source") or {}
-              evidence.append({
-                  "adapter_record_id": record_id,
-                  "source_record_id": source.get("source_record_id"),
-                  "surfaces": row.get("surfaces") or [],
-                  "readings": row.get("readings") or [],
-                  "meanings": row.get("meanings") or [],
-              })
-          print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
-          PY
-
       - name: Rebuild provenance-safe J-Ono source evidence
         run: |
           mkdir -p work/raw-parts work/raw-unpacked work/rebuilt
@@ -190,6 +155,41 @@ jobs:
             --issues work/j-ono-rebuilt-review-issues.jsonl \
             --output work/j-ono-rebuilt-collision-clusters.jsonl \
             --report work/j-ono-rebuilt-collision-cluster-report.json
+
+      - name: Report very-short meaning source evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = {}
+          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              rows[row["adapter_record_id"]] = row
+
+          short_ids = []
+          for line in Path("work/j-ono-data-quality-review-issues.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              issue = json.loads(line)
+              if issue.get("kind") == "VERY_SHORT_MEANING":
+                  short_ids.append(issue["record_id"])
+
+          evidence = []
+          for record_id in sorted(short_ids):
+              row = rows[record_id]
+              source = row.get("source") or {}
+              evidence.append({
+                  "adapter_record_id": record_id,
+                  "source_record_id": source.get("source_record_id"),
+                  "surfaces": row.get("surfaces") or [],
+                  "readings": row.get("readings") or [],
+                  "meanings": row.get("meanings") or [],
+              })
+          print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+          PY
 
       - name: Measure source-authored disambiguation effectiveness
         run: |
