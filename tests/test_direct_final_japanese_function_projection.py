@@ -348,3 +348,37 @@ def test_direct_final_projection_dedupes_same_semantic_record_without_collapsing
     assert {"record_projection", "unmapped_field_summary", "duplicate_record"}.issubset(tables)
     assert result["boundaries"]["storage_model"] == "single-record-lane-bitmask-v1"
     assert result["boundaries"]["build_identity_persisted"] is False
+
+def test_negative_direct_final_labels_do_not_promote_lanes():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_semantic_targets,
+    )
+
+    row = _row(
+        "DF-NEG",
+        pos=["名詞"],
+        source_roles=["not an idiom", "非擬音", "non-multiword"],
+        entry_types=["not-onomatopoeia"],
+        usage_labels=["擬音ではない", "not a compound"],
+        semantic_targets=[],
+    )
+    targets = _explicit_semantic_targets(row)
+    assert "onomatopoeia" not in targets
+    assert "multiword" not in targets
+
+
+def test_positive_direct_final_source_roles_still_route():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_semantic_targets,
+    )
+
+    row = _row(
+        "DF-POS",
+        pos=["名詞"],
+        source_roles=["discourse-structure", "multiword"],
+        entry_types=["onomatopoeia"],
+        semantic_targets=[],
+    )
+    targets = _explicit_semantic_targets(row)
+    assert {"document-structure", "multiword", "onomatopoeia"}.issubset(targets)
+
