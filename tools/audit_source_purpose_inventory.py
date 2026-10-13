@@ -6,6 +6,7 @@ This is a starting inventory, NOT an assertion that fields are mapped or consume
 import argparse
 import csv
 import json
+from collections import Counter
 from pathlib import Path
 
 COLUMNS = (
@@ -49,11 +50,51 @@ def inventory(profile):
     return sorted(rows, key=lambda row: (row["source_id"], row["source_role"]))
 
 
+def observed_fields(records_path):
+    """Count actual JSONL field paths/types without asserting semantics or destination."""
+    counts = Counter()
+    records = 0
+
+    def walk(value, prefix):
+        if isinstance(value, dict):
+            for key, child in sorted(value.items()):
+                child_path = f"{prefix}.{key}" if prefix else key
+                counts[(child_path, type(child).__name__)] += 1
+                walk(child, child_path)
+        elif isinstance(value, list):
+            # Array item shape is counted under the same deterministic [] path.
+            for child in value:
+                walk(child, f"{prefix}[]")
+
+    with records_path.open(encoding="utf-8") as stream:
+        for line_no, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSONL at line {line_no}") from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"non-object record at line {line_no}")
+            records += 1
+            walk(record, "")
+    return records, [
+        {"field_path": path, "value_type": kind, "observed_occurrences": count,
+         "information_kind": "UNCLASSIFIED_REQUIRES_SOURCE_EVIDENCE",
+         "logical_destination": "UNDECIDED"}
+        for (path, kind), count in sorted(counts.items())
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--profiles", type=Path, default=Path("config/source_payload_profiles.json"))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--records", type=Path, help="Optional actual adapter/canonical JSONL for observed Field inventory")
+    parser.add_argument("--fields-output", type=Path, help="JSON field inventory output, required with --records")
     args = parser.parse_args()
+    if bool(args.records) != bool(args.fields_output):
+        parser.error("--records and --fields-output must be supplied together")
     data = json.loads(args.profiles.read_text(encoding="utf-8"))
     rows = inventory(data)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -61,10 +102,17 @@ def main():
         writer = csv.DictWriter(stream, fieldnames=COLUMNS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+    observed_count = None
+    if args.records:
+        observed_count, fields = observed_fields(args.records)
+        args.fields_output.parent.mkdir(parents=True, exist_ok=True)
+        args.fields_output.write_text(json.dumps(fields, ensure_ascii=False, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
     print(json.dumps({
         "declared_source_count": len({row["source_id"] for row in rows}),
         "source_role_rows": len(rows),
         "field_coverage_verified": False,
+        "observed_input_records": observed_count,
+        "observed_field_types": len(fields) if args.records else None,
         "runtime_consumption_verified": False,
         "output": str(args.output),
     }, sort_keys=True))
