@@ -65,8 +65,8 @@ def _unique(values: Any) -> list[str]:
 
 
 _TAG_TO_TARGETS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("onomatopoe", "mimetic", "擬音", "擬態"), "onomatopoeia"),
-    (("multiword", "idiom", "compound", "fixed-expression", "fixed expression", "熟語", "慣用", "複合語"), "multiword"),
+    (("onomatopoeia", "onomatopoeic", "mimetic", "擬音", "擬音語", "擬態", "擬態語", "擬声", "擬声語", "擬容", "擬情", "オノマトペ"), "onomatopoeia"),
+    (("multiword", "multiword expression", "idiom", "idiomatic expression", "compound", "fixed-expression", "fixed expression", "熟語", "慣用", "慣用句", "慣用表現", "複合語"), "multiword"),
     (("syntax", "dependency", "predicate-argument", "係り受け", "構文"), "syntax"),
     (("case", "格関係"), "case"),
     (("clause", "節関係"), "clause"),
@@ -122,6 +122,12 @@ def _explicit_semantic_targets(row: dict[str, Any]) -> list[str]:
             marker.casefold().replace("_", "-") for marker in markers
         ):
             targets.add(target)
+
+    # Known provenance tags such as "register-formal" still indicate usage
+    # evidence, without letting a negated phrase imply positive semantics.
+    if any(tag.startswith(("register-", "usage-", "context-", "pragmatic-", "style-"))
+           for tag in normalized_tags):
+        targets.add("usage")
 
     source_datasets = {value.casefold() for value in _unique(row.get("source_datasets"))}
     for target, source_ids in _SOURCE_DATASET_TARGETS.items():
