@@ -106,7 +106,7 @@ def main():
     if args.records:
         observed_count, fields = observed_fields(args.records)
         args.fields_output.parent.mkdir(parents=True, exist_ok=True)
-        args.fields_output.write_text(json.dumps(fields, ensure_ascii=False, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+        args.fields_output.write_text(json.dumps(fields, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({
         "declared_source_count": len({row["source_id"] for row in rows}),
         "source_role_rows": len(rows),
