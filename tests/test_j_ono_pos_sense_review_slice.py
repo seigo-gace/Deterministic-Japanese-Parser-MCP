@@ -40,6 +40,19 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
         assert row["rationale"].strip()
 
     assert payload["review_scope"] == "sense-equivalence-negative-examples"
-    assert payload["remaining_pairs_status"] == "NOT_REVIEWED"
+    assert payload["remaining_pairs_status"] == "NOT_ADJUDICATED_UNLESS_EXPLICITLY_LISTED"
+    related = payload["candidate_sense_reviews"]
+    assert len(related) == 14
+    sense_ids = [row["jmdict_sense_id"] for row in related]
+    assert len(set(sense_ids)) == len(sense_ids)
+    for row in related:
+        assert row["jono_record_id"].startswith("FROZEN-j-ono-definitions-")
+        assert row["jmdict_record_id"].startswith("JMD-")
+        assert row["jmdict_sense_id"].startswith(row["jmdict_record_id"] + ":jmdict:")
+        assert row["source_meaning_abstract"].strip()
+        assert row["jmdict_gloss_abstract"].strip()
+        assert row["review_result"] == "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW"
+        assert row["semantic_equivalence_approved"] is False
+        assert row["lexical_pos_approval"] is False
     assert payload["automatic_approval"] is False
     assert payload["runtime_promotion"] is False
