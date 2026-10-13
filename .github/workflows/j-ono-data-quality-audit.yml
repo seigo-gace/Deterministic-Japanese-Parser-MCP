@@ -1016,6 +1016,39 @@ jobs:
               raise AssertionError("J_ONO_MULTISENSE_POS_PATCH_WRONGLY_ALLOWED")
 
           assert path.read_bytes() == original
+          # Verify the existing semantic Decision and explicit lexical POS can
+          # reach the canonical compiler without writing approved product data.
+          import tempfile
+          from tools.unified_semantic_data.review import load_decisions
+          from tools.unified_semantic_data.canonical_dictionary import (
+              build_canonical_dictionary_records,
+          )
+
+          semantic = next(
+              item
+              for item in load_decisions(Path("research/semantic_decisions/decision_ledger.jsonl"))
+              if item["record_id"] == target["record_id"]
+              and item["scope"] == "semantic"
+              and item["status"] == "approved"
+          )
+          combined, _ = apply_decisions(
+              [copy.deepcopy(target)], [semantic, decision(target)]
+          )
+          assert set(combined[0]["approval"]["approved_scopes"]) >= {
+              "semantic", "lexical"
+          }
+          assert combined[0]["runtime_eligible"] is True
+
+          with tempfile.TemporaryDirectory(prefix="jono-lexical-canonical-dryrun-") as tmp:
+              root = Path(tmp)
+              (root / "approved-records.jsonl").write_text(
+                  json.dumps(combined[0], ensure_ascii=False, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              canonical = build_canonical_dictionary_records(root)
+              assert len(canonical) == 1
+          assert path.read_bytes() == original
+          print("J_ONO_LEXICAL_CANONICAL_DRYRUN=PASS;PERSISTED=NO;RUNTIME_PROMOTION=NO")
           print("J_ONO_LEXICAL_POS_DRYRUN=PASS;PERSISTED=NO;RUNTIME_PROMOTION=NO")
           PY
 
