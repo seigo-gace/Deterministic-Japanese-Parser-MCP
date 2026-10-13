@@ -1094,8 +1094,8 @@ jobs:
           root = Path("work/j-ono-runtime-smoke")
           compile_approved(Path("work/j-ono-post-semantic-review"), root)
           runtime = SemanticDataRuntime(root)
-          assert runtime.available and runtime.record_count == 1
-          assert runtime.runtime_record_count == 1
+          assert runtime.available and runtime.record_count == 3
+          assert runtime.runtime_record_count == 3
           token = Token(
               surface="おほん",
               normalized="おほん",
@@ -1115,7 +1115,7 @@ jobs:
           assert row["meaning_candidates"][0]["glosses"] == [
               "polite throat-clearing, often to regain composure"
           ]
-          print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=1;PROMOTION=NO")
+          print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=3;PROMOTION=NO")
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
           from deterministic_japanese_parser_mcp.config import Settings
           settings = Settings(
