@@ -382,3 +382,23 @@ def test_positive_direct_final_source_roles_still_route():
     targets = _explicit_semantic_targets(row)
     assert {"document-structure", "multiword", "onomatopoeia"}.issubset(targets)
 
+
+def test_negative_direct_final_tags_do_not_leak_into_compiled_lane_membership():
+    from tools.compile_direct_final_japanese_function_projection import _projection_record
+
+    row = _row(
+        "DF-NEG-PROJECTION",
+        pos=["名詞"],
+        source_roles=["非擬音", "not an idiom"],
+        entry_types=["not-onomatopoeia"],
+        usage_labels=["擬音ではない"],
+        semantic_targets=[],
+    )
+    projected = _projection_record(row, manifest_sha="a" * 64, version="v1")
+    lanes = projection.assign_record_lanes(projected)
+    assert "onomatopoeia" not in projected["semantic_facets"]["semantic_targets"]
+    assert "multiword" not in projected["semantic_facets"]["semantic_targets"]
+    assert "Onomatopoeia" not in lanes
+    assert "Multiword" not in lanes
+    assert "Orthography/Reading" in lanes
+
