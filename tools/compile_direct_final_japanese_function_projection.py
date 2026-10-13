@@ -113,9 +113,14 @@ def _explicit_semantic_targets(row: dict[str, Any]) -> list[str]:
         if isinstance(relation, dict):
             tag_values.extend(_tag_texts(relation.get("type")))
             tag_values.extend(_tag_texts(relation.get("relation_type")))
-    normalized = " ".join(value.casefold().replace("_", "-") for value in tag_values)
+    # Match each source-authored tag independently. Concatenated substring
+    # matching could turn a negative label such as "非擬音" into affirmative
+    # Onomatopoeia evidence, or promote "not an idiom" into Multiword.
+    normalized_tags = {value.strip().casefold().replace("_", "-") for value in tag_values}
     for markers, target in _TAG_TO_TARGETS:
-        if any(marker.casefold().replace("_", "-") in normalized for marker in markers):
+        if normalized_tags.intersection(
+            marker.casefold().replace("_", "-") for marker in markers
+        ):
             targets.add(target)
 
     source_datasets = {value.casefold() for value in _unique(row.get("source_datasets"))}
