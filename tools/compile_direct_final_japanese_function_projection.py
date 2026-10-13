@@ -150,7 +150,11 @@ def _explicit_usage_labels(row: dict[str, Any]) -> list[str]:
     labels = set(_unique(row.get("usage_labels")))
     for value in _tag_texts(row.get("entry_types")) + _tag_texts(row.get("source_roles")):
         text = value.casefold()
-        if any(marker in text for marker in ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")):
+        # Source roles are routing hints, not free-form semantic assertions.
+        # Prefixes indicate positive registered usage roles; a negated
+        # phrase such as "not usage" or "non-context" must not match.
+        markers = ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")
+        if any(text == marker or text.startswith(marker + "-") for marker in markers):
             labels.add(value)
     return sorted(labels)
 
