@@ -1108,6 +1108,8 @@ jobs:
             work/j-ono-chat-semantic-decision-report.json
             work/j-ono-combined-decision-ledger.jsonl
             work/j-ono-canonical-semantic-application-report.json
+            work/j-ono-post-semantic-review/manifest.json
+            work/j-ono-post-semantic-review/approved-records.jsonl
             work/j-ono-canonical-decisions/decision_ledger.jsonl
             research/semantic_decisions/j_ono_chat_review_authorization.json
             work/j-ono-review-audit-report.json
