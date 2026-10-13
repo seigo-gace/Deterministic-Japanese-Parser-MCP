@@ -1116,6 +1116,23 @@ jobs:
               "polite throat-clearing, often to regain composure"
           ]
           print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=1;PROMOTION=NO")
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          from deterministic_japanese_parser_mcp.config import Settings
+          settings = Settings(
+              system_dict_dir=Path("dictionaries/system"),
+              user_dict_dir=Path("dictionaries/user"),
+              semantic_data_runtime_dir=root,
+              hard_deadline_ms=5000,
+          )
+          engine = ParserEngine(settings)
+          result = engine.analyze(AnalyzeRequest(
+              original_text="おほん。", deadline_ms=5000
+          ))
+          assert result.meaning_graph.quality_annotations.get(
+              "semantic_data_pack_match_count", 0
+          ) >= 1, "J_ONO_PARSER_MEANING_PACK_NOT_CONSUMED"
+          assert result.meaning_graph.semantic_hash
+          print("J_ONO_PARSER_REAL_TEXT=PASS;TEXT=おほん。;PROMOTION=NO")
           PY
 
       - name: Upload real-data quality evidence
