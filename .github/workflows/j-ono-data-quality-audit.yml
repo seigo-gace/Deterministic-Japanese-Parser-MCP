@@ -1139,6 +1139,28 @@ jobs:
               assert extra_row["meaning_candidates"][0]["review_status"] == "approved"
               assert extra_row["meaning_candidates"][0]["glosses"] == [expected_gloss]
           print("J_ONO_THREE_EXPLICIT_RUNTIME_LOOKUPS=PASS;RECORDS=6;PROMOTION=NO")
+          for surface, reading, expected_id, expected_gloss in (
+              ("かしゃっ", "カシャッ", "ADAPTER-FROZEN-j-ono-definitions-00e18eaff361aa96e4e7874e", "a small, sharp mechanical click or snap, as from a camera, latch, or button"),
+              ("がしゃ", "ガシャ", "ADAPTER-FROZEN-j-ono-definitions-8c92d508f391cfa454f4fe6b", "sharp, short, crashing or breaking sound"),
+              ("すたすた", "スタスタ", "ADAPTER-FROZEN-j-ono-definitions-9e7cb67b68a86b3db37966e1", "brisk, steady walking"),
+          ):
+              extra_token = Token(
+                  surface=surface,
+                  normalized=surface,
+                  reading=reading,
+                  pos=["副詞"],
+                  span=OriginalSpan(start=0, end=len(surface), source_text=surface),
+              )
+              matched = runtime.lookup_token(extra_token)
+              assert len(matched) == 1, f"J_ONO_ADVERB_RUNTIME_LOOKUP_MISSING:{surface}"
+              row = matched[0]
+              assert row["record_id"] == expected_id
+              assert row["part_of_speech"] == ["adverb taking the 'to' particle"]
+              assert len(row["meaning_candidates"]) == 1
+              assert row["meaning_candidates"][0]["review_status"] == "approved"
+              assert row["meaning_candidates"][0]["glosses"] == [expected_gloss]
+          print("J_ONO_SIX_EXPLICIT_RUNTIME_LOOKUPS=PASS;RECORDS=6;PROMOTION=NO")
+
           print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=6;PROMOTION=NO")
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
           from deterministic_japanese_parser_mcp.config import Settings
