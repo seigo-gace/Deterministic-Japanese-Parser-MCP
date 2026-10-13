@@ -1163,6 +1163,18 @@ jobs:
           ) >= 1, "J_ONO_PARSER_MEANING_PACK_NOT_CONSUMED"
           assert result.meaning_graph.semantic_hash
           print("J_ONO_PARSER_REAL_TEXT=PASS;TEXT=おほん。;PROMOTION=NO")
+          for other_text in ("あはは。", "ふむ。"):
+              other_result = engine.analyze(AnalyzeRequest(
+                  original_text=other_text, deadline_ms=5000
+              ))
+              assert other_result.meaning_graph.semantic_hash
+              assert other_result.meaning_graph.quality_annotations.get(
+                  "semantic_data_pack_match_count", 0
+              ) >= 1, f"J_ONO_PARSER_MISSING_APPROVED_PACK:{other_text}"
+              assert other_result.meaning_graph.quality_annotations.get(
+                  "semantic_data_pack_automatic_external_action", False
+              ) is False
+              print(f"J_ONO_PARSER_REAL_TEXT=PASS;TEXT={other_text};PROMOTION=NO")
           PY
 
       - name: Upload real-data quality evidence
