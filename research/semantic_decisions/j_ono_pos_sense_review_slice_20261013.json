@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "purpose": "Manually reviewed negative sense-alignment examples from the exact J-Ono Data Quality Audit artifact. Evidence-only; not a Decision Ledger, no automatic POS, approval or runtime promotion.",
+  "purpose": "Evidence-only per-sense alignment triage for exact artifact, including negative pairs and related-but-unapproved candidate senses. Never treat these examples as blanket approval for a lexeme.",
   "source": {
     "repo": "seigo-gace/Deterministic-Japanese-Parser-MCP",
     "pr": 56,
@@ -183,7 +183,163 @@
     }
   ],
   "review_scope": "sense-equivalence-negative-examples",
-  "remaining_pairs_status": "NOT_REVIEWED",
+  "remaining_pairs_status": "NOT_ADJUDICATED_UNLESS_EXPLICITLY_LISTED",
   "automatic_approval": false,
-  "runtime_promotion": false
+  "runtime_promotion": false,
+  "candidate_sense_reviews": [
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-00e18eaff361aa96e4e7874e",
+      "jmdict_record_id": "JMD-27a65de21add5753bf44",
+      "jmdict_sense_id": "JMD-27a65de21add5753bf44:jmdict:2077870:sense:001",
+      "source_meaning_abstract": "click/snap",
+      "jmdict_gloss_abstract": "with a click",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61",
+      "jmdict_record_id": "JMD-d349fcbf9e101a7b271f",
+      "jmdict_sense_id": "JMD-d349fcbf9e101a7b271f:jmdict:2076160:sense:001",
+      "source_meaning_abstract": "throat-clearing",
+      "jmdict_gloss_abstract": "ahem",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-0d6493711195aa74959767c4",
+      "jmdict_record_id": "JMD-26405d639e828f3dec36",
+      "jmdict_sense_id": "JMD-26405d639e828f3dec36:jmdict:2220340:sense:001",
+      "source_meaning_abstract": "loud laughter",
+      "jmdict_gloss_abstract": "laughing loudly",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-2e336583c4888bb9eb52d5d5",
+      "jmdict_record_id": "JMD-f26564ab7ad1e37ea0ae",
+      "jmdict_sense_id": "JMD-f26564ab7ad1e37ea0ae:jmdict:2036520:sense:001",
+      "source_meaning_abstract": "embarrassed laughter",
+      "jmdict_gloss_abstract": "giggle",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-5d89140ed091f46e3113511a",
+      "jmdict_record_id": "JMD-7f37a3f54543154cb7d4",
+      "jmdict_sense_id": "JMD-7f37a3f54543154cb7d4:jmdict:2122030:sense:002",
+      "source_meaning_abstract": "nodding agreement",
+      "jmdict_gloss_abstract": "nodding deeply",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-6102ad1d01feb04f6aa3db0a",
+      "jmdict_record_id": "JMD-6f14672fabfce4ef4eb0",
+      "jmdict_sense_id": "JMD-6f14672fabfce4ef4eb0:jmdict:2002970:sense:001",
+      "source_meaning_abstract": "shock or surprise",
+      "jmdict_gloss_abstract": "shock",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-7b92532ff3fcec32625855fb",
+      "jmdict_record_id": "JMD-a5c38f0e549c73a7f188",
+      "jmdict_sense_id": "JMD-a5c38f0e549c73a7f188:jmdict:2255640:sense:001",
+      "source_meaning_abstract": "kissing",
+      "jmdict_gloss_abstract": "smooch",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-8c92d508f391cfa454f4fe6b",
+      "jmdict_record_id": "JMD-a400a864843c7ebbceed",
+      "jmdict_sense_id": "JMD-a400a864843c7ebbceed:jmdict:2101840:sense:001",
+      "source_meaning_abstract": "breaking/crash sound",
+      "jmdict_gloss_abstract": "with a crash",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-9e7cb67b68a86b3db37966e1",
+      "jmdict_record_id": "JMD-bbd4e2648354db8fd48e",
+      "jmdict_sense_id": "JMD-bbd4e2648354db8fd48e:jmdict:1006090:sense:001",
+      "source_meaning_abstract": "brisk walking",
+      "jmdict_gloss_abstract": "walk briskly",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c3cc84b158195bdfda7a7c27",
+      "jmdict_record_id": "JMD-694384d45251f8d0c3f8",
+      "jmdict_sense_id": "JMD-694384d45251f8d0c3f8:jmdict:2123390:sense:001",
+      "source_meaning_abstract": "throbbing pain",
+      "jmdict_gloss_abstract": "throbbing pain",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f",
+      "jmdict_record_id": "JMD-e0e761dc93f6485a3196",
+      "jmdict_sense_id": "JMD-e0e761dc93f6485a3196:jmdict:2180650:sense:001",
+      "source_meaning_abstract": "thoughtful contemplation",
+      "jmdict_gloss_abstract": "hmm",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-ee38d15777e2a943e8d8c4b0",
+      "jmdict_record_id": "JMD-872a02fccda2f14699e7",
+      "jmdict_sense_id": "JMD-872a02fccda2f14699e7:jmdict:2036780:sense:001",
+      "source_meaning_abstract": "intense glare",
+      "jmdict_gloss_abstract": "sharp glare",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-f80cefaba278e096d7a2877c",
+      "jmdict_record_id": "JMD-ae9b7eb015ef2be1d113",
+      "jmdict_sense_id": "JMD-ae9b7eb015ef2be1d113:jmdict:1088230:sense:001",
+      "source_meaning_abstract": "falling/collapsing with impact",
+      "jmdict_gloss_abstract": "thud",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-f9666eff679980f3393972f9",
+      "jmdict_record_id": "JMD-d9450e2dacd5ea523ac9",
+      "jmdict_sense_id": "JMD-d9450e2dacd5ea523ac9:jmdict:1013300:sense:001",
+      "source_meaning_abstract": "lively group noise",
+      "jmdict_gloss_abstract": "clamorously",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "Source-authored and JMdict sense descriptions overlap conceptually, but this review does not establish identical contextual scope, morphology or POS applicability."
+    }
+  ]
 }
