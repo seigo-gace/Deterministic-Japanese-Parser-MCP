@@ -52,6 +52,8 @@ def _decision(*, status: str = "approved", scope: str = "lexical", patch=None) -
         "rationale": "J-Ono source meaning for ohon and independent JMdict ahem "
         "sense corroborate interjection POS; source identity and context reviewed.",
         "input_sha256": "a" * 64,
+        "_path": "test-ledger.jsonl",
+        "_line": 1,
         "patch": {"part_of_speech": ["interjection (kandoushi)"]}
         if patch is None else patch,
     }
