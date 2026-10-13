@@ -1189,7 +1189,7 @@ jobs:
           ) >= 1, "J_ONO_PARSER_MEANING_PACK_NOT_CONSUMED"
           assert result.meaning_graph.semantic_hash
           print("J_ONO_PARSER_REAL_TEXT=PASS;TEXT=おほん。;PROMOTION=NO")
-          for other_text in ("あはは。", "ふむ。"):
+          for other_text in ("あはは。", "ふむ。", "かしゃっ。", "がしゃ。", "すたすた。"):
               other_result = engine.analyze(AnalyzeRequest(
                   original_text=other_text, deadline_ms=5000
               ))
