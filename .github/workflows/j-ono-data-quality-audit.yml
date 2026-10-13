@@ -1083,6 +1083,41 @@ jobs:
           print(json.dumps(report, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Compile approved J-Ono into isolated runtime indexes and verify lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tools.unified_semantic_data.pipeline import compile_approved
+          from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
+          from deterministic_japanese_parser_mcp.models import Token, OriginalSpan
+
+          root = Path("work/j-ono-runtime-smoke")
+          compile_approved(Path("work/j-ono-post-semantic-review"), root)
+          runtime = SemanticDataRuntime(root)
+          assert runtime.available and runtime.record_count == 1
+          assert runtime.runtime_record_count == 1
+          token = Token(
+              surface="おほん",
+              normalized="おほん",
+              reading="オホン",
+              pos=["感動詞"],
+              span=OriginalSpan(start=0, end=3, source_text="おほん"),
+          )
+          rows = runtime.lookup_token(token)
+          assert len(rows) == 1
+          row = rows[0]
+          assert row["record_id"] == (
+              "ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61"
+          )
+          assert row["part_of_speech"] == ["interjection (kandoushi)"]
+          assert len(row["meaning_candidates"]) == 1
+          assert row["meaning_candidates"][0]["review_status"] == "approved"
+          assert row["meaning_candidates"][0]["glosses"] == [
+              "polite throat-clearing, often to regain composure"
+          ]
+          print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=1;PROMOTION=NO")
+          PY
+
       - name: Upload real-data quality evidence
         uses: actions/upload-artifact@v4
         with:
@@ -1110,6 +1145,9 @@ jobs:
             work/j-ono-canonical-semantic-application-report.json
             work/j-ono-post-semantic-review/manifest.json
             work/j-ono-post-semantic-review/approved-records.jsonl
+            work/j-ono-runtime-smoke/manifest.json
+            work/j-ono-runtime-smoke/indexes
+            work/j-ono-runtime-smoke/records
             work/j-ono-canonical-decisions/decision_ledger.jsonl
             research/semantic_decisions/j_ono_chat_review_authorization.json
             work/j-ono-review-audit-report.json
