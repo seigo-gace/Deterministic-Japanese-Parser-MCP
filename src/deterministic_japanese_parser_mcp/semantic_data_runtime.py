@@ -1594,6 +1594,44 @@ class SemanticDataRuntime:
         propositions = list(graph.propositions)
         language_features = list(graph.language_features)
         unresolved = list(graph.unresolved)
+
+        # Sudachi may split an approved mimetic surface such as おほん into お+ほん.
+        # Build only exact, source-spanned alternatives from approved runtime indexes.
+        # Original analysis tokens are not rewritten and no unapproved OOV guess is made.
+        runtime_tokens = list(tokens)
+        if len(tokens) <= 256:
+            for start in range(len(tokens)):
+                for width in (2, 3):
+                    parts = tokens[start:start + width]
+                    if len(parts) != width:
+                        continue
+                    if any(
+                        parts[i].span.end != parts[i + 1].span.start
+                        for i in range(width - 1)
+                    ):
+                        continue
+                    span_start, span_end = parts[0].span.start, parts[-1].span.end
+                    surface = original_text[span_start:span_end]
+                    if surface != "".join(part.surface for part in parts):
+                        continue
+                    record_ids = self.surface_index.get(_normalize(surface), [])
+                    if len(record_ids) != 1:
+                        continue
+                    record = self._record(record_ids[0])
+                    pos = record.get("part_of_speech") or []
+                    if not pos or not record.get("meaning_candidates"):
+                        continue
+                    runtime_tokens.append(Token(
+                        surface=surface,
+                        normalized=surface,
+                        reading="".join(part.reading or "" for part in parts),
+                        pos=list(pos),
+                        span=OriginalSpan(
+                            start=span_start,
+                            end=span_end,
+                            source_text=surface,
+                        ),
+                    ))
         match_count = 0
         resolved_count = 0
         ambiguous_count = 0
@@ -1602,7 +1640,7 @@ class SemanticDataRuntime:
         # propositions actually have a head token in this sentence. Predicates
         # never change during enrichment, so this survives the copies below.
         content_tokens = [
-            token for token in tokens if not _is_function_word_token(token)
+            token for token in runtime_tokens if not _is_function_word_token(token)
         ]
         head_bearing = [
             any(
@@ -1627,7 +1665,7 @@ class SemanticDataRuntime:
                     "\n".join(definition_parts)
                 )
 
-        for token in tokens:
+        for token in runtime_tokens:
             if _is_function_word_token(token):
                 continue
             context_tokens = _clause_context_tokens(

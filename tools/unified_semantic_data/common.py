@@ -295,8 +295,12 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     if not record_id or not surfaces:
         location = f"{raw.get('_source_path')}:{raw.get('_source_line')}"
         raise ValueError(f"record id and surface are required: {location}")
+    source_part_of_speech = _stable_unique([
+        *[normalize_text(value) for value in _as_list(raw.get("part_of_speech") or raw.get("pos"))],
+        normalize_text(raw.get("source_pos")),
+    ])
     has_reading = bool(_as_list(raw.get("readings")) or _as_list(raw.get("reading_mappings")))
-    has_pos = bool(_as_list(raw.get("part_of_speech") or raw.get("pos")))
+    has_pos = bool(source_part_of_speech)
     has_lemma = bool(normalize_text(raw.get("lemma") or raw.get("normalized_form")))
     morphology = (
         Morphology(normalize_text(raw.get("lemma") or raw.get("normalized_form") or surfaces[0]), [], [], [])
@@ -310,8 +314,7 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         *morphology.readings,
     ])
     part_of_speech = _stable_unique([
-        *[normalize_text(value) for value in _as_list(raw.get("part_of_speech") or raw.get("pos"))],
-        normalize_text(raw.get("source_pos")),
+        *source_part_of_speech,
         *morphology.part_of_speech,
     ])
     domains = _stable_unique([
@@ -338,18 +341,31 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     review_status = normalize_text(raw.get("review_status") or "needs-evidence")
     if review_status not in ALLOWED_REVIEW_STATUS:
         review_status = "needs-evidence"
+    review_requirements = raw.get("review_requirements") or {}
+    if not isinstance(review_requirements, dict):
+        raise ValueError(f"review_requirements must be object: {record_id}")
+    require_polarity = review_requirements.get("polarity", True) is not False
+    require_intensity = review_requirements.get("intensity", True) is not False
+    require_source_pos = (
+        review_requirements.get("part_of_speech_source_evidence", False) is True
+    )
     blockers_by_scope: dict[str, list[str]] = {
         scope: [] for scope in APPROVAL_SCOPES
     }
     if not readings:
         blockers_by_scope["lexical"].append("reading-required")
-    if not part_of_speech:
+    if require_source_pos:
+        if not source_part_of_speech:
+            blockers_by_scope["lexical"].append(
+                "source-part-of-speech-required"
+            )
+    elif not part_of_speech:
         blockers_by_scope["lexical"].append("part-of-speech-required")
     if not semantic_content_present:
         blockers_by_scope["semantic"].append("meaning-candidate-required")
-    if polarity == "unspecified":
+    if require_polarity and polarity == "unspecified":
         blockers_by_scope["semantic"].append("polarity-required")
-    if intensity is None:
+    if require_intensity and intensity is None:
         blockers_by_scope["semantic"].append("intensity-required")
     raw_context = raw.get("context_conditions")
     if raw.get("_force_judgment_review") or not isinstance(raw_context, dict):
@@ -407,6 +423,14 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
     for scope, status in list(scope_status.items()):
         if status not in {*ALLOWED_REVIEW_STATUS, "not-applicable"}:
             scope_status[scope] = "needs-evidence"
+
+    # An explicitly non-applicable scope is outside the record's responsibility.
+    # Generic field-completeness checks must not force it back into review.
+    # This does not approve the scope; it removes irrelevant blockers only.
+    for scope, status in scope_status.items():
+        if status == "not-applicable":
+            blockers_by_scope[scope] = []
+
     approved_scopes = sorted(
         scope
         for scope, status in scope_status.items()
@@ -422,6 +446,9 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
         {item for values in blockers_by_scope.values() for item in values}
     )
     runtime_eligible = "lexical" in approved_scopes
+    review_evidence = raw.get("review_evidence") or {}
+    if not isinstance(review_evidence, dict):
+        raise ValueError(f"review_evidence must be object: {record_id}")
     input_value = {
         key: value for key, value in raw.items() if not key.startswith("_source_")
     }
@@ -485,6 +512,12 @@ def _build_record(raw: dict[str, Any], *, source_kind: str, analyzer: Morphology
             else None
         ),
         "source": source,
+        "review_evidence": review_evidence,
+        "review_requirements": {
+            "polarity": require_polarity,
+            "intensity": require_intensity,
+            "part_of_speech_source_evidence": require_source_pos,
+        },
         "review_status": review_status,
         "approval": {
             "scopes": scope_status,

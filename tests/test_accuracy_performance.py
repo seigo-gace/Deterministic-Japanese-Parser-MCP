@@ -3,6 +3,7 @@ import json
 from time import perf_counter
 
 from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+from deterministic_japanese_parser_mcp.config import Settings
 from deterministic_japanese_parser_mcp.metaphor import MetaphorMatcher
 from deterministic_japanese_parser_mcp.models import ExecutionMode, ItemStatus
 from deterministic_japanese_parser_mcp.normalizer import (
@@ -97,7 +98,9 @@ def test_metaphor_required_context_uses_local_clause():
 
 
 def test_indexed_and_exhaustive_rules_are_semantically_identical():
-    engine = ParserEngine()
+    # Compare semantic behavior, not the default 50ms runtime deadline under CI contention.
+    # Production deadline/performance contracts are tested independently and unchanged.
+    engine = ParserEngine(Settings(hard_deadline_ms=60000))
     samples = [
         AnalyzeRequest(
             original_text="今のUIは殺すな。APIだけ変更しろ。",

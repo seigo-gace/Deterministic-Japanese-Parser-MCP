@@ -13,6 +13,7 @@ from .common import APPROVAL_SCOPES, _json_line, normalize_text
 DECISION_STATUSES = {"approved", "rejected", "hold", "needs-evidence"}
 PATCH_FIELDS = {
     "meaning_candidates",
+    "part_of_speech",
     "parameters",
     "register",
     "context_conditions",
@@ -100,6 +101,19 @@ def load_decisions(root: Path | None) -> list[dict[str, Any]]:
                 raise ValueError(
                     f"external_action_risk must be a boolean: {path}:{line_number}"
                 )
+            if "part_of_speech" in patch:
+                pos = patch["part_of_speech"]
+                if (
+                    decision["scope"] != "lexical"
+                    or decision["status"] != "approved"
+                    or not isinstance(pos, list)
+                    or not pos
+                    or any(not isinstance(v, str) or not v.strip() for v in pos)
+                    or len(pos) != len(set(pos))
+                ):
+                    raise ValueError(
+                        f"invalid explicit lexical POS decision: {path}:{line_number}"
+                    )
             decision["_path"] = (
                 path.name if root.is_file() else str(path.relative_to(root))
             )
@@ -136,9 +150,41 @@ def apply_decisions(
                 "JMdict meaning candidates are source-owned and cannot be "
                 f"overwritten: {decision['decision_id']}"
             )
+        scope = decision["scope"]
+        if "part_of_speech" in patch:
+            pos = patch["part_of_speech"]
+            if (
+                scope != "lexical"
+                or decision["status"] != "approved"
+                or not isinstance(pos, list)
+                or not pos
+                or any(not isinstance(value, str) or not value.strip() for value in pos)
+                or len(pos) != len(set(pos))
+            ):
+                raise ValueError(
+                    f"invalid explicit lexical POS decision: {decision['decision_id']}"
+                )
+            if (record.get("review_evidence") or {}).get("kind") != (
+                "j-ono-source-authored-review-evidence"
+            ):
+                raise ValueError(
+                    f"lexical POS decision requires J-Ono evidence: {decision['decision_id']}"
+                )
+            candidates = record.get("meaning_candidates") or []
+            if len(candidates) != 1 or not isinstance(candidates[0], dict):
+                raise ValueError(
+                    f"lexical POS decision requires one source sense: {decision['decision_id']}"
+                )
+            blockers = record["approval"]["blockers_by_scope"].get("lexical", [])
+            if "source-part-of-speech-required" not in blockers:
+                raise ValueError(
+                    f"lexical POS decision requires unresolved source POS: {decision['decision_id']}"
+                )
+            record["meaning_candidates"] = [
+                {**candidates[0], "part_of_speech": list(pos)}
+            ]
         for field, value in patch.items():
             record[field] = value
-        scope = decision["scope"]
         if (
             scope == "semantic"
             and decision["status"] == "approved"
@@ -153,6 +199,11 @@ def apply_decisions(
                 promoted_candidates.append(promoted)
             record["meaning_candidates"] = promoted_candidates
         blockers = record["approval"]["blockers_by_scope"].get(scope, [])
+        if scope == "lexical" and "part_of_speech" in patch:
+            blockers = [
+                item for item in blockers
+                if item != "source-part-of-speech-required"
+            ]
         if scope == "semantic" and record.get("meaning_candidates"):
             blockers = [item for item in blockers if item != "meaning-candidate-required"]
         if scope == "pragmatic":
@@ -283,13 +334,24 @@ def prepare_review_operator(
 ) -> dict[str, Any]:
     """Select the new Bulk Review Station or the deprecated 20-record path."""
     if bulk_review:
-        from bulk_review_station import prepare_bulk_review_job
+        from bulk_review_station import (
+            decision_scopes_for_record,
+            prepare_bulk_review_job,
+        )
 
-        manifest = prepare_bulk_review_job(records, output_root)
+        # Lexical review is evidence-bound and intentionally outside Bulk Review
+        # Station. Keep lexical-only records in the canonical review queue, but do
+        # not try to manufacture an empty semantic/pragmatic/task/action request.
+        bulk_records = [
+            record for record in records if decision_scopes_for_record(record)
+        ]
+        manifest = prepare_bulk_review_job(bulk_records, output_root)
         return {
             "mode": "bulk",
             "bulk_review_job_id": manifest["bulk_review_job_id"],
             "provider_batch_count": manifest["provider_batch_count"],
+            "bulk_review_record_count": len(bulk_records),
+            "lexical_only_review_record_count": len(records) - len(bulk_records),
         }
     batches = write_review_batches(records, output_root, batch_size=batch_size)
     return {

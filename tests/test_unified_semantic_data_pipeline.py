@@ -20,6 +20,7 @@ from unified_semantic_data.pipeline import (  # noqa: E402
     check_determinism,
     compile_approved,
 )
+from unified_semantic_data.review import prepare_review_operator  # noqa: E402
 
 
 def _source(source_id: str) -> dict:
@@ -84,6 +85,177 @@ def _read_jsonl(path: Path) -> list[dict]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def _read_jsonl_gzip(path: Path) -> list[dict]:
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
+def test_bulk_review_operator_skips_lexical_only_records_without_dropping_review_state(
+    tmp_path: Path,
+) -> None:
+    lexical_only = {
+        "record_id": "LEXICAL-ONLY",
+        "input_sha256": "1" * 64,
+        "approval": {
+            "review_scopes": ["lexical"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "approved",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+    semantic_pending = {
+        "record_id": "SEMANTIC-PENDING",
+        "input_sha256": "2" * 64,
+        "approval": {
+            "review_scopes": ["lexical", "semantic"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "needs-evidence",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+
+    result = prepare_review_operator(
+        [lexical_only, semantic_pending],
+        tmp_path,
+        bulk_review=True,
+    )
+
+    assert result["bulk_review_record_count"] == 1
+    assert result["lexical_only_review_record_count"] == 1
+    manifest = json.loads(
+        (tmp_path / "bulk-review/bulk_review_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["total_records"] == 1
+    assert manifest["decision_scopes"] == ["semantic"]
+    requests = list((tmp_path / "bulk-review/requests").glob("*.jsonl"))
+    assert len(requests) == 1
+    payload = requests[0].read_text(encoding="utf-8")
+    assert "SEMANTIC-PENDING" in payload
+    assert "LEXICAL-ONLY" not in payload
+
+
+def test_bulk_review_operator_allows_zero_nonlexical_requests_for_lexical_only_queue(
+    tmp_path: Path,
+) -> None:
+    lexical_only = {
+        "record_id": "LEXICAL-ONLY",
+        "input_sha256": "3" * 64,
+        "approval": {
+            "review_scopes": ["lexical"],
+            "scopes": {
+                "lexical": "needs-evidence",
+                "semantic": "approved",
+                "pragmatic": "not-applicable",
+                "task": "not-applicable",
+                "external_action": "not-applicable",
+            },
+        },
+    }
+
+    result = prepare_review_operator(
+        [lexical_only],
+        tmp_path,
+        bulk_review=True,
+    )
+
+    assert result["bulk_review_record_count"] == 0
+    assert result["lexical_only_review_record_count"] == 1
+    manifest = json.loads(
+        (tmp_path / "bulk-review/bulk_review_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["total_records"] == 0
+    assert manifest["provider_batch_count"] == 0
+    assert manifest["decision_scopes"] == []
+    assert manifest["scope_request_counts"] == {}
+    assert manifest["network_call_performed"] is False
+
+
+def test_pipeline_manifest_preserves_zero_bulk_review_for_lexical_only_queue(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    row = {
+        "record_id": "LEXICAL-ONLY",
+        "surfaces": ["テスト"],
+        "lemma": "テスト",
+        "readings": ["てすと"],
+        "part_of_speech": [],
+        "meaning_candidates": [
+            {
+                "candidate_id": "LEXICAL-ONLY:sense:001",
+                "label": "test",
+                "glosses": ["test"],
+                "domains": [],
+                "parameters": {},
+                "evidence_ids": ["source:LEXICAL-ONLY"],
+                "review_status": "approved",
+            }
+        ],
+        "semantic_targets": ["lexicon"],
+        "polarity": "neutral",
+        "intensity": 0.0,
+        "context_conditions": {
+            "required_any": [],
+            "required_all": [],
+            "forbidden_any": [],
+            "required_social": [],
+            "required_discourse": [],
+        },
+        "task_candidates": [],
+        "external_action_risk": False,
+        "approval_scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "approved",
+            "pragmatic": "not-applicable",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+        "review_requirements": {
+            "polarity": False,
+            "intensity": False,
+            "part_of_speech_source_evidence": True,
+        },
+        "source": _source("LEXICAL-ONLY"),
+        "review_status": "needs-evidence",
+        "runtime_eligible": False,
+        "source_kind": "source_adapter",
+        "input_sha256": "4" * 64,
+    }
+    (open_root / "lexical-only.jsonl").write_text(
+        json.dumps(row, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    output_root = tmp_path / "review"
+    manifest = build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=output_root,
+        system_root=tmp_path / "system",
+        bulk_review=True,
+    )
+
+    assert manifest["review_queue_records"] == 1
+    assert manifest["bulk_review_record_count"] == 0
+    assert manifest["lexical_only_review_record_count"] == 1
+    assert manifest["provider_batch_count"] == 0
+    assert manifest["runtime_eligible_records"] == 0
 
 
 def test_pipeline_accepts_lexicon_context_domain_and_user_sources(tmp_path: Path) -> None:
@@ -563,3 +735,203 @@ def test_pipeline_is_byte_deterministic(tmp_path: Path) -> None:
     result = check_determinism(args)
     assert result["status"] == "CHECKED"
     assert len(result["digest"]) == 64
+
+
+def test_explicit_not_applicable_scopes_do_not_reenter_review_via_generic_blockers(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("LEXICAL-NA-001", "ぴかぴか")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "needs-evidence",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw.pop("task_candidates")
+    raw.pop("external_action_risk")
+    raw["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    assert record["approval"]["scopes"]["task"] == "not-applicable"
+    assert record["approval"]["scopes"]["external_action"] == "not-applicable"
+    assert record["approval"]["blockers_by_scope"]["task"] == []
+    assert record["approval"]["blockers_by_scope"]["external_action"] == []
+    assert "task" not in record["approval"]["review_scopes"]
+    assert "external_action" not in record["approval"]["review_scopes"]
+    assert {"lexical", "semantic", "pragmatic"}.issubset(
+        set(record["approval"]["review_scopes"])
+    )
+    assert record["runtime_eligible"] is False
+    assert record["review_evidence"] == raw["review_evidence"]
+
+
+def test_semantic_only_approved_record_compiles_without_sentiment_or_pragmatics(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-APPROVED-MEANING", "ぴかぴか")
+    raw["approval_scopes"] = {
+        "lexical": "approved",
+        "semantic": "approved",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["context_conditions"] = {}
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+        "part_of_speech_source_evidence": False,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    approved = _read_jsonl(review_root / "approved-records.jsonl")
+    assert len(approved) == 1
+    assert approved[0]["approval"]["approved_scopes"] == ["lexical", "semantic"]
+    assert approved[0]["polarity"] == "unspecified"
+    assert approved[0]["intensity"] is None
+    assert approved[0]["meaning_candidates"]
+
+    compiled_root = tmp_path / "compiled"
+    manifest = compile_approved(review_root, compiled_root)
+    assert manifest["record_count"] == 1
+    records = _read_jsonl_gzip(compiled_root / "records" / "records-0000.jsonl.gz")
+    assert len(records) == 1
+    assert records[0]["meaning_candidates"]
+    assert records[0]["polarity"] == "unspecified"
+    assert records[0]["intensity"] is None
+    assert records[0]["context_conditions"] == {}
+
+
+def test_source_backed_pos_requirement_is_not_satisfied_by_morphology_inference(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-SOURCE-POS-REQUIRED", "ぴかぴか")
+    raw["part_of_speech"] = []
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+        "part_of_speech_source_evidence": True,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    lexical_blockers = record["approval"]["blockers_by_scope"]["lexical"]
+    assert "source-part-of-speech-required" in lexical_blockers
+    assert "part-of-speech-required" not in lexical_blockers
+    assert "lexical" in record["approval"]["review_scopes"]
+    assert record["runtime_eligible"] is False
+
+
+def test_optional_semantic_facets_do_not_block_source_authored_meaning_review(
+    tmp_path: Path,
+) -> None:
+    open_root = tmp_path / "open"
+    open_root.mkdir()
+    raw = _approved_record("JONO-OPTIONAL-FACETS", "ぴかぴか")
+    raw["review_status"] = "needs-evidence"
+    raw["approval_scopes"] = {
+        "lexical": "needs-evidence",
+        "semantic": "needs-evidence",
+        "pragmatic": "not-applicable",
+        "task": "not-applicable",
+        "external_action": "not-applicable",
+    }
+    raw["polarity"] = "unspecified"
+    raw["intensity"] = None
+    raw["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    raw["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    (open_root / "open.jsonl").write_text(
+        json.dumps(raw, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    review_root = tmp_path / "review"
+    build_review_assets(
+        open_lexicon_root=open_root,
+        context_root=tmp_path / "context",
+        pack_roots=[],
+        output_root=review_root,
+        system_root=tmp_path / "system",
+    )
+    record = _read_jsonl(review_root / "review-records.jsonl")[0]
+
+    assert record["review_requirements"] == {
+        "polarity": False,
+        "intensity": False,
+        "part_of_speech_source_evidence": False,
+    }
+    assert record["approval"]["blockers_by_scope"]["semantic"] == []
+    assert record["approval"]["blockers_by_scope"]["pragmatic"] == []
+    assert set(record["approval"]["review_scopes"]) == {"lexical", "semantic"}
+    assert record["polarity"] == "unspecified"
+    assert record["intensity"] is None
+    assert record["runtime_eligible"] is False

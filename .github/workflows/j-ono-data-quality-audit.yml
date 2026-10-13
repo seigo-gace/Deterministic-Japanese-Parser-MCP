@@ -1,0 +1,1269 @@
+name: J-Ono Data Quality Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/prepare_j_ono_review_input.py"
+      - "tools/audit_j_ono_data_quality.py"
+      - "tools/build_j_ono_collision_clusters.py"
+      - "tools/measure_j_ono_source_evidence_effectiveness.py"
+      - "tools/prepare_j_ono_chat_semantic_decisions.py"
+      - "tools/verify_j_ono_chat_semantic_decisions.py"
+      - "research/semantic_decisions/j_ono_chat_review_authorization.json"
+      - "tools/public_onomatopoeia_sources.py"
+      - "tools/build_frozen_raw_meaning_factory.py"
+      - "tools/unified_semantic_data/frozen_raw_meaning_factory.py"
+      - "tools/unified_semantic_data/source_adapter_contract.py"
+      - "tools/unified_semantic_data_pipeline.py"
+      - "tools/bulk_review_station.py"
+      - "tests/test_prepare_j_ono_review_input.py"
+      - "tests/test_audit_j_ono_data_quality.py"
+      - "tests/test_build_j_ono_collision_clusters.py"
+      - "tests/test_measure_j_ono_source_evidence_effectiveness.py"
+      - "tests/test_prepare_j_ono_chat_semantic_decisions.py"
+      - "tests/test_verify_j_ono_chat_semantic_decisions.py"
+      - ".github/workflows/j-ono-data-quality-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-real-j-ono-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: source-authored-meaning-data-v1
+      RAW_SHA256: fecb5469bfd792ac0144587287dd04b29bad73f61abb6abd913ccb437f2ac629
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deterministic audit dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Download fixed source-authored meaning release
+        run: |
+          mkdir -p work/source-authored-meaning-release
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-source-authored-meaning-factory-v1.zip" \
+            --dir work/source-authored-meaning-release
+          test -f work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip
+
+      - name: Extract exact J-Ono records
+        run: |
+          python tools/prepare_j_ono_review_input.py \
+            --factory-zip work/source-authored-meaning-release/mcp-source-authored-meaning-factory-v1.zip \
+            --output work/j-ono-source-adapter.jsonl
+
+      - name: Audit actual J-Ono data quality
+        run: |
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-source-adapter.jsonl \
+            --report work/j-ono-data-quality-report.json \
+            --issues work/j-ono-data-quality-review-issues.jsonl
+
+      - name: Build machine-first polysemy review clusters
+        run: |
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-source-adapter.jsonl \
+            --issues work/j-ono-data-quality-review-issues.jsonl \
+            --output work/j-ono-collision-clusters.jsonl \
+            --report work/j-ono-collision-cluster-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("work/j-ono-collision-cluster-report.json").read_text(encoding="utf-8"))
+          if report["cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_COUNT_MISMATCH")
+          if report["divergent_meaning_cluster_count"] != 129:
+              raise SystemExit("J_ONO_CLUSTER_DIVERGENT_COUNT_MISMATCH")
+          if report["same_meaning_cluster_count"] != 0:
+              raise SystemExit("J_ONO_CLUSTER_SAME_MEANING_UNEXPECTED")
+          if report["automatic_merge"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_AUTO_MERGE_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_CLUSTER_RUNTIME_PROMOTION_FORBIDDEN")
+          print("J_ONO_CLUSTER_REPORT=" + json.dumps(report, sort_keys=True))
+          PY
+
+      - name: Rebuild provenance-safe J-Ono source evidence
+        run: |
+          mkdir -p work/raw-parts work/raw-unpacked work/rebuilt
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "mcp-collected-raw-factory-input-v1.zip.part-*" \
+            --dir work/raw-parts
+          cat \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-00 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-01 \
+            work/raw-parts/mcp-collected-raw-factory-input-v1.zip.part-02 \
+            > work/mcp-collected-raw-factory-input-v1.zip
+          echo "$RAW_SHA256  work/mcp-collected-raw-factory-input-v1.zip" | sha256sum -c -
+          unzip -q work/mcp-collected-raw-factory-input-v1.zip -d work/raw-unpacked
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("work/raw-unpacked")
+          bundles = sorted(root.rglob("mcp-collected-raw-factory-input-v1.tar"))
+          manifests = sorted(root.rglob("mcp-collected-raw-factory-input-v1.manifest.json"))
+          if len(bundles) != 1 or len(manifests) != 1:
+              raise SystemExit(
+                  f"FROZEN_INPUT_LAYOUT_INVALID:bundles={len(bundles)}:manifests={len(manifests)}"
+              )
+          Path("work/bundle-path.txt").write_text(str(bundles[0]), encoding="utf-8")
+          Path("work/manifest-path.txt").write_text(str(manifests[0]), encoding="utf-8")
+          PY
+          python tools/build_frozen_raw_meaning_factory.py \
+            --bundle "$(cat work/bundle-path.txt)" \
+            --manifest "$(cat work/manifest-path.txt)" \
+            --output-root work/rebuilt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/rebuilt/meaning-factory-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          count = int(report.get("j_ono_refer_target_evidence_item_count") or 0)
+          if count <= 0:
+              raise SystemExit("J_ONO_REFER_TARGET_EVIDENCE_RECONSTRUCTION_EMPTY")
+          boundary = report.get("boundaries") or {}
+          if boundary.get(
+              "j_ono_refer_target_semantic_evidence_reconstructed"
+          ) is not True:
+              raise SystemExit("J_ONO_REFER_TARGET_EVIDENCE_BOUNDARY_FALSE")
+          print("J_ONO_REFER_TARGET_EVIDENCE_ITEMS=" + str(count))
+          PY
+          python tools/prepare_j_ono_review_input.py \
+            --adapter-input work/rebuilt/source-adapter-records.jsonl \
+            --output work/j-ono-rebuilt-source-adapter.jsonl
+          python tools/audit_j_ono_data_quality.py \
+            --input work/j-ono-rebuilt-source-adapter.jsonl \
+            --report work/j-ono-rebuilt-data-quality-report.json \
+            --issues work/j-ono-rebuilt-review-issues.jsonl
+          python tools/build_j_ono_collision_clusters.py \
+            --records work/j-ono-rebuilt-source-adapter.jsonl \
+            --issues work/j-ono-rebuilt-review-issues.jsonl \
+            --output work/j-ono-rebuilt-collision-clusters.jsonl \
+            --report work/j-ono-rebuilt-collision-cluster-report.json
+
+      - name: Report very-short meaning source evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = {}
+          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              rows[row["adapter_record_id"]] = row
+
+          short_ids = []
+          for line in Path("work/j-ono-data-quality-review-issues.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              issue = json.loads(line)
+              if issue.get("kind") == "VERY_SHORT_MEANING":
+                  short_ids.append(issue["record_id"])
+
+          evidence = []
+          for record_id in sorted(short_ids):
+              row = rows[record_id]
+              source = row.get("source") or {}
+              evidence.append({
+                  "adapter_record_id": record_id,
+                  "source_record_id": source.get("source_record_id"),
+                  "surfaces": row.get("surfaces") or [],
+                  "readings": row.get("readings") or [],
+                  "meanings": row.get("meanings") or [],
+              })
+          print("J_ONO_VERY_SHORT_MEANING_EVIDENCE=" + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Measure source-authored disambiguation effectiveness
+        run: |
+          python tools/measure_j_ono_source_evidence_effectiveness.py \
+            --clusters work/j-ono-rebuilt-collision-clusters.jsonl \
+            --report work/j-ono-source-evidence-effectiveness-report.json \
+            --details work/j-ono-source-evidence-effectiveness-details.jsonl \
+            --expected-reading-unresolved 124
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/j-ono-source-evidence-effectiveness-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["reading_unresolved_cluster_count"] != 124:
+              raise SystemExit("J_ONO_SOURCE_EVIDENCE_TARGET_CLUSTER_COUNT_MISMATCH")
+          details = [
+              json.loads(line)
+              for line in Path("work/j-ono-source-evidence-effectiveness-details.jsonl")
+              .read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          if len(details) != 124:
+              raise SystemExit("J_ONO_PAIR_REVIEW_CLUSTER_COUNT_MISMATCH")
+          pair_count = 0
+          for cluster in details:
+              pairs = cluster["pair_review_evidence"]
+              expected = cluster["baseline_ambiguous_pairs"]
+              if len(pairs) != expected:
+                  raise SystemExit("J_ONO_PAIR_REVIEW_DETAILS_INCOMPLETE")
+              for pair in pairs:
+                  if (pair["semantic_equivalence_judgement"] != "NOT_ADJUDICATED"
+                      or pair["automatic_approval"] is not False
+                      or not pair["left_record_id"] or not pair["right_record_id"]
+                      or pair["left_record_id"] == pair["right_record_id"]
+                      or "example_metadata" in pair["distinguishing_semantic_dimensions"]):
+                      raise SystemExit("J_ONO_PAIR_REVIEW_EVIDENCE_BOUNDARY_BROKEN")
+              pair_count += len(pairs)
+          if pair_count != report["semantic_evidence"]["total_pairs"] or pair_count != 250:
+              raise SystemExit("J_ONO_PAIR_REVIEW_TOTAL_COUNT_MISMATCH")
+          print(f"J_ONO_PAIR_REVIEW_EVIDENCE=PASS;CLUSTERS={len(details)};PAIRS={pair_count};APPROVED=0")
+          boundary = report["interpretation_boundary"]
+          required_false = (
+              "automatic_merge",
+              "automatic_meaning_judgement",
+              "automatic_pos_fill",
+              "automatic_approval",
+              "runtime_promotion",
+          )
+          for key in required_false:
+              if boundary[key] is not False:
+                  raise SystemExit(f"J_ONO_SOURCE_EVIDENCE_BOUNDARY_BROKEN:{key}")
+          if boundary["refer_target_semantic_evidence_used"] is not True:
+              raise SystemExit("J_ONO_REFER_TARGET_SEMANTIC_EVIDENCE_NOT_USED")
+          if boundary["example_metadata_excluded_from_primary_semantic_score"] is not True:
+              raise SystemExit("J_ONO_EXAMPLE_METADATA_SEMANTIC_OVERCLAIM")
+          if boundary["missing_vs_present_evidence_not_counted_as_semantic_disambiguation"] is not True:
+              raise SystemExit("J_ONO_MISSING_EVIDENCE_OVERCLAIM")
+          print(
+              "J_ONO_SOURCE_EVIDENCE_EFFECTIVENESS="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
+      - name: Verify rebuilt J-Ono through existing review pipeline
+        run: |
+          python -m tools.unified_semantic_data.source_adapter_contract \
+            work/j-ono-rebuilt-source-adapter.jsonl \
+            --output-root work/j-ono-review-audit-adapter
+          mkdir -p \
+            work/empty-open \
+            work/empty-context \
+            work/empty-pack \
+            work/empty-semantic-reference \
+            work/empty-canonical-evidence \
+            work/empty-decisions
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/empty-open \
+            --context-root work/empty-context \
+            --pack-root work/empty-pack \
+            --semantic-reference-root work/empty-semantic-reference \
+            --canonical-evidence-root work/empty-canonical-evidence \
+            --adapter-output-root work/j-ono-review-audit-adapter \
+            --decision-root work/empty-decisions \
+            --output-root work/j-ono-review-audit \
+            --force-rebuild
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("work/j-ono-review-audit/manifest.json").read_text(encoding="utf-8")
+          )
+          rebuilt_quality = json.loads(
+              Path("work/j-ono-rebuilt-data-quality-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          bulk = json.loads(
+              Path("work/j-ono-review-audit/bulk-review/bulk_review_manifest.json")
+              .read_text(encoding="utf-8")
+          )
+          queue = [
+              json.loads(line)
+              for line in Path("work/j-ono-review-audit/review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          blockers = Counter()
+          lexical_review_records = 0
+          semantic_review_records = 0
+          review_evidence_records = 0
+          for row in queue:
+              if "payload" in row:
+                  raise SystemExit("J_ONO_REVIEW_QUEUE_FULL_PAYLOAD_DUPLICATION")
+              evidence = row.get("review_evidence")
+              if not isinstance(evidence, dict) or not evidence:
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_MISSING")
+              if evidence.get("kind") != "j-ono-source-authored-review-evidence":
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_KIND_INVALID")
+              if evidence.get("automatic_semantic_interpretation") is not False:
+                  raise SystemExit("J_ONO_REVIEW_EVIDENCE_AUTO_INTERPRETATION")
+              review_evidence_records += 1
+              approval = row.get("approval") or {}
+              scopes = set(approval.get("review_scopes") or [])
+              by_scope = approval.get("blockers_by_scope") or {}
+              if "lexical" in scopes:
+                  lexical_review_records += 1
+              if "semantic" in scopes:
+                  semantic_review_records += 1
+              for scope, values in by_scope.items():
+                  for blocker in values or []:
+                      blockers[f"{scope}:{blocker}"] += 1
+
+          if manifest["total_records"] != 837:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_TOTAL_MISMATCH")
+          if manifest["review_queue_records"] != 837 or len(queue) != 837:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_QUEUE_MISMATCH")
+          if review_evidence_records != 837:
+              raise SystemExit("J_ONO_REVIEW_EVIDENCE_COVERAGE_MISMATCH")
+          if manifest["runtime_eligible_records"] != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_RUNTIME_ELIGIBILITY")
+          if manifest["decision_count"] != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_PREMATURE_DECISION")
+          if blockers.get("lexical:reading-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_READING_BLOCKER_REMAINED")
+          expected_source_pos_missing = 837 - int(
+              rebuilt_quality.get("pos_coverage_records") or 0
+          )
+          actual_source_pos_missing = blockers.get(
+              "lexical:source-part-of-speech-required", 0
+          )
+          if actual_source_pos_missing != expected_source_pos_missing:
+              raise SystemExit(
+                  "J_ONO_REVIEW_AUDIT_SOURCE_POS_EVIDENCE_MISMATCH:"
+                  f"expected={expected_source_pos_missing}:"
+                  f"actual={actual_source_pos_missing}"
+              )
+          if blockers.get("semantic:polarity-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_POLARITY_OVERREQUIRED")
+          if blockers.get("semantic:intensity-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_INTENSITY_OVERREQUIRED")
+          if blockers.get("pragmatic:context-review-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_CONTEXT_OVERREQUIRED")
+          if blockers.get("task:task-review-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_TASK_SCOPE_NOT_APPLICABLE_BROKEN")
+          if blockers.get("external_action:external-action-risk-review-required", 0) != 0:
+              raise SystemExit("J_ONO_REVIEW_AUDIT_ACTION_SCOPE_NOT_APPLICABLE_BROKEN")
+          if set(bulk.get("decision_scopes") or []) != {"semantic"}:
+              raise SystemExit("J_ONO_BULK_REVIEW_SCOPE_MISMATCH")
+          expected_scope_counts = {"semantic": 837}
+          if bulk.get("scope_request_counts") != expected_scope_counts:
+              raise SystemExit("J_ONO_BULK_REVIEW_SCOPE_COUNT_MISMATCH")
+
+          report = {
+              "status": "J_ONO_REVIEW_AUDIT_COMPLETE",
+              "records": 837,
+              "review_queue_records": len(queue),
+              "lexical_review_records": lexical_review_records,
+              "semantic_review_records": semantic_review_records,
+              "pragmatic_review_records": sum(
+                  "pragmatic" in set((row.get("approval") or {}).get("review_scopes") or [])
+                  for row in queue
+              ),
+              "review_evidence_records": review_evidence_records,
+              "full_payload_duplicated_into_review_queue": False,
+              "blocker_counts": dict(sorted(blockers.items())),
+              "part_of_speech_required_records": blockers.get(
+                  "lexical:part-of-speech-required", 0
+              ),
+              "source_part_of_speech_required_records": blockers.get(
+                  "lexical:source-part-of-speech-required", 0
+              ),
+              "source_part_of_speech_coverage_records": int(
+                  rebuilt_quality.get("pos_coverage_records") or 0
+              ),
+              "bulk_review_decision_scopes": bulk.get("decision_scopes") or [],
+              "bulk_review_scope_request_counts": bulk.get("scope_request_counts") or {},
+              "reading_required_records": blockers.get(
+                  "lexical:reading-required", 0
+              ),
+              "approved_records": 0,
+              "runtime_eligible_records": 0,
+              "automatic_approval": False,
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-review-audit-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("J_ONO_REVIEW_AUDIT=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Prepare exact GPT CHAT semantic Decision Ledger candidate
+        run: |
+          python tools/verify_j_ono_chat_semantic_decisions.py \
+            --review-queue work/j-ono-review-audit/review-queue.jsonl \
+            --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
+            --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
+            --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
+            --review-audit-report work/j-ono-review-audit-report.json \
+            --report work/j-ono-chat-semantic-existing-report.json
+          mode="$(python -c 'import json; print(json.load(open("work/j-ono-chat-semantic-existing-report.json"))["status"])')"
+          if [ "$mode" = "NOT_APPLIED" ]; then
+            python tools/prepare_j_ono_chat_semantic_decisions.py \
+              --review-queue work/j-ono-review-audit/review-queue.jsonl \
+              --authorization research/semantic_decisions/j_ono_chat_review_authorization.json \
+              --effectiveness-report work/j-ono-source-evidence-effectiveness-report.json \
+              --review-audit-report work/j-ono-review-audit-report.json \
+              --existing-ledger research/semantic_decisions/decision_ledger.jsonl \
+              --output-ledger work/j-ono-combined-decision-ledger.jsonl \
+              --report work/j-ono-chat-semantic-decision-report.json
+          elif [ "$mode" = "ALREADY_APPLIED" ]; then
+            cp research/semantic_decisions/decision_ledger.jsonl \
+              work/j-ono-combined-decision-ledger.jsonl
+            python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          existing = json.loads(
+              Path("work/j-ono-chat-semantic-existing-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          ledger = Path("work/j-ono-combined-decision-ledger.jsonl").read_bytes()
+          decision_count = sum(
+              1
+              for line in ledger.decode("utf-8").splitlines()
+              if line.strip()
+          )
+          report = {
+              "status": "J_ONO_CHAT_SEMANTIC_DECISIONS_ALREADY_APPLIED",
+              "existing_exact_semantic_decision_count": 837,
+              "new_semantic_decision_count": 0,
+              "authorized_semantic_decision_count": 837,
+              "total_decision_count": decision_count,
+              "meaning_candidate_count": existing["meaning_candidate_count"],
+              "semantic_approved_records": 837,
+              "lexical_approved_records": 0,
+              "decision_patch_count": 0,
+              "automatic_approval": False,
+              "decision_application": False,
+              "runtime_promotion": False,
+              "combined_ledger_sha256": hashlib.sha256(ledger).hexdigest(),
+              "combined_ledger_bytes": len(ledger),
+          }
+          Path("work/j-ono-chat-semantic-decision-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          else
+            echo "J_ONO_CHAT_EXISTING_VERIFY_UNKNOWN_MODE:$mode" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/j-ono-chat-semantic-decision-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          new_count = int(report.get("new_semantic_decision_count", 0))
+          existing_exact = int(
+              report.get("existing_exact_semantic_decision_count", 0)
+          )
+          authorized = int(
+              report.get(
+                  "authorized_semantic_decision_count",
+                  new_count + existing_exact,
+              )
+          )
+          if new_count not in {0, 837}:
+              raise SystemExit("J_ONO_CHAT_DECISION_COUNT_MISMATCH")
+          if existing_exact not in {0, 837}:
+              raise SystemExit("J_ONO_CHAT_EXISTING_DECISION_COUNT_MISMATCH")
+          if new_count + existing_exact != 837 or authorized != 837:
+              raise SystemExit("J_ONO_CHAT_AUTHORIZED_DECISION_COUNT_MISMATCH")
+          if report["meaning_candidate_count"] != 855:
+              raise SystemExit("J_ONO_CHAT_DECISION_CANDIDATE_COUNT_MISMATCH")
+          if report["semantic_approved_records"] != 837:
+              raise SystemExit("J_ONO_CHAT_SEMANTIC_APPROVAL_COUNT_MISMATCH")
+          if report["lexical_approved_records"] != 0:
+              raise SystemExit("J_ONO_CHAT_LEXICAL_APPROVAL_FORBIDDEN")
+          if report["decision_patch_count"] != 0:
+              raise SystemExit("J_ONO_CHAT_DECISION_PATCH_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_CHAT_AUTOMATIC_APPROVAL_BOUNDARY_BROKEN")
+          if report["decision_application"] is not False:
+              raise SystemExit("J_ONO_CHAT_DECISION_APPLICATION_BOUNDARY_BROKEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_CHAT_RUNTIME_PROMOTION_BOUNDARY_BROKEN")
+
+          print(
+              "J_ONO_CHAT_SEMANTIC_DECISION_REPORT="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+
+          payload = base64.b64encode(
+              Path("work/j-ono-combined-decision-ledger.jsonl").read_bytes()
+          ).decode("ascii")
+          chunk_size = 48000
+          chunks = [
+              payload[start:start + chunk_size]
+              for start in range(0, len(payload), chunk_size)
+          ]
+          print(
+              f"J_ONO_COMBINED_LEDGER_B64_BEGIN chunks={len(chunks)} "
+              f"sha256={report['combined_ledger_sha256']}"
+          )
+          for index, chunk in enumerate(chunks, 1):
+              print(f"J_ONO_COMBINED_LEDGER_B64_{index:04d}={chunk}")
+          print("J_ONO_COMBINED_LEDGER_B64_END")
+          PY
+
+      - name: Verify canonical J-Ono semantic decisions without lexical promotion
+        run: |
+          mkdir -p work/j-ono-canonical-decisions work/j-ono-post-semantic-review
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          queue = [
+              json.loads(line)
+              for line in Path("work/j-ono-review-audit/review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          queue_by_id = {row["record_id"]: row for row in queue}
+          ledger = [
+              json.loads(line)
+              for line in Path("research/semantic_decisions/decision_ledger.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          selected = [
+              item
+              for item in ledger
+              if item.get("record_id") in queue_by_id
+              and item.get("scope") in {"semantic", "lexical"}
+          ]
+          if len(selected) != 843:
+              raise SystemExit(
+                  f"J_ONO_CANONICAL_SEMANTIC_DECISION_COUNT_MISMATCH:{len(selected)}"
+              )
+          for item in selected:
+              record = queue_by_id[item["record_id"]]
+              if item.get("scope") == "lexical":
+                  if (item.get("record_id") not in {"ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61", "ADAPTER-FROZEN-j-ono-definitions-0d6493711195aa74959767c4", "ADAPTER-FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f", "ADAPTER-FROZEN-j-ono-definitions-00e18eaff361aa96e4e7874e", "ADAPTER-FROZEN-j-ono-definitions-8c92d508f391cfa454f4fe6b", "ADAPTER-FROZEN-j-ono-definitions-9e7cb67b68a86b3db37966e1"}
+                      or item.get("status") != "approved"
+                      or item.get("input_sha256") != record.get("input_sha256")
+                      or (item.get("patch") or {}).get("part_of_speech") != (
+                          ["interjection (kandoushi)"]
+                          if item["record_id"] in {"ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61", "ADAPTER-FROZEN-j-ono-definitions-0d6493711195aa74959767c4", "ADAPTER-FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f"}
+                          else ["adverb taking the 'to' particle"]
+                      )):
+                      raise SystemExit("J_ONO_CANONICAL_UNAUTHORIZED_LEXICAL_DECISION")
+                  continue
+              if item.get("status") != "approved":
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_STATUS_MISMATCH")
+              if item.get("reviewer") != "gpt-chat-j-ono-evidence-review":
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_REVIEWER_MISMATCH")
+              if item.get("input_sha256") != record.get("input_sha256"):
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_DIGEST_MISMATCH")
+              if item.get("patch"):
+                  raise SystemExit("J_ONO_CANONICAL_SEMANTIC_PATCH_FORBIDDEN")
+          selected.sort(key=lambda item: item["decision_id"])
+          Path("work/j-ono-canonical-decisions/decision_ledger.jsonl").write_text(
+              "".join(
+                  json.dumps(
+                      item,
+                      ensure_ascii=False,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  )
+                  + "\n"
+                  for item in selected
+              ),
+              encoding="utf-8",
+          )
+          PY
+
+          python tools/unified_semantic_data_pipeline.py \
+            --open-lexicon-root work/empty-open \
+            --context-root work/empty-context \
+            --pack-root work/empty-pack \
+            --semantic-reference-root work/empty-semantic-reference \
+            --canonical-evidence-root work/empty-canonical-evidence \
+            --adapter-output-root work/j-ono-review-audit-adapter \
+            --decision-root work/j-ono-canonical-decisions \
+            --output-root work/j-ono-post-semantic-review \
+            --force-rebuild
+
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("work/j-ono-post-semantic-review/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          bulk = json.loads(
+              Path(
+                  "work/j-ono-post-semantic-review/bulk-review/bulk_review_manifest.json"
+              ).read_text(encoding="utf-8")
+          )
+          if bulk["total_records"] != 0:
+              raise SystemExit(
+                  "J_ONO_POST_SEMANTIC_BULK_REVIEW_RECORD_COUNT_MISMATCH:"
+                  f"{bulk['total_records']}"
+              )
+          if bulk["provider_batch_count"] != 0:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_BATCH_UNEXPECTED")
+          if bulk["decision_scopes"] != [] or bulk["scope_request_counts"] != {}:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_SCOPE_UNEXPECTED")
+          if bulk["network_call_performed"] is not False:
+              raise SystemExit("J_ONO_POST_SEMANTIC_BULK_REVIEW_NETWORK_CALL")
+          records = [
+              json.loads(line)
+              for line in Path("work/j-ono-post-semantic-review/review-records.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          approved = [
+              json.loads(line)
+              for line in Path("work/j-ono-post-semantic-review/approved-records.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(records) != 837 or manifest["total_records"] != 837:
+              raise SystemExit("J_ONO_POST_SEMANTIC_RECORD_COUNT_MISMATCH")
+          if manifest["decision_count"] != 843:
+              raise SystemExit("J_ONO_POST_SEMANTIC_DECISION_COUNT_MISMATCH")
+          if (manifest["runtime_eligible_records"] != 6
+               or len(approved) != 6
+               or {item.get("record_id") for item in approved} != {"ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61", "ADAPTER-FROZEN-j-ono-definitions-0d6493711195aa74959767c4", "ADAPTER-FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f", "ADAPTER-FROZEN-j-ono-definitions-00e18eaff361aa96e4e7874e", "ADAPTER-FROZEN-j-ono-definitions-8c92d508f391cfa454f4fe6b", "ADAPTER-FROZEN-j-ono-definitions-9e7cb67b68a86b3db37966e1"}):
+              raise SystemExit("J_ONO_POST_SEMANTIC_PREMATURE_RUNTIME_PROMOTION")
+
+          semantic_approved = 0
+          lexical_review = 0
+          semantic_blockers = 0
+          lexical_source_blockers = 0
+          runtime_eligible = 0
+          candidate_approved = 0
+          candidate_total = 0
+          for row in records:
+              approval = row.get("approval") or {}
+              scopes = approval.get("scopes") or {}
+              blockers = approval.get("blockers_by_scope") or {}
+              if scopes.get("semantic") == "approved":
+                  semantic_approved += 1
+              if "lexical" in set(approval.get("review_scopes") or []):
+                  lexical_review += 1
+              semantic_blockers += len(blockers.get("semantic") or [])
+              lexical_source_blockers += int(
+                  "source-part-of-speech-required"
+                  in set(blockers.get("lexical") or [])
+              )
+              runtime_eligible += int(row.get("runtime_eligible") is True)
+              for candidate in row.get("meaning_candidates") or []:
+                  candidate_total += 1
+                  candidate_approved += int(
+                      candidate.get("review_status") == "approved"
+                  )
+
+          checks = {
+              "semantic_approved_records": (semantic_approved, 837),
+              "lexical_review_records": (lexical_review, 831),
+              "semantic_blockers": (semantic_blockers, 0),
+              "lexical_source_pos_blockers": (lexical_source_blockers, 831),
+              "runtime_eligible_records": (runtime_eligible, 6),
+              "meaning_candidate_count": (candidate_total, 855),
+              "approved_meaning_candidates": (candidate_approved, 855),
+          }
+          for name, (actual, expected) in checks.items():
+              if actual != expected:
+                  raise SystemExit(
+                      f"J_ONO_POST_SEMANTIC_{name.upper()}_MISMATCH:"
+                      f"expected={expected}:actual={actual}"
+                  )
+
+          report = {
+              "status": "J_ONO_CANONICAL_SEMANTIC_DECISIONS_APPLIED",
+              "records": 837,
+              "decisions_applied": 843,
+              "semantic_approved_records": semantic_approved,
+              "approved_meaning_candidates": candidate_approved,
+              "lexical_review_records": lexical_review,
+              "lexical_source_pos_blockers": lexical_source_blockers,
+              "bulk_review_records": bulk["total_records"],
+              "bulk_review_provider_batches": bulk["provider_batch_count"],
+              "runtime_eligible_records": runtime_eligible,
+              "automatic_lexical_approval": False,
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-canonical-semantic-application-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(
+              "J_ONO_CANONICAL_SEMANTIC_APPLICATION="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
+      - name: Measure existing Open Lexicon POS evidence coverage
+        run: |
+          python - <<'PY'
+          import gzip
+          import json
+          from collections import Counter, defaultdict
+          from pathlib import Path
+          import unicodedata
+
+          def norm(value):
+              return unicodedata.normalize("NFKC", str(value or "")).strip()
+
+          def kana_fold(value):
+              value = norm(value)
+              return "".join(
+                  chr(ord(ch) - 0x60) if "\u30a1" <= ch <= "\u30f6" else ch
+                  for ch in value
+              )
+
+          def is_japanese(value):
+              return any(
+                  "\u3040" <= ch <= "\u30ff" or
+                  "\u3400" <= ch <= "\u9fff"
+                  for ch in value
+              )
+
+          def is_hiragana_source_form(value):
+              value = norm(value)
+              has_hiragana = any("\u3040" <= ch <= "\u309f" for ch in value)
+              has_katakana = any("\u30a0" <= ch <= "\u30ff" for ch in value)
+              has_latin = any(("a" <= ch.lower() <= "z") for ch in value)
+              return bool(value) and has_hiragana and not has_katakana and not has_latin
+
+          surface_records = defaultdict(list)
+          for shard in sorted(Path("dictionaries/system/compiled/open_lexicon/records").glob("*.jsonl.gz")):
+              with gzip.open(shard, "rt", encoding="utf-8") as handle:
+                  for line in handle:
+                      if not line.strip():
+                          continue
+                      row = json.loads(line)
+                      pos = sorted({norm(x) for x in row.get("part_of_speech") or [] if norm(x)})
+                      if not pos:
+                          continue
+                      readings = sorted({kana_fold(x) for x in row.get("readings") or [] if norm(x)})
+                      source = row.get("source") or {}
+                      compact = {
+                          "record_id": norm(row.get("record_id")),
+                          "pos": pos,
+                          "readings": readings,
+                          "dataset": norm(source.get("dataset")),
+                      }
+                      for value in [row.get("lemma"), *(row.get("surfaces") or [])]:
+                          key = norm(value)
+                          if key and is_japanese(key):
+                              surface_records[key].append(compact)
+
+          surface_counts = Counter()
+          strong_counts = Counter()
+          surface_pos_frequency = Counter()
+          strong_pos_frequency = Counter()
+          evidence_rows = []
+
+          for line in Path("work/j-ono-rebuilt-source-adapter.jsonl").read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              row = json.loads(line)
+              japanese_surfaces = sorted({
+                  norm(x) for x in row.get("surfaces") or []
+                  if norm(x) and is_japanese(norm(x))
+              })
+              source_readings = sorted({
+                  kana_fold(x) for x in row.get("surfaces") or []
+                  if is_hiragana_source_form(x)
+              })
+
+              surface_candidates = []
+              for surface in japanese_surfaces:
+                  surface_candidates.extend(surface_records.get(surface, []))
+              surface_pos = sorted({p for cand in surface_candidates for p in cand["pos"]})
+
+              if not surface_candidates:
+                  surface_status = "NO_POS_EVIDENCE"
+              elif len(surface_pos) == 1:
+                  surface_status = "UNIQUE_POS_EVIDENCE"
+                  surface_pos_frequency[surface_pos[0]] += 1
+              else:
+                  surface_status = "AMBIGUOUS_POS_EVIDENCE"
+              surface_counts[surface_status] += 1
+
+              strong_candidates = []
+              source_reading_set = set(source_readings)
+              for cand in surface_candidates:
+                  if source_reading_set.intersection(cand["readings"]):
+                      strong_candidates.append(cand)
+              strong_pos = sorted({p for cand in strong_candidates for p in cand["pos"]})
+
+              if not strong_candidates:
+                  strong_status = "NO_STRONG_POS_EVIDENCE"
+              elif len(strong_pos) == 1:
+                  strong_status = "UNIQUE_STRONG_POS_EVIDENCE"
+                  strong_pos_frequency[strong_pos[0]] += 1
+              else:
+                  strong_status = "AMBIGUOUS_STRONG_POS_EVIDENCE"
+              strong_counts[strong_status] += 1
+
+              if surface_status != "NO_POS_EVIDENCE" or strong_status != "NO_STRONG_POS_EVIDENCE":
+                  evidence_rows.append({
+                      "adapter_record_id": row["adapter_record_id"],
+                      "source_record_id": (row.get("source") or {}).get("source_record_id"),
+                      "surfaces": row.get("surfaces") or [],
+                      "meanings": row.get("meanings") or [],
+                      "source_readings": source_readings,
+                      "surface_status": surface_status,
+                      "surface_candidate_pos": surface_pos,
+                      "strong_status": strong_status,
+                      "strong_candidate_pos": strong_pos,
+                      "strong_source_datasets": sorted({
+                          cand["dataset"] for cand in strong_candidates if cand["dataset"]
+                      }),
+                      "strong_open_lexicon_record_ids": sorted({
+                          cand["record_id"] for cand in strong_candidates if cand["record_id"]
+                      }),
+                  })
+
+          report = {
+              "record_count": sum(surface_counts.values()),
+              "surface_only": {
+                  "unique_pos_evidence_records": surface_counts["UNIQUE_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": surface_counts["AMBIGUOUS_POS_EVIDENCE"],
+                  "no_pos_evidence_records": surface_counts["NO_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(surface_pos_frequency.items())),
+              },
+              "surface_plus_reading": {
+                  "unique_pos_evidence_records": strong_counts["UNIQUE_STRONG_POS_EVIDENCE"],
+                  "ambiguous_pos_evidence_records": strong_counts["AMBIGUOUS_STRONG_POS_EVIDENCE"],
+                  "no_pos_evidence_records": strong_counts["NO_STRONG_POS_EVIDENCE"],
+                  "unique_pos_candidate_frequency": dict(sorted(strong_pos_frequency.items())),
+              },
+              "automatic_pos_fill": False,
+              "runtime_promotion": False,
+          }
+          Path("work/j-ono-pos-evidence-report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with Path("work/j-ono-pos-evidence.jsonl").open("w", encoding="utf-8", newline="\n") as out:
+              for item in evidence_rows:
+                  out.write(json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+          print("J_ONO_POS_EVIDENCE=" + json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Build review-only J-Ono POS evidence queue
+        run: |
+          python tools/build_j_ono_pos_review_queue.py \
+            --records work/j-ono-rebuilt-source-adapter.jsonl \
+            --pos-evidence work/j-ono-pos-evidence.jsonl \
+            --output work/j-ono-pos-review-queue.jsonl \
+            --report work/j-ono-pos-review-queue-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path("work/j-ono-pos-review-queue-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected = {
+              "STRONG_UNIQUE_REVIEW_PRIORITY": 94,
+              "STRONG_AMBIGUOUS_REVIEW_REQUIRED": 214,
+              "NO_STRONG_EVIDENCE": 529,
+          }
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_COUNT_MISMATCH")
+          if report["bucket_counts"] != expected:
+              raise SystemExit(
+                  "J_ONO_POS_REVIEW_QUEUE_BUCKET_MISMATCH:"
+                  + json.dumps(report["bucket_counts"], sort_keys=True)
+              )
+          if report["payload_model"] != "record-and-evidence-references-only":
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_PAYLOAD_MODEL_BROKEN")
+          for key in ("automatic_pos_fill", "automatic_approval", "runtime_promotion"):
+              if report[key] is not False:
+                  raise SystemExit(f"J_ONO_POS_REVIEW_QUEUE_BOUNDARY_BROKEN:{key}")
+          rows = [
+              json.loads(line)
+              for line in Path("work/j-ono-pos-review-queue.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(rows) != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_ROW_COUNT_MISMATCH")
+          if len({row["adapter_record_id"] for row in rows}) != 837:
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_ID_UNIQUENESS_MISMATCH")
+          if any("surfaces" in row or "meanings" in row for row in rows):
+              raise SystemExit("J_ONO_POS_REVIEW_QUEUE_PAYLOAD_DUPLICATION")
+          print(
+              "J_ONO_POS_REVIEW_QUEUE="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
+      - name: Restore immutable PR 26 semantic Review Queue
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-data-supply-processing-evidence
+          repository: seigo-gace/Deterministic-Japanese-Parser-MCP
+          run-id: 31030553984
+          github-token: ${{ github.token }}
+          path: work/pr26-processing-evidence
+
+      - name: Build review-only J-Ono JMdict Sense/POS alignment evidence
+        run: |
+          python tools/build_j_ono_pos_semantic_alignment_review.py \
+            --jono-records work/j-ono-rebuilt-source-adapter.jsonl \
+            --pos-review-queue work/j-ono-pos-review-queue.jsonl \
+            --pr26-review-queue work/pr26-processing-evidence/unified-semantic-data/review-queue.jsonl \
+            --output work/j-ono-pos-semantic-alignment-review.jsonl \
+            --report work/j-ono-pos-semantic-alignment-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("work/j-ono-pos-semantic-alignment-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["review_record_count"] != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_REVIEW_COUNT_MISMATCH")
+          if report["distinct_jmdict_record_count"] != 64:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_JMDICT_COUNT_MISMATCH")
+          if report["jmdict_sense_candidate_count"] != 151:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_SENSE_COUNT_MISMATCH")
+          if report["pr26_review_queue_sha256"] != (
+              "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17"
+          ):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_PR26_DIGEST_MISMATCH")
+          if report["evidence_model"] != (
+              "checksum-locked-jono-plus-jmdict-sense-review"
+          ):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_EVIDENCE_MODEL_MISMATCH")
+          for key in (
+              "semantic_alignment_judgement",
+              "automatic_pos_fill",
+              "automatic_approval",
+              "runtime_promotion",
+          ):
+              if report[key] is not False:
+                  raise SystemExit(f"J_ONO_POS_ALIGNMENT_BOUNDARY_BROKEN:{key}")
+
+          rows = [
+              json.loads(line)
+              for line in Path("work/j-ono-pos-semantic-alignment-review.jsonl")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          if len(rows) != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_ROW_COUNT_MISMATCH")
+          if len({row["adapter_record_id"] for row in rows}) != 94:
+              raise SystemExit("J_ONO_POS_ALIGNMENT_ID_UNIQUENESS_MISMATCH")
+          if any(row["semantic_alignment_status"] != "NEEDS_EXPLICIT_REVIEW" for row in rows):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_PREMATURE_JUDGEMENT")
+          if any("payload" in row or "surfaces" in row for row in rows):
+              raise SystemExit("J_ONO_POS_ALIGNMENT_FULL_PAYLOAD_DUPLICATION")
+          print(
+              "J_ONO_POS_SEMANTIC_ALIGNMENT_REVIEW="
+              + json.dumps(report, ensure_ascii=False, sort_keys=True)
+          )
+          PY
+
+      - name: Dry-run explicit J-Ono single-sense lexical POS against real review data
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+          from tools.unified_semantic_data.review import apply_decisions
+
+          path = Path("work/j-ono-review-audit/review-queue.jsonl")
+          original = path.read_bytes()
+          rows = [json.loads(line) for line in original.splitlines() if line.strip()]
+          assert len(rows) == 837
+          by_id = {row["record_id"]: row for row in rows}
+          target = by_id["ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61"]
+          assert len(target["meaning_candidates"]) == 1
+
+          def decision(row):
+              return {
+                  "decision_id": "JONO-LEXICAL-DRYRUN-NOT-PERSISTED",
+                  "record_id": row["record_id"],
+                  "scope": "lexical",
+                  "status": "approved",
+                  "reviewer": "ci-in-memory-only",
+                  "decided_at": "2026-10-13T00:00:00Z",
+                  "rationale": "Test only: explicit manually reviewed ohon/ahem interjection evidence.",
+                  "input_sha256": row["input_sha256"],
+                  "patch": {"part_of_speech": ["interjection (kandoushi)"]},
+                  "_path": "ci-dryrun",
+                  "_line": 1,
+              }
+
+          before = copy.deepcopy(target["meaning_candidates"][0])
+          updated, _ = apply_decisions([copy.deepcopy(target)], [decision(target)])
+          result = updated[0]
+          assert result["part_of_speech"] == ["interjection (kandoushi)"]
+          assert result["meaning_candidates"][0]["part_of_speech"] == ["interjection (kandoushi)"]
+          for field in ("candidate_id", "glosses", "evidence_ids"):
+              assert result["meaning_candidates"][0][field] == before[field]
+          assert "lexical" in result["approval"]["approved_scopes"]
+          assert "semantic" not in result["approval"]["approved_scopes"]
+
+          multisense = next(row for row in rows if len(row.get("meaning_candidates") or []) > 1)
+          try:
+              apply_decisions([copy.deepcopy(multisense)], [decision(multisense)])
+          except ValueError as exc:
+              assert "requires one source sense" in str(exc)
+          else:
+              raise AssertionError("J_ONO_MULTISENSE_POS_PATCH_WRONGLY_ALLOWED")
+
+          assert path.read_bytes() == original
+          # Verify the existing semantic Decision and explicit lexical POS can
+          # reach the canonical compiler without writing approved product data.
+          import tempfile
+          from tools.unified_semantic_data.review import load_decisions
+          from tools.unified_semantic_data.canonical_dictionary import (
+              build_canonical_dictionary_records,
+          )
+
+          semantic = next(
+              item
+              for item in load_decisions(Path("research/semantic_decisions/decision_ledger.jsonl"))
+              if item["record_id"] == target["record_id"]
+              and item["scope"] == "semantic"
+              and item["status"] == "approved"
+          )
+          combined, _ = apply_decisions(
+              [copy.deepcopy(target)], [semantic, decision(target)]
+          )
+          assert set(combined[0]["approval"]["approved_scopes"]) >= {
+              "semantic", "lexical"
+          }
+          assert combined[0]["runtime_eligible"] is True
+
+          with tempfile.TemporaryDirectory(prefix="jono-lexical-canonical-dryrun-") as tmp:
+              root = Path(tmp)
+              (root / "approved-records.jsonl").write_text(
+                  json.dumps(combined[0], ensure_ascii=False, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              canonical = build_canonical_dictionary_records(root)
+              assert len(canonical) == 1
+          assert path.read_bytes() == original
+          print("J_ONO_LEXICAL_CANONICAL_DRYRUN=PASS;PERSISTED=NO;RUNTIME_PROMOTION=NO")
+          print("J_ONO_LEXICAL_POS_DRYRUN=PASS;PERSISTED=NO;RUNTIME_PROMOTION=NO")
+          PY
+
+      - name: Verify no automatic semantic judgement or promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("work/j-ono-data-quality-report.json").read_text(encoding="utf-8"))
+          if report["record_count"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_COUNT_MISMATCH")
+          if report["unique_adapter_record_ids"] != 837:
+              raise SystemExit("J_ONO_REAL_DATA_ID_UNIQUENESS_MISMATCH")
+          if report["hard_failure_count"] != 0:
+              raise SystemExit("J_ONO_REAL_DATA_HARD_FAILURE")
+          if report["automatic_meaning_judgement"] is not False:
+              raise SystemExit("J_ONO_AUTO_MEANING_JUDGEMENT_FORBIDDEN")
+          if report["automatic_approval"] is not False:
+              raise SystemExit("J_ONO_AUTO_APPROVAL_FORBIDDEN")
+          if report["runtime_promotion"] is not False:
+              raise SystemExit("J_ONO_RUNTIME_PROMOTION_FORBIDDEN")
+          print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Compile approved J-Ono into isolated runtime indexes and verify lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tools.unified_semantic_data.pipeline import compile_approved
+          from deterministic_japanese_parser_mcp.semantic_data_runtime import SemanticDataRuntime
+          from deterministic_japanese_parser_mcp.models import Token, OriginalSpan
+
+          root = Path("work/j-ono-runtime-smoke")
+          compile_approved(Path("work/j-ono-post-semantic-review"), root)
+          runtime = SemanticDataRuntime(root)
+          assert runtime.available and runtime.record_count == 6
+          assert runtime.runtime_record_count == 6
+          token = Token(
+              surface="おほん",
+              normalized="おほん",
+              reading="オホン",
+              pos=["感動詞"],
+              span=OriginalSpan(start=0, end=3, source_text="おほん"),
+          )
+          rows = runtime.lookup_token(token)
+          assert len(rows) == 1
+          row = rows[0]
+          assert row["record_id"] == (
+              "ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61"
+          )
+          assert row["part_of_speech"] == ["interjection (kandoushi)"]
+          assert len(row["meaning_candidates"]) == 1
+          assert row["meaning_candidates"][0]["review_status"] == "approved"
+          assert row["meaning_candidates"][0]["glosses"] == [
+              "polite throat-clearing, often to regain composure"
+          ]
+          for surface, reading, expected_id, expected_gloss in (
+              ("あはは", "アハハ", "ADAPTER-FROZEN-j-ono-definitions-0d6493711195aa74959767c4", "laughter, often long or repeated"),
+              ("ふむ", "フム", "ADAPTER-FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f", "an utterance of thoughtful contemplation"),
+          ):
+              extra_token = Token(
+                  surface=surface,
+                  normalized=surface,
+                  reading=reading,
+                  pos=["感動詞"],
+                  span=OriginalSpan(start=0, end=len(surface), source_text=surface),
+              )
+              extra_rows = runtime.lookup_token(extra_token)
+              assert len(extra_rows) == 1, f"J_ONO_MISSING_EXPLICIT_RUNTIME_LOOKUP:{surface}"
+              extra_row = extra_rows[0]
+              assert extra_row["record_id"] == expected_id
+              assert extra_row["part_of_speech"] == ["interjection (kandoushi)"]
+              assert len(extra_row["meaning_candidates"]) == 1
+              assert extra_row["meaning_candidates"][0]["review_status"] == "approved"
+              assert extra_row["meaning_candidates"][0]["glosses"] == [expected_gloss]
+          print("J_ONO_THREE_EXPLICIT_RUNTIME_LOOKUPS=PASS;RECORDS=6;PROMOTION=NO")
+          for surface, reading, expected_id, expected_gloss in (
+              ("かしゃっ", "カシャッ", "ADAPTER-FROZEN-j-ono-definitions-00e18eaff361aa96e4e7874e", "a small, sharp mechanical click or snap, as from a camera, latch, or button"),
+              ("がしゃ", "ガシャ", "ADAPTER-FROZEN-j-ono-definitions-8c92d508f391cfa454f4fe6b", "sharp, short, crashing or breaking sound"),
+              ("すたすた", "スタスタ", "ADAPTER-FROZEN-j-ono-definitions-9e7cb67b68a86b3db37966e1", "brisk, steady walking"),
+          ):
+              extra_token = Token(
+                  surface=surface,
+                  normalized=surface,
+                  reading=reading,
+                  pos=["副詞"],
+                  span=OriginalSpan(start=0, end=len(surface), source_text=surface),
+              )
+              matched = runtime.lookup_token(extra_token)
+              assert len(matched) == 1, f"J_ONO_ADVERB_RUNTIME_LOOKUP_MISSING:{surface}"
+              row = matched[0]
+              assert row["record_id"] == expected_id
+              assert row["part_of_speech"] == ["adverb taking the 'to' particle"]
+              assert len(row["meaning_candidates"]) == 1
+              assert row["meaning_candidates"][0]["review_status"] == "approved"
+              assert row["meaning_candidates"][0]["glosses"] == [expected_gloss]
+          print("J_ONO_SIX_EXPLICIT_RUNTIME_LOOKUPS=PASS;RECORDS=6;PROMOTION=NO")
+
+          print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=6;PROMOTION=NO")
+          from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
+          from deterministic_japanese_parser_mcp.config import Settings
+          settings = Settings(
+              system_dict_dir=Path("dictionaries/system"),
+              user_dict_dir=Path("dictionaries/user"),
+              semantic_data_runtime_dir=root,
+              hard_deadline_ms=5000,
+          )
+          engine = ParserEngine(settings)
+          result = engine.analyze(AnalyzeRequest(
+              original_text="おほん。", deadline_ms=5000
+          ))
+          print("J_ONO_PARSER_TOKENS=" + str([
+              {"surface": t.surface, "reading": t.reading, "pos": t.pos}
+              for t in result.tokens
+          ]), flush=True)
+          print("J_ONO_PARSER_PACK_METRICS=" + str(
+              result.meaning_graph.quality_annotations
+          ), flush=True)
+          print("J_ONO_PARSER_RUNTIME_METRICS=" + str(
+              engine.semantic_data.last_metrics
+          ), flush=True)
+          assert result.meaning_graph.quality_annotations.get(
+              "semantic_data_pack_match_count", 0
+          ) >= 1, "J_ONO_PARSER_MEANING_PACK_NOT_CONSUMED"
+          assert result.meaning_graph.semantic_hash
+          print("J_ONO_PARSER_REAL_TEXT=PASS;TEXT=おほん。;PROMOTION=NO")
+          for other_text in ("あはは。", "ふむ。", "かしゃっ。", "がしゃ。", "すたすた。"):
+              other_result = engine.analyze(AnalyzeRequest(
+                  original_text=other_text, deadline_ms=5000
+              ))
+              assert other_result.meaning_graph.semantic_hash
+              assert other_result.meaning_graph.quality_annotations.get(
+                  "semantic_data_pack_match_count", 0
+              ) >= 1, f"J_ONO_PARSER_MISSING_APPROVED_PACK:{other_text}"
+              assert other_result.meaning_graph.quality_annotations.get(
+                  "semantic_data_pack_automatic_external_action", False
+              ) is False
+              print(f"J_ONO_PARSER_REAL_TEXT=PASS;TEXT={other_text};PROMOTION=NO")
+          PY
+
+      - name: Upload real-data quality evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: j-ono-data-quality-${{ github.sha }}
+          path: |
+            work/j-ono-data-quality-report.json
+            work/j-ono-data-quality-review-issues.jsonl
+            work/j-ono-collision-clusters.jsonl
+            work/j-ono-collision-cluster-report.json
+            work/j-ono-pos-evidence-report.json
+            work/j-ono-pos-evidence.jsonl
+            work/j-ono-pos-review-queue-report.json
+            work/j-ono-pos-review-queue.jsonl
+            work/j-ono-pos-semantic-alignment-report.json
+            work/j-ono-pos-semantic-alignment-review.jsonl
+            work/rebuilt/meaning-factory-report.json
+            work/j-ono-rebuilt-data-quality-report.json
+            work/j-ono-rebuilt-review-issues.jsonl
+            work/j-ono-rebuilt-collision-clusters.jsonl
+            work/j-ono-rebuilt-collision-cluster-report.json
+            work/j-ono-source-evidence-effectiveness-report.json
+            work/j-ono-source-evidence-effectiveness-details.jsonl
+            work/j-ono-chat-semantic-decision-report.json
+            work/j-ono-combined-decision-ledger.jsonl
+            work/j-ono-canonical-semantic-application-report.json
+            work/j-ono-post-semantic-review/manifest.json
+            work/j-ono-post-semantic-review/approved-records.jsonl
+            work/j-ono-runtime-smoke/manifest.json
+            work/j-ono-runtime-smoke/indexes
+            work/j-ono-runtime-smoke/records
+            work/j-ono-canonical-decisions/decision_ledger.jsonl
+            research/semantic_decisions/j_ono_chat_review_authorization.json
+            work/j-ono-review-audit-report.json
+            work/j-ono-review-audit/review-queue.jsonl
+            work/j-ono-review-audit/review-records.jsonl
+            work/j-ono-review-audit/bulk-review/bulk_review_manifest.json
+            work/j-ono-review-audit/bulk-review/requests
+          if-no-files-found: error
+          retention-days: 30

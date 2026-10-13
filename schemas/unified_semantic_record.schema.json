@@ -24,6 +24,15 @@
       "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0
     },
     "context_conditions": {"type": "object"},
+    "review_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "polarity": {"type": "boolean"},
+        "intensity": {"type": "boolean"},
+        "part_of_speech_source_evidence": {"type": "boolean"}
+      }
+    },
     "task_candidates": {"type": "array"},
     "external_action_risk": {"type": ["boolean", "null"]},
     "positive_examples": {"type": "array"},

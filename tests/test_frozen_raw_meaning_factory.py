@@ -16,6 +16,8 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from unified_semantic_data.frozen_raw_meaning_factory import (  # noqa: E402
+    _adapter_row,
+    _enrich_j_ono_refer_target_evidence,
     _extract_fields,
     build_frozen_raw_meaning_factory,
 )
@@ -175,8 +177,163 @@ def test_j_ono_resolved_evidence_is_not_lost() -> None:
         },
     )
     assert fields["surfaces"] == ["kirakira", "きらきら", "きらっきら", "キラキラ"]
+    assert fields["readings"] == ["きらきら", "きらっきら"]
+    assert "キラキラ" not in fields["readings"]
+    assert "kirakira" not in fields["readings"]
     assert fields["meanings"] == ["光が細かく繰り返し輝く様子"]
 
+
+
+def test_j_ono_refer_target_evidence_is_rebuilt_from_same_frozen_payload() -> None:
+    rows = [
+        (
+            1,
+            {
+                "definition_id": "pashi",
+                "definition_index": 1,
+                "equivalents": ["grab", "catch"],
+                "type_code": "m",
+                "type_label": "motion-movement / 擬容語",
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": False,
+                    }
+                ],
+            },
+        ),
+        (
+            2,
+            {
+                "definition_id": "pashi pashi",
+                "definition_index": 2,
+                "equivalents": [],
+                "type_code": "",
+                "type_label": "",
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": True,
+                    }
+                ],
+            },
+        ),
+    ]
+
+    enriched, count = _enrich_j_ono_refer_target_evidence(rows)
+
+    assert count == 1
+    evidence = enriched[1][1]["resolved_meaning_evidence"][0]
+    assert evidence["equivalents"] == ["catch", "grab"]
+    assert evidence["semantic_type_code"] == "m"
+    assert evidence["semantic_type_label"] == "motion-movement / 擬容語"
+    assert evidence["via_refer"] is True
+
+
+def test_j_ono_refer_target_evidence_missing_target_fails_closed() -> None:
+    rows = [
+        (
+            1,
+            {
+                "definition_id": "pashi pashi",
+                "definition_index": 2,
+                "resolved_meaning_evidence": [
+                    {
+                        "source_record_id": "pashi",
+                        "source_definition_index": 1,
+                        "meaning": "quickly grabbing",
+                        "via_refer": True,
+                    }
+                ],
+            },
+        )
+    ]
+
+    with pytest.raises(ValueError, match="J_ONO_REFER_TARGET_EVIDENCE_MISSING"):
+        _enrich_j_ono_refer_target_evidence(rows)
+
+
+def test_j_ono_adapter_preserves_machine_first_source_evidence() -> None:
+    row = {
+        "record_id": "go:001",
+        "hiragana": ["ご", "ごごご"],
+        "katakana": ["ゴ"],
+        "romaji": ["go"],
+        "local_meaning": "intense focus",
+        "resolved_meaning_evidence": [
+            {
+                "source_record_id": "go",
+                "source_definition_index": 1,
+                "meaning": "intense focus",
+                "via_refer": False,
+            },
+            {
+                "source_record_id": "other",
+                "source_definition_index": 2,
+                "meaning": "menace",
+                "via_refer": True,
+                "equivalents": ["menace", "threat"],
+                "semantic_type_code": "e",
+                "semantic_type_label": "emotion-feeling / 擬情語",
+            },
+        ],
+        "equivalents": ["glare", "menace"],
+        "refer": "other:2",
+        "type_code": "e",
+        "type_label": "emotion-feeling / 擬情語",
+        "examples": [
+            {
+                "source": "source-a",
+                "file": "example-a.png",
+                "display": "inline",
+                "contributor": "contributor-a",
+                "image_payload_included": False,
+            }
+        ],
+        "meaning_policy": "preserve source-authored evidence",
+        "source": {
+            "dataset": "J-Ono",
+            "license": "CC-BY-SA-3.0",
+            "repository": "https://github.com/ObakeConstructs/j-ono-data",
+            "data_sha256": "a" * 64,
+        },
+    }
+    record = _adapter_row(
+        row,
+        source={
+            "source_id": "j-ono-definitions",
+            "logical_source_id": "j-ono-definitions",
+            "artifact_id": 1,
+            "workflow_run_id": 2,
+            "rights_lane": "C",
+            "public_runtime_eligible": True,
+        },
+        payload={"path": "normalized/j-ono-definitions.jsonl", "sha256": "b" * 64},
+        line_number=1,
+        freeze_at="2026-10-07T00:00:00Z",
+    )
+    evidence = record["payload"]["j_ono_source_evidence"]
+    assert evidence["local_meaning"] == "intense focus"
+    assert evidence["equivalents"] == ["glare", "menace"]
+    assert evidence["refer"] == "other:2"
+    assert evidence["semantic_type_code"] == "e"
+    assert evidence["semantic_type_label"] == "emotion-feeling / 擬情語"
+    assert evidence["resolved_meaning_evidence"][1] == {
+        "source_record_id": "other",
+        "source_definition_index": 2,
+        "meaning": "menace",
+        "via_refer": True,
+        "equivalents": sorted(["threat", "menace"]),
+        "semantic_type_code": "e",
+        "semantic_type_label": "emotion-feeling / 擬情語",
+    }
+    assert evidence["example_metadata"][0]["image_payload_included"] is False
+    assert evidence["automatic_semantic_interpretation"] is False
+    assert record["part_of_speech_list"] == []
 
 def test_bundle_checksum_mismatch_is_rejected(tmp_path: Path) -> None:
     bundle, manifest = _fixture(tmp_path, [_meaning_row()])

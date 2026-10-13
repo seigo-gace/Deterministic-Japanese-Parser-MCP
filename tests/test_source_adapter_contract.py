@@ -149,11 +149,111 @@ def test_adapter_contract_routes_definition_to_reference_and_new_word_candidate(
     ]
     assert lexical[0]["meaning_candidates"][0]["review_status"] == "needs-evidence"
     assert lexical[0]["approval_scopes"]["semantic"] == "needs-evidence"
+    assert lexical[0]["approval_scopes"]["pragmatic"] == "needs-evidence"
+    assert lexical[0]["review_requirements"] == {
+        "polarity": True,
+        "intensity": True,
+        "part_of_speech_source_evidence": False,
+    }
+    assert lexical[0]["approval_scopes"]["task"] == "not-applicable"
+    assert lexical[0]["approval_scopes"]["external_action"] == "not-applicable"
     assert lexical[0]["automatic_approval"] is False
     assert lexical[0]["automatic_runtime_promotion"] is False
     assert evidence[0]["source_role"] == "translation"
     assert evidence[0]["payload"]["value"] == "bank"
     assert evidence[0]["automatic_meaning_generation"] is False
+
+
+def test_j_ono_lexical_candidate_carries_compact_review_evidence(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "j-ono.jsonl"
+    lineage = {
+        **_source("j-ono-definitions"),
+        "logical_source_id": "j-ono-definitions",
+        "source_record_id": "pashi pashi",
+        "source_record_sha256": "b" * 64,
+        "payload_path": "normalized/j-ono-definitions.jsonl",
+        "payload_sha256": "c" * 64,
+        "artifact_id": 123,
+        "workflow_run_id": 456,
+        "rights_lane": "C",
+        "public_runtime_eligible": True,
+    }
+    source.write_text(
+        json.dumps(
+            {
+                "adapter_record_id": "JONO-1",
+                "source_role": "lexical-definition",
+                "surfaces": ["ぱしぱし"],
+                "readings": ["ぱしぱし"],
+                "meanings": ["quickly grabbing"],
+                "payload": {
+                    "j_ono_source_evidence": {
+                        "local_meaning": "",
+                        "local_meaning_status": "refer-only",
+                        "equivalents": [],
+                        "refer": "pashi:1",
+                        "semantic_type_code": "",
+                        "semantic_type_label": "",
+                        "resolved_meaning_evidence": [
+                            {
+                                "source_record_id": "pashi",
+                                "source_definition_index": 1,
+                                "meaning": "quickly grabbing",
+                                "via_refer": True,
+                                "equivalents": ["grab", "catch"],
+                                "semantic_type_code": "m",
+                                "semantic_type_label": "motion-movement",
+                            }
+                        ],
+                        "example_metadata": [
+                            {
+                                "source": "j-ono-source",
+                                "file": "001.png",
+                                "display": "inline",
+                                "contributor": "source-author",
+                                "ignored_payload": "must-not-copy",
+                            }
+                        ],
+                        "meaning_policy": "preserve source-authored evidence",
+                        "automatic_semantic_interpretation": False,
+                        "unrelated_large_payload": {"must": "not-copy"},
+                    }
+                },
+                "source": lineage,
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "out"
+    compile_adapter_contract([source], output)
+    lexical = json.loads(
+        (output / "lexical-candidates.jsonl").read_text(encoding="utf-8")
+    )
+    evidence = lexical["review_evidence"]
+
+    assert evidence["kind"] == "j-ono-source-authored-review-evidence"
+    assert evidence["refer"] == "pashi:1"
+    assert evidence["resolved_meaning_evidence"][0]["equivalents"] == [
+        "catch",
+        "grab",
+    ]
+    assert evidence["resolved_meaning_evidence"][0]["semantic_type_code"] == "m"
+    assert evidence["automatic_semantic_interpretation"] is False
+    assert lexical["review_requirements"] == {
+        "polarity": False,
+        "intensity": False,
+        "part_of_speech_source_evidence": True,
+    }
+    assert lexical["approval_scopes"]["semantic"] == "needs-evidence"
+    assert lexical["approval_scopes"]["pragmatic"] == "not-applicable"
+    assert "unrelated_large_payload" not in evidence
+    assert "ignored_payload" not in evidence["example_metadata"][0]
+    assert "payload" not in lexical
 
 
 def test_compressed_ordered_adapter_output_is_deterministic(tmp_path: Path) -> None:

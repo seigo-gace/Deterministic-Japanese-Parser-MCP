@@ -122,14 +122,16 @@ def _extract_fields(source_id: str, row: dict[str, Any]) -> dict[str, list[str]]
             )]
         )
     elif source_id == "j-ono-definitions":
+        source_hiragana = _stable_unique(_nested_texts(row.get("hiragana")))
         surfaces = _stable_unique(
             [
                 *surfaces,
-                *_nested_texts(row.get("hiragana")),
+                *source_hiragana,
                 *_nested_texts(row.get("katakana")),
                 *_nested_texts(row.get("romaji")),
             ]
         )
+        readings = _stable_unique([*readings, *source_hiragana])
         resolved = row.get("resolved_meaning_evidence")
         meanings = _stable_unique([*meanings, *_nested_texts(resolved)])
 
@@ -188,6 +190,50 @@ def _adapter_row(
     )
     attribution = _source_value(row, "attribution", "copyright", "publisher")
 
+    adapter_payload: dict[str, Any] = {
+        "source_fields_preserved": sorted(nested_source),
+        "meaning_factory_version": MEANING_FACTORY_VERSION,
+    }
+    if source_id == "j-ono-definitions":
+        examples: list[dict[str, Any]] = []
+        for raw_example in row.get("examples") or []:
+            if not isinstance(raw_example, dict):
+                continue
+            examples.append({
+                "source": _text(raw_example.get("source")),
+                "file": _text(raw_example.get("file")),
+                "display": _text(raw_example.get("display")),
+                "contributor": _text(raw_example.get("contributor")),
+                "image_payload_included": False,
+            })
+        resolved_evidence: list[dict[str, Any]] = []
+        for raw_evidence in row.get("resolved_meaning_evidence") or []:
+            if not isinstance(raw_evidence, dict):
+                continue
+            resolved_evidence.append({
+                "source_record_id": _text(raw_evidence.get("source_record_id")),
+                "source_definition_index": int(raw_evidence.get("source_definition_index") or 0),
+                "meaning": _text(raw_evidence.get("meaning")),
+                "via_refer": bool(raw_evidence.get("via_refer")),
+                "equivalents": _stable_unique(
+                    _nested_texts(raw_evidence.get("equivalents"))
+                ),
+                "semantic_type_code": _text(raw_evidence.get("semantic_type_code")),
+                "semantic_type_label": _text(raw_evidence.get("semantic_type_label")),
+            })
+        adapter_payload["j_ono_source_evidence"] = {
+            "local_meaning": _text(row.get("local_meaning")),
+            "local_meaning_status": _text(row.get("local_meaning_status")),
+            "resolved_meaning_evidence": resolved_evidence,
+            "equivalents": _stable_unique(_nested_texts(row.get("equivalents"))),
+            "refer": _text(row.get("refer")),
+            "semantic_type_code": _text(row.get("type_code")),
+            "semantic_type_label": _text(row.get("type_label")),
+            "example_metadata": examples,
+            "meaning_policy": _text(row.get("meaning_policy")),
+            "automatic_semantic_interpretation": False,
+        }
+
     return {
         "adapter_record_id": adapter_id,
         "source_role": MEANING_ROLE,
@@ -215,10 +261,7 @@ def _adapter_row(
             "public_runtime_eligible": bool(source["public_runtime_eligible"]),
             "source_meaning_complete": bool(row.get("meaning_complete", True)),
         },
-        "payload": {
-            "source_fields_preserved": sorted(nested_source),
-            "meaning_factory_version": MEANING_FACTORY_VERSION,
-        },
+        "payload": adapter_payload,
     }
 
 
@@ -319,6 +362,88 @@ def _iter_payload_rows(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
             if not isinstance(value, dict):
                 raise ValueError(f"JSONL row must be object: {path}:{line_number}")
             yield line_number, value
+
+
+def _enrich_j_ono_refer_target_evidence(
+    rows: list[tuple[int, dict[str, Any]]],
+) -> tuple[list[tuple[int, dict[str, Any]]], int]:
+    """Reconstruct refer-target semantic evidence from the same frozen J-Ono payload.
+
+    Frozen Raw preserves the historical normalized JSONL, not the original raw JSON.
+    The normalized rows still contain stable definition_id/index, equivalents, type,
+    refer, and resolved target identities, so refer-target evidence can be rebuilt
+    deterministically without network access or a second source of truth.
+    """
+    lookup: dict[tuple[str, int], dict[str, Any]] = {}
+    for line_number, row in rows:
+        definition_id = _text(row.get("definition_id"))
+        definition_index = int(row.get("definition_index") or 0)
+        if not definition_id or definition_index < 1:
+            raise ValueError(
+                f"J_ONO_DEFINITION_IDENTITY_REQUIRED:{line_number}"
+            )
+        key = (definition_id, definition_index)
+        if key in lookup:
+            raise ValueError(
+                f"J_ONO_DEFINITION_IDENTITY_DUPLICATE:{definition_id}:{definition_index}"
+            )
+        lookup[key] = row
+
+    enriched: list[tuple[int, dict[str, Any]]] = []
+    refer_evidence_items = 0
+    for line_number, row in rows:
+        value = dict(row)
+        resolved_out: list[dict[str, Any]] = []
+        for raw_evidence in row.get("resolved_meaning_evidence") or []:
+            if not isinstance(raw_evidence, dict):
+                raise ValueError(
+                    f"J_ONO_RESOLVED_EVIDENCE_OBJECT_REQUIRED:{line_number}"
+                )
+            evidence = dict(raw_evidence)
+            if bool(evidence.get("via_refer")):
+                target_key = (
+                    _text(evidence.get("source_record_id")),
+                    int(evidence.get("source_definition_index") or 0),
+                )
+                target = lookup.get(target_key)
+                if target is None:
+                    raise ValueError(
+                        "J_ONO_REFER_TARGET_EVIDENCE_MISSING:"
+                        f"{target_key[0]}:{target_key[1]}"
+                    )
+                target_equivalents = _field_texts(target, "equivalents")
+                target_type_code = _text(target.get("type_code"))
+                target_type_label = _text(target.get("type_label"))
+
+                existing_equivalents = _stable_unique(
+                    _nested_texts(evidence.get("equivalents"))
+                )
+                existing_type_code = _text(evidence.get("semantic_type_code"))
+                existing_type_label = _text(evidence.get("semantic_type_label"))
+                if existing_equivalents and existing_equivalents != target_equivalents:
+                    raise ValueError(
+                        "J_ONO_REFER_TARGET_EQUIVALENT_CONFLICT:"
+                        f"{target_key[0]}:{target_key[1]}"
+                    )
+                if existing_type_code and existing_type_code != target_type_code:
+                    raise ValueError(
+                        "J_ONO_REFER_TARGET_TYPE_CODE_CONFLICT:"
+                        f"{target_key[0]}:{target_key[1]}"
+                    )
+                if existing_type_label and existing_type_label != target_type_label:
+                    raise ValueError(
+                        "J_ONO_REFER_TARGET_TYPE_LABEL_CONFLICT:"
+                        f"{target_key[0]}:{target_key[1]}"
+                    )
+
+                evidence["equivalents"] = target_equivalents
+                evidence["semantic_type_code"] = target_type_code
+                evidence["semantic_type_label"] = target_type_label
+                refer_evidence_items += 1
+            resolved_out.append(evidence)
+        value["resolved_meaning_evidence"] = resolved_out
+        enriched.append((line_number, value))
+    return enriched, refer_evidence_items
 
 
 def _artifact_by_id(manifest: dict[str, Any]) -> dict[int, dict[str, Any]]:
@@ -434,7 +559,17 @@ def build_frozen_raw_meaning_factory(
                             )
                         payload_meta = {**payload, "sha256": payload_sha}
                         payload_count += 1
-                        for line_number, row in _iter_payload_rows(payload_path):
+                        row_iter: Iterable[tuple[int, dict[str, Any]]]
+                        if source["source_id"] == "j-ono-definitions":
+                            j_ono_rows = list(_iter_payload_rows(payload_path))
+                            j_ono_rows, refer_evidence_items = (
+                                _enrich_j_ono_refer_target_evidence(j_ono_rows)
+                            )
+                            counts["j_ono_refer_target_evidence_items"] += refer_evidence_items
+                            row_iter = j_ono_rows
+                        else:
+                            row_iter = _iter_payload_rows(payload_path)
+                        for line_number, row in row_iter:
                             counts["input_definition_records"] += 1
                             source_input_count += 1
                             try:
@@ -527,6 +662,9 @@ def build_frozen_raw_meaning_factory(
         "input_definition_record_count": counts["input_definition_records"],
         "adapter_record_count": counts["adapter_records"],
         "unresolved_record_count": counts["unresolved_records"],
+        "j_ono_refer_target_evidence_item_count": counts[
+            "j_ono_refer_target_evidence_items"
+        ],
         "source_counts": dict(sorted(by_source.items())),
         "adapter_contract": adapter_manifest,
         "files": {
@@ -549,6 +687,9 @@ def build_frozen_raw_meaning_factory(
             "input_record_conservation_verified": True,
             "payload_and_artifact_checksums_verified": True,
             "source_rights_and_lineage_preserved": True,
+            "j_ono_refer_target_semantic_evidence_reconstructed": (
+                counts["j_ono_refer_target_evidence_items"] > 0
+            ),
             "automatic_definition_generation": False,
             "automatic_approval": False,
             "automatic_runtime_promotion": False,

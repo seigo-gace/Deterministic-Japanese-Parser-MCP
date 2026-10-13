@@ -118,3 +118,204 @@ def test_rule_review_generates_four_scopes_per_record(tmp_path: Path) -> None:
     entries = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
     assert {entry["scope"] for entry in entries} == set(REVIEW_SCOPES)
     assert {entry["reviewer"] for entry in entries} == {"gpt-app-sample-review", "gpt-app-rule-based-review"}
+
+
+def test_chatgpt_rule_review_respects_semantic_only_optional_facets() -> None:
+    record = _record(76)
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "not-applicable",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+    record["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    record["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    rules = load_review_rules(ROOT / "rules/review_rules.yaml")
+    provider = ChatGPTAppProvider(rules)
+
+    result = provider.review_record(record)
+
+    assert [item["scope"] for item in result["decisions"]] == ["semantic"]
+    semantic = result["decisions"][0]
+    assert semantic["status"] == "approved"
+    assert semantic["patch"] == {}
+    assert "polarity" not in semantic["patch"]
+    assert "intensity" not in semantic["patch"]
+
+
+def test_rule_based_ledger_emits_only_semantic_for_j_ono_style_record(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "queue.jsonl"
+    record = _record(75)
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "not-applicable",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+    record["review_requirements"] = {
+        "polarity": False,
+        "intensity": False,
+    }
+    queue.write_text(
+        json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n",
+        encoding="utf-8",
+    )
+    rules = load_review_rules(ROOT / "rules/review_rules.yaml")
+    rules["source_queue"]["sha256"] = __import__("hashlib").sha256(
+        queue.read_bytes()
+    ).hexdigest()
+    rules["source_queue"]["sample_record_ids"] = []
+    rules_path = tmp_path / "rules.yaml"
+    rules_path.write_text(
+        __import__("yaml").safe_dump(
+            rules, allow_unicode=True, sort_keys=False
+        ),
+        encoding="utf-8",
+    )
+    config = load_provider_config(ROOT / "config/review_provider.yaml")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        __import__("yaml").safe_dump(
+            config, allow_unicode=True, sort_keys=False
+        ),
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "decision_ledger.jsonl"
+    manifest = tmp_path / "manifest.json"
+
+    result = review_queue_rule_based(
+        queue,
+        ledger,
+        manifest,
+        config_path=config_path,
+        rules_path=rules_path,
+    )
+
+    assert result["decision_count"] == 1
+    assert result["decision_scope_counts"] == {"semantic": 1}
+    entries = [
+        json.loads(line)
+        for line in ledger.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(entries) == 1
+    assert entries[0]["scope"] == "semantic"
+    assert entries[0]["status"] == "approved"
+    assert "patch" not in entries[0]
+
+
+def test_record_specific_review_scopes_exclude_non_applicable_judgments(
+    tmp_path: Path,
+) -> None:
+    record = _record(77)
+    record["review_evidence"] = {
+        "kind": "j-ono-source-authored-review-evidence",
+        "equivalents": ["sparkle"],
+        "semantic_type_code": "m",
+        "automatic_semantic_interpretation": False,
+    }
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic", "pragmatic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "needs-evidence",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+
+    request = build_batch_request(record)
+    schema = request["body"]["text"]["format"]["schema"]
+    decisions = schema["properties"]["decisions"]
+    assert decisions["minItems"] == 2
+    assert decisions["maxItems"] == 2
+    assert decisions["items"]["properties"]["scope"]["enum"] == [
+        "semantic",
+        "pragmatic",
+    ]
+    policy, record_json = request["body"]["input"].split("\nRECORD=", 1)
+    assert "task" not in policy
+    assert "external_action" not in policy
+    encoded_record = json.loads(record_json)
+    assert encoded_record["approval"]["scopes"]["task"] == "not-applicable"
+    assert encoded_record["approval"]["scopes"]["external_action"] == "not-applicable"
+    assert encoded_record["review_evidence"] == record["review_evidence"]
+
+    manifest = prepare_bulk_review_job([record], tmp_path)
+    assert manifest["decision_scopes"] == ["pragmatic", "semantic"]
+    assert manifest["scope_request_counts"] == {
+        "pragmatic": 1,
+        "semantic": 1,
+    }
+    assert manifest["network_call_performed"] is False
+
+
+def test_merge_accepts_only_record_applicable_scopes(tmp_path: Path) -> None:
+    record = _record(78)
+    record["approval"] = {
+        "review_scopes": ["lexical", "semantic", "pragmatic"],
+        "scopes": {
+            "lexical": "needs-evidence",
+            "semantic": "needs-evidence",
+            "pragmatic": "needs-evidence",
+            "task": "not-applicable",
+            "external_action": "not-applicable",
+        },
+    }
+    payload = {
+        "custom_id": record["record_id"],
+        "record_id": record["record_id"],
+        "decisions": [
+            {
+                "scope": "semantic",
+                "status": "needs-evidence",
+                "rationale": "sense evidence still requires review",
+                "patch": {},
+            },
+            {
+                "scope": "pragmatic",
+                "status": "needs-evidence",
+                "rationale": "context evidence still requires review",
+                "patch": {},
+            },
+        ],
+    }
+    summary = merge_batch_results([record], [payload], tmp_path)
+    assert summary["decision_count"] == 2
+    ledger = [
+        json.loads(line)
+        for line in (tmp_path / "bulk-review/decision_ledger.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert {item["scope"] for item in ledger} == {"semantic", "pragmatic"}
+
+
+def test_legacy_unscoped_bulk_review_keeps_four_scope_contract() -> None:
+    record = _record(79)
+    request = build_batch_request(record)
+    decisions = request["body"]["text"]["format"]["schema"]["properties"]["decisions"]
+    assert decisions["minItems"] == 4
+    assert decisions["maxItems"] == 4
+    assert set(decisions["items"]["properties"]["scope"]["enum"]) == set(REVIEW_SCOPES)
