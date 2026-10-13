@@ -82,6 +82,13 @@ def test_semantic_evidence_reduces_ambiguity_without_counting_example_metadata_a
     assert report["interpretation_boundary"][
         "example_metadata_excluded_from_primary_semantic_score"
     ] is True
+    pair_rows = details[0]["pair_review_evidence"]
+    assert len(pair_rows) == 3
+    assert all(pair["semantic_equivalence_judgement"] == "NOT_ADJUDICATED" for pair in pair_rows)
+    assert all(pair["automatic_approval"] is False for pair in pair_rows)
+    assert all(pair["left_record_id"] != pair["right_record_id"] for pair in pair_rows)
+    assert sum(bool(pair["distinguishing_semantic_dimensions"]) for pair in pair_rows) == 2
+    assert all("example_metadata" not in pair["distinguishing_semantic_dimensions"] for pair in pair_rows)
     assert details[0]["automatic_merge"] is False
     assert details[0]["automatic_meaning_judgement"] is False
     assert details[0]["automatic_pos_fill"] is False
