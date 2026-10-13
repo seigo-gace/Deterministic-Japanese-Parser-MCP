@@ -208,11 +208,37 @@ def measure_source_evidence_effectiveness(
             semantic_totals[key] += semantic[key]
             all_source_totals[key] += all_source[key]
 
+        pair_review_evidence = []
+        for left_index, right_index in combinations(range(len(members)), 2):
+            left = signatures[left_index]
+            right = signatures[right_index]
+            distinguishing = [
+                dimension for dimension in semantic_dimensions
+                if left[dimension] and right[dimension]
+                and left[dimension] != right[dimension]
+            ]
+            pair_review_evidence.append({
+                "left_record_id": str(members[left_index].get("record_id") or ""),
+                "right_record_id": str(members[right_index].get("record_id") or ""),
+                "distinguishing_semantic_dimensions": distinguishing,
+                "semantic_evidence_comparable": any(
+                    left[dimension] and right[dimension]
+                    for dimension in semantic_dimensions
+                ),
+                "source_signatures": {
+                    "left": {key: list(value) for key, value in left.items()},
+                    "right": {key: list(value) for key, value in right.items()},
+                },
+                "semantic_equivalence_judgement": "NOT_ADJUDICATED",
+                "automatic_approval": False,
+            })
+
         details.append(
             {
                 "cluster_id": _norm(cluster.get("cluster_id")),
                 "record_count": len(members),
                 "record_ids": [str(member.get("record_id") or "") for member in members],
+                "pair_review_evidence": pair_review_evidence,
                 "baseline_ambiguous_pairs": semantic["total_pairs"],
                 "semantic_evidence": semantic,
                 "all_source_evidence": all_source,
