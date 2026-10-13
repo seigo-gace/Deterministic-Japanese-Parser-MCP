@@ -27,7 +27,7 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
     )
 
     pairs = payload["reviewed_pairs"]
-    assert len(pairs) == 19
+    assert len(pairs) == 52
     ids = [(row["jono_record_id"], row["jmdict_record_id"]) for row in pairs]
     assert len(set(ids)) == len(ids)
     for row in pairs:
