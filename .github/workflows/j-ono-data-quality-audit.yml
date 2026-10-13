@@ -966,6 +966,59 @@ jobs:
           )
           PY
 
+      - name: Dry-run explicit J-Ono single-sense lexical POS against real review data
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+          from tools.unified_semantic_data.review import apply_decisions
+
+          path = Path("work/j-ono-review-audit/review-queue.jsonl")
+          original = path.read_bytes()
+          rows = [json.loads(line) for line in original.splitlines() if line.strip()]
+          assert len(rows) == 837
+          by_id = {row["record_id"]: row for row in rows}
+          target = by_id["ADAPTER-FROZEN-j-ono-definitions-0b8bcf39a2e20af33c861d61"]
+          assert len(target["meaning_candidates"]) == 1
+
+          def decision(row):
+              return {
+                  "decision_id": "JONO-LEXICAL-DRYRUN-NOT-PERSISTED",
+                  "record_id": row["record_id"],
+                  "scope": "lexical",
+                  "status": "approved",
+                  "reviewer": "ci-in-memory-only",
+                  "decided_at": "2026-10-13T00:00:00Z",
+                  "rationale": "Test only: explicit manually reviewed ohon/ahem interjection evidence.",
+                  "input_sha256": row["input_sha256"],
+                  "patch": {"part_of_speech": ["interjection (kandoushi)"]},
+                  "_path": "ci-dryrun",
+                  "_line": 1,
+              }
+
+          before = copy.deepcopy(target["meaning_candidates"][0])
+          updated, _ = apply_decisions([copy.deepcopy(target)], [decision(target)])
+          result = updated[0]
+          assert result["part_of_speech"] == ["interjection (kandoushi)"]
+          assert result["meaning_candidates"][0]["part_of_speech"] == ["interjection (kandoushi)"]
+          for field in ("candidate_id", "glosses", "evidence_ids"):
+              assert result["meaning_candidates"][0][field] == before[field]
+          assert "lexical" in result["approval"]["approved_scopes"]
+          assert "semantic" not in result["approval"]["approved_scopes"]
+
+          multisense = next(row for row in rows if len(row.get("meaning_candidates") or []) > 1)
+          try:
+              apply_decisions([copy.deepcopy(multisense)], [decision(multisense)])
+          except ValueError as exc:
+              assert "requires one source sense" in str(exc)
+          else:
+              raise AssertionError("J_ONO_MULTISENSE_POS_PATCH_WRONGLY_ALLOWED")
+
+          assert path.read_bytes() == original
+          print("J_ONO_LEXICAL_POS_DRYRUN=PASS;PERSISTED=NO;RUNTIME_PROMOTION=NO")
+          PY
+
       - name: Verify no automatic semantic judgement or promotion
         run: |
           python - <<'PY'
