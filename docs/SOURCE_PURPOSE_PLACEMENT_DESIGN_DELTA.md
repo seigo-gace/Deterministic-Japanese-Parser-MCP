@@ -9,6 +9,22 @@ The goal is not to distribute 9,852,513 canonical records among 12 predefined bu
 
 An existing lane is a candidate destination, **not an exhaustive ontology and not an automatic acceptance rule**. If no existing responsibility can express a real reading requirement, propose the missing logical responsibility/field/retrieval consumer rather than force-fitting or silently discarding the data. Do not conflate a logical responsibility, a physical DB, a secondary facet, or an existing purpose/source-role mask.
 
+## Mandatory phase order — classify data before placement
+
+**Phase A: DATA CLASSIFICATION FIRST (blocking predecessor to placement design).**
+Inventory all existing raw/adapter/canonical datasets and inspect the *actual field values*, source definitions and lineage. Categorize each source record/field by evidenced information kind (surface/reading, morphology, source-authored lexical meaning, sense/relation, syntax/case, usage/context, discourse/document, quantitative/ranking evidence, provenance/rights, or OTHER/UNKNOWN). Record multiple functions where applicable; source_role is a preliminary hint, never a final classification. Produce field counts, concrete representative values, ambiguous/unknown buckets and source evidence. Rights/public eligibility are independently recorded.
+
+**Phase B: READING REQUIREMENT ANALYSIS.**
+Only after Phase A classification, decide which Japanese-reading phenomena each classified field may support, which cannot, where additional responsibility may be needed, and whether the field is review-only or eligible. Preserve missing/ambiguous classifications; never fill by guessing.
+
+**Phase C: LOGICAL PLACEMENT DESIGN.**
+Only after Phase A and B evidence, map to existing lanes/facets or explicitly propose a new responsibility. A physical DB count/layout is a later performance decision.
+
+**Phase D: IMPLEMENT → PROVE.**
+Compile permitted records via existing canonical/ledger pipeline, connect parser consumers, run real semantic preservation acceptance, and verify performance. Do not declare Phase A complete from config metadata or a CSV of source_role hints.
+
+The existing bootstrap script `tools/audit_source_purpose_inventory.py` provides **declarations-only preliminary metadata**, not Phase A field classification. Expand or replace its output with inspected actual data before claiming a classified inventory.
+
 ## Mandatory traceability model
 
 For each logical Source and meaningful field family (not only source file name), record:
@@ -35,7 +51,7 @@ Do not interpret a zero lane count as automatic proof of missing source, or a no
 
 ## Execution order and acceptance
 
-1. Read current source profiles, compiler assignments, canonical manifest and **actual** Full Build/Audit reports before modifying data. Inventory all registered logical sources (prior pipeline design documents describe 67 inputs/66 logical sources; remeasure Current rather than assume this is still exhaustive).
+1. **CLASSIFY ACTUAL DATA FIRST:** read source profiles, raw/adapter/canonical field values and manifests; enumerate field families, value types, source-authored semantics, record counts, unknowns and cross-source collisions before proposing any placement. Inventory all registered logical sources (prior pipeline design documents describe 67 inputs/66 logical sources; remeasure Current rather than assume this is still exhaustive).
 2. Produce a deterministic **Source × Field × Reading Need × Stage × Destination × Coverage × Runtime × Gap** inventory from existing assets, with evidence pointers and UNKNOWN for inaccessible artifacts; preserve rejected/unmapped field payloads.
 3. For each gap, apply the triage above. First use existing source adapter / ledger / canonical / projection / router / reader contracts; do not rebuild all records merely to produce the inventory.
 4. For each `MISSING_RESPONSIBILITY` candidate, prove that existing lane/facet cannot express the needed reading behavior. Specify logical interface, example input, expected MeaningGraph effect, data/rights lineage, decoder/router integration, schema/version/bitmask compatibility and rollback. A new lane or physical DB requires evidence and separate compatibility work, not just a label.
