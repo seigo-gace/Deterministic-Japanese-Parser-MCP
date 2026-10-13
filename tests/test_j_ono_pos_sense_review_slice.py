@@ -27,7 +27,7 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
     )
 
     pairs = payload["reviewed_pairs"]
-    assert len(pairs) == 52
+    assert len(pairs) == 59
     ids = [(row["jono_record_id"], row["jmdict_record_id"]) for row in pairs]
     assert len(set(ids)) == len(ids)
     for row in pairs:
@@ -40,9 +40,9 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
         assert row["rationale"].strip()
 
     assert payload["review_scope"] == "sense-equivalence-negative-examples"
-    assert payload["remaining_pairs_status"] == "NOT_ADJUDICATED_UNLESS_EXPLICITLY_LISTED"
+    assert payload["remaining_pairs_status"] == "94_PRIORITY_RECORDS_CLASSIFIED_NO_LEXICAL_APPROVAL"
     related = payload["candidate_sense_reviews"]
-    assert len(related) == 14
+    assert len(related) == 25
     sense_ids = [row["jmdict_sense_id"] for row in related]
     assert len(set(sense_ids)) == len(sense_ids)
     for row in related:
@@ -59,5 +59,16 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
         assert row["review_queue_morphology_pos"]
         assert row["jmdict_sense_pos"]
         assert row["lexical_pos_approval"] is False
+    unresolved = payload["unresolved_record_reviews"]
+    assert len(unresolved) == 10
+    for row in unresolved:
+        assert row["review_result"] == "INSUFFICIENT_SENSE_EVIDENCE"
+        assert row["rationale"].strip()
+        assert row["lexical_pos_approval"] is False
+        assert row["semantic_equivalence_approved"] is False
+
+    classified = [row["jono_record_id"] for row in pairs + related + unresolved]
+    assert len(classified) == 94
+    assert len(set(classified)) == 94
     assert payload["automatic_approval"] is False
     assert payload["runtime_promotion"] is False
