@@ -208,6 +208,31 @@ jobs:
           )
           if report["reading_unresolved_cluster_count"] != 124:
               raise SystemExit("J_ONO_SOURCE_EVIDENCE_TARGET_CLUSTER_COUNT_MISMATCH")
+          details = [
+              json.loads(line)
+              for line in Path("work/j-ono-source-evidence-effectiveness-details.jsonl")
+              .read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          if len(details) != 124:
+              raise SystemExit("J_ONO_PAIR_REVIEW_CLUSTER_COUNT_MISMATCH")
+          pair_count = 0
+          for cluster in details:
+              pairs = cluster["pair_review_evidence"]
+              expected = cluster["baseline_ambiguous_pairs"]
+              if len(pairs) != expected:
+                  raise SystemExit("J_ONO_PAIR_REVIEW_DETAILS_INCOMPLETE")
+              for pair in pairs:
+                  if (pair["semantic_equivalence_judgement"] != "NOT_ADJUDICATED"
+                      or pair["automatic_approval"] is not False
+                      or not pair["left_record_id"] or not pair["right_record_id"]
+                      or pair["left_record_id"] == pair["right_record_id"]
+                      or "example_metadata" in pair["distinguishing_semantic_dimensions"]):
+                      raise SystemExit("J_ONO_PAIR_REVIEW_EVIDENCE_BOUNDARY_BROKEN")
+              pair_count += len(pairs)
+          if pair_count != report["semantic_evidence"]["total_pairs"] or pair_count != 250:
+              raise SystemExit("J_ONO_PAIR_REVIEW_TOTAL_COUNT_MISMATCH")
+          print(f"J_ONO_PAIR_REVIEW_EVIDENCE=PASS;CLUSTERS={len(details)};PAIRS={pair_count};APPROVED=0")
           boundary = report["interpretation_boundary"]
           required_false = (
               "automatic_merge",
