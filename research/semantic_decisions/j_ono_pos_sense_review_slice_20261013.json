@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "purpose": "Provenance-locked sense review: 19 distinct negative sense matches and 14 related sense candidates with exact review-stage morphological POS versus JMdict sense POS; source POS unverified, all lexical decisions blocked.",
+  "purpose": "Complete conservative triage of 94 J-Ono strong POS-priority records into 59 non-equivalent record pairs, 25 sense-specific related but unresolved candidates, and 10 insufficient-evidence cases. Review-only; NOT final lexical decisions or runtime promotion.",
   "source": {
     "repo": "seigo-gace/Deterministic-Japanese-Parser-MCP",
     "pr": 56,
@@ -477,10 +477,73 @@
       "review_result": "SENSE_NON_EQUIVALENT",
       "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; surface/reading agreement does not establish sense identity.",
       "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-6d18d4dbdb05a8a6a7c8144d",
+      "jmdict_record_id": "JMD-d7829ff534640aba8d5a",
+      "source_meaning": "heavy impact sound",
+      "jmdict_gloss": "solfege note do",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-6f8647b1a949eda9929767fd",
+      "jmdict_record_id": "JMD-61b172cf2d2fab05ebf7",
+      "source_meaning": "sudden dash",
+      "jmdict_gloss": "wind whistling",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-7dd11429b3a5c6baa1c66ebe",
+      "jmdict_record_id": "JMD-b790fc550b0a7a1830bf",
+      "source_meaning": "tearing sound",
+      "jmdict_gloss": "bottom of ranking",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-902b80fa89db5060e0575b14",
+      "jmdict_record_id": "JMD-14fc93f88b2452c4a7bb",
+      "source_meaning": "sleeping breath",
+      "jmdict_gloss": "ska musical genre",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-af00534106b5c30bcba37253",
+      "jmdict_record_id": "JMD-af7158c318693b59fb30",
+      "source_meaning": "gentle touch",
+      "jmdict_gloss": "solfege so",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-bc534578fe50767f660ae683",
+      "jmdict_record_id": "JMD-8fcdd985c38fe031dee4",
+      "source_meaning": "understanding flash",
+      "jmdict_gloss": "with a bang",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c31d2b222266da408d8aacc5",
+      "jmdict_record_id": "JMD-c66a0e63a7e8fd6a1343",
+      "source_meaning": "emotion surge",
+      "jmdict_gloss": "good",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict concept differs from the frozen J-Ono meaning; no sense equivalence can be inferred from surface/reading alone.",
+      "lexical_pos_approval": false
     }
   ],
   "review_scope": "sense-equivalence-negative-examples",
-  "remaining_pairs_status": "NOT_ADJUDICATED_UNLESS_EXPLICITLY_LISTED",
+  "remaining_pairs_status": "94_PRIORITY_RECORDS_CLASSIFIED_NO_LEXICAL_APPROVAL",
   "automatic_approval": false,
   "runtime_promotion": false,
   "candidate_sense_reviews": [
@@ -766,6 +829,301 @@
       "source_authored_pos_resolved": false,
       "lexical_review_blocker": "source-part-of-speech-required",
       "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-21d99c9f82d5e604020a9e17",
+      "jmdict_record_id": "JMD-2ef1dc86257a468d000c",
+      "jmdict_sense_id": "JMD-2ef1dc86257a468d000c:jmdict:1111010:sense:001",
+      "source_meaning_abstract": "light laughter",
+      "jmdict_gloss_abstract": "hee hee hee",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-28da0f778a337a6d02f40514",
+      "jmdict_record_id": "JMD-f7ba244da6816ed1f86a",
+      "jmdict_sense_id": "JMD-f7ba244da6816ed1f86a:jmdict:2151700:sense:001",
+      "source_meaning_abstract": "mild alarm",
+      "jmdict_gloss_abstract": "blech",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:固有名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-2dbba7bb45da9f6d86023097",
+      "jmdict_record_id": "JMD-871517b45fb150e93e62",
+      "jmdict_sense_id": "JMD-871517b45fb150e93e62:jmdict:1001090:sense:001",
+      "source_meaning_abstract": "agreement nodding",
+      "jmdict_gloss_abstract": "uh huh",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-3811c950e283ed5f803da6ea",
+      "jmdict_record_id": "JMD-cce4424c605ad019f214",
+      "jmdict_sense_id": "JMD-cce4424c605ad019f214:jmdict:2121730:sense:001",
+      "source_meaning_abstract": "light foot contact",
+      "jmdict_gloss_abstract": "flat repeated contact",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般",
+        "空白"
+      ],
+      "jmdict_sense_pos": [
+        "adverb (fukushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-74a61de4030feb350ceb2a98",
+      "jmdict_record_id": "JMD-871517b45fb150e93e62",
+      "jmdict_sense_id": "JMD-871517b45fb150e93e62:jmdict:1001090:sense:003",
+      "source_meaning_abstract": "effort/pain grunt",
+      "jmdict_gloss_abstract": "oof",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-8cdf09edde1afb6166854c07",
+      "jmdict_record_id": "JMD-e484069daeb74191026e",
+      "jmdict_sense_id": "JMD-e484069daeb74191026e:jmdict:1011940:sense:002",
+      "source_meaning_abstract": "stunned open mouth",
+      "jmdict_gloss_abstract": "flabbergasted",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "adverb taking the 'to' particle"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-a06f076b63ce73c4e0a8f6a6",
+      "jmdict_record_id": "JMD-cce4424c605ad019f214",
+      "jmdict_sense_id": "JMD-cce4424c605ad019f214:jmdict:2121730:sense:002",
+      "source_meaning_abstract": "repeated patting",
+      "jmdict_gloss_abstract": "repeated applying/stamping",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般",
+        "空白"
+      ],
+      "jmdict_sense_pos": [
+        "adverb (fukushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-b83df843a965b757d7bd137c",
+      "jmdict_record_id": "JMD-b64e3185f4ee2d161a9b",
+      "jmdict_sense_id": "JMD-b64e3185f4ee2d161a9b:jmdict:2089690:sense:001",
+      "source_meaning_abstract": "surprised exclamation",
+      "jmdict_gloss_abstract": "oh!",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c841686ca3eda0a935495cde",
+      "jmdict_record_id": "JMD-ba1abccd51ccc903f5b2",
+      "jmdict_sense_id": "JMD-ba1abccd51ccc903f5b2:jmdict:2002810:sense:001",
+      "source_meaning_abstract": "short emotion vocalization",
+      "jmdict_gloss_abstract": "oof",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "interjection (kandoushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-e34f36d617d18ca9fa1b1dcb",
+      "jmdict_record_id": "JMD-f06536fba412d3beb3c0",
+      "jmdict_sense_id": "JMD-f06536fba412d3beb3c0:jmdict:2115030:sense:002",
+      "source_meaning_abstract": "missed or failed hit",
+      "jmdict_gloss_abstract": "blank failure",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般"
+      ],
+      "jmdict_sense_pos": [
+        "noun (common) (futsuumeishi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-ea30d4299366811cf986ceef",
+      "jmdict_record_id": "JMD-18cd49dd953bc76f4a3b",
+      "jmdict_sense_id": "JMD-18cd49dd953bc76f4a3b:jmdict:1631780:sense:002",
+      "source_meaning_abstract": "mechanical tension",
+      "jmdict_gloss_abstract": "binding tightly",
+      "review_result": "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false,
+      "rationale": "The described senses overlap, but context, source-authored POS and applicability remain unverified.",
+      "review_queue_morphology_pos": [
+        "名詞:普通名詞:一般",
+        "空白"
+      ],
+      "jmdict_sense_pos": [
+        "adverb (fukushi)"
+      ],
+      "source_authored_pos_resolved": false,
+      "lexical_review_blocker": "source-part-of-speech-required",
+      "pos_alignment_approved": false
+    }
+  ],
+  "unresolved_record_reviews": [
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-013c3e78faa7c23d5657b94e",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "rolling motion vs ground-ball sport sense; surface overlap without full sense evidence",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-095464390634ce55bf409789",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "dropping hard object vs impact sound; related cause/effect but not identical",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-28dc98bc4012ec2525a76e6e",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "contemplation vs polysemous un/affirmation/hesitation; unresolved sense boundary",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-796e3c4d2afa233b0d523437",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "excited reaction vs poof sound; context insufficient",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-91216f0b1fd4c6156e331837",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "rolling/dropping vs unrelated colon/roller/whale blubber senses; candidate-level ambiguity",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-a41201927e03d0f0fb3bdbdd",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "liquid spray vs whistle of wind; acoustic similarity not proven",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-bdaa7f7af892897fcf10bdf4",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "light impact vs poof; insufficient meaning equivalence",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c49bc956d9d2c2e130df3d30",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "sudden movement stop vs industrial strike; metaphoric similarity not enough",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-dac76cd159955b38d9ec0704",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "opening hand vs poof; aspectual overlap insufficient",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-e65938c1d7c0b69c4ac69736",
+      "review_result": "INSUFFICIENT_SENSE_EVIDENCE",
+      "rationale": "sudden glowing vs poof; context not aligned",
+      "lexical_pos_approval": false,
+      "semantic_equivalence_approved": false
     }
   ]
 }
