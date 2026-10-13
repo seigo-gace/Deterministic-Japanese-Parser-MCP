@@ -1115,6 +1115,26 @@ jobs:
           assert row["meaning_candidates"][0]["glosses"] == [
               "polite throat-clearing, often to regain composure"
           ]
+          for surface, reading, expected_id, expected_gloss in (
+              ("あはは", "アハハ", "ADAPTER-FROZEN-j-ono-definitions-0d6493711195aa74959767c4", "laughter, often long or repeated"),
+              ("ふむ", "フム", "ADAPTER-FROZEN-j-ono-definitions-c5ea288d4c27d8b9d5283b4f", "an utterance of thoughtful contemplation"),
+          ):
+              extra_token = Token(
+                  surface=surface,
+                  normalized=surface,
+                  reading=reading,
+                  pos=["感動詞"],
+                  span=OriginalSpan(start=0, end=len(surface), source_text=surface),
+              )
+              extra_rows = runtime.lookup_token(extra_token)
+              assert len(extra_rows) == 1, f"J_ONO_MISSING_EXPLICIT_RUNTIME_LOOKUP:{surface}"
+              extra_row = extra_rows[0]
+              assert extra_row["record_id"] == expected_id
+              assert extra_row["part_of_speech"] == ["interjection (kandoushi)"]
+              assert len(extra_row["meaning_candidates"]) == 1
+              assert extra_row["meaning_candidates"][0]["review_status"] == "approved"
+              assert extra_row["meaning_candidates"][0]["glosses"] == [expected_gloss]
+          print("J_ONO_THREE_EXPLICIT_RUNTIME_LOOKUPS=PASS;RECORDS=3;PROMOTION=NO")
           print("J_ONO_ISOLATED_RUNTIME_LOOKUP=PASS;RECORDS=3;PROMOTION=NO")
           from deterministic_japanese_parser_mcp import AnalyzeRequest, ParserEngine
           from deterministic_japanese_parser_mcp.config import Settings
