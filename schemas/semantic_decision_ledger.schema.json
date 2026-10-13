@@ -21,6 +21,7 @@
       "additionalProperties": false,
       "properties": {
         "meaning_candidates": {"type": "array", "items": {"type": "object"}},
+        "part_of_speech": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "parameters": {"type": "object"},
         "register": {"type": "object"},
         "context_conditions": {
