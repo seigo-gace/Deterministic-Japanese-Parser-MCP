@@ -402,3 +402,34 @@ def test_negative_direct_final_tags_do_not_leak_into_compiled_lane_membership():
     assert "Multiword" not in lanes
     assert "Orthography/Reading" in lanes
 
+
+def test_negated_source_role_cannot_become_usage_evidence():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_usage_labels,
+    )
+
+    row = _row(
+        "DF-NEG-USAGE",
+        usage_labels=["source-authored-positive-label"],
+        source_roles=["not usage", "non-context", "no-pragmatic", "register-unverified"],
+        entry_types=["not style"],
+    )
+    labels = _explicit_usage_labels(row)
+    assert "source-authored-positive-label" in labels
+    assert "not usage" not in labels
+    assert "non-context" not in labels
+    assert "no-pragmatic" not in labels
+    assert "not style" not in labels
+
+
+def test_registered_usage_role_is_still_preserved():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_usage_labels,
+    )
+
+    labels = _explicit_usage_labels(
+        _row("DF-POS-USAGE", usage_labels=[], source_roles=["register-formal", "usage"])
+    )
+    assert "register-formal" in labels
+    assert "usage" in labels
+
