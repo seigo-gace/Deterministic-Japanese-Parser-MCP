@@ -1459,3 +1459,61 @@ def test_direct_final_everyday_matrix_sense_regression() -> None:
             AnalyzeRequest(original_text=text, deadline_ms=5000)
         )
         assert str(response.overall_status) != "FAILED", text
+
+
+def test_exact_approved_mimetic_surface_recovers_split_sudachi_tokens(tmp_path: Path) -> None:
+    """An approved exact surface may span adjacent tokens, without rewriting them."""
+    record = {
+        "record_id": "JONO-EXACT-OHON-001",
+        "lemma": "ohon",
+        "surfaces": ["おほん"],
+        "readings": ["オホン"],
+        "part_of_speech": ["interjection (kandoushi)"],
+        "meaning_candidates": [{
+            "candidate_id": "JONO-EXACT-OHON-001:sense:001",
+            "label": "polite throat-clearing",
+            "glosses": ["polite throat-clearing"],
+            "review_status": "approved",
+        }],
+        "semantic_targets": ["lexicon"],
+        "source": _source("JONO-EXACT-OHON-001"),
+        "review_status": "approved",
+    }
+    runtime = SemanticDataRuntime(_compile_pack(tmp_path, [record]))
+    original = "おほん"
+    pieces = [
+        Token(
+            surface="お", normalized="お", reading="オ",
+            pos=["接頭辞"],
+            span=OriginalSpan(start=0, end=1, source_text="お"),
+        ),
+        Token(
+            surface="ほん", normalized="ほん", reading="ホン",
+            pos=["名詞", "普通名詞", "一般"],
+            span=OriginalSpan(start=1, end=3, source_text="ほん"),
+        ),
+    ]
+    assert all(runtime.lookup_token(token) == [] for token in pieces)
+    enriched = runtime.enrich(
+        _graph(original), tokens=pieces, original_text=original,
+        conversation_context=[], known_entities=[],
+    )
+    assert enriched.quality_annotations["semantic_data_pack_match_count"] == 1
+    assert any(
+        proposition.sense_id == "JONO-EXACT-OHON-001:sense:001"
+        for proposition in enriched.propositions
+    )
+
+    # Whitespace separates source spans: no cross-gap reconstruction.
+    separated = "お ほん"
+    gap_pieces = [
+        pieces[0],
+        pieces[1].model_copy(update={
+            "span": OriginalSpan(start=2, end=4, source_text="ほん"),
+        }),
+    ]
+    rejected = runtime.enrich(
+        _graph(separated), tokens=gap_pieces, original_text=separated,
+        conversation_context=[], known_entities=[],
+    )
+    assert rejected.quality_annotations["semantic_data_pack_match_count"] == 0
