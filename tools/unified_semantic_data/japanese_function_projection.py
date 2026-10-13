@@ -21,7 +21,7 @@ from .canonical_dictionary import validate_compiled_dictionary_root
 
 
 PROJECTION_SCHEMA_VERSION = "2.0.0"
-PROJECTION_POLICY_VERSION = "japanese-function-projection-v2"
+PROJECTION_POLICY_VERSION = "japanese-function-projection-v3"
 SCORING_POLICY_VERSION = "japanese-function-ranking-v1"
 
 LANES = (
@@ -67,9 +67,19 @@ _EXPLICIT_TARGET_RULES: dict[str, tuple[str, ...]] = {
     "Document Structure": ("document", "document-structure", "argumentation", "discourse-structure"),
 }
 
-_EXPLICIT_LABEL_RULES: dict[str, tuple[str, ...]] = {
-    "Onomatopoeia": ("onomatopoe", "mimetic", "擬音", "擬態"),
-    "Multiword": ("multiword", "idiom", "compound", "fixed expression", "熟語", "慣用"),
+_EXPLICIT_LABEL_RULES: dict[str, frozenset[str]] = {
+    # Only source-authored affirmative labels can assign a language-function
+    # lane. Substring tests would incorrectly promote "非擬音" or
+    # "not an idiom" into affirmative evidence.
+    "Onomatopoeia": frozenset({
+        "onomatopoeia", "onomatopoeic", "mimetic", "擬音", "擬音語",
+        "擬態", "擬態語", "擬声", "擬声語", "擬容", "擬情", "オノマトペ",
+    }),
+    "Multiword": frozenset({
+        "multiword", "multiword expression", "idiom", "idiomatic expression",
+        "compound", "compound word", "fixed expression", "fixed-expression",
+        "熟語", "慣用", "慣用句", "慣用表現", "複合語",
+    }),
 }
 
 _KNOWN_TOP_LEVEL_FIELDS = frozenset({
@@ -137,13 +147,15 @@ def _pos_text(record: dict[str, Any]) -> str:
     return " ".join(_flatten_text(record.get("part_of_speech") or [])).casefold()
 
 
-def _label_text(record: dict[str, Any]) -> str:
-    values: list[str] = []
-    values.extend(_flatten_text((record.get("semantic_facets") or {}).get("usage_labels") or []))
+def _explicit_labels(record: dict[str, Any]) -> frozenset[str]:
+    labels: list[str] = []
+    facets = record.get("semantic_facets") or {}
+    if isinstance(facets, dict):
+        labels.extend(_flatten_text(facets.get("usage_labels") or []))
     for sense in record.get("senses") or []:
         if isinstance(sense, dict):
-            values.extend(_flatten_text(sense.get("labels") or []))
-    return " ".join(values).casefold()
+            labels.extend(_flatten_text(sense.get("labels") or []))
+    return frozenset(label.strip().casefold() for label in labels if label.strip())
 
 
 def _has_nonempty(record: dict[str, Any], *keys: str) -> bool:
@@ -171,9 +183,9 @@ def assign_record_lanes(record: dict[str, Any]) -> dict[str, tuple[str, ...]]:
         if any(marker in targets for marker in markers):
             reasons[lane].append("semantic_target")
 
-    label_text = _label_text(record)
-    for lane, markers in _EXPLICIT_LABEL_RULES.items():
-        if any(marker.casefold() in label_text for marker in markers):
+    labels = _explicit_labels(record)
+    for lane, allowed_labels in _EXPLICIT_LABEL_RULES.items():
+        if labels.intersection(allowed_labels):
             reasons[lane].append("explicit_usage_or_sense_label")
 
     if record.get("senses"):
