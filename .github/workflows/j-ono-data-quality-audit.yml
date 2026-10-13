@@ -1128,6 +1128,16 @@ jobs:
           result = engine.analyze(AnalyzeRequest(
               original_text="おほん。", deadline_ms=5000
           ))
+          print("J_ONO_PARSER_TOKENS=" + str([
+              {"surface": t.surface, "reading": t.reading, "pos": t.pos}
+              for t in result.tokens
+          ]), flush=True)
+          print("J_ONO_PARSER_PACK_METRICS=" + str(
+              result.meaning_graph.quality_annotations
+          ), flush=True)
+          print("J_ONO_PARSER_RUNTIME_METRICS=" + str(
+              engine.semantic_data.last_metrics
+          ), flush=True)
           assert result.meaning_graph.quality_annotations.get(
               "semantic_data_pack_match_count", 0
           ) >= 1, "J_ONO_PARSER_MEANING_PACK_NOT_CONSUMED"
