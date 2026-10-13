@@ -53,6 +53,11 @@ def test_negative_sense_reviews_are_provenance_bound_and_never_approvals() -> No
         assert row["jmdict_gloss_abstract"].strip()
         assert row["review_result"] == "SEMANTICALLY_RELATED_REQUIRES_SCOPE_REVIEW"
         assert row["semantic_equivalence_approved"] is False
+        assert row["source_authored_pos_resolved"] is False
+        assert row["lexical_review_blocker"] == "source-part-of-speech-required"
+        assert row["pos_alignment_approved"] is False
+        assert row["review_queue_morphology_pos"]
+        assert row["jmdict_sense_pos"]
         assert row["lexical_pos_approval"] is False
     assert payload["automatic_approval"] is False
     assert payload["runtime_promotion"] is False
