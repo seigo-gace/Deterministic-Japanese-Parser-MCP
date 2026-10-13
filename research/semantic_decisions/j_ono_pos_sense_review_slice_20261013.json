@@ -1,0 +1,189 @@
+{
+  "schema_version": "1.0.0",
+  "purpose": "Manually reviewed negative sense-alignment examples from the exact J-Ono Data Quality Audit artifact. Evidence-only; not a Decision Ledger, no automatic POS, approval or runtime promotion.",
+  "source": {
+    "repo": "seigo-gace/Deterministic-Japanese-Parser-MCP",
+    "pr": 56,
+    "head": "d4e652718242c8c23129c65437e8230621817041",
+    "run_id": 38277024445,
+    "artifact_id": 11759482589,
+    "pr26_review_queue_sha256": "29afe10d8d7f2696ff5bcbee9aefedcd2e438e4ff76c138386bc8504d606db17"
+  },
+  "reviewed_pairs": [
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-0ba57c074005cfbbc63763ec",
+      "jmdict_record_id": "JMD-439144b14c05736a624d",
+      "source_meaning": "realization",
+      "jmdict_gloss": "iroha sequence / musical note E",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-129bd454c6eb41a04438f04d",
+      "jmdict_record_id": "JMD-2fbe3040b70e73c84618",
+      "source_meaning": "buzzing sound",
+      "jmdict_gloss": "gin (alcohol)",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-14e4d168d95b1ccef1ea21fd",
+      "jmdict_record_id": "JMD-670d7cc75b377e5f49ef",
+      "source_meaning": "wobbling motion",
+      "jmdict_gloss": "pull",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-202b7ecef5f6c3df37c09424",
+      "jmdict_record_id": "JMD-2ef1dc86257a468d000c",
+      "source_meaning": "fast movement",
+      "jmdict_gloss": "laughter",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-26bdd619ddbf9e69675d818b",
+      "jmdict_record_id": "JMD-14bffe0c4b46deda4485",
+      "source_meaning": "small jerk or twitch",
+      "jmdict_gloss": "SI pico prefix",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-2af16cef7e7a7b7efe3f0790",
+      "jmdict_record_id": "JMD-d7829ff534640aba8d5a",
+      "source_meaning": "heartbeat or throbbing",
+      "jmdict_gloss": "solfege do / C note",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-31413ee73f40f9f68ff78c69",
+      "jmdict_record_id": "JMD-32967617886d30ae77ec",
+      "source_meaning": "gentle nibbling",
+      "jmdict_gloss": "ham meat / radio amateur",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-39eddd5bb6e47bcb22a46dd7",
+      "jmdict_record_id": "JMD-d4f6468123450571e118",
+      "source_meaning": "doorbell sound",
+      "jmdict_gloss": "table tennis",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-3dab8543a84ab69284aa40ef",
+      "jmdict_record_id": "JMD-42dc2f31c533fbed1861",
+      "source_meaning": "cat meow",
+      "jmdict_gloss": "grammatical contraction 'nya'",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-4b2f6ac3e6fb58e848d72136",
+      "jmdict_record_id": "JMD-b790fc550b0a7a1830bf",
+      "source_meaning": "trembling",
+      "jmdict_gloss": "last place in a ranking",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-4d113b6ae706cb49940fd9eb",
+      "jmdict_record_id": "JMD-57c36b8b6c943de45f41",
+      "source_meaning": "beckoning gesture",
+      "jmdict_gloss": "Khoi people",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-4f286497da1e8df07b3a088b",
+      "jmdict_record_id": "JMD-26b2d4ce705945baa915",
+      "source_meaning": "metallic clinking",
+      "jmdict_gloss": "bicycle",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-502877f74edd25cb3146e674",
+      "jmdict_record_id": "JMD-a523f7a1b7b7df5c85ae",
+      "source_meaning": "limp from exhaustion",
+      "jmdict_gloss": "henna",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-68bbcff94597993546d2f404",
+      "jmdict_record_id": "JMD-251827a1af9f6262ea99",
+      "source_meaning": "soft thud",
+      "jmdict_gloss": "boss / leader",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-a82c5785e15741e33ab735f2",
+      "jmdict_record_id": "JMD-efdfb4a07c3f69abb935",
+      "source_meaning": "wolf howl",
+      "jmdict_gloss": "Korean won currency",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-c920eeb0aae42f6753bae840",
+      "jmdict_record_id": "JMD-efdfb4a07c3f69abb935",
+      "source_meaning": "alarm or siren",
+      "jmdict_gloss": "Korean won currency",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-d6f98988adde6a670d6e1730",
+      "jmdict_record_id": "JMD-67382e043ecd301f965b",
+      "source_meaning": "emotional breakdown and crying",
+      "jmdict_gloss": "chemical element boron",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-e38268c27c548bd576dad98a",
+      "jmdict_record_id": "JMD-40892b68e8249c3fd6cf",
+      "source_meaning": "impact sound",
+      "jmdict_gloss": "bun hairstyle",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    },
+    {
+      "jono_record_id": "FROZEN-j-ono-definitions-f177f09623269b6b283855ac",
+      "jmdict_record_id": "JMD-d7829ff534640aba8d5a",
+      "source_meaning": "engine rumble",
+      "jmdict_gloss": "solfege do / C note",
+      "review_result": "SENSE_NON_EQUIVALENT",
+      "rationale": "The referenced JMdict gloss denotes a different concept than the frozen J-Ono meaning; orthographic/reading matches do not establish sense identity.",
+      "lexical_pos_approval": false
+    }
+  ],
+  "review_scope": "sense-equivalence-negative-examples",
+  "remaining_pairs_status": "NOT_REVIEWED",
+  "automatic_approval": false,
+  "runtime_promotion": false
+}
