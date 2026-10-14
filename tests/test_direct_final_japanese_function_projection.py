@@ -554,3 +554,35 @@ def test_existing_context_candidates_are_stored_separately_from_approved_records
         ("SLANG-a", "slang", "needs-evidence", "確認中"),
     ]
 
+
+def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _load_context_expression_candidates,
+    )
+
+    root = Path(__file__).resolve().parents[1] / "research/context_collection/expansion_v3"
+    db = projection._connect(tmp_path / "real-context.sqlite3")
+    try:
+        counts = _load_context_expression_candidates(db, root)
+        total = db.execute("SELECT COUNT(*) FROM context_expression_candidate").fetchone()[0]
+        unreviewed = db.execute(
+            "SELECT COUNT(*) FROM context_expression_candidate "
+            "WHERE review_status='needs-evidence'"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert counts == {
+        "dialect": 400,
+        "discourse": 400,
+        "epistemic": 200,
+        "honorific": 500,
+        "media_community": 500,
+        "metaphor": 500,
+        "modality": 500,
+        "onomatopoeia": 700,
+        "reference": 300,
+        "slang": 1000,
+    }
+    assert total == 5000
+    assert unreviewed == 5000
+
