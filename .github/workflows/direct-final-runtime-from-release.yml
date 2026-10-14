@@ -21,6 +21,10 @@ on:
         description: "Also build and audit the Japanese-function projection over every Direct Final record"
         required: true
         default: "false"
+      projection-only:
+        description: "Build only the classification DB, without recompiling Parser runtime"
+        required: false
+        default: "false"
 
   workflow_call:
     inputs:
@@ -40,6 +44,10 @@ on:
       projection-full-build:
         type: string
         required: true
+      projection-only:
+        type: string
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -182,6 +190,7 @@ jobs:
           test -f work/direct-final-release-input/manifest.json || find work/direct-final-release-input -name manifest.json -print -quit | grep -q .
 
       - name: Compile Direct Final runtime into existing ABIs
+        if: inputs['projection-only'] != 'true'
         run: |
           set -euo pipefail
           mkdir -p reports work/direct-final-runtime
@@ -312,6 +321,7 @@ jobs:
         run: python -m pytest tests/test_direct_final_japanese_function_projection.py tests/test_japanese_function_projection.py
 
       - name: Enforce completed semantic deployment contract
+        if: inputs['projection-only'] != 'true'
         run: |
           python scripts/direct_final_deployment_contract.py \
             --require-direct-final \
@@ -319,6 +329,7 @@ jobs:
             --output reports/direct-final-deployment-contract.json
 
       - name: Verify parser, dictionaries and runtime safety
+        if: inputs['projection-only'] != 'true'
         run: |
           python -m pytest \
             tests/test_direct_final_runtime_integration.py \
@@ -334,9 +345,11 @@ jobs:
           python -m compileall -q src tools scripts tests
 
       - name: Build wheel with Direct Final runtime
+        if: inputs['projection-only'] != 'true'
         run: python -m build --wheel --outdir dist
 
       - name: Verify Direct Final wheel outside repository
+        if: inputs['projection-only'] != 'true'
         run: |
           python -m venv --system-site-packages /tmp/djpmcp-direct-final-wheel
           /tmp/djpmcp-direct-final-wheel/bin/pip install \
