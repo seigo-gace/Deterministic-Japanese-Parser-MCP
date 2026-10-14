@@ -448,32 +448,43 @@ def compile_direct_final_projection(
                 unmapped_field_counts[field_name] += 1
                 unmapped_count += 1
             record_id = str(row["entry_id"])
+            declared_roles = _declared_record_roles(row, source_profiles)
             identity_sha = _semantic_identity_sha(row)
             existing = connection.execute(
                 "SELECT canonical_record_id FROM record_identity WHERE identity_sha256=?",
                 (identity_sha,),
             ).fetchone()
+            canonical_id = str(existing[0]) if existing is not None else record_id
             if existing is not None:
                 connection.execute(
                     "INSERT INTO duplicate_record(duplicate_record_id,canonical_record_id,identity_sha256) VALUES(?,?,?)",
-                    (record_id, str(existing[0]), identity_sha),
+                    (record_id, canonical_id, identity_sha),
                 )
                 duplicate_count += 1
-                continue
-            connection.execute(
-                "INSERT INTO record_identity(identity_sha256,canonical_record_id) VALUES(?,?)",
-                (identity_sha, record_id),
-            )
-            record = _projection_record(row, manifest_sha=manifest_sha, version=version)
-            # Retain original, explicitly declared source responsibilities;
-            # the 12 language-function lanes are not a replacement for these.
-            declared_roles = _declared_record_roles(row, source_profiles)
-            for source_role in declared_roles:
+            else:
                 connection.execute(
-                    "INSERT INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
-                    (record_id, source_role),
+                    "INSERT INTO record_identity(identity_sha256,canonical_record_id) VALUES(?,?)",
+                    (identity_sha, record_id),
                 )
-                source_purpose_counts[source_role] += 1
+            # Equivalent meaning records may have different original source
+            # responsibilities. Union all documented purposes without
+            # counting a duplicate as a second lexical record.
+            for source_role in declared_roles:
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
+                    (canonical_id, source_role),
+                )
+                if cursor.rowcount:
+                    source_purpose_counts[source_role] += 1
+            if existing is not None:
+                if declared_roles:
+                    deleted = connection.execute(
+                        "DELETE FROM purpose_unresolved_record WHERE record_id=?",
+                        (canonical_id,),
+                    ).rowcount
+                    unresolved_purpose_count -= deleted
+                continue
+            record = _projection_record(row, manifest_sha=manifest_sha, version=version)
             # Orthogonal expression classification does not claim approved
             # lexical meaning, POS, or Japanese grammar membership.
             for attribute in _explicit_expression_attributes(row):
