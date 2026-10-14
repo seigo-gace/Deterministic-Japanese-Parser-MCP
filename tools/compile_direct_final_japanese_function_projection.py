@@ -405,10 +405,6 @@ def compile_direct_final_projection(
     duplicate_count = 0
     unresolved_purpose_count = 0
     expression_attribute_counts: Counter[str] = Counter()
-    dataset_record_counts: Counter[str] = Counter()
-    dataset_unresolved_counts: Counter[str] = Counter()
-    dataset_lane_counts: dict[str, Counter[str]] = {}
-    dataset_unknown_pos_counts: Counter[str] = Counter()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -427,11 +423,6 @@ def compile_direct_final_projection(
             for field_name in sorted(set(row) - _DIRECT_TO_PROJECTION_FIELDS):
                 unmapped_field_counts[field_name] += 1
                 unmapped_count += 1
-            dataset_ids = _unique(row.get("source_datasets")) or ["__NO_SOURCE_DATASET__"]
-            for dataset_id in dataset_ids:
-                dataset_record_counts[dataset_id] += 1
-                if "X" in _unique(row.get("pos")):
-                    dataset_unknown_pos_counts[dataset_id] += 1
             record_id = str(row["entry_id"])
             identity_sha = _semantic_identity_sha(row)
             existing = connection.execute(
@@ -482,13 +473,9 @@ def compile_direct_final_projection(
                         (record_id, "no_supported_japanese_reading_use"),
                     )
                     unresolved_purpose_count += 1
-                    for dataset_id in dataset_ids:
-                        dataset_unresolved_counts[dataset_id] += 1
                 membership_count += len(lanes)
                 for lane in lanes:
                     lane_counts[lane] += 1
-                    for dataset_id in dataset_ids:
-                        dataset_lane_counts.setdefault(dataset_id, Counter())[lane] += 1
 
         if context_root is not None:
             context_summary = _load_context_expression_candidates(
@@ -548,16 +535,6 @@ def compile_direct_final_projection(
         "context_collection_counts": context_collection_counts,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
-        "unmapped_field_counts_by_name": dict(sorted(unmapped_field_counts.items())),
-        "source_dataset_purpose_audit": {
-            dataset_id: {
-                "records": dataset_record_counts[dataset_id],
-                "purpose_unresolved": dataset_unresolved_counts[dataset_id],
-                "pos_X": dataset_unknown_pos_counts[dataset_id],
-                "lanes": dict(sorted(dataset_lane_counts.get(dataset_id, {}).items())),
-            }
-            for dataset_id in sorted(dataset_record_counts)
-        },
         "duplicate_record_count": duplicate_count,
         "lanes": list(projection.LANES),
         "lane_counts": lane_counts,
