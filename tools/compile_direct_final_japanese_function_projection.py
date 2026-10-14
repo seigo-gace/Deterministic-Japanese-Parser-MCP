@@ -159,6 +159,27 @@ def _explicit_usage_labels(row: dict[str, Any]) -> list[str]:
     return sorted(labels)
 
 
+_EXPRESSION_ATTRIBUTE_TAGS: dict[str, frozenset[str]] = {
+    "onomatopoeia": frozenset({"onomatopoeia", "onomatopoeic", "mimetic", "擬音", "擬音語", "擬態", "擬態語", "オノマトペ"}),
+    "slang": frozenset({"slang", "youth-slang", "youth-language", "若者言葉", "若者語", "俗語", "ネットスラング"}),
+    "dialect": frozenset({"dialect", "regional", "regional-language", "方言", "地域語"}),
+    "colloquial": frozenset({"colloquial", "casual", "口語", "話し言葉"}),
+}
+
+
+def _explicit_expression_attributes(row: dict[str, Any]) -> list[str]:
+    # Classify sociolinguistic/expressive use independently of grammar lanes.
+    # Only positive source-authored tags; never infer meaning from surface.
+    tags: set[str] = set()
+    for field in ("entry_types", "usage_labels", "semantic_targets", "source_roles"):
+        tags.update(value.strip().casefold().replace("_", "-") for value in _tag_texts(row.get(field)))
+    attributes = {
+        attr for attr, positives in _EXPRESSION_ATTRIBUTE_TAGS.items()
+        if tags.intersection(positives)
+    }
+    return sorted(attributes)
+
+
 def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
     relation_types: list[str] = []
     for relation in row.get("relations") or []:
@@ -327,6 +348,7 @@ def compile_direct_final_projection(
     unmapped_count = 0
     duplicate_count = 0
     unresolved_purpose_count = 0
+    expression_attribute_counts: Counter[str] = Counter()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -361,6 +383,14 @@ def compile_direct_final_projection(
                 (identity_sha, record_id),
             )
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
+            # Orthogonal expression classification does not claim approved
+            # lexical meaning, POS, or Japanese grammar membership.
+            for attribute in _explicit_expression_attributes(row):
+                connection.execute(
+                    "INSERT INTO record_expression_attribute(record_id,attribute) VALUES(?,?)",
+                    (record_id, attribute),
+                )
+                expression_attribute_counts[attribute] += 1
             lanes = projection.assign_record_lanes(record)
             if not lanes:
                 connection.execute(
@@ -435,6 +465,7 @@ def compile_direct_final_projection(
         "projected_record_count": projected_count,
         "rejected_record_count": rejected_count,
         "purpose_unresolved_record_count": unresolved_purpose_count,
+        "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
         "duplicate_record_count": duplicate_count,
