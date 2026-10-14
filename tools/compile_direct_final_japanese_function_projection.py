@@ -428,6 +428,7 @@ def compile_direct_final_projection(
     unresolved_purpose_count = 0
     expression_attribute_counts: Counter[str] = Counter()
     source_purpose_counts: Counter[str] = Counter()
+    translation_evidence_count = 0
     source_profiles = _load_declared_source_roles()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
@@ -485,6 +486,26 @@ def compile_direct_final_projection(
                 )
                 if cursor.rowcount:
                     expression_attribute_counts[attribute] += 1
+            # Store verbatim cross-lingual evidence separately. A translation is
+            # not a source-authorized Japanese definition or a guessed sense.
+            translations = row.get("translations")
+            if translations:
+                payload_json = json.dumps(
+                    translations, ensure_ascii=False, sort_keys=True,
+                    separators=(",", ":"), default=str,
+                )
+                source_ids = json.dumps(
+                    _unique(row.get("source_datasets")), ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_translation_evidence"
+                    "(record_id,source_datasets,payload_sha256,payload_json) VALUES(?,?,?,?)",
+                    (canonical_id, source_ids,
+                     projection._stable_json_sha256(translations), payload_json),
+                )
+                if cursor.rowcount:
+                    translation_evidence_count += 1
             if existing is not None:
                 if declared_roles or attributes:
                     deleted = connection.execute(
@@ -577,6 +598,7 @@ def compile_direct_final_projection(
         "purpose_unresolved_record_count": unresolved_purpose_count,
         "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
         "source_purpose_counts": dict(sorted(source_purpose_counts.items())),
+        "translation_evidence_count": translation_evidence_count,
         "context_candidate_counts": context_candidate_counts,
         "context_collection_counts": context_collection_counts,
         "lane_membership_count": membership_count,
