@@ -645,3 +645,40 @@ def test_original_source_roles_are_preserved_across_language_functions(tmp_path:
     assert ("DF-TRANSLATE", "translation") in pairs
     assert ("DF-RELATION", "knowledge-relation") in pairs
     assert noun_mask & projection.LANE_BITS["Noun-Entity"]
+
+def test_original_67_source_registry_classifies_unlabeled_existing_datasets(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _load_declared_source_roles, _declared_record_roles,
+    )
+    profiles = _load_declared_source_roles()
+    assert len(profiles) >= 67
+    assert _declared_record_roles(
+        {"source_datasets": ["dbcls-species-multilingual"], "source_roles": []},
+        profiles,
+    ) == ["entity", "translation"]
+    assert _declared_record_roles(
+        {"source_datasets": ["dbcls-species-japanese"], "source_roles": []},
+        profiles,
+    ) == ["domain-term", "entity"]
+    assert _declared_record_roles(
+        {"source_datasets": ["j-unimorph"], "source_roles": []},
+        profiles,
+    ) == ["morphology"]
+    assert _declared_record_roles(
+        {"source_datasets": ["wlsp-school-grade"], "source_roles": []},
+        profiles,
+    ) == ["education"]
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [
+        _row("S-1", source_datasets=["dbcls-species-multilingual"], source_roles=[], senses=[], pos=["X"]),
+        _row("S-2", source_datasets=["j-unimorph"], source_roles=[], senses=[], pos=["X"]),
+    ])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "db",
+    )
+    assert result["source_purpose_counts"] == {
+        "entity": 1, "morphology": 1, "translation": 1,
+    }
+    projection.validate_projection_bundle(tmp_path / "db")
