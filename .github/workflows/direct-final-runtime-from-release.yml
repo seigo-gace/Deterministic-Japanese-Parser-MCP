@@ -52,7 +52,7 @@ jobs:
       RELEASE_TAG: ${{ inputs['release-tag'] || 'direct-final-runtime-v1' }}
       ASSET_PATTERN: ${{ inputs['asset-pattern'] || 'mcp-runtime-final-*' }}
       BUNDLE_ROOT: ${{ inputs['bundle-root'] || '' }}
-      EXPECTED_RECORDS: ${{ inputs['expected-records'] || '9852513' }}
+      EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
       PROJECTION_FULL_BUILD: ${{ inputs['projection-full-build'] }}
       GH_TOKEN: ${{ github.token }}
     steps:
