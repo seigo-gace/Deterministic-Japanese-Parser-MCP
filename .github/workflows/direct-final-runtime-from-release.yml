@@ -21,33 +21,6 @@ on:
         description: "Also build and audit the Japanese-function projection over every Direct Final record"
         required: true
         default: "false"
-      projection-only:
-        description: "Build only the classification DB, without recompiling Parser runtime"
-        required: false
-        default: "false"
-
-  workflow_call:
-    inputs:
-      release-tag:
-        type: string
-        required: true
-      asset-pattern:
-        type: string
-        required: true
-      bundle-root:
-        type: string
-        required: false
-        default: ''
-      expected-records:
-        type: string
-        required: true
-      projection-full-build:
-        type: string
-        required: true
-      projection-only:
-        type: string
-        required: false
-        default: 'false'
 
 permissions:
   contents: read
@@ -57,9 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      RELEASE_TAG: ${{ inputs['release-tag'] || 'direct-final-runtime-v1' }}
-      ASSET_PATTERN: ${{ inputs['asset-pattern'] || 'mcp-runtime-final-*' }}
-      BUNDLE_ROOT: ${{ inputs['bundle-root'] || '' }}
+      RELEASE_TAG: ${{ inputs['release-tag'] }}
+      ASSET_PATTERN: ${{ inputs['asset-pattern'] }}
+      BUNDLE_ROOT: ${{ inputs['bundle-root'] }}
       EXPECTED_RECORDS: ${{ inputs['expected-records'] }}
       PROJECTION_FULL_BUILD: ${{ inputs['projection-full-build'] }}
       GH_TOKEN: ${{ github.token }}
@@ -190,7 +163,6 @@ jobs:
           test -f work/direct-final-release-input/manifest.json || find work/direct-final-release-input -name manifest.json -print -quit | grep -q .
 
       - name: Compile Direct Final runtime into existing ABIs
-        if: inputs['projection-only'] != 'true'
         run: |
           set -euo pipefail
           mkdir -p reports work/direct-final-runtime
@@ -321,7 +293,6 @@ jobs:
         run: python -m pytest tests/test_direct_final_japanese_function_projection.py tests/test_japanese_function_projection.py
 
       - name: Enforce completed semantic deployment contract
-        if: inputs['projection-only'] != 'true'
         run: |
           python scripts/direct_final_deployment_contract.py \
             --require-direct-final \
@@ -329,7 +300,6 @@ jobs:
             --output reports/direct-final-deployment-contract.json
 
       - name: Verify parser, dictionaries and runtime safety
-        if: inputs['projection-only'] != 'true'
         run: |
           python -m pytest \
             tests/test_direct_final_runtime_integration.py \
@@ -345,11 +315,9 @@ jobs:
           python -m compileall -q src tools scripts tests
 
       - name: Build wheel with Direct Final runtime
-        if: inputs['projection-only'] != 'true'
         run: python -m build --wheel --outdir dist
 
       - name: Verify Direct Final wheel outside repository
-        if: inputs['projection-only'] != 'true'
         run: |
           python -m venv --system-site-packages /tmp/djpmcp-direct-final-wheel
           /tmp/djpmcp-direct-final-wheel/bin/pip install \
@@ -391,6 +359,5 @@ jobs:
             dictionaries/system/compiled/direct_final_integration.json
             dictionaries/system/compiled/direct_final_support
             work/direct-final-japanese-function-projection/manifest.json
-            work/direct-final-japanese-function-projection/projection.sqlite3
           if-no-files-found: warn
           retention-days: 30
