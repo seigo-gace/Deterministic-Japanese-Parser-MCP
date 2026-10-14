@@ -326,6 +326,7 @@ def compile_direct_final_projection(
     membership_count = 0
     unmapped_count = 0
     duplicate_count = 0
+    unresolved_purpose_count = 0
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -373,6 +374,17 @@ def compile_direct_final_projection(
                     "INSERT INTO record_projection(record_id,lane_mask) VALUES(?,?)",
                     (record_id, projection.lane_mask_for(lanes)),
                 )
+                # Orthography and provenance identify the record but do not
+                # establish where Japanese comprehension will consume it.
+                reading_use_lanes = set(lanes) - {
+                    "Orthography/Reading", "Evidence-Provenance-Rights",
+                }
+                if not reading_use_lanes:
+                    connection.execute(
+                        "INSERT INTO purpose_unresolved_record(record_id,reason) VALUES(?,?)",
+                        (record_id, "no_supported_japanese_reading_use"),
+                    )
+                    unresolved_purpose_count += 1
                 membership_count += len(lanes)
                 for lane in lanes:
                     lane_counts[lane] += 1
@@ -422,6 +434,7 @@ def compile_direct_final_projection(
         "observed_canonical_record_count": source_count,
         "projected_record_count": projected_count,
         "rejected_record_count": rejected_count,
+        "purpose_unresolved_record_count": unresolved_purpose_count,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
         "duplicate_record_count": duplicate_count,
