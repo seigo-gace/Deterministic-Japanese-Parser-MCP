@@ -337,11 +337,34 @@ def _load_context_expression_candidates(connection, root: Path) -> dict[str, dic
         collection_counts[collection_category] += 1
         review = str(record.get("review_status") or "needs-evidence").strip()
         license_value = str(record.get("license") or "unknown").strip()
+        stable_json = lambda value: json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+        )
+        # Keep source-authored candidate meanings and usage evidence in the DB.
+        # Candidate status is unchanged; none of this asserts semantic approval.
         connection.execute(
             "INSERT INTO context_expression_candidate"
-            "(entry_id,expression_attribute,collection_category,surface,source_path,review_status,source_license)"
-            " VALUES(?,?,?,?,?,?,?)",
-            (entry_id, category, collection_category, surface, str(path.relative_to(root)), review, license_value),
+            "(entry_id,expression_attribute,collection_category,surface,source_path,review_status,source_license,"
+            "reading,variants_json,meaning_candidates_json,usage_context_json,source_evidence_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                entry_id, category, collection_category, surface,
+                str(path.relative_to(root)), review, license_value,
+                str(record.get("reading") or ""),
+                stable_json(record.get("variants") or []),
+                stable_json(record.get("meaning_candidates") or []),
+                stable_json({
+                    key: record.get(key)
+                    for key in ("domain", "politeness", "generation", "community",
+                                "positive_examples", "negative_examples", "boundary_examples")
+                    if key in record
+                }),
+                stable_json({
+                    key: record.get(key)
+                    for key in ("source", "source_version", "provenance")
+                    if key in record
+                }),
+            ),
         )
         counts[category] += 1
     return {"expression": dict(sorted(counts.items())), "collection": dict(sorted(collection_counts.items()))}
