@@ -20,7 +20,7 @@ from typing import Any
 from .canonical_dictionary import validate_compiled_dictionary_root
 
 
-PROJECTION_SCHEMA_VERSION = "2.6.0"
+PROJECTION_SCHEMA_VERSION = "2.7.0"
 PROJECTION_POLICY_VERSION = "japanese-function-projection-v3"
 SCORING_POLICY_VERSION = "japanese-function-ranking-v1"
 
@@ -260,6 +260,13 @@ def _connect(path: Path) -> sqlite3.Connection:
             source_role TEXT NOT NULL,
             PRIMARY KEY(record_id,source_role)
         ) WITHOUT ROWID;
+        CREATE TABLE record_translation_evidence(
+            record_id TEXT NOT NULL,
+            source_datasets TEXT NOT NULL,
+            payload_sha256 TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            PRIMARY KEY(record_id,source_datasets,payload_sha256)
+        ) WITHOUT ROWID;
                 CREATE TABLE record_expression_attribute(
             record_id TEXT NOT NULL,
             attribute TEXT NOT NULL,
@@ -334,6 +341,9 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
                 "SELECT source_role,COUNT(*) FROM record_source_purpose GROUP BY source_role"
             )
         }
+        translation_evidence_count = int(connection.execute(
+            "SELECT COUNT(*) FROM record_translation_evidence"
+        ).fetchone()[0])
         context_candidate_counts = {
             attribute: count for attribute, count in connection.execute(
                 "SELECT expression_attribute,COUNT(*) FROM context_expression_candidate GROUP BY expression_attribute"
@@ -381,6 +391,8 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         raise ValueError("projection bundle expression attribute count mismatch")
     if source_purpose_counts != dict(manifest.get("source_purpose_counts") or {}):
         raise ValueError("projection bundle source purpose count mismatch")
+    if translation_evidence_count != int(manifest.get("translation_evidence_count", 0)):
+        raise ValueError("projection bundle translation evidence count mismatch")
     if context_candidate_counts != dict(manifest.get("context_candidate_counts") or {}):
         raise ValueError("projection bundle context candidate count mismatch")
     if context_collection_counts != dict(manifest.get("context_collection_counts") or {}):
