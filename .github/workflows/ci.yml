@@ -76,3 +76,4 @@ jobs:
       bundle-root: ''
       expected-records: '9852513'
       projection-full-build: 'true'
+      projection-only: 'true'
