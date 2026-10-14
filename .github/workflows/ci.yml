@@ -64,16 +64,3 @@ jobs:
           path: reports
           if-no-files-found: warn
           retention-days: 30
-
-  full-purpose-classification:
-    # Execute the existing 9.85m-record release build only in this isolated
-    # purpose-classification CU, never on unrelated pushes or pull requests.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/projection-explicit-label-evidence-20261014'
-    uses: ./.github/workflows/direct-final-runtime-from-release.yml
-    with:
-      release-tag: direct-final-runtime-v1
-      asset-pattern: mcp-runtime-final-*
-      bundle-root: ''
-      expected-records: '9852513'
-      projection-full-build: 'true'
-      projection-only: 'true'
