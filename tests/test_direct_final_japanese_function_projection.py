@@ -470,3 +470,49 @@ def test_orthography_only_records_are_tracked_as_unresolved_reading_use(tmp_path
         db.close()
     assert unresolved == [("DF-UNRESOLVED", "no_supported_japanese_reading_use")]
 
+
+def test_expression_attributes_coexist_with_grammar_and_lexical_lanes(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_expression_attributes,
+    )
+
+    source = tmp_path / "source"
+    rows = [
+        _row("DF-SLANG", surface="アオハル", entry_types=["slang"], usage_labels=["若者語"], pos=["名詞"]),
+        _row("DF-DIALECT", surface="西", entry_types=["dialect"], usage_labels=["口語"], pos=["名詞"]),
+        _row("DF-ONO", surface="ゴロゴロ", entry_types=["onomatopoeia"], usage_labels=["slang"], pos=["副詞"]),
+        _row("DF-NEG", surface="不採用", entry_types=["not slang"], usage_labels=["非擬音"], pos=["名詞"]),
+    ]
+    assert _explicit_expression_attributes(rows[0]) == ["slang"]
+    assert _explicit_expression_attributes(rows[1]) == ["colloquial", "dialect"]
+    assert _explicit_expression_attributes(rows[2]) == ["onomatopoeia", "slang"]
+    assert _explicit_expression_attributes(rows[3]) == []
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["expression_attribute_counts"] == {
+        "colloquial": 1, "dialect": 1, "onomatopoeia": 1, "slang": 2,
+    }
+    validated = projection.validate_projection_bundle(tmp_path / "projection")
+    assert validated["expression_attribute_counts"] == result["expression_attribute_counts"]
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        pairs = set(db.execute(
+            "SELECT record_id,attribute FROM record_expression_attribute"
+        ))
+        noun_mask = db.execute(
+            "SELECT lane_mask FROM record_projection WHERE record_id='DF-SLANG'"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert ("DF-SLANG", "slang") in pairs
+    assert ("DF-DIALECT", "dialect") in pairs
+    assert ("DF-DIALECT", "colloquial") in pairs
+    assert ("DF-ONO", "slang") in pairs
+    assert ("DF-ONO", "onomatopoeia") in pairs
+    assert all(record_id != "DF-NEG" for record_id, _ in pairs)
+    assert noun_mask & projection.LANE_BITS["Noun-Entity"]
+
