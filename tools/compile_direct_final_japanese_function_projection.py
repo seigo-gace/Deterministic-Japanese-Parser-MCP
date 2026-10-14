@@ -65,8 +65,8 @@ def _unique(values: Any) -> list[str]:
 
 
 _TAG_TO_TARGETS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("onomatopoe", "mimetic", "擬音", "擬態"), "onomatopoeia"),
-    (("multiword", "idiom", "compound", "fixed-expression", "fixed expression", "熟語", "慣用", "複合語"), "multiword"),
+    (("onomatopoeia", "onomatopoeic", "mimetic", "擬音", "擬音語", "擬態", "擬態語", "擬声", "擬声語", "擬容", "擬情", "オノマトペ"), "onomatopoeia"),
+    (("multiword", "multiword expression", "idiom", "idiomatic expression", "compound", "fixed-expression", "fixed expression", "熟語", "慣用", "慣用句", "慣用表現", "複合語"), "multiword"),
     (("syntax", "dependency", "predicate-argument", "係り受け", "構文"), "syntax"),
     (("case", "格関係"), "case"),
     (("clause", "節関係"), "clause"),
@@ -113,10 +113,21 @@ def _explicit_semantic_targets(row: dict[str, Any]) -> list[str]:
         if isinstance(relation, dict):
             tag_values.extend(_tag_texts(relation.get("type")))
             tag_values.extend(_tag_texts(relation.get("relation_type")))
-    normalized = " ".join(value.casefold().replace("_", "-") for value in tag_values)
+    # Match each source-authored tag independently. Concatenated substring
+    # matching could turn a negative label such as "非擬音" into affirmative
+    # Onomatopoeia evidence, or promote "not an idiom" into Multiword.
+    normalized_tags = {value.strip().casefold().replace("_", "-") for value in tag_values}
     for markers, target in _TAG_TO_TARGETS:
-        if any(marker.casefold().replace("_", "-") in normalized for marker in markers):
+        if normalized_tags.intersection(
+            marker.casefold().replace("_", "-") for marker in markers
+        ):
             targets.add(target)
+
+    # Known provenance tags such as "register-formal" still indicate usage
+    # evidence, without letting a negated phrase imply positive semantics.
+    if any(tag.startswith(("register-", "usage-", "context-", "pragmatic-", "style-"))
+           for tag in normalized_tags):
+        targets.add("usage")
 
     source_datasets = {value.casefold() for value in _unique(row.get("source_datasets"))}
     for target, source_ids in _SOURCE_DATASET_TARGETS.items():
@@ -139,9 +150,56 @@ def _explicit_usage_labels(row: dict[str, Any]) -> list[str]:
     labels = set(_unique(row.get("usage_labels")))
     for value in _tag_texts(row.get("entry_types")) + _tag_texts(row.get("source_roles")):
         text = value.casefold()
-        if any(marker in text for marker in ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")):
+        # Source roles are routing hints, not free-form semantic assertions.
+        # Prefixes indicate positive registered usage roles; a negated
+        # phrase such as "not usage" or "non-context" must not match.
+        markers = ("usage", "context", "pragmatic", "register", "style", "用法", "文脈", "語用")
+        if any(text == marker or text.startswith(marker + "-") for marker in markers):
             labels.add(value)
     return sorted(labels)
+
+
+_EXPRESSION_ATTRIBUTE_TAGS: dict[str, frozenset[str]] = {
+    "onomatopoeia": frozenset({"onomatopoeia", "onomatopoeic", "mimetic", "擬音", "擬音語", "擬態", "擬態語", "オノマトペ"}),
+    "slang": frozenset({"slang", "youth-slang", "youth-language", "若者言葉", "若者語", "俗語", "ネットスラング"}),
+    "dialect": frozenset({"dialect", "regional", "regional-language", "方言", "地域語"}),
+    "colloquial": frozenset({"colloquial", "casual", "口語", "話し言葉"}),
+}
+
+
+def _explicit_expression_attributes(row: dict[str, Any]) -> list[str]:
+    # Classify sociolinguistic/expressive use independently of grammar lanes.
+    # Only positive source-authored tags; never infer meaning from surface.
+    tags: set[str] = set()
+    for field in ("entry_types", "usage_labels", "semantic_targets", "source_roles"):
+        tags.update(value.strip().casefold().replace("_", "-") for value in _tag_texts(row.get(field)))
+    attributes = {
+        attr for attr, positives in _EXPRESSION_ATTRIBUTE_TAGS.items()
+        if tags.intersection(positives)
+    }
+    return sorted(attributes)
+
+
+def _load_declared_source_roles() -> dict[str, tuple[str, ...]]:
+    """Reuse the original 67-source intake contract, not inferred semantics."""
+    profiles = json.loads(
+        (_REPOSITORY_ROOT / "config/source_payload_profiles.json").read_text(encoding="utf-8")
+    )
+    return {
+        str(source["source_id"]): tuple(_unique(source.get("source_roles")))
+        for source in profiles["sources"]
+    }
+
+
+def _declared_record_roles(
+    row: dict[str, Any], source_profiles: dict[str, tuple[str, ...]]
+) -> list[str]:
+    # Original record-authored roles and source-registry roles are both evidence.
+    # These are *purpose labels*, not assertions that any candidate sense is approved.
+    roles = set(_unique(row.get("source_roles")))
+    for dataset in _unique(row.get("source_datasets")):
+        roles.update(source_profiles.get(dataset, ()))
+    return sorted(roles)
 
 
 def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
@@ -279,11 +337,67 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
     }
 
 
+def _load_context_expression_candidates(connection, root: Path) -> dict[str, dict[str, int]]:
+    """Index collected context data without approving its candidate meanings."""
+    import yaml
+
+    counts: Counter[str] = Counter()
+    collection_counts: Counter[str] = Counter()
+    paths = sorted(root.rglob("*.yaml"))
+    if not paths:
+        raise ValueError(f"context collection has no YAML records: {root}")
+    for path in paths:
+        record = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            raise ValueError(f"invalid context record: {path}")
+        entry_id = str(record.get("entry_id") or "").strip()
+        surface = str(record.get("surface") or "").strip()
+        category = str(record.get("feature_type") or record.get("category") or "").strip().casefold()
+        if not entry_id or not surface or not category:
+            raise ValueError(f"missing context identity/type: {path}")
+        collection_category = path.relative_to(root).parts[0]
+        collection_counts[collection_category] += 1
+        review = str(record.get("review_status") or "needs-evidence").strip()
+        license_value = str(record.get("license") or "unknown").strip()
+        stable_json = lambda value: json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+        )
+        # Keep source-authored candidate meanings and usage evidence in the DB.
+        # Candidate status is unchanged; none of this asserts semantic approval.
+        connection.execute(
+            "INSERT INTO context_expression_candidate"
+            "(entry_id,expression_attribute,collection_category,surface,source_path,review_status,source_license,"
+            "reading,variants_json,meaning_candidates_json,usage_context_json,source_evidence_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                entry_id, category, collection_category, surface,
+                str(path.relative_to(root)), review, license_value,
+                str(record.get("reading") or ""),
+                stable_json(record.get("variants") or []),
+                stable_json(record.get("meaning_candidates") or []),
+                stable_json({
+                    key: record.get(key)
+                    for key in ("domain", "politeness", "generation", "community",
+                                "positive_examples", "negative_examples", "boundary_examples")
+                    if key in record
+                }),
+                stable_json({
+                    key: record.get(key)
+                    for key in ("source", "source_version", "provenance")
+                    if key in record
+                }),
+            ),
+        )
+        counts[category] += 1
+    return {"expression": dict(sorted(counts.items())), "collection": dict(sorted(collection_counts.items()))}
+
+
 def compile_direct_final_projection(
     *,
     manifest_path: Path,
     input_root: Path,
     output_root: Path,
+    context_root: Path | None = None,
 ) -> dict[str, Any]:
     manifest_path = Path(manifest_path)
     input_root = Path(input_root)
@@ -311,6 +425,11 @@ def compile_direct_final_projection(
     membership_count = 0
     unmapped_count = 0
     duplicate_count = 0
+    unresolved_purpose_count = 0
+    expression_attribute_counts: Counter[str] = Counter()
+    source_purpose_counts: Counter[str] = Counter()
+    translation_evidence_count = 0
+    source_profiles = _load_declared_source_roles()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -318,6 +437,8 @@ def compile_direct_final_projection(
         for name in ("pos", "entry_types", "source_datasets", "source_roles", "relation_types", "sense_labels", "semantic_targets", "usage_labels")
     }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
+    context_candidate_counts: dict[str, int] = {}
+    context_collection_counts: dict[str, int] = {}
 
     try:
         for row in _rows(parts):
@@ -328,22 +449,71 @@ def compile_direct_final_projection(
                 unmapped_field_counts[field_name] += 1
                 unmapped_count += 1
             record_id = str(row["entry_id"])
+            declared_roles = _declared_record_roles(row, source_profiles)
             identity_sha = _semantic_identity_sha(row)
             existing = connection.execute(
                 "SELECT canonical_record_id FROM record_identity WHERE identity_sha256=?",
                 (identity_sha,),
             ).fetchone()
+            canonical_id = str(existing[0]) if existing is not None else record_id
             if existing is not None:
                 connection.execute(
                     "INSERT INTO duplicate_record(duplicate_record_id,canonical_record_id,identity_sha256) VALUES(?,?,?)",
-                    (record_id, str(existing[0]), identity_sha),
+                    (record_id, canonical_id, identity_sha),
                 )
                 duplicate_count += 1
+            else:
+                connection.execute(
+                    "INSERT INTO record_identity(identity_sha256,canonical_record_id) VALUES(?,?)",
+                    (identity_sha, record_id),
+                )
+            # Equivalent meaning records may have different original source
+            # responsibilities. Union all documented purposes without
+            # counting a duplicate as a second lexical record.
+            for source_role in declared_roles:
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
+                    (canonical_id, source_role),
+                )
+                if cursor.rowcount:
+                    source_purpose_counts[source_role] += 1
+            # Expressive attributes also survive source-level duplicates.
+            attributes = _explicit_expression_attributes(row)
+            for attribute in attributes:
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_expression_attribute(record_id,attribute) VALUES(?,?)",
+                    (canonical_id, attribute),
+                )
+                if cursor.rowcount:
+                    expression_attribute_counts[attribute] += 1
+            # Store verbatim cross-lingual evidence separately. A translation is
+            # not a source-authorized Japanese definition or a guessed sense.
+            translations = row.get("translations")
+            if translations:
+                payload_json = json.dumps(
+                    translations, ensure_ascii=False, sort_keys=True,
+                    separators=(",", ":"), default=str,
+                )
+                source_ids = json.dumps(
+                    _unique(row.get("source_datasets")), ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_translation_evidence"
+                    "(record_id,source_datasets,payload_sha256,payload_json) VALUES(?,?,?,?)",
+                    (canonical_id, source_ids,
+                     projection._stable_json_sha256(translations), payload_json),
+                )
+                if cursor.rowcount:
+                    translation_evidence_count += 1
+            if existing is not None:
+                if declared_roles or attributes:
+                    deleted = connection.execute(
+                        "DELETE FROM purpose_unresolved_record WHERE record_id=?",
+                        (canonical_id,),
+                    ).rowcount
+                    unresolved_purpose_count -= deleted
                 continue
-            connection.execute(
-                "INSERT INTO record_identity(identity_sha256,canonical_record_id) VALUES(?,?)",
-                (identity_sha, record_id),
-            )
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
             lanes = projection.assign_record_lanes(record)
             if not lanes:
@@ -358,9 +528,27 @@ def compile_direct_final_projection(
                     "INSERT INTO record_projection(record_id,lane_mask) VALUES(?,?)",
                     (record_id, projection.lane_mask_for(lanes)),
                 )
+                # Orthography and provenance identify the record but do not
+                # establish where Japanese comprehension will consume it.
+                reading_use_lanes = set(lanes) - {
+                    "Orthography/Reading", "Evidence-Provenance-Rights",
+                }
+                if not reading_use_lanes and not declared_roles and not attributes:
+                    connection.execute(
+                        "INSERT INTO purpose_unresolved_record(record_id,reason) VALUES(?,?)",
+                        (record_id, "no_supported_japanese_reading_use"),
+                    )
+                    unresolved_purpose_count += 1
                 membership_count += len(lanes)
                 for lane in lanes:
                     lane_counts[lane] += 1
+
+        if context_root is not None:
+            context_summary = _load_context_expression_candidates(
+                connection, Path(context_root)
+            )
+            context_candidate_counts = context_summary["expression"]
+            context_collection_counts = context_summary["collection"]
 
         connection.executemany(
             "INSERT INTO unmapped_field_summary(field_name,record_count) VALUES(?,?)",
@@ -407,6 +595,12 @@ def compile_direct_final_projection(
         "observed_canonical_record_count": source_count,
         "projected_record_count": projected_count,
         "rejected_record_count": rejected_count,
+        "purpose_unresolved_record_count": unresolved_purpose_count,
+        "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
+        "source_purpose_counts": dict(sorted(source_purpose_counts.items())),
+        "translation_evidence_count": translation_evidence_count,
+        "context_candidate_counts": context_candidate_counts,
+        "context_collection_counts": context_collection_counts,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
         "duplicate_record_count": duplicate_count,
@@ -478,11 +672,16 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--input-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument(
+        "--context-root", type=Path,
+        default=_REPOSITORY_ROOT / "research/context_collection/expansion_v3",
+    )
     args = parser.parse_args()
     result = compile_direct_final_projection(
         manifest_path=args.manifest,
         input_root=args.input_root,
         output_root=args.output_root,
+        context_root=args.context_root,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0

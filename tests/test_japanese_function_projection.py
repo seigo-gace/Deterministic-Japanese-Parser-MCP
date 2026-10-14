@@ -84,6 +84,35 @@ def test_assignment_uses_only_explicit_record_evidence():
     assert lanes["Evidence-Provenance-Rights"] == ("source_or_approval_evidence",)
 
 
+def test_negative_and_partial_labels_do_not_invent_function_lanes():
+    record = _record(
+        part_of_speech=["名詞"],
+        senses=[],
+        morphology={},
+        pragmatics={},
+        semantic_facets={
+            "semantic_targets": [],
+            "usage_labels": ["非擬音", "not an idiom", "擬音ではない", "compound-not-verified"],
+        },
+    )
+    lanes = projection.assign_record_lanes(record)
+    assert "Onomatopoeia" not in lanes
+    assert "Multiword" not in lanes
+    assert "Noun-Entity" in lanes
+
+
+def test_source_authored_grammar_labels_retain_expected_lanes():
+    record = _record(
+        part_of_speech=["感動詞"],
+        senses=[{"labels": ["擬音語", "慣用表現"]}],
+        semantic_facets={"semantic_targets": [], "usage_labels": []},
+    )
+    lanes = projection.assign_record_lanes(record)
+    assert "Onomatopoeia" in lanes
+    assert "Multiword" in lanes
+    assert "explicit_usage_or_sense_label" in lanes["Onomatopoeia"]
+
+
 def test_assignment_does_not_invent_unrepresented_lanes():
     lanes = projection.assign_record_lanes(
         {

@@ -348,3 +348,365 @@ def test_direct_final_projection_dedupes_same_semantic_record_without_collapsing
     assert {"record_projection", "unmapped_field_summary", "duplicate_record"}.issubset(tables)
     assert result["boundaries"]["storage_model"] == "single-record-lane-bitmask-v1"
     assert result["boundaries"]["build_identity_persisted"] is False
+
+def test_negative_direct_final_labels_do_not_promote_lanes():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_semantic_targets,
+    )
+
+    row = _row(
+        "DF-NEG",
+        pos=["名詞"],
+        source_roles=["not an idiom", "非擬音", "non-multiword"],
+        entry_types=["not-onomatopoeia"],
+        usage_labels=["擬音ではない", "not a compound"],
+        semantic_targets=[],
+    )
+    targets = _explicit_semantic_targets(row)
+    assert "onomatopoeia" not in targets
+    assert "multiword" not in targets
+
+
+def test_positive_direct_final_source_roles_still_route():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_semantic_targets,
+    )
+
+    row = _row(
+        "DF-POS",
+        pos=["名詞"],
+        source_roles=["discourse-structure", "multiword"],
+        entry_types=["onomatopoeia"],
+        semantic_targets=[],
+    )
+    targets = _explicit_semantic_targets(row)
+    assert {"document-structure", "multiword", "onomatopoeia"}.issubset(targets)
+
+
+def test_negative_direct_final_tags_do_not_leak_into_compiled_lane_membership():
+    from tools.compile_direct_final_japanese_function_projection import _projection_record
+
+    row = _row(
+        "DF-NEG-PROJECTION",
+        pos=["名詞"],
+        source_roles=["非擬音", "not an idiom"],
+        entry_types=["not-onomatopoeia"],
+        usage_labels=["擬音ではない"],
+        semantic_targets=[],
+    )
+    projected = _projection_record(row, manifest_sha="a" * 64, version="v1")
+    lanes = projection.assign_record_lanes(projected)
+    assert "onomatopoeia" not in projected["semantic_facets"]["semantic_targets"]
+    assert "multiword" not in projected["semantic_facets"]["semantic_targets"]
+    assert "Onomatopoeia" not in lanes
+    assert "Multiword" not in lanes
+    assert "Orthography/Reading" in lanes
+
+
+def test_negated_source_role_cannot_become_usage_evidence():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_usage_labels,
+    )
+
+    row = _row(
+        "DF-NEG-USAGE",
+        usage_labels=["source-authored-positive-label"],
+        source_roles=["not usage", "non-context", "no-pragmatic", "register-unverified"],
+        entry_types=["not style"],
+    )
+    labels = _explicit_usage_labels(row)
+    assert "source-authored-positive-label" in labels
+    assert "not usage" not in labels
+    assert "non-context" not in labels
+    assert "no-pragmatic" not in labels
+    assert "not style" not in labels
+
+
+def test_registered_usage_role_is_still_preserved():
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_usage_labels,
+    )
+
+    labels = _explicit_usage_labels(
+        _row("DF-POS-USAGE", usage_labels=[], source_roles=["register-formal", "usage"])
+    )
+    assert "register-formal" in labels
+    assert "usage" in labels
+
+
+def test_orthography_only_records_are_tracked_as_unresolved_reading_use(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row(
+            "DF-UNRESOLVED",
+            pos=[],
+            senses=[],
+            relations=[],
+            entry_types=[],
+            source_roles=[],
+            semantic_targets=[],
+            usage_labels=[],
+            pragmatics={},
+        ),
+        _row("DF-NOUN", pos=["名詞"], senses=[], relations=[], entry_types=[]),
+    ]
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["canonical_record_count"] == 2
+    assert result["projected_record_count"] == 2
+    assert result["purpose_unresolved_record_count"] == 1
+
+    validated = projection.validate_projection_bundle(tmp_path / "projection")
+    assert validated["purpose_unresolved_record_count"] == 1
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        unresolved = list(db.execute(
+            "SELECT record_id,reason FROM purpose_unresolved_record ORDER BY record_id"
+        ))
+    finally:
+        db.close()
+    assert unresolved == [("DF-UNRESOLVED", "no_supported_japanese_reading_use")]
+
+
+def test_expression_attributes_coexist_with_grammar_and_lexical_lanes(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _explicit_expression_attributes,
+    )
+
+    source = tmp_path / "source"
+    rows = [
+        _row("DF-SLANG", surface="アオハル", entry_types=["slang"], usage_labels=["若者語"], pos=["名詞"]),
+        _row("DF-DIALECT", surface="西", entry_types=["dialect"], usage_labels=["口語"], pos=["名詞"]),
+        _row("DF-ONO", surface="ゴロゴロ", entry_types=["onomatopoeia"], usage_labels=["slang"], pos=["副詞"]),
+        _row("DF-NEG", surface="不採用", entry_types=["not slang"], usage_labels=["非擬音"], pos=["名詞"]),
+    ]
+    assert _explicit_expression_attributes(rows[0]) == ["slang"]
+    assert _explicit_expression_attributes(rows[1]) == ["colloquial", "dialect"]
+    assert _explicit_expression_attributes(rows[2]) == ["onomatopoeia", "slang"]
+    assert _explicit_expression_attributes(rows[3]) == []
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["expression_attribute_counts"] == {
+        "colloquial": 1, "dialect": 1, "onomatopoeia": 1, "slang": 2,
+    }
+    validated = projection.validate_projection_bundle(tmp_path / "projection")
+    assert validated["expression_attribute_counts"] == result["expression_attribute_counts"]
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        pairs = set(db.execute(
+            "SELECT record_id,attribute FROM record_expression_attribute"
+        ))
+        noun_mask = db.execute(
+            "SELECT lane_mask FROM record_projection WHERE record_id='DF-SLANG'"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert ("DF-SLANG", "slang") in pairs
+    assert ("DF-DIALECT", "dialect") in pairs
+    assert ("DF-DIALECT", "colloquial") in pairs
+    assert ("DF-ONO", "slang") in pairs
+    assert ("DF-ONO", "onomatopoeia") in pairs
+    assert all(record_id != "DF-NEG" for record_id, _ in pairs)
+    assert noun_mask & projection.LANE_BITS["Noun-Entity"]
+
+
+def test_existing_context_candidates_are_stored_separately_from_approved_records(tmp_path: Path):
+    context = tmp_path / "context"
+    (context / "slang").mkdir(parents=True)
+    (context / "dialect").mkdir()
+    (context / "slang" / "a.yaml").write_text(
+        "entry_id: SLANG-a\nsurface: アオハル\nfeature_type: slang\n"
+        "review_status: needs-evidence\nlicense: 確認中\n", encoding="utf-8"
+    )
+    (context / "dialect" / "b.yaml").write_text(
+        "entry_id: DIALECT-b\nsurface: 西\nfeature_type: dialect\n"
+        "review_status: needs-evidence\nlicense: CC BY-SA 4.0\n", encoding="utf-8"
+    )
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [_row("DF-APPROVED")])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+        context_root=context,
+    )
+    assert result["context_candidate_counts"] == {"dialect": 1, "slang": 1}
+    assert result["context_collection_counts"] == {"dialect": 1, "slang": 1}
+    projection.validate_projection_bundle(tmp_path / "projection")
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        candidates = list(db.execute(
+            "SELECT entry_id,expression_attribute,review_status,source_license "
+            "FROM context_expression_candidate ORDER BY entry_id"
+        ))
+        registered = db.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0]
+    finally:
+        db.close()
+    assert registered == 1
+    assert candidates == [
+        ("DIALECT-b", "dialect", "needs-evidence", "CC BY-SA 4.0"),
+        ("SLANG-a", "slang", "needs-evidence", "確認中"),
+    ]
+
+
+def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _load_context_expression_candidates,
+    )
+
+    root = Path(__file__).resolve().parents[1] / "research/context_collection/expansion_v3"
+    db = projection._connect(tmp_path / "real-context.sqlite3")
+    try:
+        counts = _load_context_expression_candidates(db, root)
+        total = db.execute("SELECT COUNT(*) FROM context_expression_candidate").fetchone()[0]
+        unreviewed = db.execute(
+            "SELECT COUNT(*) FROM context_expression_candidate "
+            "WHERE review_status='needs-evidence'"
+        ).fetchone()[0]
+        sample = db.execute(
+            "SELECT meaning_candidates_json,usage_context_json,source_evidence_json "
+            "FROM context_expression_candidate WHERE entry_id='SLANG-ac9c9bea5684'"
+        ).fetchone()
+    finally:
+        db.close()
+    assert counts["collection"] == {
+        "dialect": 400,
+        "discourse": 400,
+        "epistemic": 200,
+        "honorific": 500,
+        "media_community": 500,
+        "metaphor": 500,
+        "modality": 500,
+        "onomatopoeia": 700,
+        "reference": 300,
+        "slang": 1000,
+    }
+    assert counts["expression"] == {
+        "dialect": 400,
+        "discourse": 400,
+        "honorific": 500,
+        "metaphor": 500,
+        "modality": 700,
+        "onomatopoeia": 700,
+        "reference": 300,
+        "slang": 1500,
+    }
+    assert total == 5000
+    assert unreviewed == 5000
+    assert sample is not None
+    import json
+    meanings, context, evidence = (json.loads(v) for v in sample)
+    assert meanings and "Young" in str(meanings[0].get("meaning", ""))
+    assert "若者" in context.get("community", [])
+    assert evidence.get("source")
+
+
+
+def test_original_source_roles_are_preserved_across_language_functions(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row("DF-DOMAIN", pos=["名詞"], source_roles=["domain-term", "lexical-definition"]),
+        _row("DF-TRANSLATE", pos=["名詞"], source_roles=["translation"]),
+        _row("DF-RELATION", pos=["X"], source_roles=["knowledge-relation"]),
+    ]
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["source_purpose_counts"] == {
+        "domain-term": 1,
+        "knowledge-relation": 1,
+        "lexical-definition": 1,
+        "translation": 1,
+    }
+    projection.validate_projection_bundle(tmp_path / "projection")
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        pairs = set(db.execute(
+            "SELECT record_id,source_role FROM record_source_purpose"
+        ))
+        noun_mask = db.execute(
+            "SELECT lane_mask FROM record_projection WHERE record_id='DF-DOMAIN'"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert ("DF-DOMAIN", "domain-term") in pairs
+    assert ("DF-DOMAIN", "lexical-definition") in pairs
+    # Semantically identical records fold into the first canonical ID, while\n    # preserving their different source purposes.\n    assert ("DF-DOMAIN", "translation") in pairs
+    assert ("DF-RELATION", "knowledge-relation") in pairs
+    assert noun_mask & projection.LANE_BITS["Noun-Entity"]
+
+def test_original_67_source_registry_classifies_unlabeled_existing_datasets(tmp_path: Path):
+    from tools.compile_direct_final_japanese_function_projection import (
+        _load_declared_source_roles, _declared_record_roles,
+    )
+    profiles = _load_declared_source_roles()
+    assert len(profiles) >= 67
+    assert _declared_record_roles(
+        {"source_datasets": ["dbcls-species-multilingual"], "source_roles": []},
+        profiles,
+    ) == ["entity", "translation"]
+    assert _declared_record_roles(
+        {"source_datasets": ["dbcls-species-japanese"], "source_roles": []},
+        profiles,
+    ) == ["domain-term", "entity"]
+    assert _declared_record_roles(
+        {"source_datasets": ["j-unimorph"], "source_roles": []},
+        profiles,
+    ) == ["morphology"]
+    assert _declared_record_roles(
+        {"source_datasets": ["wlsp-school-grade"], "source_roles": []},
+        profiles,
+    ) == ["education"]
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [
+        _row("S-1", source_datasets=["dbcls-species-multilingual"], source_roles=[], senses=[], pos=["X"]),
+        _row("S-2", source_datasets=["j-unimorph"], source_roles=[], senses=[], pos=["X"]),
+    ])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "db",
+    )
+    assert result["source_purpose_counts"] == {
+        "entity": 1, "morphology": 1, "translation": 1,
+    }
+    projection.validate_projection_bundle(tmp_path / "db")
+
+def test_original_translation_evidence_survives_canonical_dedup(tmp_path: Path):
+    import json
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [
+        _row("TRANS-A", surface="あお", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["blue"], pos=["名詞"]),
+        _row("TRANS-B", surface="あお", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["blue"], pos=["名詞"]),
+        _row("TRANS-C", surface="みどり", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["green"], pos=["名詞"]),
+    ])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path, input_root=source, output_root=tmp_path / "db",
+    )
+    assert result["translation_evidence_count"] == 2
+    projection.validate_projection_bundle(tmp_path / "db")
+    db = sqlite3.connect(tmp_path / "db" / "projection.sqlite3")
+    try:
+        entries = list(db.execute(
+            "SELECT record_id,source_datasets,payload_json FROM record_translation_evidence "
+            "ORDER BY record_id"
+        ))
+    finally:
+        db.close()
+    assert [entry[0] for entry in entries] == ["TRANS-A", "TRANS-C"]
+    assert json.loads(entries[0][2]) == ["blue"]
+    assert "dbcls-species-multilingual" in json.loads(entries[0][1])
