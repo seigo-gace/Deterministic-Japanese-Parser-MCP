@@ -64,3 +64,85 @@ jobs:
           path: reports
           if-no-files-found: warn
           retention-days: 30
+
+  inspect-original-data-batches:
+    # One-off direct data inspection. Remove immediately after reading results.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/projection-explicit-label-evidence-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        batch: [0, 1, 2, 3]
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read all original Direct Final data in four independent batches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/djp-batch-input reports
+          first=$((1 + ${{ matrix.batch }} * 4))
+          last=$((first + 3))
+          args=()
+          for (( i=first; i<=last; i++ )); do
+            printf -v suffix '%03d' "$i"
+            args+=(--pattern "mcp-runtime-final-part-${suffix}.jsonl.gz")
+          done
+          gh release download direct-final-runtime-v1 --repo seigo-gace/Deterministic-Japanese-Parser-MCP "${args[@]}" --dir /tmp/djp-batch-input
+          BATCH=${{ matrix.batch }} python3 - <<'PY'
+          import collections, gzip, json, os
+          from pathlib import Path
+          inp=Path('/tmp/djp-batch-input')
+          profiles=json.loads(Path('config/source_payload_profiles.json').read_text())
+          declared={p['source_id']:tuple(p.get('source_roles') or ()) for p in profiles['sources']}
+          batch=int(os.environ['BATCH'])
+          overall=collections.Counter()
+          fields=collections.Counter()
+          roles=collections.Counter()
+          datasets=collections.defaultdict(collections.Counter)
+          samples=collections.defaultdict(list)
+          positive={'onomatopoeia','mimetic','擬音','擬態','オノマトペ','slang','若者語','俗語','方言','dialect'}
+          for path in sorted(inp.glob('mcp-runtime-final-part-*.jsonl.gz')):
+            for line in gzip.open(path,'rt',encoding='utf-8'):
+              row=json.loads(line)
+              overall['records']+=1
+              ss=row.get('senses') or []
+              rel=row.get('relations') or []
+              attrs=set(map(str,row.get('usage_labels') or []))|set(map(str,row.get('semantic_targets') or []))
+              ds=row.get('source_datasets') or ['__NO_DATASET__']
+              rowroles=set(row.get('source_roles') or [])
+              for d in ds:
+                rowroles.update(declared.get(d,()))
+              flags={'no_senses':not ss,'has_senses':bool(ss),'no_pos':not row.get('pos'),'pos_X':'X' in (row.get('pos') or []),'no_roles':not rowroles,'has_relation':bool(rel),'has_examples':bool(row.get('examples')),'expressive_tag':bool(attrs&positive),'no_usage_label':not row.get('usage_labels')}
+              for k,v in flags.items():
+                if v: overall[k]+=1
+              for k in row: fields[k]+=1
+              for role in rowroles: roles[role]+=1
+              for d in ds:
+                stats=datasets[d];stats['records']+=1
+                for k,v in flags.items():
+                  if v: stats[k]+=1
+                if flags['no_senses'] and any(r in rowroles for r in ('lexical-definition','usage')):
+                  stats['lexical_or_usage_without_senses']+=1
+                if len(samples[d])<2 and (flags['no_senses'] or flags['pos_X']):
+                  samples[d].append({'id':str(row.get('entry_id',''))[:90],'pos':row.get('pos'),'entry_types':row.get('entry_types'),'source_roles':row.get('source_roles'),'has_senses':bool(ss),'has_relations':bool(rel),'field_names':sorted(row)})
+          result={'batch':batch,'part_files':sorted(p.name for p in inp.glob('*.gz')),'overall':dict(overall),'field_occurrences':dict(fields),'original_purpose_role_counts':dict(roles),'source_datasets':{k:dict(v) for k,v in sorted(datasets.items())},'limited_samples_by_source':dict(samples)}
+          out=Path('reports')/f'original-data-batch-{batch}.json'
+          out.write_text(json.dumps(result,ensure_ascii=False,indent=2,sort_keys=True)+'\n')
+          print('DJP_ORIGINAL_BATCH='+str(batch))
+          print('DJP_ORIGINAL_RECORDS='+str(overall['records']))
+          print('DJP_DATASET_GAPS='+json.dumps({k:{z:v for z,v in val.items() if z in ('records','no_senses','pos_X','no_roles','lexical_or_usage_without_senses')} for k,val in sorted(datasets.items())},ensure_ascii=False,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: djp-original-batch-${{ matrix.batch }}
+          path: reports/original-data-batch-*.json
+          if-no-files-found: warn
