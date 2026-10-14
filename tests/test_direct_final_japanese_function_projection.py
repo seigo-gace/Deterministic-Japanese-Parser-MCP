@@ -682,3 +682,31 @@ def test_original_67_source_registry_classifies_unlabeled_existing_datasets(tmp_
         "entity": 1, "morphology": 1, "translation": 1,
     }
     projection.validate_projection_bundle(tmp_path / "db")
+
+def test_original_translation_evidence_survives_canonical_dedup(tmp_path: Path):
+    import json
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [
+        _row("TRANS-A", surface="あお", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["blue"], pos=["名詞"]),
+        _row("TRANS-B", surface="あお", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["blue"], pos=["名詞"]),
+        _row("TRANS-C", surface="みどり", source_datasets=["dbcls-species-multilingual"],
+             source_roles=["translation"], translations=["green"], pos=["名詞"]),
+    ])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path, input_root=source, output_root=tmp_path / "db",
+    )
+    assert result["translation_evidence_count"] == 2
+    projection.validate_projection_bundle(tmp_path / "db")
+    db = sqlite3.connect(tmp_path / "db" / "projection.sqlite3")
+    try:
+        entries = list(db.execute(
+            "SELECT record_id,source_datasets,payload_json FROM record_translation_evidence "
+            "ORDER BY record_id"
+        ))
+    finally:
+        db.close()
+    assert [entry[0] for entry in entries] == ["TRANS-A", "TRANS-C"]
+    assert json.loads(entries[0][2]) == ["blue"]
+    assert "dbcls-species-multilingual" in json.loads(entries[0][1])
