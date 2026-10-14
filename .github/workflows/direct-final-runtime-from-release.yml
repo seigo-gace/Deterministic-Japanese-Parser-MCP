@@ -377,5 +377,6 @@ jobs:
             dictionaries/system/compiled/direct_final_integration.json
             dictionaries/system/compiled/direct_final_support
             work/direct-final-japanese-function-projection/manifest.json
+            work/direct-final-japanese-function-projection/projection.sqlite3
           if-no-files-found: warn
           retention-days: 30
