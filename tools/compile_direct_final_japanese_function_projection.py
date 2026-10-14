@@ -315,11 +315,41 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
     }
 
 
+def _load_context_expression_candidates(connection, root: Path) -> dict[str, int]:
+    """Index collected context data without approving its candidate meanings."""
+    import yaml
+
+    counts: Counter[str] = Counter()
+    paths = sorted(root.rglob("*.yaml"))
+    if not paths:
+        raise ValueError(f"context collection has no YAML records: {root}")
+    for path in paths:
+        record = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            raise ValueError(f"invalid context record: {path}")
+        entry_id = str(record.get("entry_id") or "").strip()
+        surface = str(record.get("surface") or "").strip()
+        category = str(record.get("feature_type") or record.get("category") or "").strip().casefold()
+        if not entry_id or not surface or not category:
+            raise ValueError(f"missing context identity/type: {path}")
+        review = str(record.get("review_status") or "needs-evidence").strip()
+        license_value = str(record.get("license") or "unknown").strip()
+        connection.execute(
+            "INSERT INTO context_expression_candidate"
+            "(entry_id,expression_attribute,surface,source_path,review_status,source_license)"
+            " VALUES(?,?,?,?,?,?)",
+            (entry_id, category, surface, str(path.relative_to(root)), review, license_value),
+        )
+        counts[category] += 1
+    return dict(sorted(counts.items()))
+
+
 def compile_direct_final_projection(
     *,
     manifest_path: Path,
     input_root: Path,
     output_root: Path,
+    context_root: Path | None = None,
 ) -> dict[str, Any]:
     manifest_path = Path(manifest_path)
     input_root = Path(input_root)
@@ -356,6 +386,7 @@ def compile_direct_final_projection(
         for name in ("pos", "entry_types", "source_datasets", "source_roles", "relation_types", "sense_labels", "semantic_targets", "usage_labels")
     }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
+    context_candidate_counts: dict[str, int] = {}
 
     try:
         for row in _rows(parts):
@@ -419,6 +450,11 @@ def compile_direct_final_projection(
                 for lane in lanes:
                     lane_counts[lane] += 1
 
+        if context_root is not None:
+            context_candidate_counts = _load_context_expression_candidates(
+                connection, Path(context_root)
+            )
+
         connection.executemany(
             "INSERT INTO unmapped_field_summary(field_name,record_count) VALUES(?,?)",
             sorted(unmapped_field_counts.items()),
@@ -466,6 +502,7 @@ def compile_direct_final_projection(
         "rejected_record_count": rejected_count,
         "purpose_unresolved_record_count": unresolved_purpose_count,
         "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
+        "context_candidate_counts": context_candidate_counts,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
         "duplicate_record_count": duplicate_count,
@@ -537,11 +574,16 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--input-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument(
+        "--context-root", type=Path,
+        default=_REPOSITORY_ROOT / "research/context_collection/expansion_v3",
+    )
     args = parser.parse_args()
     result = compile_direct_final_projection(
         manifest_path=args.manifest,
         input_root=args.input_root,
         output_root=args.output_root,
+        context_root=args.context_root,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
