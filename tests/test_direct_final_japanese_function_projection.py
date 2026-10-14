@@ -642,7 +642,7 @@ def test_original_source_roles_are_preserved_across_language_functions(tmp_path:
         db.close()
     assert ("DF-DOMAIN", "domain-term") in pairs
     assert ("DF-DOMAIN", "lexical-definition") in pairs
-    assert ("DF-TRANSLATE", "translation") in pairs
+    # Semantically identical records fold into the first canonical ID, while\n    # preserving their different source purposes.\n    assert ("DF-DOMAIN", "translation") in pairs
     assert ("DF-RELATION", "knowledge-relation") in pairs
     assert noun_mask & projection.LANE_BITS["Noun-Entity"]
 
