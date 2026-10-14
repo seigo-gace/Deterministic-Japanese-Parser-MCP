@@ -20,7 +20,7 @@ from typing import Any
 from .canonical_dictionary import validate_compiled_dictionary_root
 
 
-PROJECTION_SCHEMA_VERSION = "2.4.0"
+PROJECTION_SCHEMA_VERSION = "2.5.0"
 PROJECTION_POLICY_VERSION = "japanese-function-projection-v3"
 SCORING_POLICY_VERSION = "japanese-function-ranking-v1"
 
@@ -267,7 +267,12 @@ def _connect(path: Path) -> sqlite3.Connection:
             surface TEXT NOT NULL,
             source_path TEXT NOT NULL,
             review_status TEXT NOT NULL,
-            source_license TEXT NOT NULL
+            source_license TEXT NOT NULL,
+            reading TEXT NOT NULL,
+            variants_json TEXT NOT NULL,
+            meaning_candidates_json TEXT NOT NULL,
+            usage_context_json TEXT NOT NULL,
+            source_evidence_json TEXT NOT NULL
         ) WITHOUT ROWID;
         CREATE TABLE unmapped_field_summary(
             field_name TEXT PRIMARY KEY,
