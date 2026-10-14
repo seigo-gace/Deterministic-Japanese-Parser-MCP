@@ -180,6 +180,28 @@ def _explicit_expression_attributes(row: dict[str, Any]) -> list[str]:
     return sorted(attributes)
 
 
+def _load_declared_source_roles() -> dict[str, tuple[str, ...]]:
+    """Reuse the original 67-source intake contract, not inferred semantics."""
+    profiles = json.loads(
+        (_REPOSITORY_ROOT / "config/source_payload_profiles.json").read_text(encoding="utf-8")
+    )
+    return {
+        str(source["source_id"]): tuple(_unique(source.get("source_roles")))
+        for source in profiles["sources"]
+    }
+
+
+def _declared_record_roles(
+    row: dict[str, Any], source_profiles: dict[str, tuple[str, ...]]
+) -> list[str]:
+    # Original record-authored roles and source-registry roles are both evidence.
+    # These are *purpose labels*, not assertions that any candidate sense is approved.
+    roles = set(_unique(row.get("source_roles")))
+    for dataset in _unique(row.get("source_datasets")):
+        roles.update(source_profiles.get(dataset, ()))
+    return sorted(roles)
+
+
 def _category_profile_values(row: dict[str, Any]) -> dict[str, list[str]]:
     relation_types: list[str] = []
     for relation in row.get("relations") or []:
@@ -406,6 +428,7 @@ def compile_direct_final_projection(
     unresolved_purpose_count = 0
     expression_attribute_counts: Counter[str] = Counter()
     source_purpose_counts: Counter[str] = Counter()
+    source_profiles = _load_declared_source_roles()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -444,7 +467,7 @@ def compile_direct_final_projection(
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
             # Retain original, explicitly declared source responsibilities;
             # the 12 language-function lanes are not a replacement for these.
-            for source_role in _unique(row.get("source_roles")):
+            for source_role in _declared_record_roles(row, source_profiles):
                 connection.execute(
                     "INSERT INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
                     (record_id, source_role),
