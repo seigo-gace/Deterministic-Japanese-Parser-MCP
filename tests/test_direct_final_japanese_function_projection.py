@@ -538,6 +538,7 @@ def test_existing_context_candidates_are_stored_separately_from_approved_records
         context_root=context,
     )
     assert result["context_candidate_counts"] == {"dialect": 1, "slang": 1}
+    assert result["context_collection_counts"] == {"dialect": 1, "slang": 1}
     projection.validate_projection_bundle(tmp_path / "projection")
     db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
     try:
@@ -571,7 +572,7 @@ def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
         ).fetchone()[0]
     finally:
         db.close()
-    assert counts == {
+    assert counts["collection"] == {
         "dialect": 400,
         "discourse": 400,
         "epistemic": 200,
@@ -582,6 +583,16 @@ def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
         "onomatopoeia": 700,
         "reference": 300,
         "slang": 1000,
+    }
+    assert counts["expression"] == {
+        "dialect": 400,
+        "discourse": 400,
+        "honorific": 500,
+        "metaphor": 500,
+        "modality": 700,
+        "onomatopoeia": 700,
+        "reference": 300,
+        "slang": 1500,
     }
     assert total == 5000
     assert unreviewed == 5000
