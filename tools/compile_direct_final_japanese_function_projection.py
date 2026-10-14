@@ -315,7 +315,7 @@ def _projection_record(row: dict[str, Any], *, manifest_sha: str, version: str) 
     }
 
 
-def _load_context_expression_candidates(connection, root: Path) -> dict[str, int]:
+def _load_context_expression_candidates(connection, root: Path) -> dict[str, dict[str, int]]:
     """Index collected context data without approving its candidate meanings."""
     import yaml
 
