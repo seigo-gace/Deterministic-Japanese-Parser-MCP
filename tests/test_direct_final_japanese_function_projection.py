@@ -516,3 +516,41 @@ def test_expression_attributes_coexist_with_grammar_and_lexical_lanes(tmp_path: 
     assert all(record_id != "DF-NEG" for record_id, _ in pairs)
     assert noun_mask & projection.LANE_BITS["Noun-Entity"]
 
+
+def test_existing_context_candidates_are_stored_separately_from_approved_records(tmp_path: Path):
+    context = tmp_path / "context"
+    (context / "slang").mkdir(parents=True)
+    (context / "dialect").mkdir()
+    (context / "slang" / "a.yaml").write_text(
+        "entry_id: SLANG-a\nsurface: アオハル\nfeature_type: slang\n"
+        "review_status: needs-evidence\nlicense: 確認中\n", encoding="utf-8"
+    )
+    (context / "dialect" / "b.yaml").write_text(
+        "entry_id: DIALECT-b\nsurface: 西\nfeature_type: dialect\n"
+        "review_status: needs-evidence\nlicense: CC BY-SA 4.0\n", encoding="utf-8"
+    )
+    source = tmp_path / "source"
+    manifest_path = _write_bundle(source, [_row("DF-APPROVED")])
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+        context_root=context,
+    )
+    assert result["context_candidate_counts"] == {"dialect": 1, "slang": 1}
+    projection.validate_projection_bundle(tmp_path / "projection")
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        candidates = list(db.execute(
+            "SELECT entry_id,expression_attribute,review_status,source_license "
+            "FROM context_expression_candidate ORDER BY entry_id"
+        ))
+        registered = db.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0]
+    finally:
+        db.close()
+    assert registered == 1
+    assert candidates == [
+        ("DIALECT-b", "dialect", "needs-evidence", "CC BY-SA 4.0"),
+        ("SLANG-a", "slang", "needs-evidence", "確認中"),
+    ]
+
