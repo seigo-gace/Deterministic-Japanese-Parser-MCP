@@ -1,24 +1,6 @@
 name: Direct Final Runtime From GitHub Release
 
 on:
-  workflow_call:
-    inputs:
-      release-tag:
-        type: string
-        required: true
-      asset-pattern:
-        type: string
-        required: true
-      bundle-root:
-        type: string
-        required: false
-        default: ''
-      expected-records:
-        type: string
-        required: true
-      projection-full-build:
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       release-tag:
@@ -39,6 +21,25 @@ on:
         description: "Also build and audit the Japanese-function projection over every Direct Final record"
         required: true
         default: "false"
+
+  workflow_call:
+    inputs:
+      release-tag:
+        type: string
+        required: true
+      asset-pattern:
+        type: string
+        required: true
+      bundle-root:
+        type: string
+        required: false
+        default: ''
+      expected-records:
+        type: string
+        required: true
+      projection-full-build:
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -166,7 +167,7 @@ jobs:
           PY
 
       - name: Download Direct Final source bundle when required
-        if: steps.compiled-abi-cache.outputs.cache-hit != 'true' || steps.reuse-ready.outputs.ready != 'true' || env.PROJECTION_FULL_BUILD == 'true'
+        if: steps.compiled-abi-cache.outputs.cache-hit != 'true' || steps.reuse-ready.outputs.ready != 'true' || inputs['projection-full-build'] == 'true'
         run: |
           set -euo pipefail
           gh release download "$RELEASE_TAG" \
@@ -202,7 +203,7 @@ jobs:
             | tee reports/direct-final-compile.json
 
       - name: Build full Japanese-function projection
-        if: env.PROJECTION_FULL_BUILD == 'true'
+        if: inputs['projection-full-build'] == 'true'
         run: |
           set -euo pipefail
           if [ -n "$BUNDLE_ROOT" ]; then
@@ -218,7 +219,7 @@ jobs:
             | tee reports/direct-final-projection-full-build.json
 
       - name: Audit 9,852,513-record projection conservation
-        if: env.PROJECTION_FULL_BUILD == 'true'
+        if: inputs['projection-full-build'] == 'true'
         run: |
           python - <<'PY'
           import json
@@ -307,7 +308,7 @@ jobs:
           PY
 
       - name: Verify projection adapter regression tests
-        if: env.PROJECTION_FULL_BUILD == 'true'
+        if: inputs['projection-full-build'] == 'true'
         run: python -m pytest tests/test_direct_final_japanese_function_projection.py tests/test_japanese_function_projection.py
 
       - name: Enforce completed semantic deployment contract
