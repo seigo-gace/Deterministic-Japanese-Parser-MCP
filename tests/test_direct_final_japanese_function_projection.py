@@ -433,3 +433,40 @@ def test_registered_usage_role_is_still_preserved():
     assert "register-formal" in labels
     assert "usage" in labels
 
+
+def test_orthography_only_records_are_tracked_as_unresolved_reading_use(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row(
+            "DF-UNRESOLVED",
+            pos=[],
+            senses=[],
+            relations=[],
+            entry_types=[],
+            source_roles=[],
+            semantic_targets=[],
+            usage_labels=[],
+            pragmatics={},
+        ),
+        _row("DF-NOUN", pos=["名詞"], senses=[], relations=[], entry_types=[]),
+    ]
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["canonical_record_count"] == 2
+    assert result["projected_record_count"] == 2
+    assert result["purpose_unresolved_record_count"] == 1
+    validated = projection.validate_projection_bundle(tmp_path / "projection")
+    assert validated["purpose_unresolved_record_count"] == 1
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        unresolved = list(db.execute(
+            "SELECT record_id,reason FROM purpose_unresolved_record ORDER BY record_id"
+        ))
+    finally:
+        db.close()
+    assert unresolved == [("DF-UNRESOLVED", "no_supported_japanese_reading_use")]
+
