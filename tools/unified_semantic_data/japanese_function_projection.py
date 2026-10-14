@@ -20,7 +20,7 @@ from typing import Any
 from .canonical_dictionary import validate_compiled_dictionary_root
 
 
-PROJECTION_SCHEMA_VERSION = "2.0.0"
+PROJECTION_SCHEMA_VERSION = "2.1.0"
 PROJECTION_POLICY_VERSION = "japanese-function-projection-v3"
 SCORING_POLICY_VERSION = "japanese-function-ranking-v1"
 
@@ -251,6 +251,10 @@ def _connect(path: Path) -> sqlite3.Connection:
             record_id TEXT PRIMARY KEY,
             reason TEXT NOT NULL
         ) WITHOUT ROWID;
+        CREATE TABLE purpose_unresolved_record(
+            record_id TEXT PRIMARY KEY,
+            reason TEXT NOT NULL
+        ) WITHOUT ROWID;
         CREATE TABLE unmapped_field_summary(
             field_name TEXT PRIMARY KEY,
             record_count INTEGER NOT NULL CHECK(record_count > 0)
@@ -295,6 +299,7 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         projected = int(connection.execute("SELECT COUNT(*) FROM record_projection").fetchone()[0])
         rejected = int(connection.execute("SELECT COUNT(*) FROM rejected_record").fetchone()[0])
         duplicates = int(connection.execute("SELECT COUNT(*) FROM duplicate_record").fetchone()[0])
+        unresolved_purpose = int(connection.execute("SELECT COUNT(*) FROM purpose_unresolved_record").fetchone()[0])
         unmapped = int(
             connection.execute(
                 "SELECT COALESCE(SUM(record_count),0) FROM unmapped_field_summary"
@@ -324,6 +329,10 @@ def validate_projection_bundle(root: Path) -> dict[str, Any]:
         raise ValueError("projection bundle unmapped field count mismatch")
     if duplicates != int(manifest.get("duplicate_record_count", 0)):
         raise ValueError("projection bundle duplicate record count mismatch")
+    if unresolved_purpose != int(manifest.get("purpose_unresolved_record_count", 0)):
+        raise ValueError("projection bundle purpose unresolved count mismatch")
+    if unresolved_purpose > projected:
+        raise ValueError("projection bundle purpose unresolved exceeds projected records")
     source_count = int(manifest.get("canonical_record_count", -1))
     if projected + rejected + duplicates != source_count:
         raise ValueError("projection bundle conservation mismatch")
