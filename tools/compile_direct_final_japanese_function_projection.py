@@ -320,6 +320,7 @@ def _load_context_expression_candidates(connection, root: Path) -> dict[str, int
     import yaml
 
     counts: Counter[str] = Counter()
+    collection_counts: Counter[str] = Counter()
     paths = sorted(root.rglob("*.yaml"))
     if not paths:
         raise ValueError(f"context collection has no YAML records: {root}")
@@ -332,16 +333,18 @@ def _load_context_expression_candidates(connection, root: Path) -> dict[str, int
         category = str(record.get("feature_type") or record.get("category") or "").strip().casefold()
         if not entry_id or not surface or not category:
             raise ValueError(f"missing context identity/type: {path}")
+        collection_category = path.relative_to(root).parts[0]
+        collection_counts[collection_category] += 1
         review = str(record.get("review_status") or "needs-evidence").strip()
         license_value = str(record.get("license") or "unknown").strip()
         connection.execute(
             "INSERT INTO context_expression_candidate"
-            "(entry_id,expression_attribute,surface,source_path,review_status,source_license)"
-            " VALUES(?,?,?,?,?,?)",
-            (entry_id, category, surface, str(path.relative_to(root)), review, license_value),
+            "(entry_id,expression_attribute,collection_category,surface,source_path,review_status,source_license)"
+            " VALUES(?,?,?,?,?,?,?)",
+            (entry_id, category, collection_category, surface, str(path.relative_to(root)), review, license_value),
         )
         counts[category] += 1
-    return dict(sorted(counts.items()))
+    return {"expression": dict(sorted(counts.items())), "collection": dict(sorted(collection_counts.items()))}
 
 
 def compile_direct_final_projection(
@@ -387,6 +390,7 @@ def compile_direct_final_projection(
     }
     version = str(source_manifest.get("date") or source_manifest.get("version") or "direct-final-runtime-v1")
     context_candidate_counts: dict[str, int] = {}
+    context_collection_counts: dict[str, int] = {}
 
     try:
         for row in _rows(parts):
@@ -451,9 +455,11 @@ def compile_direct_final_projection(
                     lane_counts[lane] += 1
 
         if context_root is not None:
-            context_candidate_counts = _load_context_expression_candidates(
+            context_summary = _load_context_expression_candidates(
                 connection, Path(context_root)
             )
+            context_candidate_counts = context_summary["expression"]
+            context_collection_counts = context_summary["collection"]
 
         connection.executemany(
             "INSERT INTO unmapped_field_summary(field_name,record_count) VALUES(?,?)",
@@ -503,6 +509,7 @@ def compile_direct_final_projection(
         "purpose_unresolved_record_count": unresolved_purpose_count,
         "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
         "context_candidate_counts": context_candidate_counts,
+        "context_collection_counts": context_collection_counts,
         "lane_membership_count": membership_count,
         "unmapped_field_count": unmapped_count,
         "duplicate_record_count": duplicate_count,
