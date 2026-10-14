@@ -459,6 +459,13 @@ def test_orthography_only_records_are_tracked_as_unresolved_reading_use(tmp_path
     assert result["canonical_record_count"] == 2
     assert result["projected_record_count"] == 2
     assert result["purpose_unresolved_record_count"] == 1
+    assert sum(v["purpose_unresolved"] for v in result["source_dataset_purpose_audit"].values()) >= 1
+    assert "unmapped_field_counts_by_name" in result
+    for dataset, counts in result["source_dataset_purpose_audit"].items():
+        assert counts["purpose_unresolved"] <= counts["records"]
+        assert counts["pos_X"] <= counts["records"]
+        assert sum(counts["lanes"].values()) >= counts["records"]
+
     validated = projection.validate_projection_bundle(tmp_path / "projection")
     assert validated["purpose_unresolved_record_count"] == 1
     db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
