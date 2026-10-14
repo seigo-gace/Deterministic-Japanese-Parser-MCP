@@ -467,7 +467,8 @@ def compile_direct_final_projection(
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
             # Retain original, explicitly declared source responsibilities;
             # the 12 language-function lanes are not a replacement for these.
-            for source_role in _declared_record_roles(row, source_profiles):
+            declared_roles = _declared_record_roles(row, source_profiles)
+            for source_role in declared_roles:
                 connection.execute(
                     "INSERT INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
                     (record_id, source_role),
@@ -499,7 +500,7 @@ def compile_direct_final_projection(
                 reading_use_lanes = set(lanes) - {
                     "Orthography/Reading", "Evidence-Provenance-Rights",
                 }
-                if not reading_use_lanes:
+                if not reading_use_lanes and not declared_roles:
                     connection.execute(
                         "INSERT INTO purpose_unresolved_record(record_id,reason) VALUES(?,?)",
                         (record_id, "no_supported_japanese_reading_use"),
