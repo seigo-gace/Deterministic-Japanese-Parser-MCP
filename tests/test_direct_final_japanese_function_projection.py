@@ -570,6 +570,10 @@ def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
             "SELECT COUNT(*) FROM context_expression_candidate "
             "WHERE review_status='needs-evidence'"
         ).fetchone()[0]
+        sample = db.execute(
+            "SELECT meaning_candidates_json,usage_context_json,source_evidence_json "
+            "FROM context_expression_candidate WHERE entry_id='SLANG-ac9c9bea5684'"
+        ).fetchone()
     finally:
         db.close()
     assert counts["collection"] == {
@@ -596,4 +600,11 @@ def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
     }
     assert total == 5000
     assert unreviewed == 5000
+    assert sample is not None
+    import json
+    meanings, context, evidence = (json.loads(v) for v in sample)
+    assert meanings and "Young" in str(meanings[0].get("meaning", ""))
+    assert "若者" in context.get("community", [])
+    assert evidence.get("source")
+
 
