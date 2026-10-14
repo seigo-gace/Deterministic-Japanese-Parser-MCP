@@ -476,8 +476,17 @@ def compile_direct_final_projection(
                 )
                 if cursor.rowcount:
                     source_purpose_counts[source_role] += 1
+            # Expressive attributes also survive source-level duplicates.
+            attributes = _explicit_expression_attributes(row)
+            for attribute in attributes:
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO record_expression_attribute(record_id,attribute) VALUES(?,?)",
+                    (canonical_id, attribute),
+                )
+                if cursor.rowcount:
+                    expression_attribute_counts[attribute] += 1
             if existing is not None:
-                if declared_roles:
+                if declared_roles or attributes:
                     deleted = connection.execute(
                         "DELETE FROM purpose_unresolved_record WHERE record_id=?",
                         (canonical_id,),
@@ -485,14 +494,6 @@ def compile_direct_final_projection(
                     unresolved_purpose_count -= deleted
                 continue
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
-            # Orthogonal expression classification does not claim approved
-            # lexical meaning, POS, or Japanese grammar membership.
-            for attribute in _explicit_expression_attributes(row):
-                connection.execute(
-                    "INSERT INTO record_expression_attribute(record_id,attribute) VALUES(?,?)",
-                    (record_id, attribute),
-                )
-                expression_attribute_counts[attribute] += 1
             lanes = projection.assign_record_lanes(record)
             if not lanes:
                 connection.execute(
@@ -511,7 +512,7 @@ def compile_direct_final_projection(
                 reading_use_lanes = set(lanes) - {
                     "Orthography/Reading", "Evidence-Provenance-Rights",
                 }
-                if not reading_use_lanes and not declared_roles:
+                if not reading_use_lanes and not declared_roles and not attributes:
                     connection.execute(
                         "INSERT INTO purpose_unresolved_record(record_id,reason) VALUES(?,?)",
                         (record_id, "no_supported_japanese_reading_use"),
