@@ -609,3 +609,39 @@ def test_checked_in_5000_context_candidates_are_all_indexable(tmp_path: Path):
     assert evidence.get("source")
 
 
+
+def test_original_source_roles_are_preserved_across_language_functions(tmp_path: Path):
+    source = tmp_path / "source"
+    rows = [
+        _row("DF-DOMAIN", pos=["名詞"], source_roles=["domain-term", "lexical-definition"]),
+        _row("DF-TRANSLATE", pos=["名詞"], source_roles=["translation"]),
+        _row("DF-RELATION", pos=["X"], source_roles=["knowledge-relation"]),
+    ]
+    manifest_path = _write_bundle(source, rows)
+    result = compile_direct_final_projection(
+        manifest_path=manifest_path,
+        input_root=source,
+        output_root=tmp_path / "projection",
+    )
+    assert result["source_purpose_counts"] == {
+        "domain-term": 1,
+        "knowledge-relation": 1,
+        "lexical-definition": 1,
+        "translation": 1,
+    }
+    projection.validate_projection_bundle(tmp_path / "projection")
+    db = sqlite3.connect(tmp_path / "projection" / "projection.sqlite3")
+    try:
+        pairs = set(db.execute(
+            "SELECT record_id,source_role FROM record_source_purpose"
+        ))
+        noun_mask = db.execute(
+            "SELECT lane_mask FROM record_projection WHERE record_id='DF-DOMAIN'"
+        ).fetchone()[0]
+    finally:
+        db.close()
+    assert ("DF-DOMAIN", "domain-term") in pairs
+    assert ("DF-DOMAIN", "lexical-definition") in pairs
+    assert ("DF-TRANSLATE", "translation") in pairs
+    assert ("DF-RELATION", "knowledge-relation") in pairs
+    assert noun_mask & projection.LANE_BITS["Noun-Entity"]
