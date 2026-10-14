@@ -405,6 +405,7 @@ def compile_direct_final_projection(
     duplicate_count = 0
     unresolved_purpose_count = 0
     expression_attribute_counts: Counter[str] = Counter()
+    source_purpose_counts: Counter[str] = Counter()
     unmapped_field_counts: Counter[str] = Counter()
     lane_counts = {lane: 0 for lane in projection.LANES}
     category_profiles = {
@@ -441,6 +442,14 @@ def compile_direct_final_projection(
                 (identity_sha, record_id),
             )
             record = _projection_record(row, manifest_sha=manifest_sha, version=version)
+            # Retain original, explicitly declared source responsibilities;
+            # the 12 language-function lanes are not a replacement for these.
+            for source_role in _unique(row.get("source_roles")):
+                connection.execute(
+                    "INSERT INTO record_source_purpose(record_id,source_role) VALUES(?,?)",
+                    (record_id, source_role),
+                )
+                source_purpose_counts[source_role] += 1
             # Orthogonal expression classification does not claim approved
             # lexical meaning, POS, or Japanese grammar membership.
             for attribute in _explicit_expression_attributes(row):
@@ -531,6 +540,7 @@ def compile_direct_final_projection(
         "rejected_record_count": rejected_count,
         "purpose_unresolved_record_count": unresolved_purpose_count,
         "expression_attribute_counts": dict(sorted(expression_attribute_counts.items())),
+        "source_purpose_counts": dict(sorted(source_purpose_counts.items())),
         "context_candidate_counts": context_candidate_counts,
         "context_collection_counts": context_collection_counts,
         "lane_membership_count": membership_count,
